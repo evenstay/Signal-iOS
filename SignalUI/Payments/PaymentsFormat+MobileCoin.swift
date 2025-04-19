@@ -133,11 +133,10 @@ public extension PaymentsFormat {
         return text
     }
 
-    @objc
     static func paymentPreviewText(
         paymentMessage: OWSPaymentMessage,
         type: OWSInteractionType,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> String? {
         // Shared
         guard
@@ -154,14 +153,14 @@ public extension PaymentsFormat {
 
     static func paymentPreviewText(
         receipt: Data,
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         type: OWSInteractionType
     ) -> String? {
         // Payment Amount
         guard let amount: UInt64 = {
             switch type {
             case .incomingMessage:
-                return Self.paymentsImpl.unmaskReceiptAmount(data: receipt)?.value
+                return SUIEnvironment.shared.paymentsImplRef.unmaskReceiptAmount(data: receipt)?.value
             case .outgoingMessage:
                 guard let paymentModel = PaymentFinder.paymentModels(
                     forMcReceiptData: receipt,
@@ -183,7 +182,7 @@ public extension PaymentsFormat {
 
     static func paymentPreviewText(
         amount: UInt64,
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         type: OWSInteractionType
     ) -> String? {
         // Formatted Payment Amount

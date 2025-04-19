@@ -14,6 +14,11 @@ extension JobRecord {
     /// some columns have been reused across multiple job types.
     public enum JobRecordColumns: String, CodingKey, ColumnExpression, CaseIterable {
 
+        // MARK: Unused/Deprecated columns
+
+        /// Previously used by `DonationReceiptCredentialRedemptionJobRecord`.
+        case shouldSuppressPaymentAlreadyRedeemed
+
         // MARK: GRDB columns
 
         case id
@@ -49,19 +54,10 @@ extension JobRecord {
         case ICSJR_digest
         case ICSJR_plaintextLength
 
-        // MARK: IncomingContactSyncJobRecord & IncomingGroupSyncJobRecord
-
-        case legacyAttachmentId = "attachmentId"
-
         // MARK: LocalUserLeaveGroupJobRecord
 
         case replacementAdminAciString = "replacementAdminUuid"
         case waitForMessageProcessing
-
-        // MARK: TSAttachmentMultisendJobRecord
-
-        case attachmentIdMap
-        case unsavedMessagesToSend
 
         // MARK: SessionResetJobRecord
 
@@ -76,9 +72,10 @@ extension JobRecord {
         case paypalPaymentId
         case paypalPaymentToken
 
-        // MARK: ReceiptCredentialRedemptionJobRecord
+        // MARK: DonationReceiptCredentialRedemptionJobRecord
 
-        case receiptCredentialPresentation
+        case _receiptCredentialPresentation = "receiptCredentialPresentation"
+        case _receiptCredential = "receiptCredential"
 
         case isBoost
 
@@ -86,9 +83,8 @@ extension JobRecord {
         case targetSubscriptionLevel
         case priorSubscriptionLevel
         case isNewSubscription
-        case shouldSuppressPaymentAlreadyRedeemed
 
-        // MARK: SendGiftBadgeJobRecord & ReceiptCredentialRedemptionJobRecord
+        // MARK: SendGiftBadgeJobRecord & DonationReceiptCredentialRedemptionJobRecord
 
         case amount
         case currencyCode
@@ -116,5 +112,9 @@ extension JobRecord {
         case BDIJR_anchorMessageRowId = "BDIJR_anchorMessageRowId"
         case BDIJR_fullThreadDeletionAnchorMessageRowId = "BDIJR_fullThreadDeletionAnchorMessageRowId"
         case BDIJR_threadUniqueId = "BDIJR_threadUniqueId"
+
+        // MARK: BackupReceiptCredentialRedemptionJobRecord
+
+        case BRCRJR_state = "BRCRJR_state"
     }
 }

@@ -50,7 +50,7 @@ public class QuotedReplyModel {
         /// though it may not actually be thumbnail-ed *yet*.
         case attachment(
             MessageBody?,
-            attachment: ReferencedTSResource,
+            attachment: ReferencedAttachment,
             thumbnailImage: UIImage?
         )
 
@@ -58,7 +58,7 @@ public class QuotedReplyModel {
 
         case mediaStory(
             body: StyleOnlyMessageBody?,
-            attachment: ReferencedTSResource,
+            attachment: ReferencedAttachment,
             thumbnailImage: UIImage?
         )
 
@@ -109,7 +109,7 @@ public class QuotedReplyModel {
             }
         }
 
-        public var attachmentCachedContentType: TSResourceContentType? {
+        public var attachmentContentType: Attachment.ContentType? {
             switch self {
             case .text(_):
                 return nil
@@ -120,9 +120,9 @@ public class QuotedReplyModel {
             case .attachmentStub(_, _):
                 return nil
             case .attachment(_, let attachment, _):
-                return attachment.attachment.asResourceStream()?.cachedContentType
+                return attachment.attachment.asStream()?.contentType
             case .mediaStory(_, let attachment, _):
-                return attachment.attachment.asResourceStream()?.cachedContentType
+                return attachment.attachment.asStream()?.contentType
             case .textStory(_):
                 return nil
             case .expiredStory:
@@ -213,10 +213,10 @@ public class QuotedReplyModel {
     public static func build(
         replyingTo storyMessage: StoryMessage,
         reactionEmoji: String? = nil,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> QuotedReplyModel {
         let isOriginalAuthorLocalUser = DependenciesBridge.shared.tsAccountManager
-            .localIdentifiers(tx: transaction.asV2Read)?
+            .localIdentifiers(tx: transaction)?
             .aciAddress
             .isEqualToAddress(storyMessage.authorAddress)
             ?? false
@@ -235,30 +235,32 @@ public class QuotedReplyModel {
         }
 
         switch storyMessage.attachment {
-        case .file, .foreignReferenceAttachment:
-            let attachmentReference = DependenciesBridge.shared.tsResourceStore.mediaAttachment(for: storyMessage, tx: transaction.asV2Read)
-            let attachment = attachmentReference?.fetch(tx: transaction)
+        case .media:
+            let referencedAttachment = storyMessage.id.map {
+                return DependenciesBridge.shared.attachmentStore
+                    .fetchFirstReferencedAttachment(
+                        for: .storyMessageMedia(storyMessageRowId: $0),
+                        tx: transaction
+                    )
+            } ?? nil
 
-            let referencedAttachment: ReferencedTSResource
             let thumbnailImage: UIImage?
-            if let attachmentReference, let attachment {
-                referencedAttachment = .init(reference: attachmentReference, attachment: attachment)
-
-                if let stream = attachment.asResourceStream() {
+            if let referencedAttachment {
+                if let stream = referencedAttachment.attachment.asStream() {
                     thumbnailImage = stream.thumbnailImageSync(quality: .small)
-                } else if let blurHash = attachment.resourceBlurHash {
+                } else if let blurHash = referencedAttachment.attachment.blurHash {
                     thumbnailImage = BlurHash.image(for: blurHash)
                 } else {
                     thumbnailImage = nil
                 }
+                return buildQuotedReplyModel(originalContent: .mediaStory(
+                    body: referencedAttachment.reference.storyMediaCaption,
+                    attachment: referencedAttachment,
+                    thumbnailImage: thumbnailImage
+                ))
             } else {
                 return buildQuotedReplyModel(originalContent: .expiredStory)
             }
-            return buildQuotedReplyModel(originalContent: .mediaStory(
-                body: attachmentReference?.storyMediaCaption,
-                attachment: referencedAttachment,
-                thumbnailImage: thumbnailImage
-            ))
 
         case .text(let textAttachment):
             let preloadedTextAttachment = PreloadedTextAttachment.from(
@@ -278,17 +280,20 @@ public class QuotedReplyModel {
 
     public static func build(
         storyReplyMessage message: TSMessage,
-        storyTimestamp: UInt64,
+        storyTimestamp: UInt64?,
         storyAuthorAci: Aci,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> QuotedReplyModel {
-        guard let storyMessage = StoryFinder.story(
-            timestamp: storyTimestamp,
-            author: storyAuthorAci,
-            transaction: transaction
-        ) else {
+        guard
+            let storyTimestamp,
+            let storyMessage = StoryFinder.story(
+                timestamp: storyTimestamp,
+                author: storyAuthorAci,
+                transaction: transaction
+            )
+        else {
             let isOriginalMessageAuthorLocalUser = DependenciesBridge.shared.tsAccountManager
-                .localIdentifiers(tx: transaction.asV2Read)?
+                .localIdentifiers(tx: transaction)?
                 .aci == storyAuthorAci
             return QuotedReplyModel(
                 originalMessageTimestamp: storyTimestamp,
@@ -310,15 +315,21 @@ public class QuotedReplyModel {
     public static func build(
         replyMessage message: TSMessage,
         quotedMessage: TSQuotedMessage,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> QuotedReplyModel {
         func buildQuotedReplyModel(
             originalContent: OriginalContent
         ) -> QuotedReplyModel {
+            let isOriginalAuthorLocalUser = DependenciesBridge.shared.tsAccountManager
+                .localIdentifiers(tx: transaction)?
+                .aciAddress
+                .isEqualToAddress(quotedMessage.authorAddress)
+                ?? false
+
             return QuotedReplyModel(
                 originalMessageTimestamp: quotedMessage.timestampValue?.uint64Value,
                 originalMessageAuthorAddress: quotedMessage.authorAddress,
-                isOriginalMessageAuthorLocalUser: message.isOutgoing,
+                isOriginalMessageAuthorLocalUser: isOriginalAuthorLocalUser,
                 storyReactionEmoji: nil,
                 originalContent: originalContent,
                 sourceOfOriginal: quotedMessage.bodySource
@@ -333,9 +344,19 @@ public class QuotedReplyModel {
             return buildQuotedReplyModel(originalContent: .giftBadge)
         }
 
-        let attachmentReference = DependenciesBridge.shared.tsResourceStore.quotedAttachmentReference(
+        if quotedMessage.isTargetMessageViewOnce {
+            return buildQuotedReplyModel(originalContent: .text(.init(
+                text: OWSLocalizedString(
+                    "PER_MESSAGE_EXPIRATION_NOT_VIEWABLE",
+                    comment: "inbox cell and notification text for an already viewed view-once media message."
+                ),
+                ranges: .empty
+            )))
+        }
+
+        let attachmentReference = DependenciesBridge.shared.attachmentStore.quotedAttachmentReference(
             for: message,
-            tx: transaction.asV2Read
+            tx: transaction
         )
 
         switch attachmentReference {
@@ -345,22 +366,18 @@ public class QuotedReplyModel {
             return buildQuotedReplyModel(originalContent: .attachmentStub(originalMessageBody, stub))
         case .thumbnail(let attachmentRef):
             // Fetch the full attachment.
-            let thumbnailAttachment = DependenciesBridge.shared.tsResourceStore.fetch(
-                attachmentRef.resourceId,
-                tx: transaction.asV2Read
+            let thumbnailAttachment = DependenciesBridge.shared.attachmentStore.fetch(
+                id: attachmentRef.attachmentRowId,
+                tx: transaction
             )
             let image: UIImage? = {
                 if
                     let thumbnailAttachment,
-                    let image = DependenciesBridge.shared.tsResourceManager.thumbnailImage(
-                        attachment: thumbnailAttachment,
-                        parentMessage: message,
-                        tx: transaction.asV2Read
-                    )
+                    let image = thumbnailAttachment.asStream()?.thumbnailImageSync(quality: .small)
                 {
                     return image
                 } else if
-                    let blurHash = thumbnailAttachment?.resourceBlurHash,
+                    let blurHash = thumbnailAttachment?.blurHash,
                     let image = BlurHash.image(for: blurHash)
                 {
                     return image
@@ -377,14 +394,14 @@ public class QuotedReplyModel {
                     author: quotedMessage.authorAddress,
                     transaction: transaction
                 ),
-                let originalAttachmentReference = DependenciesBridge.shared.tsResourceStore
+                let originalAttachmentReference = DependenciesBridge.shared.attachmentStore
                     .attachmentToUseInQuote(
-                        originalMessage: originalMessage,
-                        tx: transaction.asV2Read
+                        originalMessageRowId: originalMessage.sqliteRowId!,
+                        tx: transaction
                     ),
-                let originalAttachment = DependenciesBridge.shared.tsResourceStore.fetch(
-                    originalAttachmentReference.resourceId,
-                    tx: transaction.asV2Read
+                let originalAttachment = DependenciesBridge.shared.attachmentStore.fetch(
+                    id: originalAttachmentReference.attachmentRowId,
+                    tx: transaction
                 )
             {
                 return buildQuotedReplyModel(originalContent: .attachment(
@@ -452,11 +469,11 @@ extension QuotedReplyModel.OriginalContent: Equatable {
             return lhsBody == rhsBody && lhsStub == rhsStub
         case let (.attachment(lhsBody, lhsAttachment, lhsImage), .attachment(rhsBody, rhsAttachment, rhsImage)):
             return lhsBody == rhsBody
-                && lhsAttachment.attachment.resourceId == rhsAttachment.attachment.resourceId
+                && lhsAttachment.attachment.id == rhsAttachment.attachment.id
                 && lhsImage == rhsImage
         case let (.mediaStory(lhsBody, lhsAttachment, lhsImage), .mediaStory(rhsBody, rhsAttachment, rhsImage)):
             return lhsBody == rhsBody
-                && lhsAttachment.attachment.resourceId == rhsAttachment.attachment.resourceId
+                && lhsAttachment.attachment.id == rhsAttachment.attachment.id
                 && lhsImage == rhsImage
         case (.textStory(_), .textStory(_)):
             /// Defensively re-render every time.

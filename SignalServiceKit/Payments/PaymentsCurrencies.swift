@@ -5,7 +5,6 @@
 
 import Foundation
 
-@objc
 public protocol PaymentsCurrencies: AnyObject {
 
     // Expressed as a ratio:
@@ -15,9 +14,9 @@ public protocol PaymentsCurrencies: AnyObject {
 
     var currentCurrencyCode: Currency.Code { get }
 
-    func setCurrentCurrencyCode(_ currencyCode: Currency.Code, transaction: SDSAnyWriteTransaction)
+    func setCurrentCurrencyCode(_ currencyCode: Currency.Code, transaction: DBWriteTransaction)
 
-    func updateConversationRatesIfStale()
+    func updateConversionRates()
 
     func warmCaches()
 }
@@ -87,11 +86,11 @@ public struct CurrencyConversionInfo {
 
 // MARK: -
 
-public class MockPaymentsCurrencies: NSObject, PaymentsCurrenciesSwift, PaymentsCurrencies {
+public class MockPaymentsCurrencies: PaymentsCurrenciesSwift, PaymentsCurrencies {
 
     public let currentCurrencyCode: Currency.Code = PaymentsConstants.currencyCodeGBP
 
-    public func setCurrentCurrencyCode(_ currencyCode: Currency.Code, transaction: SDSAnyWriteTransaction) {
+    public func setCurrentCurrencyCode(_ currencyCode: Currency.Code, transaction: DBWriteTransaction) {
         owsFail("Not implemented.")
     }
 
@@ -103,7 +102,7 @@ public class MockPaymentsCurrencies: NSObject, PaymentsCurrenciesSwift, Payments
 
     public let supportedCurrencyInfosWithCurrencyConversions: [Currency.Info] = []
 
-    public func updateConversationRatesIfStale() {}
+    public func updateConversionRates() {}
 
     public func conversionInfo(forCurrencyCode currencyCode: Currency.Code) -> CurrencyConversionInfo? {
         return nil

@@ -21,7 +21,7 @@ final class DisappearingMessageFinderTest: SSKBaseTest {
 
     private lazy var otherAddress = SignalServiceAddress(Aci.randomForTesting())
 
-    private func thread(with transaction: SDSAnyWriteTransaction) -> TSThread {
+    private func thread(with transaction: DBWriteTransaction) -> TSThread {
         TSContactThread.getOrCreateThread(
             withContactAddress: otherAddress,
             transaction: transaction
@@ -129,7 +129,7 @@ final class DisappearingMessageFinderTest: SSKBaseTest {
             expireStartedAt: 0
         )
 
-        let rowIds = try databaseStorage.read { tx in
+        let rowIds = try SSKEnvironment.shared.databaseStorageRef.read { tx in
             try InteractionFinder.fetchSomeExpiredMessageRowIds(now: now, limit: 3, tx: tx)
         }
         XCTAssertEqual(Set(rowIds), [expiredMessage1.sqliteRowId!, expiredMessage2.sqliteRowId!])
@@ -218,8 +218,8 @@ final class DisappearingMessageFinderTest: SSKBaseTest {
             ] {
                 // To model production behavior, mark messages as "sent" before
                 // optionally marking as "delivered" or "read".
-                message.updateWithSentRecipient(
-                    otherAddress.serviceId!,
+                message.updateWithSentRecipients(
+                    [otherAddress.serviceId!],
                     wasSentByUD: false,
                     transaction: transaction
                 )
@@ -227,14 +227,14 @@ final class DisappearingMessageFinderTest: SSKBaseTest {
 
             expiringDeliveredOutgoingMessage.update(
                 withDeliveredRecipient: otherAddress,
-                deviceId: 0,
+                deviceId: DeviceId(validating: 1)!,
                 deliveryTimestamp: now,
                 context: PassthroughDeliveryReceiptContext(),
                 tx: transaction
             )
             expiringDeliveredAndReadOutgoingMessage.update(
                 withReadRecipient: otherAddress,
-                deviceId: 0,
+                deviceId: DeviceId(validating: 1)!,
                 readTimestamp: now,
                 tx: transaction
             )

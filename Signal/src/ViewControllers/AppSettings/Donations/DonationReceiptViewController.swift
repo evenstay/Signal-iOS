@@ -90,7 +90,7 @@ class DonationReceiptViewController: OWSTableViewController2 {
                 let model = self.model
 
                 let amountLabel = UILabel()
-                amountLabel.text = DonationUtilities.format(money: model.amount)
+                amountLabel.text = CurrencyFormatter.format(money: model.amount)
                 amountLabel.textColor = Theme.primaryTextColor
                 amountLabel.font = .preferredFont(forTextStyle: .largeTitle)
                 amountLabel.adjustsFontForContentSizeCategory = true
@@ -213,7 +213,8 @@ class DonationReceiptViewController: OWSTableViewController2 {
         private class func headerView() -> UIView {
             let signalLogo = UIImage(named: "signal-full-logo")
             let signalLogoView = UIImageView(image: signalLogo)
-            signalLogoView.autoSetDimensions(to: CGSize(width: 100, height: 31))
+
+            signalLogoView.autoSetDimensions(to: CGSize(width: 140, height: 40))
 
             let currentDateView = label(dateFormatter().string(from: Date()),
                                         fontSize: 13,
@@ -236,7 +237,7 @@ class DonationReceiptViewController: OWSTableViewController2 {
         private class func amountView(donationReceipt: DonationReceipt) -> UIView {
             let arrangedSubviews = [
                 label(OWSLocalizedString("DONATION_RECEIPT_AMOUNT", comment: "Section title for donation amount on receipts")),
-                label(DonationUtilities.format(money: donationReceipt.amount), isAlignedToEdge: true)
+                label(CurrencyFormatter.format(money: donationReceipt.amount), isAlignedToEdge: true)
             ]
             let amountView = UIStackView(arrangedSubviews: arrangedSubviews)
             amountView.axis = .horizontal

@@ -62,7 +62,7 @@ class AdvancedPinSettingsTableViewController: OWSTableViewController2 {
         if hasMasterKey && !hasBackedUpMasterKey {
             enablePin()
         } else {
-            if self.paymentsHelper.arePaymentsEnabled,
+            if SSKEnvironment.shared.paymentsHelperRef.arePaymentsEnabled,
                !PaymentsSettingsViewController.hasReviewedPassphraseWithSneakyTransaction() {
                 showReviewPassphraseAlertUI()
             } else {
@@ -115,7 +115,7 @@ class AdvancedPinSettingsTableViewController: OWSTableViewController2 {
     }
 
     private func showRecordPaymentsPassphraseUI() {
-        guard let passphrase = paymentsSwift.passphrase else {
+        guard let passphrase = SUIEnvironment.shared.paymentsSwiftRef.passphrase else {
             owsFailDebug("Missing passphrase.")
             return
         }

@@ -9,7 +9,7 @@ import XCTest
 
 private extension SSKSignedPreKeyStore {
     func loadSignedPreKey(_ id: Int32) -> SignedPreKeyRecord? {
-        return self.databaseStorage.read { transaction in
+        return SSKEnvironment.shared.databaseStorageRef.read { transaction in
             loadSignedPreKey(id, transaction: transaction)
         }
     }
@@ -24,14 +24,14 @@ class SSKSignedPreKeyStoreTest: SSKBaseTest {
         let lastPreKeyId = days
 
         for i in 0...days { // 4 signed keys are generated, one per day from now until 3 days ago.
-            let secondsAgo = TimeInterval(i - days) * kDayInterval
+            let secondsAgo = TimeInterval(i - days) * .day
             assert(secondsAgo <= 0, "Time in past must be negative")
             let generatedAt = Date(timeIntervalSinceNow: secondsAgo)
             let record = SignedPreKeyRecord(id: i,
                                             keyPair: ECKeyPair.generateKeyPair(),
                                             signature: Data(),
                                             generatedAt: generatedAt)
-            self.databaseStorage.write { transaction in
+            SSKEnvironment.shared.databaseStorageRef.write { transaction in
                 aciStore.storeSignedPreKey(i, signedPreKeyRecord: record, transaction: transaction)
             }
         }
@@ -39,21 +39,21 @@ class SSKSignedPreKeyStoreTest: SSKBaseTest {
         XCTAssertNotNil(aciStore.loadSignedPreKey(lastPreKeyId))
 
         for i in 0...days { // 4 signed keys are generated, one per day from now until 3 days ago.
-            let secondsAgo = TimeInterval(i - days) * kDayInterval
+            let secondsAgo = TimeInterval(i - days) * .day
             assert(secondsAgo <= 0, "Time in past must be negative")
             let generatedAt = Date(timeIntervalSinceNow: secondsAgo)
             let record = SignedPreKeyRecord(id: i,
                                             keyPair: ECKeyPair.generateKeyPair(),
                                             signature: Data(),
                                             generatedAt: generatedAt)
-            self.databaseStorage.write { transaction in
+            SSKEnvironment.shared.databaseStorageRef.write { transaction in
                 pniStore.storeSignedPreKey(i, signedPreKeyRecord: record, transaction: transaction)
             }
         }
 
         XCTAssertNotNil(pniStore.loadSignedPreKey(lastPreKeyId))
 
-        self.databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             aciStore.removeSignedPreKey(lastPreKeyId, transaction: transaction)
         }
 

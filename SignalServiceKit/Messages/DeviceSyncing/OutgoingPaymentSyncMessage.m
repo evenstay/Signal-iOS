@@ -65,11 +65,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @implementation OutgoingPaymentSyncMessage
 
-- (instancetype)initWithThread:(TSThread *)thread
-                    mobileCoin:(OutgoingPaymentMobileCoin *)mobileCoin
-                   transaction:(SDSAnyReadTransaction *)transaction
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
+                         mobileCoin:(OutgoingPaymentMobileCoin *)mobileCoin
+                        transaction:(DBReadTransaction *)transaction
 {
-    self = [super initWithThread:thread transaction:transaction];
+    self = [super initWithLocalThread:localThread transaction:transaction];
     if (!self) {
         return nil;
     }
@@ -84,7 +84,7 @@ NS_ASSUME_NONNULL_BEGIN
     return [super initWithCoder:coder];
 }
 
-- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(SDSAnyReadTransaction *)transaction
+- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(DBReadTransaction *)transaction
 {
     return [self syncMessageBuilderWithMobileCoin:self.mobileCoin transaction:transaction];
 }

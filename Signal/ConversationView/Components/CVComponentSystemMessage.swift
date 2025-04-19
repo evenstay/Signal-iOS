@@ -190,7 +190,7 @@ public class CVComponentSystemMessage: CVComponentBase, CVRootComponent {
                 button.titleLabel?.textAlignment = .center
                 button.titleLabel?.font = buttonLabelConfig.font
                 button.setTitleColor(buttonLabelConfig.textColor, for: .normal)
-                if nil != interaction as? OWSGroupCallMessage {
+                if interaction is OWSGroupCallMessage {
                     button.backgroundColor = UIColor.ows_accentGreen
                 } else {
                     if isDarkThemeEnabled && hasWallpaper {
@@ -349,7 +349,7 @@ public class CVComponentSystemMessage: CVComponentBase, CVRootComponent {
 
     private func buttonLabelConfig(action: Action) -> CVLabelConfig {
         let textColor: UIColor
-        if nil != interaction as? OWSGroupCallMessage {
+        if interaction is OWSGroupCallMessage {
             textColor = Theme.isDarkThemeEnabled ? .ows_whiteAlpha90 : .white
         } else {
             textColor = Theme.conversationButtonTextColor
@@ -594,21 +594,21 @@ extension CVComponentSystemMessage {
 
     static func buildComponentState(interaction: TSInteraction,
                                     threadViewModel: ThreadViewModel,
-                                    currentGroupCallThreadUniqueId: String?,
-                                    transaction: SDSAnyReadTransaction) -> CVComponentState.SystemMessage {
+                                    currentGroupThreadCallGroupId: GroupIdentifier?,
+                                    transaction: DBReadTransaction) -> CVComponentState.SystemMessage {
 
         let title = Self.title(forInteraction: interaction, transaction: transaction)
         let maybeOverrideTitleColor = Self.overrideTextColor(forInteraction: interaction)
         let action = Self.action(forInteraction: interaction,
                                  threadViewModel: threadViewModel,
-                                 currentGroupCallThreadUniqueId: currentGroupCallThreadUniqueId,
+                                 currentGroupThreadCallGroupId: currentGroupThreadCallGroupId,
                                  transaction: transaction)
 
         return buildComponentState(title: title, action: action, titleColor: maybeOverrideTitleColor)
     }
 
     private static func title(forInteraction interaction: TSInteraction,
-                              transaction: SDSAnyReadTransaction) -> NSAttributedString {
+                              transaction: DBReadTransaction) -> NSAttributedString {
 
         let font = Self.textLabelFont
         let labelText = NSMutableAttributedString()
@@ -624,7 +624,7 @@ extension CVComponentSystemMessage {
             let infoMessage = interaction as? TSInfoMessage,
             infoMessage.messageType == .typeGroupUpdate,
             let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(
-                tx: transaction.asV2Read
+                tx: transaction
             ),
             let displayableGroupUpdates = infoMessage.displayableGroupUpdateItems(
                 localIdentifiers: localIdentifiers,
@@ -682,7 +682,7 @@ extension CVComponentSystemMessage {
 
     private static func systemMessageText(
         forInteraction interaction: TSInteraction,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> String {
         if let errorMessage = interaction as? TSErrorMessage {
             return errorMessage.previewText(transaction: transaction)
@@ -710,7 +710,7 @@ extension CVComponentSystemMessage {
                 )
             }
 
-            let displayName = contactsManager.displayName(for: verificationMessage.recipientAddress, tx: transaction).resolvedValue()
+            let displayName = SSKEnvironment.shared.contactManagerRef.displayName(for: verificationMessage.recipientAddress, tx: transaction).resolvedValue()
             return String(format: format, displayName)
         } else if let infoMessage = interaction as? TSInfoMessage {
             return infoMessage.conversationSystemMessageComponentText(with: transaction)
@@ -799,7 +799,7 @@ extension CVComponentSystemMessage {
                     return nil
                 }
                 if message.isVerified() {
-                    return Theme.iconImage(.check16)
+                    return Theme.iconImage(.safetyNumber16)
                 } else {
                     return nil
                 }
@@ -841,7 +841,7 @@ extension CVComponentSystemMessage {
             case .video:
                 return Theme.iconImage(.video16)
             }
-        } else if nil != interaction as? OWSGroupCallMessage {
+        } else if interaction is OWSGroupCallMessage {
             return Theme.iconImage(.video16)
         } else {
             owsFailDebug("Unknown interaction type: \(type(of: interaction))")
@@ -1010,10 +1010,10 @@ extension CVComponentSystemMessage {
     static func buildDefaultDisappearingMessageTimerState(
         interaction: TSInteraction,
         threadViewModel: ThreadViewModel,
-        transaction tx: SDSAnyReadTransaction
+        transaction tx: DBReadTransaction
     ) -> CVComponentState.SystemMessage {
         let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-        let configuration = dmConfigurationStore.fetchOrBuildDefault(for: .universal, tx: tx.asV2Read)
+        let configuration = dmConfigurationStore.fetchOrBuildDefault(for: .universal, tx: tx)
 
         let labelText = NSMutableAttributedString()
         labelText.appendImage(
@@ -1037,8 +1037,8 @@ extension CVComponentSystemMessage {
     static func action(
         forInteraction interaction: TSInteraction,
         threadViewModel: ThreadViewModel,
-        currentGroupCallThreadUniqueId: String?,
-        transaction: SDSAnyReadTransaction
+        currentGroupThreadCallGroupId: GroupIdentifier?,
+        transaction: DBReadTransaction
     ) -> Action? {
         if let errorMessage = interaction as? TSErrorMessage {
             return action(forErrorMessage: errorMessage)
@@ -1050,7 +1050,7 @@ extension CVComponentSystemMessage {
             return action(
                 forGroupCall: groupCall,
                 threadViewModel: threadViewModel,
-                currentGroupCallThreadUniqueId: currentGroupCallThreadUniqueId
+                currentGroupThreadCallGroupId: currentGroupThreadCallGroupId
             )
         } else {
             owsFailDebug("Invalid interaction.")
@@ -1115,7 +1115,7 @@ extension CVComponentSystemMessage {
     }
 
     private static func action(forInfoMessage infoMessage: TSInfoMessage,
-                               transaction: SDSAnyReadTransaction) -> Action? {
+                               transaction: DBReadTransaction) -> Action? {
 
         switch infoMessage.messageType {
         case .userNotRegistered,
@@ -1141,7 +1141,7 @@ extension CVComponentSystemMessage {
             let thread = { infoMessage.thread(tx: transaction) as? TSGroupThread }
             guard
                 let localIdentifiers = DependenciesBridge.shared.tsAccountManager
-                    .localIdentifiers(tx: transaction.asV2Read),
+                    .localIdentifiers(tx: transaction),
                 let items = infoMessage.computedGroupUpdateItems(
                     localIdentifiers: localIdentifiers,
                     tx: transaction
@@ -1152,7 +1152,7 @@ extension CVComponentSystemMessage {
             return TSInfoMessage.PersistableGroupUpdateItem.cvComponentAction(
                 items: items,
                 groupThread: thread,
-                contactsManager: contactsManager,
+                contactsManager: SSKEnvironment.shared.contactManagerRef,
                 tx: transaction
             )
         case .typeGroupQuit:
@@ -1181,7 +1181,7 @@ extension CVComponentSystemMessage {
                 return nil
             }
             // Don't show the button on linked devices -- they can't use it.
-            guard contactsManagerImpl.isEditingAllowed else {
+            guard SSKEnvironment.shared.contactManagerImplRef.isEditingAllowed else {
                 return nil
             }
             guard let profileChangesNewNameComponents = infoMessage.profileChangesNewNameComponents else {
@@ -1190,12 +1190,12 @@ extension CVComponentSystemMessage {
             guard let profileChangePhoneNumber = profileChangeAddress.phoneNumber else {
                 return nil
             }
-            let systemContactName = contactsManager.systemContactName(for: profileChangePhoneNumber, tx: transaction)
+            let systemContactName = SSKEnvironment.shared.contactManagerRef.systemContactName(for: profileChangePhoneNumber, tx: transaction)
             guard let systemContactName else {
                 return nil
             }
             let newProfileName = OWSFormat.formatNameComponents(profileChangesNewNameComponents)
-            let currentProfileName = profileManager.fullName(for: profileChangeAddress, transaction: transaction)
+            let currentProfileName = SSKEnvironment.shared.profileManagerRef.userProfile(for: profileChangeAddress, tx: transaction)?.filteredFullName
 
             // Only show the button if the address book contact's name is different
             // than the profile name.
@@ -1227,17 +1227,17 @@ extension CVComponentSystemMessage {
             }
 
             // Don't show the button on linked devices -- they can't use it.
-            guard contactsManagerImpl.isEditingAllowed else {
+            guard SSKEnvironment.shared.contactManagerImplRef.isEditingAllowed else {
                 return nil
             }
 
             // Only show the update contact action if this user was previously a contact.
-            guard let existingCnContactId = contactsManager.cnContactId(for: phoneNumberOld) else {
+            guard let existingCnContactId = SSKEnvironment.shared.contactManagerRef.cnContactId(for: phoneNumberOld) else {
                 return nil
             }
 
             // Make sure the contact hasn't already had the new number added.
-            guard contactsManager.cnContactId(for: phoneNumberNew) != existingCnContactId else {
+            guard SSKEnvironment.shared.contactManagerRef.cnContactId(for: phoneNumberNew) != existingCnContactId else {
                 return nil
             }
 
@@ -1253,7 +1253,7 @@ extension CVComponentSystemMessage {
         case .paymentsActivationRequest:
             if
                 infoMessage.isIncomingPaymentsActivationRequest(transaction),
-                !paymentsHelperSwift.arePaymentsEnabled(tx: transaction)
+                !SSKEnvironment.shared.paymentsHelperRef.arePaymentsEnabled(tx: transaction)
             {
                 return CVMessageAction(
                     title: OWSLocalizedString(
@@ -1371,9 +1371,12 @@ extension CVComponentSystemMessage {
     private static func action(
         forGroupCall groupCallMessage: OWSGroupCallMessage,
         threadViewModel: ThreadViewModel,
-        currentGroupCallThreadUniqueId: String?
+        currentGroupThreadCallGroupId: GroupIdentifier?
     ) -> Action? {
-        let thread = threadViewModel.threadRecord
+        guard let groupThread = threadViewModel.threadRecord as? TSGroupThread else {
+            return nil
+        }
+
         // Assume the current thread supports calling if we have no delegate. This ensures we always
         // overestimate cell measurement in cases where the current thread doesn't support calling.
         let isCallingSupported = ConversationViewController.canCall(threadViewModel: threadViewModel)
@@ -1384,7 +1387,7 @@ extension CVComponentSystemMessage {
         }
 
         // TODO: We need to touch thread whenever current call changes.
-        let isCurrentCallForThread = currentGroupCallThreadUniqueId == thread.uniqueId
+        let isCurrentCallForThread = currentGroupThreadCallGroupId?.serialize().asData == groupThread.groupId
 
         let returnTitle = OWSLocalizedString("CALL_RETURN_BUTTON", comment: "Button to return to the current call")
         let title = isCurrentCallForThread ? returnTitle : CallStrings.joinGroupCall

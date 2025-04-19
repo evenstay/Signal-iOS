@@ -151,8 +151,20 @@
 /* Label for button to learn more about message requests. */
 "ALERT_UNKNOWN_THREAD_WARNING_LEARN_MORE" = "על אודות בקשות הודעה";
 
+/* Menu option to remove content type restriction in All Media (Audio) view */
+"ALL_MEDIA_AUDIO_FILTER_ALL" = "כל השמע";
+
+/* Menu option to limit All Media (Audio) view to displaying non-voice message audio files */
+"ALL_MEDIA_AUDIO_FILTER_AUDIO_FILES" = "קבצי שמע";
+
+/* Menu option to limit All Media (Audio) view to displaying only Voice Messages */
+"ALL_MEDIA_AUDIO_FILTER_VOICE_MSG" = "הודעות קוליות";
+
 /* Audio file type in All Meda file type picker. */
 "ALL_MEDIA_FILE_TYPE_AUDIO" = "שמע";
+
+/* Generic All Media file type for non-audiovisual files used in file type picker */
+"ALL_MEDIA_FILE_TYPE_FILES" = "קבצים";
 
 /* Media (i.e., graphical) file type in All Meda file type picker. */
 "ALL_MEDIA_FILE_TYPE_MEDIA" = "מדיה";
@@ -376,14 +388,20 @@
 /* A button to select a contact from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_CONTACT" = "איש קשר";
 
+/* Button in a context menu from the 'manage' button in attachment panel that allows to select more photos/videos to give Signal access to */
+"ATTACHMENT_KEYBOARD_CONTEXT_MENU_BUTTON_SELECT_MORE" = "בחירת תמונות נוספות";
+
+/* Button in a context menu from the 'manage' button in attachment panel that opens the iOS system settings for Signal to update access permissions */
+"ATTACHMENT_KEYBOARD_CONTEXT_MENU_BUTTON_SYSTEM_SETTINGS" = "לך אל הגדרות";
+
 /* A button to select a file from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_FILE" = "קובץ";
 
 /* A button to select a GIF from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_GIF" = "GIF";
 
-/* Text in chat attachment panel when Signal only has access to some photos/videos. */
-"ATTACHMENT_KEYBOARD_LIMITED_ACCESS" = "ל–Signal יש גישה רק לתמונות וסרטונים שנבחרו על ידך";
+/* Text in chat attachment panel when Signal only has access to some photos/videos. This string is in a compact horizontal space, so it should be short if possible. */
+"ATTACHMENT_KEYBOARD_LIMITED_ACCESS" = "ל–Signal יש גישה מוגבלת לתמונות";
 
 /* A button to select a location from the Attachment Keyboard */
 "ATTACHMENT_KEYBOARD_LOCATION" = "מיקום";
@@ -418,6 +436,24 @@
 /* Alert title when picking a document fails because user picked a directory/bundle */
 "ATTACHMENT_PICKER_DOCUMENTS_PICKED_DIRECTORY_FAILED_ALERT_TITLE" = "קובץ בלתי נתמך";
 
+/* Title for an action in an action sheet that will save attachments to the device's Photos app. */
+"ATTACHMENT_SAVING_ACTION_SHEET_ACTION_SAVE" = "שמירה";
+
+/* Title for an action in an action sheet that will save attachments to the device's Photos app, and disable the action sheet in the future. */
+"ATTACHMENT_SAVING_ACTION_SHEET_ACTION_SAVE_AND_DONT_SHOW_AGAIN" = "לשמור ולא להציג שוב";
+
+/* Message for an action sheet asking users about saving attachments. 'Photos' is the name of the default Photos app on iOS, and should be localized as that app's name. */
+"ATTACHMENT_SAVING_ACTION_SHEET_MESSAGE" = "המדיה הזו תישמר באפליקציית התמונות של הטלפון שלך. ייתכן שאפליקציות אחרות יוכלו לגשת אליה בהתאם להרשאות הטלפון שלך.";
+
+/* Title for an action sheet asking users about saving attachments. 'Photos' is the name of the default Photos app on iOS, and should be localized as that app's name. */
+"ATTACHMENT_SAVING_ACTION_SHEET_TITLE" = "לשמור בתמונות?";
+
+/* Message shown in an action sheet after user fails to save attachments to Photos. 'Photos' is the name of the default Photos app on iOS, and should be localized as that app's name. */
+"ATTACHMENT_SAVING_FAILURE_MESSAGE" = "השמירה בתמונות נכשלה";
+
+/* Message shown in a toast after user successfully saves attachments to Photos. 'Photos' is the name of the default Photos app on iOS, and should be localized as that app's name. */
+"ATTACHMENT_SAVING_SUCCESS_MESSAGE" = "נשמר בתמונות";
+
 /* Short text label for an animated attachment, used for thread preview and on the lock screen */
 "ATTACHMENT_TYPE_ANIMATED" = "מכיל אנימציה";
 
@@ -445,6 +481,15 @@
 /* action sheet button title to enable built in speaker during a call */
 "AUDIO_ROUTE_BUILT_IN_SPEAKER" = "רמקול";
 
+/* Message when trying to show a voice message that has expired and is unavailable for download */
+"AUDIO_UNAVAILABLE_MESSAGE_LABEL" = "הודעה קולית לא זמינה";
+
+/* Message for sheet shown when tapping a voice message that has expired and is unavailable for download */
+"AUDIO_UNAVAILABLE_SHEET_MESSAGE" = "הודעה קולית זו לא הועברה מהטלפון שלך כשהמכשיר הזה קושר. לא ניתן לסנכרן קבצים ומדיה שיותר ישנים מ–45 ימים בזמן קישור המכשיר.";
+
+/* Title for sheet shown when tapping a voice message that has expired and is unavailable for download */
+"AUDIO_UNAVAILABLE_SHEET_TITLE" = "הודעה קולית לא זמינה";
+
 /* Text prompting the user to choose a color when editing their avatar */
 "AVATAR_EDIT_VIEW_CHOOSE_A_COLOR" = "בחר צבע";
 
@@ -468,6 +513,105 @@
 
 /* return to the previous screen */
 "BACK_BUTTON" = "הקודם";
+
+/* Text used as placeholder in backup key text view. */
+"BACKUP_KEY_PLACEHOLDER" = "מפתח גיבוי";
+
+/* Title for a button allowing users to upgrade from a free to paid backup plan. */
+"BACKUP_SETTINGS_BACKUP_PLAN_FREE_ACTION_BUTTON_TITLE" = "שדרג";
+
+/* Text describing the user's free backup plan. */
+"BACKUP_SETTINGS_BACKUP_PLAN_FREE_DESCRIPTION" = "תכנית הגיבוי שלך היא חינמית";
+
+/* Header describing what the free backup plan includes. */
+"BACKUP_SETTINGS_BACKUP_PLAN_FREE_HEADER" = "גיבוי טקסט + 45 יום של מדיה";
+
+/* Text shown when we fail to load someone's backup plan due to a generic error. */
+"BACKUP_SETTINGS_BACKUP_PLAN_GENERIC_ERROR" = "טעינת תכנית הגיבוי שלך נכשלה. יש ליצור קשר עם התמיכה.";
+
+/* Text shown when we fail to load someone's backup plan due to a network error. */
+"BACKUP_SETTINGS_BACKUP_PLAN_NETWORK_ERROR" = "טעינת תכנית הגיבוי שלך נכשלה. יש לבדוק את חיבור האינטרנט שלך ולנסות שוב.";
+
+/* Title for a button allowing users to manage or cancel their paid backup plan. */
+"BACKUP_SETTINGS_BACKUP_PLAN_PAID_ACTION_BUTTON_TITLE" = "ניהול או ביטול";
+
+/* Title for a button allowing users to reenable a paid backup plan that has been canceled. */
+"BACKUP_SETTINGS_BACKUP_PLAN_PAID_BUT_CANCELED_ACTION_BUTTON_TITLE" = "רישום מחדש";
+
+/* Text describing that the user's paid backup plan has been canceled. */
+"BACKUP_SETTINGS_BACKUP_PLAN_PAID_BUT_CANCELED_DESCRIPTION" = "מנוי בוטל";
+
+/* Text explaining that a user's paid plan, which has been canceled, will expire on a future date. Embeds {{ the formatted expiration date }}. */
+"BACKUP_SETTINGS_BACKUP_PLAN_PAID_BUT_CANCELED_FUTURE_EXPIRATION_FORMAT" = "תאריך תפוגה: %1$@";
+
+/* Text explaining that a user's paid plan, which has been canceled, has expired. Embeds {{ the formatted expiration date }}. */
+"BACKUP_SETTINGS_BACKUP_PLAN_PAID_BUT_CANCELED_PAST_EXPIRATION_FORMAT" = "תאריך תפוגה: %1$@";
+
+/* Header describing what the paid backup plan includes. */
+"BACKUP_SETTINGS_BACKUP_PLAN_PAID_HEADER" = "גיבוי טקסט + כל המדיה";
+
+/* Text explaining the price of the user's paid backup plan. Embeds {{ the formatted price }}. */
+"BACKUP_SETTINGS_BACKUP_PLAN_PAID_PRICE_FORMAT" = "%1$@/חודש";
+
+/* Text explaining when the user's paid backup plan renews. Embeds {{ the formatted renewal date }}. */
+"BACKUP_SETTINGS_BACKUP_PLAN_PAID_RENEWAL_FORMAT" = "מתחדש ב–%1$@";
+
+/* Footer for a menu section related to settings for when Backups are disabled. */
+"BACKUP_SETTINGS_BACKUPS_DISABLED_SECTION_FOOTER" = "הגיבויים הושבתו והנתונים שלך נמחקו משירות האחסון המאובטח של Signal.";
+
+/* Header for a menu section related to settings for when Backups are enabled. */
+"BACKUP_SETTINGS_BACKUPS_ENABLED_SECTION_HEADER" = "פרטי גיבוי";
+
+/* Footer for a menu section allowing users to turn off Backups. */
+"BACKUP_SETTINGS_DISABLE_BACKUPS_BUTTON_FOOTER" = "זה ימחק את כל נתוני הגיבוי שלך. לא ייווצרו גיבויים חדשים.";
+
+/* Title for a button allowing users to turn off Backups. */
+"BACKUP_SETTINGS_DISABLE_BACKUPS_BUTTON_TITLE" = "כיבוי ומחיקת גיבויים";
+
+/* Text describing that a user's backup will be automatically performed daily. */
+"BACKUP_SETTINGS_ENABLED_BACKUP_FREQUENCY_DAILY" = "יומית";
+
+/* Label for a menu item explaining the frequency of automatic backups. */
+"BACKUP_SETTINGS_ENABLED_BACKUP_FREQUENCY_LABEL" = "תדירות גיבוי";
+
+/* Text describing that a user's backup will only be performed manually. */
+"BACKUP_SETTINGS_ENABLED_BACKUP_FREQUENCY_MANUALLY" = "באופן ידני";
+
+/* Text describing that a user's backup will be automatically performed monthly. */
+"BACKUP_SETTINGS_ENABLED_BACKUP_FREQUENCY_MONTHLY" = "חודשית";
+
+/* Text describing that a user's backup will be automatically performed weekly. */
+"BACKUP_SETTINGS_ENABLED_BACKUP_FREQUENCY_WEEKLY" = "שבועית";
+
+/* Label for a toggleable menu item describing whether to make backups on cellular data. */
+"BACKUP_SETTINGS_ENABLED_BACKUP_ON_CELLULAR_LABEL" = "גיבוי באמצעות נתונים ניידים";
+
+/* Label for a menu item explaining the size of the user's backup. */
+"BACKUP_SETTINGS_ENABLED_BACKUP_SIZE_LABEL" = "נפח גיבוי";
+
+/* Label for a menu item explaining when the user's last backup occurred. */
+"BACKUP_SETTINGS_ENABLED_LAST_BACKUP_LABEL" = "גיבוי אחרון";
+
+/* Text explaining that the user's last backup was in the past. Embeds 1:{{ the date of the backup }} and 2:{{ the time of the backup }}. */
+"BACKUP_SETTINGS_ENABLED_LAST_BACKUP_PAST_FORMAT" = "%1$@ בשעה %2$@";
+
+/* Text explaining that the user's last backup was today. Embeds {{ the time of the backup }}. */
+"BACKUP_SETTINGS_ENABLED_LAST_BACKUP_TODAY_FORMAT" = "היום בשעה %1$@";
+
+/* Text explaining that the user's last backup was yesterday. Embeds {{ the time of the backup }}. */
+"BACKUP_SETTINGS_ENABLED_LAST_BACKUP_YESTERDAY_FORMAT" = "אתמול בשעה %1$@";
+
+/* Label for a menu item offering to show the user their backup key. */
+"BACKUP_SETTINGS_ENABLED_VIEW_BACKUP_KEY_LABEL" = "הצגת מפתח גיבוי";
+
+/* Title for a button allowing users to trigger a manual backup. */
+"BACKUP_SETTINGS_MANUAL_BACKUP_BUTTON_TITLE" = "לגבות כעת";
+
+/* Title for a button allowing users to re-enable Backups, after it had been previously disabled. */
+"BACKUP_SETTINGS_REENABLE_BACKUPS_BUTTON_TITLE" = "הפעלת גיבויים מחדש";
+
+/* Title for the 'Backup' settings menu. */
+"BACKUPS_SETTINGS_TITLE" = "גיבויי Signal";
 
 /* Section header for badge view section in the badge configuration page */
 "BADGE_CONFIGURATION_BADGE_SECTION_TITLE" = "התגים שלי";
@@ -664,9 +808,6 @@
 /* Label for the 'share' button. */
 "BUTTON_SHARE" = "שתף";
 
-/* Label for the 'start' button. */
-"BUTTON_START" = "התחל";
-
 /* Label for the 'submit' button. */
 "BUTTON_SUBMIT" = "הגש";
 
@@ -709,6 +850,12 @@
 /* label for button shown when an incoming call rings */
 "CALL_CONTROLS_INCOMING_DECLINE" = "דחייה";
 
+/* Title used to represent details about a call. */
+"CALL_DETAILS" = "פרטי שיחה";
+
+/* Label or title used to represent a call that used a call link. */
+"CALL_LINK" = "לינק לשיחה";
+
 /* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
 "CALL_LINK_ADD_NAME" = "הוספת שם שיחה";
 
@@ -724,6 +871,21 @@
 /* Title of sheet presented when call link creation or update fails. */
 "CALL_LINK_CREATION_OR_UPDATE_FAILURE_SHEET_TITLE" = "שגיאת רשת";
 
+/* A button to delete a call link that's shown after tapping the (i) info button on an item in the calls tab. */
+"CALL_LINK_DELETE_ACTION" = "מחיקת לינק";
+
+/* Text shown in an overlay toast trying and failing to delete a call link. */
+"CALL_LINK_DELETE_FAILED" = "לא ניתן היה למחוק את לינק השיחה.";
+
+/* Text shown in a confirmation popup asking the user if they want to delete a call link. */
+"CALL_LINK_DELETE_MESSAGE" = "הלינק הזה לא יעבוד יותר לאף אחד.";
+
+/* Title shown in a confirmation popup asking the user if they want to delete a call link. */
+"CALL_LINK_DELETE_TITLE" = "למחוק לינק?";
+
+/* Text shown in an overlay toast after a call link is successfully deleted. */
+"CALL_LINK_DELETED" = "לינק השיחה נמחק.";
+
 /* Button to open a screen to edit the name of a Call Link. Also used as the title of that screen once it opens. */
 "CALL_LINK_EDIT_NAME" = "עריכת שם שיחה";
 
@@ -731,22 +893,25 @@
 "CALL_LINK_JOIN_CALL_FAILURE_SHEET_DESCRIPTION" = "לא היה ניתן להצטרף לשיחה. יש לבדוק את חיבור האינטרנט שלך ולנסות שוב.";
 
 /* Button on an action sheet to approve a request to join a call link. */
-"CALL_LINK_JOIN_REQUEST_APPROVE_BUTTON" = "Approve Entry";
+"CALL_LINK_JOIN_REQUEST_APPROVE_BUTTON" = "אישור כניסה";
 
 /* Button on an action sheet to deny a request to join a call link. */
-"CALL_LINK_JOIN_REQUEST_DENY_BUTTON" = "Deny Entry";
+"CALL_LINK_JOIN_REQUEST_DENY_BUTTON" = "דחיית כניסה";
 
 /* Tappable label that appears below a user's name on a toast when they request to join a call link. */
-"CALL_LINK_JOIN_REQUEST_PROMPT" = "Would like to join…";
+"CALL_LINK_JOIN_REQUEST_PROMPT" = "רוצה להצטרף…";
 
 /* Shown in a message bubble when you send a call link in a Signal chat */
 "CALL_LINK_LINK_PREVIEW_DESCRIPTION" = "אפשר להשתמש בלינק הזה כדי להצטרף לשיחת Signal";
 
 /* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned off. */
-"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_OFF" = "Anyone who joins this call via the link will see your name and photo.";
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_OFF" = "כל מי שיצטרפו לשיחה הזו באמצעות הלינק יוכלו לראות את השם והתמונה שלך.";
 
 /* Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned on. */
-"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_ON" = "Anyone who joins this call via the link will see your name, photo, and phone number.";
+"CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_ON" = "כל מי שיצטרף לשיחה הזו דרך הלינק יראה את השם, התמונה ומספר הטלפון שלך.";
+
+/* Text shown in a confirmation popup when deleting multiple calls from the calls tab. */
+"CALL_LINK_MULTI_CONFIRM" = "לינקים שיצרת לשיחות לא יעבדו יותר לאנשים שקיבלו אותם.";
 
 /* Title for button to approve all requests to join a call. */
 "CALL_LINK_REQUEST_SHEET_APPROVE_ALL_BUTTON" = "אישור הכל";
@@ -765,6 +930,9 @@
 
 /* Button to open the system share sheet to share a Call Link. */
 "CALL_LINK_SHARE_VIA_SYSTEM" = "שתף קישור";
+
+/* An error alert that's shown when deleting multiple calls and some of them couldn't be deleted. */
+"CALL_LINK_SOME_NOT_DELETED" = "לא כל הלינקים לשיחות נמחקו. כדאי לבדוק את החיבור שלך ולנסות שוב.";
 
 /* Description of sheet presented when call link update fails. */
 "CALL_LINK_UPDATE_FAILURE_SHEET_DESCRIPTION" = "לא היה ניתן לעדכן לינק שיחה. יש לבדוק את חיבור האינטרנט שלך ולנסות שוב.";
@@ -837,6 +1005,12 @@
 
 /* Accessibility label to toggle front- vs. rear-facing camera */
 "CALL_VIEW_SWITCH_CAMERA_DIRECTION" = "החלף כיוון מצלמה";
+
+/* Accessibility label for turning off call ringing */
+"CALL_VIEW_TURN_OFF_RINGING" = "השבתת צלצול";
+
+/* Accessibility label for turning on call ringing */
+"CALL_VIEW_TURN_ON_RINGING" = "הפעלת צלצול";
 
 /* Accessibility label for turning off the camera */
 "CALL_VIEW_TURN_VIDEO_OFF_LABEL" = "כבה מצלמה";
@@ -1097,7 +1271,13 @@
 "CHAT_COLORS_AUTO_TOOLTIP" = "מתאים באופן אוטומטי את הצבע אל הטפט";
 
 /* Title for context menu action to disable chat list filter (e.g., Filter by Unread) */
-"CHAT_LIST_CLEAR_FILTER_MENU_ACTION" = "ניקוי מסנן";
+"CHAT_LIST_CLEAR_FILTER_MENU_ACTION" = "ניקוי מסנן צ׳אטים שלא נקראו";
+
+/* Button displayed in chat list to clear the unread filter when no chats are unread */
+"CHAT_LIST_EMPTY_FILTER_CLEAR_BUTTON" = "ניקוי מסנן";
+
+/* Button at top of chat list indicating the active filter is 'Filtered by Unread' and tapping will clear the filter */
+"CHAT_LIST_FILTERED_BY_UNREAD_CLEAR_BUTTON" = "מסונן לפי צ׳אטים שלא נקראו";
 
 /* Title for the chat list's default mode. */
 "CHAT_LIST_TITLE_INBOX" = "צ׳אטים";
@@ -1185,6 +1365,9 @@
 
 /* Indicates that the user has a pending request with the other account. Embeds {{name}} */
 "CONTACT_ABOUT_SHEET_PENDING_REQUEST" = "בקשת הודעה ממתינה";
+
+/* A label on the profile about sheet */
+"CONTACT_ABOUT_SHEET_PROFILE_NAMES_EDUCATION" = "שמות פרופילים אינם מאומתים";
 
 /* Message for a tooltip that appears above a parenthesized name for another user, indicating that that name is the name the other user set for themself. Embeds {{name}} */
 "CONTACT_ABOUT_SHEET_SECONDARY_NAME_TOOLTIP_MESSAGE" = "״%1$@״ הוא שם הפרופיל שהאדם הזה יצר לעצמו ב–Signal.";
@@ -1397,6 +1580,9 @@
 "CONTEXT_MENU_REPLY" = "השב";
 
 /* Context menu button title */
+"CONTEXT_MENU_SAVE_MEDIA" = "שמירה";
+
+/* Context menu button title */
 "CONTEXT_MENU_SELECT_MESSAGE" = "בחר";
 
 /* Context menu button title */
@@ -1567,9 +1753,6 @@
 /* Label for button to mute a thread for a hour. */
 "CONVERSATION_SETTINGS_MUTE_ONE_HOUR_ACTION" = "שעה";
 
-/* Label for button to mute a thread for a minute. */
-"CONVERSATION_SETTINGS_MUTE_ONE_MINUTE_ACTION" = "דקה 1";
-
 /* Label for button to mute a thread for a week. */
 "CONVERSATION_SETTINGS_MUTE_ONE_WEEK_ACTION" = "שבוע";
 
@@ -1656,6 +1839,9 @@
 
 /* button text to delete all items in the current conversation */
 "CONVERSATION_VIEW_DELETE_ALL_MESSAGES" = "למחוק הכול";
+
+/* Message shown in conversation view that offers to join a Call Link call. */
+"CONVERSATION_VIEW_JOIN_CALL" = "הצטרף לשיחה";
 
 /* Indicates that the app is loading more messages in this conversation. */
 "CONVERSATION_VIEW_LOADING_MORE_MESSAGES" = "טוען עוד הודעות…";
@@ -1936,6 +2122,12 @@
 /* Alert title that can occur when viewing device manager. */
 "DEVICE_LIST_UPDATE_FAILED_TITLE" = "שגיאה בטעינת רשימת מכשירים";
 
+/* Message appearing on a toast indicating a new device was successfully linked and synced. */
+"DEVICE_LIST_UPDATE_NEW_DEVICE_SYNCED_TOAST" = "סנכרון הודעות הושלם";
+
+/* Message appearing on a toast indicating a new device was successfully linked. Embeds {{ device name }} */
+"DEVICE_LIST_UPDATE_NEW_DEVICE_TOAST" = "התבצע קישור של ״%1$@״";
+
 /* A label for this device in the device list. */
 "DEVICE_NAME_THIS_DEVICE" = "מכשיר זה";
 
@@ -1952,13 +2144,13 @@
 "DEVICE_TRANSFER_CANCEL_CONFIRMATION_TITLE" = "להפסיק העברה?";
 
 /* The explanation for the device transfer 'choice' view when linking a device */
-"DEVICE_TRANSFER_CHOICE_LINKED_EXPLANATION" = "במקרה שהשתמשת קודם לכן ב־Signal על iPad מקושר, אתה יכול להעביר בבטחה את החשבון וההודעות שלך אל מכשיר זה.";
+"DEVICE_TRANSFER_CHOICE_LINKED_EXPLANATION" = "איך ברצונך להעביר את היסטוריית ההודעות ונתוני החשבון שלך?";
 
 /* The body for the device transfer 'choice' view 'register' option */
 "DEVICE_TRANSFER_CHOICE_REGISTER_BODY" = "המשך בלי להעביר את החשבון וההודעות שלך";
 
-/* The body for the device transfer 'choice' view 'register' option when linking a device */
-"DEVICE_TRANSFER_CHOICE_REGISTER_LINKED_BODY" = "הוספת iPad זה כמכשיר מקושר חדש בלי להעביר היסטוריית הודעות";
+/* The body for the device transfer 'choice' view 'register' option when linking a device when message syncing is available */
+"DEVICE_TRANSFER_CHOICE_REGISTER_LINKED_BODY_LINK_AND_SYNC" = "תהיה לך אפשרות להעביר הודעות ומדיה אחרונה מהטלפון שלך";
 
 /* The title for the device transfer 'choice' view 'register' option when linking a device */
 "DEVICE_TRANSFER_CHOICE_REGISTER_LINKED_TITLE" = "הוסף כמכשיר חדש";
@@ -1973,16 +2165,13 @@
 "DEVICE_TRANSFER_CHOICE_TRANSFER_BODY" = "העברת החשבון והיסטוריית ההודעות שלך ממכשיר ה–iOS הישן שלך";
 
 /* The body for the device transfer 'choice' view 'transfer' option when linking a device */
-"DEVICE_TRANSFER_CHOICE_TRANSFER_LINKED_BODY" = "העברת החשבון והיסטוריית ההודעות שלך מה–iPad הישן שלך";
+"DEVICE_TRANSFER_CHOICE_TRANSFER_LINKED_BODY" = "העברת החשבון והיסטוריית ההודעות שלך ממכשיר ה–iOS הישן שלך";
 
 /* The title for the device transfer 'choice' view 'transfer' option when linking a device */
-"DEVICE_TRANSFER_CHOICE_TRANSFER_LINKED_TITLE" = "העבר מן iPad אחר";
+"DEVICE_TRANSFER_CHOICE_TRANSFER_LINKED_TITLE" = "העברה ממכשיר iPad אחר";
 
 /* The title for the device transfer 'choice' view 'transfer' option */
 "DEVICE_TRANSFER_CHOICE_TRANSFER_TITLE" = "העבר מן מכשיר iOS";
-
-/* A warning for the device transfer 'choice' view indicating you can only have one device registered with your number */
-"DEVICE_TRANSFER_CHOICE_WARNING" = "המשכה תשבית את Signal על מכשירים אחרים שרשומים כרגע עם אותו מספר טלפון.";
 
 /* Button shown to contract a QR code and exit the fullscreen view. */
 "DEVICE_TRANSFER_CONTRACT_QR_CODE_BUTTON" = "תצוגה קטנה יותר";
@@ -2153,10 +2342,10 @@
 "DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_AWAITING_AUTHORIZATION" = "התרומה שלך ב–iDEAL עדיין בתהליך עיבוד. יש לבדוק את אפליקציית הבנק שלך כדי לאשר את התשלום לפני שמבצעים תרומה נוספת.";
 
 /* Message in an alert presented when the user tries to make a donation, but already has a donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "עיבוד העברות בנקאיות לוקח בדרך כלל יום עסקים 1. יש להמתין עד שתשלום זה יסתיים לפני ביצוע תרומה נוספת.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_MAKING_ANOTHER_DONATION" = "עיבוד העברות בנקאיות יכול לקחת בין 1–14 ימי עסקים. יש להמתין עד שתשלום זה יסתיים לפני ביצוע תרומה נוספת.";
 
 /* Message in an alert presented when the user tries to update their recurring donation, but already has a recurring donation that is currently processing via bank payment. */
-"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "עיבוד העברות בנקאיות לוקח בדרך כלל יום עסקים 1. יש להמתין עד שתשלום זה יסתיים לפני עדכון המנוי שלך.";
+"DONATE_SCREEN_ERROR_MESSAGE_BANK_PAYMENT_PLEASE_WAIT_BEFORE_UPDATING_YOUR_SUBSCRIPTION" = "עיבוד העברות בנקאיות יכול לקחת בין 1–14 ימי עסקים. יש להמתין עד שתשלום זה יסתיים לפני עדכון המנוי שלך.";
 
 /* Message for an alert shown when the user tries to donate via bank transfer, but the amount they want to donate is too large. Embeds {{ the maximum allowed donation amount }}. */
 "DONATE_SCREEN_ERROR_MESSAGE_FORMAT_BANK_TRANSFER_AMOUNT_TOO_LARGE" = "אפשר לשלוח עד %1$@ באמצעות העברה בנקאית. יש לנסות סכום אחר או אמצעי תשלום אחר.";
@@ -2216,10 +2405,10 @@
 "DONATION_BADGE_ISSUE_SHEET_BANK_PAYMENT_PROCESSING_TITLE" = "תרומה ממתינה";
 
 /* Message for a sheet explaining that a one-time donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "התרומה החד פעמית שלך ממתינה. כשהתרומה שלך תתקבל, תהיה לך אפשרות להציג את תג %1$@ בפרופיל שלך.\n\nעיבוד העברות בנקאיות לוקח בדרך כלל יום עסקים 1.";
+"DONATION_BADGE_ISSUE_SHEET_ONE_TIME_BANK_PAYMENT_PROCESSING_MESSAGE" = "התרומה החד פעמית שלך ממתינה. כשהתרומה שלך תתקבל, תהיה לך אפשרות להציג את תג %1$@ בפרופיל שלך.\n\nעיבוד העברות בנקאיות יכול לקחת בין 1–14 ימי עסקים.";
 
 /* Message for a sheet explaining that a recurring donation via bank payment is pending, and how that will affect the user's badge. Embeds {{ the name of the badge }}. Will have a 'learn more' link appended, when it is rendered. */
-"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "התרומה החודשית שלך ממתינה. כשהתרומה שלך תתקבל, תהיה לך אפשרות להציג את תג %1$@ בפרופיל שלך.\n\nעיבוד העברות בנקאיות לוקח בדרך כלל יום עסקים 1.";
+"DONATION_BADGE_ISSUE_SHEET_RECURRING_BANK_PAYMENT_PROCESSING_MESSAGE" = "התרומה החודשית שלך ממתינה. כשהתרומה שלך תתקבל, תהיה לך אפשרות להציג את תג %1$@ בפרופיל שלך.\n\nעיבוד העברות בנקאיות יכול לקחת בין 1–14 ימי עסקים.";
 
 /* Title for a button asking the user to renew their subscription, because it has expired. */
 "DONATION_BADGE_ISSUE_SHEET_RENEW_SUBSCRIPTION_BUTTON_TITLE" = "חדש מינוי";
@@ -2408,7 +2597,7 @@
 "DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_AWAITING_AUTHORIZATION_MESSAGE" = "לא היה ניתן לאשר את התרומה שלך ב–iDEAL. יש לבדוק את אפליקציית הבנק שלך כדי לאשר את התרומה או לנסות שוב.";
 
 /* Message for an alert explaining that a one-time payment made via bank transfer is being processed. */
-"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "ההעברה הבנקאית שלך ממתינה. עיבוד העברות בנקאיות לוקח בדרך כלל יום עסקים 1.";
+"DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_MESSAGE" = "ההעברה הבנקאית שלך ממתינה. עיבוד העברות בנקאיות יכול לקחת בין 1–14 ימי עסקים.";
 
 /* Title for an alert explaining that a one-time payment made via bank transfer is being processed. */
 "DONATION_SETTINGS_MY_SUPPORT_BANK_PAYMENT_PROCESSING_TITLE" = "תרומה ממתינה";
@@ -2534,7 +2723,7 @@
 "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR" = "EDIT_MESSAGE_SEND_MESSAGE_UNKNOWN_ERROR";
 
 /* body of email sent to contacts when inviting to install Signal. Embeds {{link to install Signal}} and {{link to the Signal home page}} */
-"EMAIL_INVITE_BODY" = "Hey,\n\nLately I've been using Signal to keep the chats on my iPhone private. I'd like you to install it too, so we can be confident that only you and I can read our messages or hear our calls.\n\nSignal is available for iPhones and Android. Get it here: %1$@\n\nSignal works like your existing messaging app. We can send pictures and video, make calls, and start group chats. The best part is, no one else can see any of it, not even the people who make Signal!\n\nYou can read more about Signal here: %2$@";
+"EMAIL_INVITE_BODY" = "היי,\n\nלאחרונה עברתי להשתמש ב–Signal כדי לשמור על הצ׳אטים ב–iPhone שלי פרטיים. זה יהיה מעולה אם גם לך תהיה את האפליקציה, כדי שנוכל לדעת בוודאות שרק לנו יש גישה להודעות ולשיחות הקוליות שלנו.\n\nSignal זמינה עבור iPhone, Android, ושולחן העבודה. אפשר להוריד אותה כאן: %1$@\n\nSignal עובדת כמו אפליקציית ההודעות הקיימת שלך. אפשר לשלוח תמונות וסרטונים, לבצע שיחות ולהתחיל צ׳אטים קבוצתיים. החלק הכי טוב הוא שאף אחד לא יכול לראות שום דבר מזה, אפילו לא האנשים שיוצרים את Signal!\n\nאפשר לקרוא עוד על Signal כאן: %2$@";
 
 /* subject of email sent to contacts when inviting to install Signal */
 "EMAIL_INVITE_SUBJECT" = "בוא נחליף אל Signal";
@@ -2629,9 +2818,6 @@
 /* Error indicating that a socket response failed. */
 "ERROR_DESCRIPTION_RESPONSE_FAILED" = "תגובה בלתי תקפה משירות.";
 
-/* Error message when attempting to send message */
-"ERROR_DESCRIPTION_SENDING_UNAUTHORIZED" = "מכשיר זה אינו רשום יותר עם מספר הטלפון שלך. אנא התקן מחדש את Signal.";
-
 /* Generic server error */
 "ERROR_DESCRIPTION_SERVER_FAILURE" = "שגיאת שרת. נסה שוב מאוחר יותר.";
 
@@ -2642,10 +2828,7 @@
 "ERROR_DESCRIPTION_UNKNOWN_ERROR" = "התרחשה שגיאה לא ידועה";
 
 /* Error message when attempting to send message */
-"ERROR_DESCRIPTION_UNREGISTERED_RECIPIENT" = "איש הקשר הוא אינו משתמש Signal.";
-
-/* Error message indicating that attachment download(s) failed. */
-"ERROR_MESSAGE_ATTACHMENT_DOWNLOAD_FAILED" = "הורדת צרופה נכשלה.";
+"ERROR_DESCRIPTION_UNREGISTERED_RECIPIENT" = "לא ניתן לשלוח הודעה כי האדם הזה לא משתמש יותר ב–Signal.";
 
 /* Error message indicating that attachment upload(s) failed. */
 "ERROR_MESSAGE_ATTACHMENT_UPLOAD_FAILED" = "העלאת הקובץ המצורף נכשלה.";
@@ -2749,6 +2932,15 @@
 /* The title for the featured badge settings page */
 "FEATURED_BADGE_SETTINGS_TITLE" = "תג בפרופיל";
 
+/* Footer for message cell for documents/files when they are expired and unavailable for download */
+"FILE_UNAVAILABLE_FOOTER" = "קובץ לא זמין";
+
+/* Message for sheet shown when tapping a document/file that has expired and is unavailable for download */
+"FILE_UNAVAILABLE_SHEET_MESSAGE" = "הקובץ הזה לא הועבר מהטלפון שלך כשהמכשיר הזה היה מקושר. לא ניתן לסנכרן קבצים ומדיה שיותר ישנים מ–45 ימים בזמן קישור המכשיר.";
+
+/* Title for sheet shown when tapping a document/file that has expired and is unavailable for download */
+"FILE_UNAVAILABLE_SHEET_TITLE" = "קובץ לא זמין";
+
 /* Users can choose to learn more about how to find account info, which will open a sheet with additional information. This is the body of that sheet. */
 "FIND_ACCOUNT_INFO_SHEET_BODY" = "יש לחפש את מספר ה–IBAN שלך בחלק העליון של דף חשבון הבנק שלך. מספרי IBAN מכילים עד 34 תווים. יש להזין שם שתואם לשם המלא שלך בחשבון הבנק שלך. למידע נוסף, יש ליצור קשר עם הבנק.";
 
@@ -2778,12 +2970,6 @@
 
 /* Tooltip notifying users that the flip camera button moved to the picture-in-picture view of themselves in a call */
 "FLIP_CAMERA_BUTTON_MOVED_TO_PIP_TOOLTIP" = "כפתור הפיכת כיוון המצלמה עבר לכאן, אפשר ללחוץ על הוידאו שלך כדי לנסות אותו";
-
-/* Label and title for 'contact forwarding' views. */
-"FORWARD_CONTACT" = "העבר הלאה איש קשר";
-
-/* Label and title for 'message forwarding' views. */
-"FORWARD_MESSAGE" = "העבר הלאה הודעה";
 
 /* Message for alert with information about forwarding messages. */
 "FORWARD_MESSAGE_FIRST_FORWARD_MESSAGE" = "הודעות מועברות הלאה נשלחות כעת באופן מיידי.";
@@ -2858,13 +3044,13 @@
 "GO_TO_SETTINGS_BUTTON" = "לך אל הגדרות";
 
 /* Message indicating that the access to the group's attributes was changed by the local user. Embeds {{new access level}}. */
-"GROUP_ACCESS_ATTRIBUTES_UPDATED_BY_LOCAL_USER_FORMAT" = "שינית מי יכול לערוך מידע קבוצה אל “%1$@“.";
+"GROUP_ACCESS_ATTRIBUTES_UPDATED_BY_LOCAL_USER_FORMAT" = "שינית את מי שיכול לערוך את פרטי הקבוצה אל “%1$@“.";
 
 /* Message indicating that the access to the group's attributes was changed by a remote user. Embeds {{ %1$@ user who changed the access, %2$@ new access level}}. */
-"GROUP_ACCESS_ATTRIBUTES_UPDATED_BY_REMOTE_USER_FORMAT" = "%1$@ שינה מי יכול לערוך מידע קבוצה אל “%2$@“.";
+"GROUP_ACCESS_ATTRIBUTES_UPDATED_BY_REMOTE_USER_FORMAT" = "%1$@ שינה את מי שיכול לערוך את פרטי הקבוצה אל “%2$@“.";
 
 /* Message indicating that the access to the group's attributes was changed. Embeds {{new access level}}. */
-"GROUP_ACCESS_ATTRIBUTES_UPDATED_FORMAT" = "מידע קבוצה יכול להשתנות על ידי “%1$@“.";
+"GROUP_ACCESS_ATTRIBUTES_UPDATED_FORMAT" = "פרטי הקבוצה יכולים להשתנות על ידי “%1$@“.";
 
 /* Description of the 'admins only' access level. */
 "GROUP_ACCESS_LEVEL_ADMINISTRATORS" = "מנהלנים בלבד";
@@ -2882,13 +3068,13 @@
 "GROUP_ACCESS_LEVEL_UNSATISFIABLE" = "מושבת";
 
 /* Message indicating that the access to the group's members was changed by the local user. Embeds {{new access level}}. */
-"GROUP_ACCESS_MEMBERS_UPDATED_BY_LOCAL_USER_FORMAT" = "שינית מי יכול לערוך חֲבֵרוּת קבוצה אל “%1$@“.";
+"GROUP_ACCESS_MEMBERS_UPDATED_BY_LOCAL_USER_FORMAT" = "שינית את מי שיכול לערוך את החברוּת בקבוצה אל “%1$@“.";
 
 /* Message indicating that the access to the group's members was changed by a remote user. Embeds {{ %1$@ user who changed the access, %2$@ new access level}}. */
-"GROUP_ACCESS_MEMBERS_UPDATED_BY_REMOTE_USER_FORMAT" = "%1$@ שינה מי יכול לערוך חֲבֵרוּת קבוצה אל “%2$@“.";
+"GROUP_ACCESS_MEMBERS_UPDATED_BY_REMOTE_USER_FORMAT" = "%1$@ שינה את מי שיכול לערוך את החברוּת בקבוצה אל “%2$@“.";
 
 /* Message indicating that the access to the group's members was changed. Embeds {{new access level}}. */
-"GROUP_ACCESS_MEMBERS_UPDATED_FORMAT" = "חֲבֵרוּת קבוצה יכולה להשתנות על ידי “%1$@“.";
+"GROUP_ACCESS_MEMBERS_UPDATED_FORMAT" = "החברוּת בקבוצה יכולה להשתנות על ידי “%1$@“.";
 
 /* Message indicating that a feature can only be used by group admins. */
 "GROUP_ADMIN_ONLY_WARNING" = "רק מנהלנים יכולים לשנות אפשרות זו.";
@@ -2950,8 +3136,14 @@
 /* Title for a button on the group members sheet for sharing that call's link. */
 "GROUP_CALL_MEMBER_LIST_SHARE_CALL_LINK_BUTTON" = "שיתוף לינק שיחה";
 
+/* Label for an unknown member in the group call member list when they are the only member of the call. */
+"GROUP_CALL_MEMBER_LIST_SINGLE_UNKNOWN_MEMBER_ROW" = "אדם 1";
+
 /* Title for the sheet showing the group call members list */
-"GROUP_CALL_MEMBER_LIST_TITLE" = "Call Info";
+"GROUP_CALL_MEMBER_LIST_TITLE" = "פרטי שיחה";
+
+/* Message on an action sheet when tapping an info button next to unknown members in the group call member list. */
+"GROUP_CALL_MEMBER_LIST_UNKNOWN_MEMBERS_INFO_SHEET" = "לפני הצטרפות לשיחה, אפשר לראות רק את השמות של משתתפים שהם אנשי קשר שלך בטלפון, אנשים שאיתך בקבוצה, או אנשים ששוחחת איתם אחד על אחד. תהיה לך אפשרות לראות את כל השמות והתמונות לאחר שהצטרפת לשיחה.";
 
 /* String displayed in cell when media from a user can't be displayed in group call grid. Embeds {user's name} */
 "GROUP_CALL_MISSING_MEDIA_KEYS_FORMAT" = "לא ניתן לקבל שמע ווידאו מאת %1$@";
@@ -2987,13 +3179,13 @@
 "GROUP_CALL_RECONNECTING" = "מתחבר מחדש";
 
 /* Label for a button to block a member from a group call. */
-"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_BLOCK_ACTION" = "Block from Call";
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_BLOCK_ACTION" = "חסימה מהשיחה";
 
 /* Label for the button to confirm removing a member from a group call. */
-"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_REMOVE_ACTION" = "Remove";
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_REMOVE_ACTION" = "הסרה";
 
 /* Title for action sheet confirming removal of a member from a group call. embeds {{ name }} */
-"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_TITLE" = "Remove %1$@ from the call?";
+"GROUP_CALL_REMOVE_MEMBER_CONFIRMATION_ACTION_SHEET_TITLE" = "להסיר את %1$@ מהשיחה?";
 
 /* The title of an alert when you've been removed from a group call. */
 "GROUP_CALL_REMOVED" = "הסרה מהשיחה";
@@ -3185,10 +3377,10 @@
 "GROUP_LINK_ACTION_SHEET_VIEW_MESSAGE" = "האם אתה רוצה להצטרף אל קבוצה זו ולשתף את השם והתמונה שלך עם חבריה?";
 
 /* Label for the 'request to join' button in the 'group invite link' action sheet. */
-"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_BUTTON" = "Request to Join";
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_BUTTON" = "בקשות להצטרף";
 
 /* Message text for the 'group invite link' action sheet, if the user will be requesting to join. */
-"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_MESSAGE" = "An admin of this group must approve your request before you can join this group. When you request to join, your name and photo will be shared with its members.";
+"GROUP_LINK_ACTION_SHEET_VIEW_REQUEST_TO_JOIN_MESSAGE" = "מנהלן של קבוצה זו חייב לאשר את בקשתך לפני שתוכל להצטרף אל קבוצה זו. כאשר אתה מבקש להצטרף, השם והתמונה שלך ישותפו עם חברי הקבוצה.";
 
 /* Error message the attempt to request to join the group failed due to network connectivity. */
 "GROUP_LINK_COULD_NOT_REQUEST_TO_JOIN_GROUP_DUE_TO_NETWORK_ERROR_MESSAGE" = "אנא בדוק אם אתה מקוון ונסה שוב.";
@@ -3202,14 +3394,11 @@
 /* Title for the 'invalid group invite link' alert. */
 "GROUP_LINK_INVALID_GROUP_INVITE_LINK_ERROR_TITLE" = "קישור בלתי תקף";
 
-/* Error message indicating that the local user does not support groups v2. */
-"GROUP_LINK_LOCAL_USER_DOES_NOT_SUPPORT_GROUPS_V2_ERROR_MESSAGE" = "עדכן את Signal על מכשיר זה כדי להצטרף אל קבוצה זו.";
-
 /* Explanation of the 'approve new group members' switch. */
 "GROUP_LINK_PROMOTION_ALERT_APPROVE_NEW_MEMBERS_EXPLANATION" = "דרוש מנהלן כדי לאשר הצטרפות של חברי קבוצה חדשים באמצעות קישור הקבוצה.";
 
 /* Label for the 'approve new group members' switch. */
-"GROUP_LINK_PROMOTION_ALERT_APPROVE_NEW_MEMBERS_SWITCH" = "אשר חברי קבוצה חדשים";
+"GROUP_LINK_PROMOTION_ALERT_APPROVE_NEW_MEMBERS_SWITCH" = "לדרוש אישור מנהל/ת";
 
 /* Label for the 'enable and share link' button in the 'group link promotion' alert view. */
 "GROUP_LINK_PROMOTION_ALERT_ENABLE_AND_SHARE_LINK" = "אפשר ושתף קישור";
@@ -3236,7 +3425,7 @@
 "GROUP_LINK_QR_CODE_VIEW_TITLE" = "קוד QR:";
 
 /* Label for the 'approve new members' switch in the 'group link' view. */
-"GROUP_LINK_VIEW_APPROVE_NEW_MEMBERS_SWITCH" = "אשר חברי קבוצה חדשים";
+"GROUP_LINK_VIEW_APPROVE_NEW_MEMBERS_SWITCH" = "לדרוש אישור מנהל/ת";
 
 /* Label for the 'copy link' button in the 'group link' view. */
 "GROUP_LINK_VIEW_COPY_LINK" = "העתק קישור";
@@ -3351,6 +3540,18 @@
 
 /* A title string for a view that allows a user to review name collisions in group membership */
 "GROUP_MEMBERSHIP_NAME_COLLISION_TITLE" = "סקור חברי קבוצה";
+
+/* First bullet point for the explainer sheet for group names */
+"GROUP_NAME_EDUCATION_SHEET_BULLET_1" = "יש להיזהר מקבוצות שמתחזות לארגונים ועסקים";
+
+/* Second bullet point for the explainer sheet for group names */
+"GROUP_NAME_EDUCATION_SHEET_BULLET_2" = "שמות פרופילים של חברי קבוצות אינם מאומתים";
+
+/* Third bullet point for the explainer sheet for group names */
+"GROUP_NAME_EDUCATION_SHEET_BULLET_3" = "אין לשתף מידע אישי עם אנשים שלא מוכרים לך";
+
+/* Header for the explainer sheet for group names */
+"GROUP_NAME_EDUCATION_SHEET_HEADER_FORMAT" = "<bold>שמות קבוצות</bold> נבחרים על ידי חברי הקבוצה.";
 
 /* Placeholder text for 'group name' field. */
 "GROUP_NAME_PLACEHOLDER" = "שם קבוצה (דרוש)";
@@ -3694,8 +3895,8 @@
 /* Fallback title confirming recurring donation with bank. */
 "IDEAL_DONATION_CONFIRM_DONATION_TITLE" = "אישור התרומה שלך";
 
-/* Message confirming recurring donation with bank. This message confirms with the user that they will see a small confirmation charge with their bank before the donation. */
-"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_MESSAGE" = "כדי להגדיר את התרומה החוזרת שלך, יש ללחוץ על המשך כדי לאשר חיוב של €0,01 בבנק שלך. זה יוחזר אוטומטית ויאפשר לחייב את התרומה החוזרת שלך על סך %1$@ לחודש מהחשבון שלך.";
+/* Message confirming recurring donation with bank. This message confirms with the user that they will see a small confirmation charge with their bank before the donation. Embeds 1:{{ 0.01 euro, as a localized string }}, 2:{{ the amount of their donation, as a localized string }}. */
+"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_MESSAGE" = "כדי להגדיר את התרומה החוזרת שלך, יש ללחוץ על המשך כדי לאשר חיוב של %1$@ בבנק שלך. הסכום יוחזר אוטומטית ויאפשר את חיוב התרומה החוזרת שלך על סך %1$@ לחודש מהחשבון שלך.";
 
 /* Title confirming recurring donation with bank. */
 "IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_TITLE" = "אישור התרומה שלך עם %1$@";
@@ -3916,9 +4117,6 @@
 /* A keyboard command to begin a search on the conversation list. */
 "KEY_COMMAND_SEARCH" = "חיפוש";
 
-/* A keyboard command to present the application settings dialog. */
-"KEY_COMMAND_SETTINGS" = "הגדרות";
-
 /* A keyboard command to open the current conversation's sticker picker. */
 "KEY_COMMAND_STICKERS" = "הראה מדבקות";
 
@@ -3952,6 +4150,21 @@
 /* Title for a sheet explaining details about 'New Groups'. */
 "LEGACY_GROUP_WHAT_ARE_NEW_GROUPS_TITLE" = "מהן קבוצות חדשות?";
 
+/* subtitle for declining to send message history when linking a new device */
+"LINK_DEVICE_CONFIRMATION_ALERT_DONT_TRANSFER_SUBTITLE" = "לא יועברו הודעות או מדיה ישנות למכשיר המקושר שלך";
+
+/* title for declining to send message history when linking a new device */
+"LINK_DEVICE_CONFIRMATION_ALERT_DONT_TRANSFER_TITLE" = "אל תעביר";
+
+/* confirm the users intent to link a new device */
+"LINK_DEVICE_CONFIRMATION_ALERT_TITLE" = "סיים לקשר";
+
+/* subtitle for choosing to send message history when linking a new device */
+"LINK_DEVICE_CONFIRMATION_ALERT_TRANSFER_SUBTITLE" = "העברת כל הודעות הטקסט שלך, והעברת המדיה מ–45 הימים האחרונים";
+
+/* title for choosing to send message history when linking a new device */
+"LINK_DEVICE_CONFIRMATION_ALERT_TRANSFER_TITLE" = "העברת היסטוריית הודעות";
+
 /* report an invalid linking code */
 "LINK_DEVICE_INVALID_CODE_BODY" = "קוד QR זה אינו תקף. אנא וודא שאתה סורק את קוד ה־QR המוצג על המכשיר שאתה רוצה לקשר.";
 
@@ -3967,11 +4180,56 @@
 /* attempt another linking */
 "LINK_DEVICE_RESTART" = "נסה שוב";
 
-/* QR Scanning screen instructions, placed alongside a camera view for scanning QR Codes */
-"LINK_DEVICE_SCANNING_INSTRUCTIONS" = "סרוק את קוד ה־QR המוצג על המכשיר שאתה רוצה לקשר.";
+/* Title for QR Scanning screen instructions sheet */
+"LINK_DEVICE_SCANNING_INSTRUCTIONS_SHEET_BODY" = "יש להשתמש במכשיר הזה כדי לסרוק את קוד ה–QR שמוצג במכשיר שברצונך לקשר";
 
-/* Subheading for 'Link New Device' navigation */
-"LINK_NEW_DEVICE_SUBTITLE" = "סרוק קוד QR כדי לקשר מכשיר חדש.";
+/* Title for QR Scanning screen instructions sheet */
+"LINK_DEVICE_SCANNING_INSTRUCTIONS_SHEET_TITLE" = "סריקת קוד QR";
+
+/* Body text for a sheet when a user tries to link a device informing them that they will need to authenticate their device */
+"LINK_NEW_DEVICE_AUTHENTICATION_INFO_SHEET_BODY" = "יש ללחוץ על ״המשך״ ולהזין את ביטול נעילת הטלפון שלך כדי לאשר. אין להזין את קוד ה‑PIN של Signal.";
+
+/* Title for a sheet when a user tries to link a device informing them that they will need to authenticate their device */
+"LINK_NEW_DEVICE_AUTHENTICATION_INFO_SHEET_TITLE" = "לפני הקישור, צריך לאשר שמדובר בך";
+
+/* Description of how and why Signal iOS uses Touch ID/Face ID/Phone Passcode to unlock device linking. */
+"LINK_NEW_DEVICE_AUTHENTICATION_REASON" = "אימות כדי לקשר מכשיר";
+
+/* Body text for a sheet when a user has started linking a device informing them to finish the process on that other device */
+"LINK_NEW_DEVICE_FINISH_ON_OTHER_DEVICE_SHEET_BODY" = "יש לסיים את הקישור של Signal במכשיר האחר שלך.";
+
+/* Title for a sheet when a user has started linking a device informing them to finish the process on that other device */
+"LINK_NEW_DEVICE_FINISH_ON_OTHER_DEVICE_SHEET_TITLE" = "יש לסיים את הקישור במכשיר האחר שלך";
+
+/* Progress label showing the download progress of a linked device sync. Embeds {{ formatted downloaded size (such as megabytes), formatted total download size, formatted percentage }} */
+"LINK_NEW_DEVICE_SYNC_DOWNLOAD_PROGRESS" = "בהורדה: %1$@ מתוך %2$@ (%3$@)…";
+
+/* Button for a sheet indicating that a newly linked device failed to sync messages, to link without transferring. */
+"LINK_NEW_DEVICE_SYNC_FAILED_CONTINUE_BUTTON" = "להמשיך בלי להעביר";
+
+/* Message for a sheet indicating that a newly linked device failed to sync messages. */
+"LINK_NEW_DEVICE_SYNC_FAILED_MESSAGE" = "המכשיר שלך קושר בהצלחה, אבל לא ניתן היה להעביר את ההודעות שלך.";
+
+/* Message for a sheet indicating that a newly linked device failed to sync messages with a retryable error. */
+"LINK_NEW_DEVICE_SYNC_FAILED_RETRYABLE_MESSAGE" = "לא ניתן היה להעביר את ההודעות שלך למכשיר המקושר שלך. אפשר לנסות לקשר מחדש ולהעביר שוב, או להמשיך בלי להעביר את היסטוריית ההודעות שלך.";
+
+/* Title for a sheet indicating that a newly linked device failed to sync messages. */
+"LINK_NEW_DEVICE_SYNC_FAILED_TITLE" = "סנכרון הודעות נכשל";
+
+/* On a progress modal */
+"LINK_NEW_DEVICE_SYNC_PROGRESS_DO_NOT_CLOSE_APP" = "לא לסגור את האפליקציה";
+
+/* On a progress modal indicating the percent complete the sync process is. Embeds {{ formatted percentage }} */
+"LINK_NEW_DEVICE_SYNC_PROGRESS_PERCENT" = "%1$@ הושלמו";
+
+/* Title for a progress modal that would be indicating the sync progress while it's cancelling that sync */
+"LINK_NEW_DEVICE_SYNC_PROGRESS_TILE_CANCELLING" = "מבטלים…";
+
+/* Title for a progress modal indicating the sync progress */
+"LINK_NEW_DEVICE_SYNC_PROGRESS_TITLE" = "מסנכרנים הודעות…";
+
+/* Title for a progress modal indicating the sync progress while it's preparing for upload */
+"LINK_NEW_DEVICE_SYNC_PROGRESS_TITLE_PREPARING" = "בהכנה…";
 
 /* Navigation title when scanning QR code to add new device. */
 "LINK_NEW_DEVICE_TITLE" = "קישור מכשיר חדש";
@@ -3988,11 +4246,80 @@
 /* A button shown in a banner when you tap the 'New Chat' icon at the top of the list of chats. Tapping it opens a website with more details. */
 "LINKED_DEVICE_MANAGE_CONTACTS_LEARN_MORE" = "למידע נוסף";
 
+/* Body for system notification when a new device is linked. Embeds {{ time the device was linked }} */
+"LINKED_DEVICE_NOTIFICATION_BODY" = "מכשיר חדש קושר לחשבון שלך בשעה %1$@. אפשר ללחוץ לתצוגה.";
+
+/* Body for megaphone notification when a new device is linked. Embeds {{ time the device was linked }} */
+"LINKED_DEVICE_NOTIFICATION_MEGAPHONE_BODY" = "מכשיר חדש קושר לחשבון שלך בשעה %1$@.";
+
+/* Title for system notification when a new device is linked. */
+"LINKED_DEVICE_NOTIFICATION_TITLE" = "קישרת מכשיר חדש";
+
+/* Message for an action sheet telling users how to link a device, when trying to open an external device-linking URL. */
+"LINKED_DEVICE_URL_OPENED_ACTION_SHEET_EXTERNAL_URL_MESSAGE" = "כדי לקשר שולחן עבודה או iPad לחשבון Signal זה, יש לעבור אל ״מכשירים מקושרים״ וללחוץ על \"קישור מכשיר חדש\" ולסרוק שוב את קוד ה–QR. חשוב לוודא שסורקים רק את קודי ה–QR שמגיעים ישירות מ–Signal.";
+
+/* Message for an action sheet telling users how to link a device, when trying to open a device-linking URL from the in-app camera. */
+"LINKED_DEVICE_URL_OPENED_ACTION_SHEET_IN_APP_CAMERA_MESSAGE" = "נראה שאת/ה מנסה לקשר מכשיר Signal. יש ללחוץ על המשך ואז ללחוץ על ״קישור מכשיר חדש״ ולסרוק שנית את קוד ה–QR.";
+
+/* Bullet point about downloads on the linked devices education sheet. Embeds {{ %1$@ iPad download link, %2$@ desktop download link }} */
+"LINKED_DEVICES_EDUCATION_POINT_DOWNLOADS" = "במכשיר האחר שלך, יש לבקר ב–%1$@ כדי להתקין את האפליקציה למכשיר iPad או %2$@ כדי להתקין את האפליקציה לשולחן העבודה.";
+
+/* Bullet point about message sync on the linked devices education sheet */
+"LINKED_DEVICES_EDUCATION_POINT_MESSAGES" = "הודעות Signal יסונכרנו עם Signal בטלפון הנייד שלך לאחר שהוא יקושר.";
+
+/* Bullet point about privacy on the linked devices education sheet */
+"LINKED_DEVICES_EDUCATION_POINT_PRIVACY" = "כל התכתבות במכשירים המקושרים היא פרטית";
+
+/* Title for the linked device education sheet */
+"LINKED_DEVICES_EDUCATION_TITLE" = "Signal לשולחן העבודה או ל–iPad";
+
+/* Text that appears where the linked device list would be indicating that there are no linked devices. */
+"LINKED_DEVICES_EMPTY_STATE" = "אין מכשירים מקושרים";
+
+/* Description for header of the linked devices list */
+"LINKED_DEVICES_HEADER_DESCRIPTION" = "שימוש ב–Signal לשולחן העבודה או ל–iPad. ההודעות שלך יסונכרנו עם המכשירים המקושרים שלך.";
+
+/* Footer text below the list of currently-linked devices */
+"LINKED_DEVICES_LIST_FOOTER" = "הודעות ופרטי צ׳אט מוגנים באמצעות הצפנה מקצה לקצה בכל המכשירים";
+
+/* Title above the list of currently-linked devices */
+"LINKED_DEVICES_LIST_TITLE" = "מכשירים מקושרים";
+
+/* Button title for renaming a linked device */
+"LINKED_DEVICES_RENAME_BUTTON" = "שינוי שם";
+
+/* Message on a sheet indicating the device rename attempt received an error. */
+"LINKED_DEVICES_RENAME_FAILURE_MESSAGE" = "לא ניתן לשנות את שם המכשיר. יש לנסות שוב מאוחר יותר.";
+
+/* Message on a toast indicating the device was renamed. */
+"LINKED_DEVICES_RENAME_SUCCESS_MESSAGE" = "שם מכשיר עודכן";
+
+/* Title for the screen for renaming a linked device */
+"LINKED_DEVICES_RENAME_TITLE" = "עריכת שם מכשיר";
+
 /* Menu item and navbar title for the device manager */
 "LINKED_DEVICES_TITLE" = "מכשירים מקושרים";
 
 /* Alert Title */
 "LINKING_DEVICE_FAILED_TITLE" = "קישור מכשיר נכשל";
+
+/* Progress label when the message loading has nearly completed during the device linking process */
+"LINKING_SYNCING_FINALIZING" = "משלימים את העברת ההודעות…";
+
+/* Footer text when loading messages during linking process. */
+"LINKING_SYNCING_FOOTER" = "הודעות ופרטי צ׳אט מוגנים באמצעות הצפנה מקצה לקצה, כולל תהליך הסנכרון.";
+
+/* Title shown when loading messages during linking process */
+"LINKING_SYNCING_MESSAGES_TITLE" = "מסנכרנים הודעות";
+
+/* Progress label when the message loading has not yet started during the device linking process */
+"LINKING_SYNCING_PREPARING_TO_DOWNLOAD" = "מתכוננים להורדה…";
+
+/* Label below the progress bar when loading messages during linking process */
+"LINKING_SYNCING_TIMING_INFO" = "זה עשוי לקחת כמה דקות";
+
+/* Shown to users while the app is loading, asking them not to close the app. */
+"LOADING_VIEW_CONTROLLER_DONT_CLOSE_APP" = "אל תסגור Signal.";
 
 /* Body for local network permission action sheet */
 "LOCAL_NETWORK_PERMISSION_ACTION_SHEET_BODY" = "על מנת להעביר את חשבון Signal שלך, אתה צריך לאפשר גישה אל רשת מקומית בשני המכשירים.";
@@ -4027,6 +4354,9 @@
 /* Title for the 'long text message' view. */
 "LONG_TEXT_VIEW_TITLE" = "הודעה";
 
+/* Title for error sheet shown when the max video length is recorded with the in-app camera */
+"MAX_VIDEO_RECORDING_LENGTH_ALERT" = "הגעת לאורך הסרטון המקסימלי";
+
 /* nav bar button item */
 "MEDIA_DETAIL_VIEW_ALL_MEDIA_BUTTON" = "כל המדיה";
 
@@ -4054,6 +4384,15 @@
 /* Shown in place of message input text in media editor when 'View Once' is on. */
 "MEDIA_EDITOR_TEXT_FIELD_VIEW_ONCE_MEDIA" = "מדיה לצפייה חד פעמית";
 
+/* VoiceOver description for a generic audio file in All Media */
+"MEDIA_GALLERY_A11Y_AUDIO_FILE" = "קובץ אודיו";
+
+/* VoiceOver description for a generic non-audiovisual file in All Media */
+"MEDIA_GALLERY_A11Y_OTHER_FILE" = "קובץ";
+
+/* VoiceOver description for a voice messages in All Media */
+"MEDIA_GALLERY_A11Y_VOICE_MESSAGE" = "הודעה קולית";
+
 /* Button to reset media filter. Displayed when filter results in no media visible. */
 "MEDIA_GALLERY_CLEAR_FILTER_BUTTON" = "ניקוי מסנן";
 
@@ -4068,6 +4407,12 @@
 
 /* Displayed in All Media (Audio) screen when there's no audio files - first line. */
 "MEDIA_GALLERY_NO_AUDIO_TITLE" = "אין שמע";
+
+/* Displayed in All Media (Audio) screen when there's no non-audiovisual files - second line. */
+"MEDIA_GALLERY_NO_FILES_SUBTITLE" = "קבצים ששלחת וקיבלת יופיעו כאן";
+
+/* Displayed in All Media (Audio) screen when there's no non-audiovisual files - first line. */
+"MEDIA_GALLERY_NO_FILES_TITLE" = "אין קבצים";
 
 /* Displayed in All Media screen when there's no media - first line. */
 "MEDIA_GALLERY_NO_FILTER_RESULTS" = "אין מדיה";
@@ -4086,6 +4431,9 @@
 
 /* Context menu item in media viewer. Refers to deleting currently displayed photo/video. */
 "MEDIA_VIEWER_DELETE_MEDIA_ACTION" = "מחיקה";
+
+/* Context menu item in media viewer. Refers to saving currently displayed photo/video to the Photos app. */
+"MEDIA_VIEWER_SAVE_MEDIA_ACTION" = "שמירה";
 
 /* button title to snooze a megaphone */
 "MEGAPHONE_REMIND_LATER" = "הזכר לי מאוחר יותר";
@@ -4167,6 +4515,9 @@
 
 /* Action sheet button title */
 "MESSAGE_ACTION_REPLY" = "השב להודעה זו";
+
+/* Action sheet button title */
+"MESSAGE_ACTION_SAVE_MEDIA" = "שמירה";
 
 /* Action sheet accessibility label */
 "MESSAGE_ACTION_SELECT_MESSAGE" = "בחר הרבה";
@@ -4463,7 +4814,7 @@
 "MISSED_VOICE_CALL" = "שיחה קולית שלא נענתה";
 
 /* Alert body */
-"MISSING_CAMERA_PERMISSION_MESSAGE" = "אתה יכול לאפשר גישה אל מצלמה ביישום הגדרות של iOS כדי לבצע שיחות וידאו ב־Signal.";
+"MISSING_CAMERA_PERMISSION_MESSAGE" = "באפשרותך להפעיל גישה למצלמה באפליקציית ההגדרות של iOS.";
 
 /* Alert title */
 "MISSING_CAMERA_PERMISSION_TITLE" = "Signal צריך לקבל גישה אל מצלמה שלך.";
@@ -4602,6 +4953,9 @@
 
 /* Title for the 'new group story' view */
 "NEW_GROUP_STORY_VIEW_CONTROLLER_TITLE" = "בחירת קבוצה";
+
+/* Main button for megaphone notification when a new device is linked */
+"NEW_LINKED_DEVICE_NOTIFICATION_MEGAPHONE_VIEW_DEVICE_BUTTON" = "הצגת מכשיר";
 
 /* Title for the 'new non-contact conversation' view. */
 "NEW_NONCONTACT_CONVERSATION_VIEW_TITLE" = "מצא לפי מספר טלפון";
@@ -4777,6 +5131,30 @@
 /* Title for the skip pin entry action sheet during onboarding. */
 "ONBOARDING_2FA_SKIP_PIN_ENTRY_TITLE" = "לדלג על הכנסת PIN?";
 
+/* Header text describing what the backup includes. */
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_1" = "Your backup includes:";
+
+/* Backup content list item describing all messages. */
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_2" = "All of your messages";
+
+/* Backup content list item describing paid media. */
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_3_FREE" = "The last 45 days of your media";
+
+/* Backup content list item describing free media. */
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_3_PAID" = "All of your media";
+
+/* Text for action button confirming the restore. */
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_CONFIRM_ACTION" = "Restore Backup";
+
+/* Description for form confirming restore from backup. */
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_DESCRIPTION" = "Your last backup was made on %1$@ at %2$@. You can create a newer backup if you still have your old device. [See How](https://signal.org)";
+
+/* Text for action button to explore other options. */
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_MORE_OPTIONS_ACTION" = "More Options";
+
+/* Title for form confirming restore from backup. */
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_TITLE" = "Restore from Backup";
+
 /* button indicating that the user will register their ipad */
 "ONBOARDING_MODE_SWITCH_BUTTON_PROVISIONING" = "רשום iPad";
 
@@ -4846,6 +5224,21 @@
 /* Explanation of the 'onboarding pin attempts exhausted' view when it is unknown if reglock is enabled. */
 "ONBOARDING_PIN_ATTEMPTS_EXHAUSTED_WITH_UNKNOWN_REGLOCK_EXPLANATION" = "נגמרו לך ניחושי ה–PIN, אבל עדיין אפשר לנסות לגשת לחשבון Signal שלך באמצעות אימות מספר הטלפון שלך. למען הפרטיות והאבטחה שלך, החשבון שלך ישוחזר בלי מידע פרופיל שמור או הגדרות שמורות.";
 
+/* Explanation of 'do not have old device' flow for the 'Restore or Transfer' prompt */
+"ONBOARDING_SPLASH_DO_NOT_HAVE_OLD_DEVICE_BODY" = "או שמדובר בהתקנה חוזרת של Signal על אותו מכשיר";
+
+/* Title for the 'do not have my old device' choice of the 'Restore or Transfer' prompt */
+"ONBOARDING_SPLASH_DO_NOT_HAVE_OLD_DEVICE_TITLE" = "אין לי את הטלפון הישן שלי";
+
+/* Explanation of 'have old device' flow for the 'Restore or Transfer' prompt */
+"ONBOARDING_SPLASH_HAVE_OLD_DEVICE_BODY" = "אפשר לסרוק קוד QR מחשבון Signal הנוכחי שלך כדי להתחיל במהירות";
+
+/* Title for the 'have my old device' choice of the 'Restore or Transfer' prompt */
+"ONBOARDING_SPLASH_HAVE_OLD_DEVICE_TITLE" = "יש לי את הטלפון הישן שלי";
+
+/* Button for restoring or transferring account in the 'onboarding splash' view. */
+"ONBOARDING_SPLASH_RESTORE_OR_TRANSFER_BUTTON_TITLE" = "שחזור או העברת חשבון";
+
 /* Link to the 'terms and privacy policy' in the 'onboarding splash' view. */
 "ONBOARDING_SPLASH_TERM_AND_PRIVACY_POLICY" = "תנאים ומדיניות פרטיות";
 
@@ -4887,6 +5280,9 @@
 
 /* Title label for the onboarding verification page */
 "ONBOARDING_VERIFICATION_TITLE_LABEL" = "קוד וידוא";
+
+/* Title for button which opens the in-app settings */
+"OPEN_APP_SETTINGS_BUTTON" = "הגדרות";
 
 /* Button text which opens the settings app */
 "OPEN_SETTINGS_BUTTON" = "הגדרות";
@@ -4941,6 +5337,15 @@
 
 /* info message text in conversation view */
 "OUTGOING_VOICE_CALL" = "שיחה קולית יוצאת";
+
+/* Footer for message cell for long text when it is expired and unavailable for download */
+"OVERSIZE_TEXT_UNAVAILABLE_FOOTER" = "הודעה זו אינה שלמה";
+
+/* Message for sheet shown when tapping oversized text that has expired and is unavailable for download */
+"OVERSIZE_TEXT_UNAVAILABLE_SHEET_MESSAGE" = "הטקסט המלא בהודעה זו לא הועבר מהטלפון שלך כשהמכשיר הזה היה מקושר. לא ניתן לסנכרן הודעות טקסט ארוכות שיותר ישנות מ–45 ימים בזמן קישור המכשיר.";
+
+/* Title for sheet shown when tapping oversized text that has expired and is unavailable for download */
+"OVERSIZE_TEXT_UNAVAILABLE_SHEET_TITLE" = "הודעה מלאה לא זמינה";
 
 /* Header title for bank payment details screen */
 "PAYMENT_DETAILS_BANK_TITLE" = "העברה בנקאית";
@@ -5261,13 +5666,13 @@
 "PENDING_GROUP_MEMBERS_NO_PENDING_MEMBERS" = "אין הזמנות להראות.";
 
 /* Message indicating that a request to join the group was successfully approved. Embeds {{ the name of the approved user }}. */
-"PENDING_GROUP_MEMBERS_REQUEST_APPROVED_FORMAT" = "\"%1$@\" התווספ/ה.";
+"PENDING_GROUP_MEMBERS_REQUEST_APPROVED_FORMAT" = "“%1$@“ התווספ/ה.";
 
 /* Label for the 'view requests' button in the pending member requests banner. */
 "PENDING_GROUP_MEMBERS_REQUEST_BANNER_VIEW_REQUESTS" = "הצג בקשות";
 
 /* Message indicating that a request to join the group was successfully denied. Embeds {{ the name of the denied user }}. */
-"PENDING_GROUP_MEMBERS_REQUEST_DENIED_FORMAT" = "\"%1$@\" נדחה/נדחתה.";
+"PENDING_GROUP_MEMBERS_REQUEST_DENIED_FORMAT" = "“%1$@“ נדחה/נדחתה.";
 
 /* Title of 'revoke invite' button. */
 "PENDING_GROUP_MEMBERS_REVOKE_INVITE_1_BUTTON" = "שלול הזמנה";
@@ -5289,6 +5694,9 @@
 
 /* Title for the 'people you invited' section of the 'member requests and invites' view. */
 "PENDING_GROUP_MEMBERS_SECTION_TITLE_PEOPLE_YOU_INVITED" = "הוזמנו על ידך";
+
+/* Label for view-once messages indicating that the message's contents are expired and unavailable to download. */
+"PER_MESSAGE_EXPIRATION_EXPIRED" = "פג תוקף";
 
 /* Label for view-once messages that have invalid content. */
 "PER_MESSAGE_EXPIRATION_INVALID_CONTENT" = "שגיאה בטיפול בהודעה נכנסת";
@@ -5495,7 +5903,7 @@
 "PIN_CREATION_WEAK_ERROR_MESSAGE" = "קודי PIN שומרים על המידע שלך שמאוחסן ב–Signal מוצפן כך שרק לך תהיה גישה אליו. יש לבחור PIN חזק יותר כדי להגן על החשבון שלך.";
 
 /* Error body indicating that the attempt to disable a PIN failed. */
-"PIN_DISABLE_ERROR_MESSAGE" = "ה־PIN שלך לא היה יכול להיות מושבת. ניידע אותך שוב מאוחר יותר.";
+"PIN_DISABLE_ERROR_MESSAGE" = "לא ניתן היה להשבית את ה–PIN שלך.";
 
 /* Error title indicating that the attempt to disable a PIN failed. */
 "PIN_DISABLE_ERROR_TITLE" = "השבתת PIN נכשלה";
@@ -5521,17 +5929,29 @@
 /* Body for PIN reminder megaphone */
 "PIN_REMINDER_MEGAPHONE_BODY" = "נבקש ממך מדי פעם לוודא את ה־PIN שלך כך שתזכור אותו.";
 
+/* Toast indicating that we'll ask you for your PIN again tomorrow, after successfully entering it. */
+"PIN_REMINDER_MEGAPHONE_FEW_DAYS_SUCCESSFUL_TOAST" = "PIN נכון. נזכיר לך שוב עוד מספר ימים.";
+
 /* Toast indicating that we'll ask you for your PIN again in 3 days. */
 "PIN_REMINDER_MEGAPHONE_FEW_DAYS_TOAST" = "נזכיר לך שוב עוד מספר ימים.";
 
 /* Title for PIN reminder megaphone */
 "PIN_REMINDER_MEGAPHONE_TITLE" = "וודא את Signal PIN שלך";
 
+/* Toast indicating that we'll ask you for your PIN again tomorrow, after successfully entering it. */
+"PIN_REMINDER_MEGAPHONE_TOMORROW_SUCCESSFUL_TOAST" = "PIN נכון. נזכיר לך שוב מחר.";
+
 /* Toast indicating that we'll ask you for your PIN again tomorrow. */
 "PIN_REMINDER_MEGAPHONE_TOMORROW_TOAST" = "נזכיר לך שוב מחר.";
 
-/* Toast indicating that we'll ask you for your PIN again in 2 weeks. */
+/* Toast indicating that we'll ask you for your PIN again in 2 weeks, after successfully entering it. */
+"PIN_REMINDER_MEGAPHONE_TWO_WEEK_SUCCESSFUL_TOAST" = "PIN נכון. נזכיר לך שוב עוד שבועיים.";
+
+/* Toast indicating that we'll ask you for your PIN again tomorrow. */
 "PIN_REMINDER_MEGAPHONE_TWO_WEEK_TOAST" = "נזכיר לך שוב עוד שבועיים.";
+
+/* Toast indicating that we'll ask you for your PIN again tomorrow, after successfully entering it. */
+"PIN_REMINDER_MEGAPHONE_WEEK_SUCCESSFUL_TOAST" = "PIN נכון. נזכיר לך שוב עוד שבוע.";
 
 /* Toast indicating that we'll ask you for your PIN again in a week. */
 "PIN_REMINDER_MEGAPHONE_WEEK_TOAST" = "נזכיר לך שוב עוד שבוע.";
@@ -5659,6 +6079,18 @@
 /* The copy rendered in a conversation when someone not in your address book changes their profile name. Embeds {old profile name}, {new profile name} */
 "PROFILE_NAME_CHANGE_SYSTEM_NONCONTACT_FORMAT" = "%1$@ שינה/שינתה את שם הפרופיל שלו/שלה אל %2$@.";
 
+/* First bullet point for the explainer sheet for profile names */
+"PROFILE_NAME_EDUCATION_SHEET_BULLET_1" = "שמות פרופילים אינם מאומתים";
+
+/* Second bullet point for the explainer sheet for profile names */
+"PROFILE_NAME_EDUCATION_SHEET_BULLET_2" = "יש להיזהר מחשבונות שמתחזים לאחרים";
+
+/* Third bullet point for the explainer sheet for profile names */
+"PROFILE_NAME_EDUCATION_SHEET_BULLET_3" = "אין לשתף מידע אישי עם אנשים שלא מוכרים לך";
+
+/* Header for the explainer sheet for profile names */
+"PROFILE_NAME_EDUCATION_SHEET_HEADER_FORMAT" = "<bold>שמות פרופילים</bold> ב–Signal נבחרים על ידי בעל/ת החשבון.";
+
 /* Title for the profile name view. */
 "PROFILE_NAME_VIEW_TITLE" = "שמך";
 
@@ -5748,6 +6180,9 @@
 
 /* Title of alert shown when push tokens sync job succeeds. */
 "PUSH_REGISTER_SUCCESS" = "נרשם מחדש בהצלחה עבור התראות דחיפה.";
+
+/* Accessibility label stating the author of the message to which you are replying. Embeds: {{ the author of the message to which you are replying }}. */
+"QUOTED_REPLY_ACCESSIBILITY_LABEL_FORMAT" = "תשובה אל %1$@.";
 
 /* Indicates the author of a quoted message. Embeds {{the author's name or phone number}}. */
 "QUOTED_REPLY_AUTHOR_INDICATOR_FORMAT" = "%1$@";
@@ -5858,7 +6293,7 @@
 "RECIPIENT_PICKER_INVALID_NUMBER_TITLE" = "מספר טלפון לא תקין";
 
 /* Button. Shown after selecting a phone number that isn't a Signal user. Tapping the button will open a view that allows the user to send an SMS message to specified phone number. */
-"RECIPIENT_PICKER_INVITE_ACTION" = "שליחת הודעה";
+"RECIPIENT_PICKER_INVITE_ACTION" = "הזמן";
 
 /* Alert text. Shown after selecting a phone number that isn't a Signal user. */
 "RECIPIENT_PICKER_INVITE_MESSAGE" = "%1$@ לא משתמש/ת ב–Signal. רוצה להזמין את המספר הזה?";
@@ -5917,11 +6352,14 @@
 /* If a user is installing Signal on a new phone, they may be asked whether they want to transfer their account from their old device. This is the title on the screen that asks them this question. */
 "REGISTRATION_DEVICE_TRANSFER_CHOICE_TITLE" = "העברת חשבון והודעות";
 
+/* Description for the screen that allows users to enter their backup key. */
+"REGISTRATION_ENTER_BACKUP_KEY_DESCRIPTION" = "מפתח הגיבוי שלך הוא קוד בן 64 ספרות שמאפשר לך לשחזר את החשבון והנתונים שלך.";
+
+/* Title for the screen that allows users to enter their backup key. */
+"REGISTRATION_ENTER_BACKUP_KEY_TITLE" = "הזנת מפתח הגיבוי שלך";
+
 /* Placeholder text for the phone number textfield */
 "REGISTRATION_ENTERNUMBER_DEFAULT_TEXT" = "הכנס מספר";
-
-/* No comment provided by engineer. */
-"REGISTRATION_ERROR" = "שגיאת הרשמה";
 
 /* Registration Lock can prevent users from registering in some cases, and they'll have to wait. This is the description on that screen, explaining what's going on. Embeds {{ duration }}, such as \"7 days\". */
 "REGISTRATION_LOCK_TIMEOUT_DESCRIPTION_FORMAT" = "החשבון שלך שלך ננעל כדי להגן על הפרטיות והאבטחה שלך. לאחר %1$@ של חוסר פעילות בחשבון שלך, תהיה לך אפשרות להירשם מחדש עם מספר טלפון זה ללא צורך ב–PIN שלך. כל התוכן יימחק.";
@@ -5941,6 +6379,18 @@
 /* A network error occurred during registration, and an error is shown to the user. This is the title on that error sheet. */
 "REGISTRATION_NETWORK_ERROR_TITLE" = "בדיקת חיבור";
 
+/* Title of button to tap if you do not have a backup key during registration. */
+"REGISTRATION_NO_BACKUP_KEY_BUTTON_TITLE" = "אין לך מפתח גיבוי?";
+
+/* Body text on a sheet with info for what to do if you don't have a backup key */
+"REGISTRATION_NO_BACKUP_KEY_SHEET_BODY" = "לא ניתן לשחזר גיבויים ללא קוד השחזור בן 64 הספרות שלהם. אם איבדת את מפתח הגיבוי, Signal לא תוכל לעזור לשחזר את הגיבוי שלך.\n\nאם יש לך את המכשיר הישן שלך, יש לך אפשרות לראות את מפתח הגיבוי באמצעות כניסה להגדרות > צ׳אטים > גיבויי Signal. לאחר מכן יש ללחוץ על ״הצגת מפתח גיבוי״.";
+
+/* Title for sheet with info for what to do if you don't have a backup key */
+"REGISTRATION_NO_BACKUP_KEY_SHEET_TITLE" = "אין לך מפתח גיבוי?";
+
+/* Title for button on sheet for when you don't have a backup key */
+"REGISTRATION_NO_BACKUP_KEY_SKIP_RESTORE_BUTTON_TITLE" = "דילוג בלי לשחזר";
+
 /* During registration, users are asked to enter their phone number. This is the subtitle on that screen, which gives users some instructions. */
 "REGISTRATION_PHONE_NUMBER_SUBTITLE" = "יש להכניס את מספר הטלפון שלך כדי להתחיל.";
 
@@ -5948,7 +6398,7 @@
 "REGISTRATION_PHONE_NUMBER_TITLE" = "מספר הטלפון שלך";
 
 /* Message for confirmation alert when requesting a voice code during phone number registration. */
-"REGISTRATION_PHONE_NUMBER_VOICE_CODE_ALERT_MESSAGE" = "תתבצע שיחה כדי לאמת מספר זה. האם מספר הטלפון שלך למעלה נכון?";
+"REGISTRATION_PHONE_NUMBER_VOICE_CODE_ALERT_MESSAGE" = "האם מספר הטלפון שלך למעלה נכון?";
 
 /* Label for the phone number textfield */
 "REGISTRATION_PHONENUMBER_BUTTON" = "מספר טלפון";
@@ -5993,13 +6443,25 @@
 "REGISTRATION_PROFILE_SETUP_TITLE" = "הגדרת הפרופיל שלך";
 
 /* Error shown if an SMS/call service provider is permanently unable to send a verification code to the provided number. */
-"REGISTRATION_PROVIDER_FAILURE_MESSAGE_PERMANENT" = "Signal לא יכולה לשלוח קוד SMS למספר שלך עקב תקלה חיצונית.";
+"REGISTRATION_PROVIDER_FAILURE_MESSAGE_PERMANENT" = "Signal לא יכולה לשלוח קוד SMS בגלל בעיות עם ספק ה–SMS.";
 
 /* Error shown if an SMS/call service provider is temporarily unable to send a verification code to the provided number. */
-"REGISTRATION_PROVIDER_FAILURE_MESSAGE_TRANSIENT" = "Signal לא הצליחה לשלוח קוד SMS כרגע עקב תקלה חיצונית, יש לנסות שוב מאוחר יותר.";
+"REGISTRATION_PROVIDER_FAILURE_MESSAGE_TRANSIENT" = "Signal לא הצליחה לשלוח קוד SMS בגלל בעיות עם ספק ה–SMS. יש לנסות שוב בעוד מספר שעות.";
 
 /* No comment provided by engineer. */
 "REGISTRATION_RESTRICTED_MESSAGE" = "אתה צריך להירשם לפני שתוכל לשלוח הודעה.";
+
+/* Title for screen containing QR code that users scan with their old phone when they want to transfer/restore their message history to a new device. */
+"REGISTRATION_SCAN_QR_CODE_TITLE" = "סריקת הקוד הזה עם הטלפון הישן שלך";
+
+/* Tutorial text describing the first step to scanning the restore/transfer QR code with your old phone: opening Signal */
+"REGISTRATION_SCAN_QR_CODE_TUTORIAL_OPEN_SIGNAL" = "יש לפתוח את Signal במכשיר הישן";
+
+/* Tutorial text describing the third step to scanning the restore/transfer QR code with your old phone: scan the code */
+"REGISTRATION_SCAN_QR_CODE_TUTORIAL_SCAN" = "לסרוק את הקוד הזה עם המצלמה";
+
+/* Tutorial text describing the second step to scanning the restore/transfer QR code with your old phone: tap the camera icon */
+"REGISTRATION_SCAN_QR_CODE_TUTORIAL_TAP_CAMERA" = "ללחוץ על סמל המצלמה";
 
 /* Button when sending a verification code via sms failed, but resending via voice call might succeed. */
 "REGISTRATION_SMS_CODE_FAILED_TRY_VOICE_BUTTON" = "שיחה קולית";
@@ -6039,9 +6501,6 @@
 
 /* Error message when sending a verification code via voice call failed, but resending via sms might succeed. */
 "REGISTRATION_VOICE_CODE_FAILED_TRY_SMS_ERROR" = "לא הצלחנו לשלוח לך קוד אימות דרך שיחה קולית. כדאי לנסות לקבל את הקוד שלך דרך SMS במקום.";
-
-/* No comment provided by engineer. */
-"RELAY_REGISTERED_ERROR_RECOVERY" = "מספר הטלפון שאתה מנסה לרשום כבר נרשם בשרת אחר, אנא בטל רישום משם ונסה שוב.";
 
 /* Button below the warning to fix a corrupted username. */
 "REMINDER_VIEW_USERNAME_CORRUPTED_FIX_BUTTON" = "תיקון כעת";
@@ -6130,6 +6589,12 @@
 /* Message title describing the safety tip about unknown or fake businesses. */
 "SAFETY_TIPS_FAKE_BUSINESS_TITLE" = "עסקים ומוסדות מזויפים";
 
+/* Message contents for the fake names safety tip. */
+"SAFETY_TIPS_FAKE_NAMES_BODY" = "Signal לעולם לא תיצור איתך קשר עבור קוד הרישום או ה–PIN שלך. יש להיזהר מבקשות שנשלחות על ידי מתחזים. שמות פרופילים נבחרים על ידי בעל/ת החשבון ואינם מאומתים.";
+
+/* Message title describing the fake names safety tip. */
+"SAFETY_TIPS_FAKE_NAMES_TITLE" = "שמות וחשבונות מזויפים";
+
 /* Message describing safety tips for group conversations. */
 "SAFETY_TIPS_GROUPS_HEADER_MESSAGE" = "יש לסקור את הבקשה הזו בזהירות. אף אחד מאנשי הקשר שלך או האנשים שהתכתבת איתם לא נמצאים בקבוצה הזו. הנה כמה דברים שכדאי להיזהר מהם:";
 
@@ -6214,9 +6679,6 @@
 /* section header for search results that match a message in a conversation */
 "SEARCH_SECTION_MESSAGES" = "הודעות";
 
-/* alert title */
-"SECONDARY_DEVICE_ERROR_FETCHING_LINKING_CODE" = "לא היה ניתן למשוך קוד קישור";
-
 /* Message for error alert indicating that re-linking failed because the account did not match. */
 "SECONDARY_LINKING_ERROR_DIFFERENT_ACCOUNT_MESSAGE" = "כדי לקשר את המכשיר הזה לחשבון שונה, צריך קודם כל לאפס את המכשיר. בטוח שבא לך למחוק את כל ההיסטוריה (הודעות, קבצים מצורפים, שיחות וכו')? פעולה זו אינה ניתנת לביטול.";
 
@@ -6241,17 +6703,26 @@
 /* alert title */
 "SECONDARY_LINKING_ERROR_WAITING_FOR_SCAN" = "נכשל בקישור המכשיר שלך";
 
-/* header text when this device is being added as a secondary */
-"SECONDARY_ONBOARDING_CHOOSE_DEVICE_NAME" = "בחר שם עבור מכשיר זה";
+/* Title for action sheet when secondary device fails to sync messages. */
+"SECONDARY_LINKING_SYNCING_ERROR_TITLE" = "שגיאה בהעברת ההודעות שלך";
 
-/* label text */
-"SECONDARY_ONBOARDING_CHOOSE_DEVICE_NAME_EXPLANATION" = "תראה שם זה תחת \"מכשירים מקושרים\".";
+/* Message for action sheet when secondary device fails to sync messages due to network error. */
+"SECONDARY_LINKING_SYNCING_NETWORK_ERROR_MESSAGE" = "לא היה ניתן להעביר את ההודעות שלך. יש לבדוק את חיבור האינטרנט שלך ולנסות שוב.";
+
+/* Message for action sheet when secondary device fails to sync messages due to an unspecified error. */
+"SECONDARY_LINKING_SYNCING_OTHER_ERROR_MESSAGE" = "לא ניתן היה להעביר את ההודעות שלך עקב שגיאה. יש לנסות שוב באמצעות קישור מחדש של המכשיר הזה.";
+
+/* Button on an action sheet to open Signal on the App Store. */
+"SECONDARY_LINKING_SYNCING_UPDATE_REQUIRED_CHECK_FOR_UPDATE_BUTTON" = "בדיקת עדכונים";
+
+/* Message for action sheet when the secondary device fails to sync messages due to an app update being required. */
+"SECONDARY_LINKING_SYNCING_UPDATE_REQUIRED_ERROR_MESSAGE" = "כדי להשלים את סנכרון ההודעות, יש לעדכן את Signal כעת.";
+
+/* Title for action sheet when the secondary device fails to sync messages due to an app update being required. */
+"SECONDARY_LINKING_SYNCING_UPDATE_REQUIRED_ERROR_TITLE" = "נדרש עדכון";
 
 /* text field placeholder */
 "SECONDARY_ONBOARDING_CHOOSE_DEVICE_NAME_PLACEHOLDER" = "בחר שם";
-
-/* body text while displaying a QR code which, when scanned, will link this device. */
-"SECONDARY_ONBOARDING_COMPLETE_LINKING_PROCESS" = "סיים לקשר";
 
 /* header text before the user can link this device */
 "SECONDARY_ONBOARDING_GET_STARTED_BY_OPENING_PRIMARY" = "הפעל את Signal בטלפון שלך וקשר iPad זה אל החשבון שלך";
@@ -6271,6 +6742,9 @@
 /* Link text for page with troubleshooting info shown on the QR scanning screen */
 "SECONDARY_ONBOARDING_SCAN_CODE_HELP_TEXT" = "קבל עזרה בקישור iPad כאן";
 
+/* Text for a button offering to refresh the QR code to link an iPad. */
+"SECONDARY_ONBOARDING_SCAN_CODE_REFRESH_CODE_BUTTON" = "רענון קוד";
+
 /* header text while displaying a QR code which, when scanned, will link this device. */
 "SECONDARY_ONBOARDING_SCAN_CODE_TITLE" = "סרוק את קוד ה־QR עם הטלפון שלך";
 
@@ -6282,6 +6756,9 @@
 
 /* Label for the 'see all' button. */
 "SEE_ALL_BUTTON" = "ראה את כולם";
+
+/* Button text to select all in any list selection mode */
+"SELECT_ALL" = "בחירת הכל";
 
 /* No comment provided by engineer. */
 "SEND_AGAIN_BUTTON" = "שלח שוב";
@@ -6409,9 +6886,6 @@
 /* Table footer for the 'censorship circumvention' section shown when the app is connected to the Signal service. */
 "SETTINGS_ADVANCED_CENSORSHIP_CIRCUMVENTION_FOOTER_WEBSOCKET_CONNECTED" = "עקיפת צנזורה אינה הכרחית; אתה מחובר כבר אל שירות Signal.";
 
-/* No comment provided by engineer. */
-"SETTINGS_ADVANCED_DEBUGLOG" = "אפשר יומן ניפוי תקלים";
-
 /* Label for the 'advanced pin settings' button. */
 "SETTINGS_ADVANCED_PIN_SETTINGS" = "הגדרות PIN מתקדמות";
 
@@ -6460,6 +6934,9 @@
 /* Format string for the default 'Note' sound. Embeds the system {{sound name}}. */
 "SETTINGS_AUDIO_DEFAULT_TONE_LABEL_FORMAT" = "%1$@ (ברירת מחדל)";
 
+/* Label for the 'backups' section of app settings. */
+"SETTINGS_BACKUPS" = "גיבויים";
+
 /* A label for the 'add phone number' button in the block list table. */
 "SETTINGS_BLOCK_LIST_ADD_BUTTON" = "הוספת משתמש/ת חסום/ה";
 
@@ -6495,9 +6972,6 @@
 
 /* Format for the 'country code' in the 'change phone number' settings. Embeds: {{ %1$@ the numeric country code prefix, %2$@ the country code abbreviation }}. */
 "SETTINGS_CHANGE_PHONE_NUMBER_COUNTRY_CODE_FORMAT" = "%1$@ (%2$@)";
-
-/* Format for 'example phone numbers' in the 'change phone number' settings. Embeds: {{ the example phone number }} */
-"SETTINGS_CHANGE_PHONE_NUMBER_EXAMPLE_PHONE_NUMBER_FORMAT" = "דוגמה: %1$@";
 
 /* Title for the 'new phone number' section in the 'change phone number' settings. */
 "SETTINGS_CHANGE_PHONE_NUMBER_NEW_PHONE_NUMBER_SECTION_TITLE" = "המספר החדש שלך";
@@ -6671,7 +7145,7 @@
 "SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_AGREE" = "הפעל";
 
 /* Description for the 'activate payments confirmation' UI in the payment settings. */
-"SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION" = "אפשר להשתמש ב–Signal כדי לשלוח ולקבל MobileCoin. כל התשלומים כפופים לתנאי השימוש עבור MobileCoin וארנק MobileCoin. יש סיכוי להיתקל בבעיות או תשלומים/יתרות שיאבדו לך ולא יהיה ניתן לשחזר.";
+"SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_DESCRIPTION" = "אפשר להשתמש ב–Signal כדי לשלוח ולקבל MobileCoin. כל התשלומים כפופים לתנאי השימוש של MobileCoin ו–MobileCoin Wallet. יש סיכוי להיתקל בבעיות או תשלומים ויתרות שיאבדו לך ולא יהיה ניתן לשחזר.";
 
 /* Title for the 'activate payments confirmation' UI in the payment settings. */
 "SETTINGS_PAYMENTS_ACTIVATE_PAYMENTS_CONFIRM_TITLE" = "הפעל";
@@ -6833,7 +7307,7 @@
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_BUTTON" = "דילוג על משפט שחזור סיסמה";
 
 /* Message of confirmation alert when discarding recovery phrase. */
-"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "Your recovery phrase lets you restore your balance in a worst-case scenario. We strongly recommend you save it.";
+"SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_MESSAGE" = "משפט השחזור שלך מאפשר לך לשחזר את היתרה שלך במקרה הגרוע ביותר. אנחנו ממליצים בחום לשמור אותו.";
 
 /* Title of confirmation alert when discarding recovery phrase. */
 "SETTINGS_PAYMENTS_PASSPHRASE_DISCARD_CONFIRMATION_TITLE" = "להמשיך בלי לשמור?";
@@ -7327,12 +7801,6 @@
 /* Title indicating that the share extension cannot be used until the user has registered in the main app. */
 "SHARE_EXTENSION_NOT_REGISTERED_TITLE" = "לא רשום";
 
-/* Message indicating that the share extension cannot be used until the main app has been launched at least once. */
-"SHARE_EXTENSION_NOT_YET_MIGRATED_MESSAGE" = "הפעל את היישום Signal כדי לעדכן או להירשם.";
-
-/* Title indicating that the share extension cannot be used until the main app has been launched at least once. */
-"SHARE_EXTENSION_NOT_YET_MIGRATED_TITLE" = "לא מוכן";
-
 /* Alert title */
 "SHARE_EXTENSION_SENDING_FAILURE_TITLE" = "לא היה ניתן לשלוח צרופה";
 
@@ -7411,6 +7879,15 @@
 /* Preview text shown in notifications and conversation list for sticker messages. */
 "STICKER_MESSAGE_PREVIEW" = "הודעת מדבקה";
 
+/* Message when trying to show a sticker that has expired and is unavailable for download */
+"STICKER_UNAVAILABLE_MESSAGE_LABEL" = "סטיקר לא זמין";
+
+/* Message for sheet shown when tapping a sticker that has expired and is unavailable for download */
+"STICKER_UNAVAILABLE_SHEET_MESSAGE" = "סטיקר זה לא הועבר מהטלפון שלך כשהמכשיר הזה קושר. לא ניתן לסנכרן קבצים ומדיה שיותר ישנים מ–45 ימים בזמן קישור המכשיר.";
+
+/* Title for sheet shown when tapping a sticker that has expired and is unavailable for download */
+"STICKER_UNAVAILABLE_SHEET_TITLE" = "סטיקר לא זמין";
+
 /* Label for the 'install sticker pack' button. */
 "STICKERS_INSTALL_BUTTON" = "התקן";
 
@@ -7465,9 +7942,6 @@
 /* Title asking the user if they are sure they want to delete their story */
 "STORIES_DELETE_STORY_ACTION_SHEET_TITLE" = "למחוק את הסטורי הזה? הוא יימחק גם עבור כל מי שקיבל אותו.";
 
-/* toast alert shown after user taps the 'save' button */
-"STORIES_DID_SAVE" = "סטורי נשמר";
-
 /* Context menu action to forward the selected story */
 "STORIES_FORWARD_STORY_ACTION" = "העבר הלאה";
 
@@ -7521,9 +7995,6 @@
 
 /* Title text for the 'replies' tab on the stories views & replies sheet */
 "STORIES_REPLIES_TAB" = "תשובות";
-
-/* alert notifying that the 'save' operation failed */
-"STORIES_SAVE_FAILED" = "שמירת סטורי נכשלה";
 
 /* Context menu action to save the selected story */
 "STORIES_SAVE_STORY_ACTION" = "שמור";
@@ -7777,9 +8248,6 @@
 /* Localized label for support request email debug log URL. Embeds {{debug log url}}. */
 "SUPPORT_EMAIL_LOG_URL_LABEL_FORMAT" = "כתובת יומן: %1$@";
 
-/* Localized label for support request email signal version string. Embeds {{signal version}}. */
-"SUPPORT_EMAIL_SIGNAL_VERSION_LABEL_FORMAT" = "גרסת Signal: %1$@";
-
 /* Localized subject for support request emails */
 "SUPPORT_EMAIL_SUBJECT" = "בקשת תמיכה של Signal iOS";
 
@@ -7861,11 +8329,8 @@
 /* Indicator that the default disappearing message timer will be applied when you send a message. Embeds {default disappearing message time} */
 "SYSTEM_MESSAGE_DEFAULT_DISAPPEARING_MESSAGE_TIMER_FORMAT" = "הזמן של ההודעות הנעלמות יוגדר אל %1$@ כאשר אתה מתכתב עם הצד השני.";
 
-/* Indicator warning about an unknown contact thread. */
-"SYSTEM_MESSAGE_UNKNOWN_THREAD_WARNING_CONTACT" = "אין קבוצות משותפות. סקור בקשות בזהירות.";
-
-/* Indicator warning about an unknown group thread. */
-"SYSTEM_MESSAGE_UNKNOWN_THREAD_WARNING_GROUP" = "אין אנשי קשר בקבוצה הזאת. סקור בקשות בזהירות.";
+/* Indicator warning about an unknown contact thread */
+"SYSTEM_MESSAGE_UNKNOWN_THREAD_REVIEW_CAREFULLY_WARNING" = "יש לסקור בזהירות";
 
 /* Tap to Replace Emoji string for reaction configuration */
 "TAP_REPLACE_EMOJI" = "הקש כדי להחליף אימוג'י";
@@ -7906,23 +8371,62 @@
 /* text indicating the message was remotely deleted */
 "THIS_MESSAGE_WAS_DELETED" = "הודעה זו נמחקה.";
 
-/* A string indicating two mutual groups the user shares with this contact and that there are more unlisted. Embeds {{mutual group name}} */
-"THREAD_DETAILS_MORE_MUTUAL_GROUP" = "חבר קבוצה של %1$@, %2$@ ועוד %3$lu קבוצות נוספות";
+/* Label for a group you are not in which has four members, listing their names */
+"THREAD_DETAILS_FOUR_MEMBERS" = "%1$@, %2$@, %3$@, and %4$@";
+
+/* Label displayed below group info. This is the predicate part of the sentence 'Group names are not verified'. Embeds {{ THREAD_DETAILS_GROUP_NAMES_ARE_NOT_VERIFIED_SUBJECT }} */
+"THREAD_DETAILS_GROUP_NAMES_ARE_NOT_VERIFIED_PREDICATE" = "%1$@ אינם מאומתים";
+
+/* Label displayed below group info. This is the subject part of the sentence 'Group names are not verified'. It is embedded into THREAD_DETAILS_GROUP_NAMES_ARE_NOT_VERIFIED_PREDICATE. */
+"THREAD_DETAILS_GROUP_NAMES_ARE_NOT_VERIFIED_SUBJECT" = "שמות קבוצות";
+
+/* Label for a group with more than four members, listing the first three members' names and embedding THREAD_DETAILS_OTHER_MEMBERS_COUNT_%ld as a count of other members */
+"THREAD_DETAILS_MANY_MEMBERS" = "%1$@, %2$@, %3$@, and %4$@";
+
+/* Label for a group with no members or no members but yourself */
+"THREAD_DETAILS_NO_MEMBERS" = "No other group members yet";
 
 /* Subtitle appearing at the top of the users 'note to self' conversation */
 "THREAD_DETAILS_NOTE_TO_SELF_EXPLANATION" = "אפשר להוסיף הערות לעצמך בצ'אט זה. אם מקושרים לחשבון שלך מכשירים כלשהם, הערות חדשות יסונכרנו.";
 
+/* Label for a group with one member (not counting yourself), displaying their name */
+"THREAD_DETAILS_ONE_MEMBER" = "%1$@";
+
+/* Label for a group you are in with one other member, listing their name and yourself */
+"THREAD_DETAILS_ONE_MEMBER_AND_YOURSELF" = "%1$@ and you";
+
 /* A string indicating a mutual group the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_ONE_MUTUAL_GROUP" = "חבר קבוצה של %1$@";
+
+/* Label displayed below profiles. This is the predicate part of the sentence 'Profile names are not verified'. Embeds {{ THREAD_DETAILS_PROFILE_NAMES_ARE_NOT_VERIFIED_SUBJECT }} */
+"THREAD_DETAILS_PROFILE_NAMES_ARE_NOT_VERIFIED_PREDICATE" = "%1$@ אינם מאומתים";
+
+/* Label displayed below profiles. This is the subject part of the sentence 'Profile names are not verified'. It is embedded into THREAD_DETAILS_PROFILE_NAMES_ARE_NOT_VERIFIED_PREDICATE. */
+"THREAD_DETAILS_PROFILE_NAMES_ARE_NOT_VERIFIED_SUBJECT" = "שמות פרופילים";
 
 /* Indicator that a blurred avatar can be revealed by tapping. */
 "THREAD_DETAILS_TAP_TO_UNBLUR_AVATAR" = "הצג";
 
+/* Label for a group you are not in which has three members, listing their names */
+"THREAD_DETAILS_THREE_MEMBERS" = "%1$@, %2$@, and %3$@";
+
+/* Label for a group you are in which has three other members, listing their names and yourself */
+"THREAD_DETAILS_THREE_MEMBERS_AND_YOURSELF" = "%1$@, %2$@, %3$@, and you";
+
 /* A string indicating three mutual groups the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_THREE_MUTUAL_GROUP" = "חבר קבוצה של %1$@, %2$@ ו%3$@";
 
+/* Label for a group you are not in which has two members, listing their names */
+"THREAD_DETAILS_TWO_MEMBERS" = "%1$@ and %2$@";
+
+/* Label for a group you are in which has two other members, listing their names and yourself */
+"THREAD_DETAILS_TWO_MEMBERS_AND_YOURSELF" = "%1$@, %2$@, and you";
+
 /* A string indicating two mutual groups the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_TWO_MUTUAL_GROUP" = "חבר קבוצה של %1$@ ו%2$@";
+
+/* A string indicating there are no mutual groups the user shares with this contact */
+"THREAD_DETAILS_ZERO_MUTUAL_GROUPS" = "אין קבוצות במשותף";
 
 /* Shown after tapping a 'Learn More' button when multiple conversations for the same person have been merged into one. The first parameter is a phone number (eg +1 650-555-0100) and the second parameter is a name (eg John). */
 "THREAD_MERGE_LEARN_MORE" = "לאחר התכתבות עם %1$@ גילית שהמספר הזה שייך ל%2$@. מספר הטלפון שלו או שלה הוא פרטי.\n\nהיסטוריית ההודעות שלך לשני הצ'אטים מוזגה כאן.";
@@ -7995,6 +8499,9 @@
 
 /* Label for the unarchive button for conversations list view */
 "UNARCHIVE_ACTION" = "הוצא מארכיון";
+
+/* Toast shown when tapping older media that can no longer be downloaded */
+"UNAVAILABLE_MEDIA_TAP_TOAST" = "המדיה הזו לא זמינה יותר";
 
 /* Message shown in conversation view that offers to block an unknown user. */
 "UNKNOWN_CONTACT_BLOCK_OFFER" = "המשתמש/ת לא באנשי הקשר שלך. רוצה לחסום אותו או אותה?";
@@ -8233,12 +8740,6 @@
 /* An error message indicating that a usernames-related requeset failed because of a network error. */
 "USERNAMES_REMOTE_MUTATION_ERROR_DESCRIPTION" = "שמות משתמש יכולים להתעדכן רק בזמן חיבור לאינטרנט.";
 
-/* error label near a field */
-"VALIDATION_ERROR_CANNOT_BE_BLANK" = "שם מכשיר אינו יכול להיות ריק";
-
-/* error label near a field */
-"VALIDATION_ERROR_TOO_LONG" = "שם המכשיר ארוך מדי";
-
 /* Format for info message indicating that the verification state was unverified on this device. Embeds {{user's name or phone number}}. */
 "VERIFICATION_STATE_CHANGE_FORMAT_NOT_VERIFIED_LOCAL" = "סימנת את %1$@ כלא מוודא.";
 
@@ -8298,9 +8799,6 @@
 
 /* Message for the tooltip indicating the 'voice message' needs to be held to be held down to record. */
 "VOICE_MESSAGE_TOO_SHORT_TOOLTIP" = "לחץ והחזק כדי להקליט.";
-
-/* Activity indicator title, shown upon returning to the device manager, until you complete the provisioning process on desktop */
-"WAITING_TO_COMPLETE_DEVICE_LINK_TEXT" = "השלם התקנה ב־Signal שולחן עבודה.";
 
 /* Accessibility label for gradient wallpaper swatch, naming the two colors in the gradient. {{ Embeds the names of the two colors in the gradient }} */
 "WALLPAPER_GRADIENT_COLORS_ACCESSIBILITY_LABEL" = "מעבר צבע הדרגתי עם %1$@ ו%2$@";

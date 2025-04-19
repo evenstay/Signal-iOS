@@ -122,8 +122,8 @@ class CallMemberCameraOffView: UIView, CallMemberComposableView {
         // Update circular avatar
         switch type {
         case .local:
-            databaseStorage.read { tx in
-                guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aciAddress else {
+            SSKEnvironment.shared.databaseStorageRef.read { tx in
+                guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx)?.aciAddress else {
                     owsFailDebug("missing local address")
                     return
                 }
@@ -134,14 +134,14 @@ class CallMemberCameraOffView: UIView, CallMemberComposableView {
             }
         case .remoteInGroup:
             guard let remoteGroupMemberDeviceState else { return }
-            databaseStorage.read { tx in
+            SSKEnvironment.shared.databaseStorageRef.read { tx in
                 updateCircularAvatarIfNecessary(
                     address: remoteGroupMemberDeviceState.address,
                     tx: tx
                 )
             }
         case .remoteInIndividual(let individualCall):
-            databaseStorage.read { tx in
+            SSKEnvironment.shared.databaseStorageRef.read { tx in
                 updateCircularAvatarIfNecessary(
                     address: individualCall.remoteAddress,
                     tx: tx
@@ -184,7 +184,7 @@ class CallMemberCameraOffView: UIView, CallMemberComposableView {
 
     private func updateCircularAvatarIfNecessary(
         address: SignalServiceAddress,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) {
         guard let avatarView else {
             Logger.info("Skipping refresh of avatar view in call member view.")
@@ -281,46 +281,54 @@ class BlurredAvatarBackgroundView: UIView {
         type: CallMemberView.MemberType,
         remoteGroupMemberDeviceState: RemoteDeviceState?
     ) {
-        let backgroundAvatarImage: UIImage?
-        var backgroundColor: UIColor?
+        let address: SignalServiceAddress
         switch type {
         case .local:
-            databaseStorage.read { tx in
-                guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aciAddress else {
-                    owsFailDebug("missing local address")
-                    return
-                }
-                backgroundColor = AvatarTheme.forAddress(localAddress).backgroundColor
+            let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+            guard let localAddress = tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress else {
+                owsFailDebug("missing local address")
+                return
             }
-            backgroundAvatarImage = profileManager.localProfileAvatarImage
+            address = localAddress
         case .remoteInGroup:
             guard let remoteGroupMemberDeviceState else { return }
-            let (image, color) = avatarImageAndBackgroundColorWithSneakyTransaction(for: remoteGroupMemberDeviceState.address)
-            backgroundAvatarImage = image
-            backgroundColor = color
+            address = remoteGroupMemberDeviceState.address
         case .remoteInIndividual(let individualCall):
-            let (image, color) = avatarImageAndBackgroundColorWithSneakyTransaction(for: individualCall.remoteAddress)
-            backgroundAvatarImage = image
-            backgroundColor = color
+            address = individualCall.remoteAddress
         }
-        backgroundAvatarView.image = backgroundAvatarImage
-        self.backgroundColor = backgroundColor
+        let (image, color) = self.avatarImageAndBackgroundColorWithSneakyTransaction(for: address)
+        backgroundAvatarView.image = image
+        self.backgroundColor = color
     }
 
     private func avatarImageAndBackgroundColorWithSneakyTransaction(
         for address: SignalServiceAddress
-    ) -> (UIImage?, UIColor?) {
-        let profileImage = databaseStorage.read { tx in
-            return self.contactsManagerImpl.avatarImage(
-                forAddress: address,
-                shouldValidate: true,
-                transaction: tx
-            )
-        }
-        return (
+    ) -> (UIImage?, UIColor) {
+        let avatarDefaultColorManager = DependenciesBridge.shared.avatarDefaultColorManager
+        let contactManagerImpl = SSKEnvironment.shared.contactManagerImplRef
+        let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+        let recipientDatabaseTable = DependenciesBridge.shared.recipientDatabaseTable
+
+        let (
             profileImage,
-            AvatarTheme.forAddress(address).backgroundColor
-        )
+            defaultAvatarColor
+        ): (UIImage?, AvatarTheme) = databaseStorage.read { tx in
+            let avatarImage = contactManagerImpl.avatarImage(forAddress: address, transaction: tx)
+
+            if let recipient = recipientDatabaseTable.fetchRecipient(address: address, tx: tx) {
+                return (
+                    avatarImage,
+                    avatarDefaultColorManager.defaultColor(useCase: .contact(recipient: recipient), tx: tx)
+                )
+            } else {
+                return (
+                    avatarImage,
+                    avatarDefaultColorManager.defaultColor(useCase: .contactWithoutRecipient(address: address), tx: tx)
+                )
+            }
+        }
+
+        return (profileImage, defaultAvatarColor.backgroundColor)
     }
 
     func clear() {

@@ -52,7 +52,7 @@ public class AudioPlayer: NSObject {
 
     private enum Source {
         case decryptedFile(URL)
-        case attachment(TSResourceStream)
+        case attachment(AttachmentStream)
 
         var description: String {
             switch self {
@@ -72,6 +72,8 @@ public class AudioPlayer: NSObject {
 
     private let audioActivity: AudioActivity
 
+    private let sleepBlockObject = DeviceSleepBlockObject(blockReason: "audio player")
+
     public convenience init(decryptedFileUrl: URL, audioBehavior: AudioBehavior) {
         self.init(source: .decryptedFile(decryptedFileUrl), audioBehavior: audioBehavior)
     }
@@ -83,13 +85,13 @@ public class AudioPlayer: NSObject {
         self.init(source: .decryptedFile(url), audioBehavior: audioBehavior)
     }
 
-    public convenience init(attachment: TSResourceStream, audioBehavior: AudioBehavior) {
+    public convenience init(attachment: AttachmentStream, audioBehavior: AudioBehavior) {
         self.init(source: .attachment(attachment), audioBehavior: audioBehavior)
     }
 
     private init(source: Source, audioBehavior: AudioBehavior) {
         self.source = source
-        audioActivity = AudioActivity(audioDescription: "\(Self.logTag()) \(source.description)", behavior: audioBehavior)
+        audioActivity = AudioActivity(audioDescription: "[\(Self.self)] \(source.description)", behavior: audioBehavior)
 
         super.init()
 
@@ -102,7 +104,9 @@ public class AudioPlayer: NSObject {
     }
 
     deinit {
-        DeviceSleepManager.shared.removeBlock(blockObject: self)
+        Task { [sleepBlockObject] in
+            await DependenciesBridge.shared.deviceSleepManager?.removeBlock(blockObject: sleepBlockObject)
+        }
         stop()
     }
 
@@ -141,7 +145,7 @@ public class AudioPlayer: NSObject {
     public func play() {
         AssertIsOnMainThread()
 
-        let success = audioSession.startAudioActivity(audioActivity)
+        let success = SUIEnvironment.shared.audioSessionRef.startAudioActivity(audioActivity)
         owsAssertDebug(success)
 
         setupAudioPlayer()
@@ -163,7 +167,9 @@ public class AudioPlayer: NSObject {
         self.audioPlayerPoller = audioPlayerPoller
 
         // Prevent device from sleeping while playing audio.
-        DeviceSleepManager.shared.addBlock(blockObject: self)
+        MainActor.assumeIsolated {
+            DependenciesBridge.shared.deviceSleepManager?.addBlock(blockObject: sleepBlockObject)
+        }
     }
 
     public func pause() {
@@ -186,7 +192,9 @@ public class AudioPlayer: NSObject {
 
         endAudioActivities()
 
-        DeviceSleepManager.shared.removeBlock(blockObject: self)
+        MainActor.assumeIsolated {
+            DependenciesBridge.shared.deviceSleepManager?.removeBlock(blockObject: sleepBlockObject)
+        }
     }
 
     public func setupAudioPlayer() {
@@ -271,12 +279,14 @@ public class AudioPlayer: NSObject {
         delegate?.setAudioProgress(0, duration: 0, playbackRate: playbackRate)
 
         endAudioActivities()
-        DeviceSleepManager.shared.removeBlock(blockObject: self)
+        MainActor.assumeIsolated {
+            DependenciesBridge.shared.deviceSleepManager?.removeBlock(blockObject: sleepBlockObject)
+        }
         teardownRemoteCommandCenter()
     }
 
     private func endAudioActivities() {
-        audioSession.endAudioActivity(audioActivity)
+        SUIEnvironment.shared.audioSessionRef.endAudioActivity(audioActivity)
     }
 
     public func togglePlayState() {
@@ -372,7 +382,7 @@ public class AudioPlayer: NSObject {
 
     private func teardownRemoteCommandCenter() {
         // If there's nothing left that wants background playback, disable lockscreen / control center controls
-        guard !audioSession.wantsBackgroundPlayback else { return }
+        guard !SUIEnvironment.shared.audioSessionRef.wantsBackgroundPlayback else { return }
 
         let commandCenter = MPRemoteCommandCenter.shared()
         commandCenter.playCommand.isEnabled = false

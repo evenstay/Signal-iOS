@@ -140,6 +140,19 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
 
         /// The data provider used to fetch an avatar and badge
         public var dataSource: ConversationAvatarDataSource?
+
+        public mutating func setGroupIdWithSneakyTransaction(groupId: Data) {
+            if dataSource?.groupId == groupId {
+                return
+            }
+            let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+            self.dataSource = databaseStorage.read { tx in
+                return TSGroupThread.fetch(groupId: groupId, transaction: tx)
+            }.map {
+                return .thread($0)
+            }
+        }
+
         /// Adjusts how the local user profile avatar is generated (Note to Self or Avatar?)
         public var localUserDisplayMode: LocalUserDisplayMode
         /// Places the user's badge (if they have one) over the avatar. Only supported for predefined size classes
@@ -258,11 +271,11 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
 
     /// To reduce the occurrence of unnecessary avatar fetches, updates to the view configuration occur in a closure
     /// Configuration updates will be applied all at once
-    public func update(_ transaction: SDSAnyReadTransaction, _ updateBlock: (inout Configuration) -> Void) {
+    public func update(_ transaction: DBReadTransaction, _ updateBlock: (inout Configuration) -> Void) {
         update(optionalTransaction: transaction, updateBlock)
     }
 
-    private func update(optionalTransaction transaction: SDSAnyReadTransaction?, _ updateBlock: (inout Configuration) -> Void) {
+    private func update(optionalTransaction transaction: DBReadTransaction?, _ updateBlock: (inout Configuration) -> Void) {
         AssertIsOnMainThread()
 
         let oldConfiguration = configuration
@@ -278,7 +291,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
         updateModel(transaction: nil)
     }
 
-    private func updateModel(transaction readTx: SDSAnyReadTransaction?) {
+    private func updateModel(transaction readTx: DBReadTransaction?) {
         setNeedsModelUpdate()
         updateModelIfNecessary(transaction: readTx)
     }
@@ -286,7 +299,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
     // If the model has been dirtied, performs an update
     // If an async update is requested, the model is updated immediately with any available cached content
     // followed by enqueueing a full model update on a background thread.
-    private func updateModelIfNecessary(transaction readTx: SDSAnyReadTransaction?) {
+    private func updateModelIfNecessary(transaction readTx: DBReadTransaction?) {
         AssertIsOnMainThread()
 
         guard nextModelGeneration.get() > currentModelGeneration else { return }
@@ -364,7 +377,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
                 return
             }
 
-            let (updatedAvatar, updatedBadge) = Self.databaseStorage.read { transaction -> (UIImage?, UIImage?) in
+            let (updatedAvatar, updatedBadge) = SSKEnvironment.shared.databaseStorageRef.read { transaction -> (UIImage?, UIImage?) in
                 guard self.nextModelGeneration.get() == generationAtEnqueue else {
                     return (nil, nil)
                 }
@@ -615,7 +628,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
                     .filter(predicate)
                     .fetchOne(db)
             }.start(
-                in: databaseStorage.grdbStorage.pool,
+                in: SSKEnvironment.shared.databaseStorageRef.grdbStorage.pool,
                 onError: { error in
                     owsFailDebug("Failed to observe story hidden state: \(error))")
                 },
@@ -740,8 +753,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
         }
 
         if contentThreadId == changedThreadId {
-            databaseStorage.read {
-                dataSource.reload(transaction: $0)
+            SSKEnvironment.shared.databaseStorageRef.read {
                 updateModel(transaction: $0)
             }
         }
@@ -761,7 +773,7 @@ public class ConversationAvatarView: UIView, CVView, PrimaryImageView {
 
 // MARK: -
 
-public enum ConversationAvatarDataSource: Equatable, Dependencies, CustomStringConvertible {
+public enum ConversationAvatarDataSource: Equatable, CustomStringConvertible {
     case thread(TSThread)
     case address(SignalServiceAddress)
     case asset(avatar: UIImage?, badge: UIImage?)
@@ -805,18 +817,18 @@ public enum ConversationAvatarDataSource: Equatable, Dependencies, CustomStringC
         }
     }
 
-    private func performWithTransaction<T>(_ existingTx: SDSAnyReadTransaction?, _ block: (SDSAnyReadTransaction) -> T) -> T {
+    private func performWithTransaction<T>(_ existingTx: DBReadTransaction?, _ block: (DBReadTransaction) -> T) -> T {
         if let transaction = existingTx {
             return block(transaction)
         } else {
-            return databaseStorage.read { readTx in
+            return SSKEnvironment.shared.databaseStorageRef.read { readTx in
                 block(readTx)
             }
         }
     }
 
     // TODO: Badges — Should this be async?
-    fileprivate func fetchBadge(configuration: ConversationAvatarView.Configuration, transaction: SDSAnyReadTransaction?) -> UIImage? {
+    fileprivate func fetchBadge(configuration: ConversationAvatarView.Configuration, transaction: DBReadTransaction?) -> UIImage? {
         guard configuration.addBadgeIfApplicable else { return nil }
         guard configuration.sizeClass.badgeDiameter >= 16 else {
             // We never want to show a badge <= 16pts
@@ -841,19 +853,19 @@ public enum ConversationAvatarDataSource: Equatable, Dependencies, CustomStringC
             return nil
         }
 
-        let primaryBadge: ProfileBadge? = performWithTransaction(transaction) {
-            let userProfile = profileManager.getUserProfile(for: targetAddress, transaction: $0)
-            return userProfile?.primaryBadge?.fetchBadgeContent(transaction: $0)
+        let primaryBadge: ProfileBadge? = performWithTransaction(transaction) { tx in
+            let userProfile: OWSUserProfile? = SSKEnvironment.shared.profileManagerRef.userProfile(for: targetAddress, tx: tx)
+            return userProfile?.primaryBadge?.fetchBadgeContent(transaction: tx)
         }
         guard let badgeAssets = primaryBadge?.assets else { return nil }
         return configuration.sizeClass.fetchImageFromBadgeAssets(badgeAssets)
     }
 
-    fileprivate func buildImage(configuration: ConversationAvatarView.Configuration, transaction: SDSAnyReadTransaction?) -> UIImage? {
+    fileprivate func buildImage(configuration: ConversationAvatarView.Configuration, transaction: DBReadTransaction?) -> UIImage? {
         switch self {
         case .thread(let contactThread as TSContactThread):
             return performWithTransaction(transaction) {
-                Self.avatarBuilder.avatarImage(
+                SSKEnvironment.shared.avatarBuilderRef.avatarImage(
                     forAddress: contactThread.contactAddress,
                     diameterPoints: UInt(configuration.avatarSizeClass.diameter),
                     localUserDisplayMode: configuration.localUserDisplayMode,
@@ -862,7 +874,7 @@ public enum ConversationAvatarDataSource: Equatable, Dependencies, CustomStringC
 
         case .address(let address):
             return performWithTransaction(transaction) {
-                Self.avatarBuilder.avatarImage(
+                SSKEnvironment.shared.avatarBuilderRef.avatarImage(
                     forAddress: address,
                     diameterPoints: UInt(configuration.avatarSizeClass.diameter),
                     localUserDisplayMode: configuration.localUserDisplayMode,
@@ -871,7 +883,7 @@ public enum ConversationAvatarDataSource: Equatable, Dependencies, CustomStringC
 
         case .thread(let groupThread as TSGroupThread):
             return performWithTransaction(transaction) {
-                Self.avatarBuilder.avatarImage(
+                SSKEnvironment.shared.avatarBuilderRef.avatarImage(
                     forGroupThread: groupThread,
                     diameterPoints: UInt(configuration.avatarSizeClass.diameter),
                     transaction: $0)
@@ -886,11 +898,11 @@ public enum ConversationAvatarDataSource: Equatable, Dependencies, CustomStringC
         }
     }
 
-    fileprivate func fetchCachedImage(configuration: ConversationAvatarView.Configuration, transaction: SDSAnyReadTransaction?) -> UIImage? {
+    fileprivate func fetchCachedImage(configuration: ConversationAvatarView.Configuration, transaction: DBReadTransaction?) -> UIImage? {
         switch self {
         case .thread(let contactThread as TSContactThread):
             return performWithTransaction(transaction) {
-                Self.avatarBuilder.precachedAvatarImage(
+                SSKEnvironment.shared.avatarBuilderRef.precachedAvatarImage(
                     forAddress: contactThread.contactAddress,
                     diameterPoints: UInt(configuration.avatarSizeClass.diameter),
                     localUserDisplayMode: configuration.localUserDisplayMode,
@@ -899,7 +911,7 @@ public enum ConversationAvatarDataSource: Equatable, Dependencies, CustomStringC
 
         case .address(let address):
             return performWithTransaction(transaction) {
-                Self.avatarBuilder.precachedAvatarImage(
+                SSKEnvironment.shared.avatarBuilderRef.precachedAvatarImage(
                     forAddress: address,
                     diameterPoints: UInt(configuration.avatarSizeClass.diameter),
                     localUserDisplayMode: configuration.localUserDisplayMode,
@@ -908,7 +920,7 @@ public enum ConversationAvatarDataSource: Equatable, Dependencies, CustomStringC
 
         case .thread(let groupThread as TSGroupThread):
             return performWithTransaction(transaction) {
-                Self.avatarBuilder.precachedAvatarImage(
+                SSKEnvironment.shared.avatarBuilderRef.precachedAvatarImage(
                     forGroupThread: groupThread,
                     diameterPoints: UInt(configuration.avatarSizeClass.diameter),
                     transaction: $0)
@@ -920,22 +932,13 @@ public enum ConversationAvatarDataSource: Equatable, Dependencies, CustomStringC
         case .thread:
             owsFailDebug("Unrecognized thread subclass: \(self)")
             return nil
-        }
-    }
-
-    fileprivate func reload(transaction: SDSAnyReadTransaction) {
-        switch self {
-        case .thread(let thread):
-            thread.anyReload(transaction: transaction)
-        case .asset, .address:
-            break
         }
     }
 
     public var description: String {
         switch self {
         case .address(let address): return "[Address: \(address)]"
-        case .thread(let thread): return "[Thread \(type(of: thread)):\(thread.uniqueId)]"
+        case .thread(let thread): return "[Thread \(type(of: thread)):\(thread.logString)]"
         case .asset(let avatar, let badge): return "[AvatarImage: \(String(describing: avatar)), BadgeImage: \(String(describing: badge))]"
         }
     }

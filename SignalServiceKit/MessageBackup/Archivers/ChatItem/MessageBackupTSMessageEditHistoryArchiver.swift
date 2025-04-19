@@ -27,6 +27,7 @@ protocol MessageBackupTSMessageEditHistoryBuilder<EditHistoryMessageType>: AnyOb
     func buildMessageArchiveDetails(
         message: EditHistoryMessageType,
         editRecord: EditRecord?,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext
     ) -> MessageBackup.ArchiveInteractionResult<Details>
 
@@ -43,7 +44,7 @@ protocol MessageBackupTSMessageEditHistoryBuilder<EditHistoryMessageType>: AnyOb
         isPastRevision: Bool,
         hasPastRevisions: Bool,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> MessageBackup.RestoreInteractionResult<EditHistoryMessageType>
 }
 
@@ -59,14 +60,11 @@ final class MessageBackupTSMessageEditHistoryArchiver<MessageType: TSMessage>
     private typealias ArchiveFrameError = MessageBackup.ArchiveFrameError<MessageBackup.InteractionUniqueId>
     private typealias RestoreFrameError = MessageBackup.RestoreFrameError<MessageBackup.ChatItemId>
 
-    private let dateProvider: DateProvider
     private let editMessageStore: any EditMessageStore
 
     init(
-        dateProvider: @escaping DateProvider,
         editMessageStore: any EditMessageStore
     ) {
-        self.dateProvider = dateProvider
         self.editMessageStore = editMessageStore
     }
 
@@ -93,25 +91,11 @@ final class MessageBackupTSMessageEditHistoryArchiver<MessageType: TSMessage>
         Builder: MessageBackupTSMessageEditHistoryBuilder<MessageType>
     >(
         _ message: MessageType,
-        thread _: TSThread,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext,
         builder: Builder
     ) -> MessageBackup.ArchiveInteractionResult<Details>
     {
-        if message.hasPerConversationExpiration {
-            // Check that it expires in less than 24 hours; if so we skip this message.
-            let now = dateProvider().ows_millisecondsSince1970
-            let remainingDurationMs: UInt64
-            if now >= message.expiresAt {
-                remainingDurationMs = 0
-            } else {
-                remainingDurationMs = message.expiresAt - now
-            }
-            if remainingDurationMs <= kDayInMs {
-                return .skippableChatUpdate(.soonToExpireMessage)
-            }
-        }
-
         var partialErrors = [ArchiveFrameError]()
 
         let shouldArchiveEditHistory: Bool
@@ -120,7 +104,7 @@ final class MessageBackupTSMessageEditHistoryArchiver<MessageType: TSMessage>
             /// This message represents a past revision of a message, which is
             /// archived as part of archiving the latest revision. Consequently,
             /// we can skip this past revision here.
-            return .skippableChatUpdate(.pastRevisionOfEditedMessage)
+            return .skippableInteraction(.pastRevisionOfEditedMessage)
         case .none:
             shouldArchiveEditHistory = false
         case .latestRevisionRead, .latestRevisionUnread:
@@ -131,6 +115,7 @@ final class MessageBackupTSMessageEditHistoryArchiver<MessageType: TSMessage>
         switch builder.buildMessageArchiveDetails(
             message: message,
             editRecord: nil,
+            threadInfo: threadInfo,
             context: context
         ).bubbleUp(Details.self, partialErrors: &partialErrors) {
         case .continue(let _messageDetails):
@@ -143,6 +128,7 @@ final class MessageBackupTSMessageEditHistoryArchiver<MessageType: TSMessage>
             switch addEditHistoryArchiveDetails(
                 toLatestRevisionArchiveDetails: &messageDetails,
                 latestRevisionMessage: message,
+                threadInfo: threadInfo,
                 context: context,
                 builder: builder
             ).bubbleUp(Details.self, partialErrors: &partialErrors) {
@@ -168,9 +154,43 @@ final class MessageBackupTSMessageEditHistoryArchiver<MessageType: TSMessage>
     >(
         toLatestRevisionArchiveDetails latestRevisionDetails: inout Details,
         latestRevisionMessage: MessageType,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext,
         builder: Builder
     ) -> MessageBackup.ArchiveInteractionResult<Void> {
+        let unexpectedRevisionsMessageType: ArchiveFrameError.ErrorType.UnexpectedRevisionsMessageType?
+        switch latestRevisionDetails.chatItemType {
+        case .remoteDeletedMessage:
+            // Remote-deleted messages with edit history delete the contents of
+            // their prior revisions, but leave the revisions around as
+            // placeholders. We don't want to archive those, nor do we need to
+            // produce an error, so we bail early.
+            return .success(())
+        case .standardMessage, .directStoryReplyMessage:
+            // These message types are the only ones expected/allowed to have
+            // edit history we want to archive. If we unexpectedly find it on
+            // another message type, we'll drop it and record an error.
+            unexpectedRevisionsMessageType = nil
+        case .contactMessage:
+            unexpectedRevisionsMessageType = .contactMessgae
+        case .stickerMessage:
+            unexpectedRevisionsMessageType = .stickerMessage
+        case .updateMessage:
+            unexpectedRevisionsMessageType = .updateMessage
+        case .paymentNotification:
+            unexpectedRevisionsMessageType = .paymentNotification
+        case .giftBadge:
+            unexpectedRevisionsMessageType = .giftBadge
+        case .viewOnceMessage:
+            unexpectedRevisionsMessageType = .viewOnceMessage
+        }
+        if let unexpectedRevisionsMessageType {
+            return .partialFailure((), [.archiveFrameError(
+                .unexpectedRevisionsOnMessage(unexpectedRevisionsMessageType),
+                latestRevisionMessage.uniqueInteractionId
+            )])
+        }
+
         var partialErrors = [ArchiveFrameError]()
 
         /// The edit history, from oldest revision to newest. This ordering
@@ -202,6 +222,7 @@ final class MessageBackupTSMessageEditHistoryArchiver<MessageType: TSMessage>
             switch builder.buildMessageArchiveDetails(
                 message: pastRevisionMessage,
                 editRecord: editRecord,
+                threadInfo: threadInfo,
                 context: context
             ) {
             case .success(let _pastRevisionDetails):
@@ -214,7 +235,7 @@ final class MessageBackupTSMessageEditHistoryArchiver<MessageType: TSMessage>
                 continue
             case .completeFailure(let fatalError):
                 return .completeFailure(fatalError)
-            case .skippableChatUpdate:
+            case .skippableInteraction:
                 // This should never happen for an edit revision!
                 continue
             }
@@ -250,21 +271,26 @@ final class MessageBackupTSMessageEditHistoryArchiver<MessageType: TSMessage>
     >(
         _ topLevelChatItem: BackupProto_ChatItem,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext,
+        context: MessageBackup.ChatItemRestoringContext,
         builder: Builder
     ) -> MessageBackup.RestoreInteractionResult<Void> {
         var partialErrors = [RestoreFrameError]()
 
-        guard
-            let latestRevisionMessage = builder.restoreMessage(
+        let latestRevisionMessage: MessageType
+        switch builder
+            .restoreMessage(
                 topLevelChatItem,
                 isPastRevision: false,
                 hasPastRevisions: topLevelChatItem.revisions.count > 0,
                 chatThread: chatThread,
                 context: context
-            ).unwrap(partialErrors: &partialErrors)
-        else {
-            return .messageFailure(partialErrors)
+            )
+            .bubbleUp(Void.self, partialErrors: &partialErrors)
+        {
+        case .continue(let component):
+            latestRevisionMessage = component
+        case .bubbleUpError(let error):
+            return error
         }
 
         var earlierRevisionMessages = [MessageType]()
@@ -273,30 +299,39 @@ final class MessageBackupTSMessageEditHistoryArchiver<MessageType: TSMessage>
         /// how we want to insert them. Older revisions should be inserted
         /// before newer ones.
         for revisionChatItem in topLevelChatItem.revisions {
-            guard
-                let earlierRevisionMessage = builder.restoreMessage(
+            let earlierRevisionMessage: MessageType
+            switch builder
+                 .restoreMessage(
                     revisionChatItem,
                     isPastRevision: true,
                     hasPastRevisions: false, // Past revisions can't have their own past revisions!
                     chatThread: chatThread,
                     context: context
-                ).unwrap(partialErrors: &partialErrors)
-            else {
+                )
+                 .bubbleUp(Void.self, partialErrors: &partialErrors)
+            {
+            case .continue(let component):
+                earlierRevisionMessage = component
+            case .bubbleUpError(let error):
                 /// This means we won't attempt to restore any later revisions,
                 /// but we can't be confident they would have restored
                 /// successfully anyway.
-                return .messageFailure(partialErrors)
+                return error
             }
 
             earlierRevisionMessages.append(earlierRevisionMessage)
         }
 
         for earlierRevisionMessage in earlierRevisionMessages {
-            guard
-                let wasRead = earlierRevisionMessage.wasRead()
-                    .unwrap(partialErrors: &partialErrors)
-            else {
-                return .messageFailure(partialErrors)
+            let wasRead: Bool
+            switch earlierRevisionMessage
+                .wasRead()
+                .bubbleUp(Void.self, partialErrors: &partialErrors)
+            {
+            case .continue(let component):
+                wasRead = component
+            case .bubbleUpError(let error):
+                return error
             }
 
             let editRecord = EditRecord(
@@ -305,7 +340,17 @@ final class MessageBackupTSMessageEditHistoryArchiver<MessageType: TSMessage>
                 read: wasRead
             )
 
-            editMessageStore.insert(editRecord, tx: context.tx)
+            do {
+                try editMessageStore.insert(editRecord, tx: context.tx)
+            } catch {
+                return .partialRestore(
+                    (),
+                    [.restoreFrameError(
+                        .databaseInsertionFailed(error),
+                        topLevelChatItem.id
+                    )] + partialErrors
+                )
+            }
         }
 
         if partialErrors.isEmpty {

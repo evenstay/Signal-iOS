@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import GRDB
+
 public extension MessageBackup {
     /// An identifier for a ``BackupProto_StickerPack`` backup frame.
     struct StickerPackId: MessageBackupLoggableId {
@@ -23,15 +25,23 @@ public extension MessageBackup {
     }
 }
 
-public protocol MessageBackupStickerPackArchiver: MessageBackupProtoArchiver {
+// MARK: -
 
+public class MessageBackupStickerPackArchiver: MessageBackupProtoArchiver {
     typealias StickerPackId = MessageBackup.StickerPackId
-
     typealias ArchiveMultiFrameResult = MessageBackup.ArchiveMultiFrameResult<StickerPackId>
-
     typealias ArchiveFrameError = MessageBackup.ArchiveFrameError<StickerPackId>
-
     typealias RestoreFrameResult = MessageBackup.RestoreFrameResult<StickerPackId>
+
+    private let backupStickerPackDownloadStore: BackupStickerPackDownloadStore
+
+    init(
+        backupStickerPackDownloadStore: BackupStickerPackDownloadStore
+    ) {
+        self.backupStickerPackDownloadStore = backupStickerPackDownloadStore
+    }
+
+    // MARK: -
 
     /// Archive all ``StickerPack``s (they map to ``BackupProto_StickerPack``).
     ///
@@ -44,48 +54,22 @@ public protocol MessageBackupStickerPackArchiver: MessageBackupProtoArchiver {
     func archiveStickerPacks(
         stream: MessageBackupProtoOutputStream,
         context: MessageBackup.ArchivingContext
-    ) -> ArchiveMultiFrameResult
-
-    /// Restore a single ``BackupProto_StickerPack`` frame.
-    ///
-    /// - Returns: ``RestoreFrameResult.success`` if the frame was restored without error.
-    /// How to handle ``RestoreFrameResult.failure`` is up to the caller,
-    /// but typically an error will be shown to the user, but the restore will be allowed to proceed.
-    func restore(
-        _ stickerPack: BackupProto_StickerPack,
-        context: MessageBackup.RestoringContext
-    ) -> RestoreFrameResult
-
-}
-
-public class MessageBackupStickerPackArchiverImpl: MessageBackupStickerPackArchiver {
-
-    private let backupStickerPackDownloadStore: BackupStickerPackDownloadStore
-    private let stickerManager: MessageBackup.Shims.StickerManager
-
-    init(
-        backupStickerPackDownloadStore: BackupStickerPackDownloadStore,
-        stickerManager: MessageBackup.Shims.StickerManager
-    ) {
-        self.backupStickerPackDownloadStore = backupStickerPackDownloadStore
-        self.stickerManager = stickerManager
-    }
-
-    public func archiveStickerPacks(
-        stream: MessageBackupProtoOutputStream,
-        context: MessageBackup.ArchivingContext
-    ) -> ArchiveMultiFrameResult {
+    ) throws(CancellationError) -> ArchiveMultiFrameResult {
         var errors = [ArchiveFrameError]()
 
         var handledPacks = Set<Data>()
 
-        // Iterate over the installed sticker packs
-        let installedStickerPacks = stickerManager.installedStickerPacks(tx: context.tx)
-        for installedStickerPack in installedStickerPacks {
-            guard !handledPacks.contains(installedStickerPack.packId) else { continue }
-            let maybeError: ArchiveFrameError? = Self.writeFrameToStream(
-                stream,
-                objectId: StickerPackId(installedStickerPack.packId)) {
+        func archiveInstalledStickerPack(
+            _ installedStickerPack: StickerPack,
+            _ frameBencher: MessageBackup.Bencher.FrameBencher
+        ) {
+            autoreleasepool {
+                guard !handledPacks.contains(installedStickerPack.packId) else { return }
+                let maybeError: ArchiveFrameError? = Self.writeFrameToStream(
+                    stream,
+                    objectId: StickerPackId(installedStickerPack.packId),
+                    frameBencher: frameBencher
+                ) {
                     var stickerPack = BackupProto_StickerPack()
                     stickerPack.packID = installedStickerPack.packId
                     stickerPack.packKey = installedStickerPack.packKey
@@ -96,35 +80,71 @@ public class MessageBackupStickerPackArchiverImpl: MessageBackupStickerPackArchi
                     return frame
                 }
 
-            if let maybeError {
-                errors.append(maybeError)
-            } else {
-                handledPacks.insert(installedStickerPack.packId)
+                if let maybeError {
+                    errors.append(maybeError)
+                } else {
+                    handledPacks.insert(installedStickerPack.packId)
+                }
             }
+        }
+
+        func enumerateStickerPackRecord(tx: DBReadTransaction, block: (StickerPack) throws -> Void) throws {
+            let cursor = try StickerPackRecord
+                .filter(Column(StickerPackRecord.CodingKeys.isInstalled) == true)
+                .fetchCursor(tx.database)
+            while let next = try cursor.next() {
+                let stickerPack = try StickerPack.fromRecord(next)
+                try block(stickerPack)
+            }
+        }
+
+        // Iterate over the installed sticker packs
+        do {
+            try context.bencher.wrapEnumeration(
+                enumerateStickerPackRecord(tx:block:),
+                tx: context.tx
+            ) { stickerPack, frameBencher in
+                try Task.checkCancellation()
+                archiveInstalledStickerPack(stickerPack, frameBencher)
+            }
+        } catch let error as CancellationError {
+            throw error
+        } catch {
+            return .completeFailure(.fatalArchiveError(.stickerPackIteratorError(error)))
         }
 
         // Iterate over any restored sticker packs that have yet to be downloaded via StickerManager.
         do {
-            try backupStickerPackDownloadStore.iterateAllEnqueued(tx: context.tx) { record in
-                guard !handledPacks.contains(record.packId) else { return }
-                let maybeError: ArchiveFrameError? = Self.writeFrameToStream(
-                    stream,
-                    objectId: StickerPackId(record.packId)) {
-                        var stickerPack = BackupProto_StickerPack()
-                        stickerPack.packID = record.packId
-                        stickerPack.packKey = record.packKey
+            try context.bencher.wrapEnumeration(
+                backupStickerPackDownloadStore.iterateAllEnqueued(tx:block:),
+                tx: context.tx
+            ) { record, frameBencher in
+                try Task.checkCancellation()
+                autoreleasepool {
+                    guard !handledPacks.contains(record.packId) else { return }
+                    let maybeError: ArchiveFrameError? = Self.writeFrameToStream(
+                        stream,
+                        objectId: StickerPackId(record.packId),
+                        frameBencher: frameBencher
+                    ) {
+                            var stickerPack = BackupProto_StickerPack()
+                            stickerPack.packID = record.packId
+                            stickerPack.packKey = record.packKey
 
-                        var frame = BackupProto_Frame()
-                        frame.item = .stickerPack(stickerPack)
+                            var frame = BackupProto_Frame()
+                            frame.item = .stickerPack(stickerPack)
 
-                        return frame
+                            return frame
+                        }
+                    if let maybeError {
+                        errors.append(maybeError)
+                    } else {
+                        handledPacks.insert(record.packId)
                     }
-                if let maybeError {
-                    errors.append(maybeError)
-                } else {
-                    handledPacks.insert(record.packId)
                 }
             }
+        } catch let error as CancellationError {
+            throw error
         } catch {
             return .completeFailure(.fatalArchiveError(.stickerPackIteratorError(error)))
         }
@@ -136,7 +156,14 @@ public class MessageBackupStickerPackArchiverImpl: MessageBackupStickerPackArchi
         }
     }
 
-    public func restore(
+    // MARK: -
+
+    /// Restore a single ``BackupProto_StickerPack`` frame.
+    ///
+    /// - Returns: ``RestoreFrameResult.success`` if the frame was restored without error.
+    /// How to handle ``RestoreFrameResult.failure`` is up to the caller,
+    /// but typically an error will be shown to the user, but the restore will be allowed to proceed.
+    func restore(
         _ stickerPack: BackupProto_StickerPack,
         context: MessageBackup.RestoringContext
     ) -> RestoreFrameResult {
@@ -151,5 +178,4 @@ public class MessageBackupStickerPackArchiverImpl: MessageBackupStickerPackArchi
         }
         return .success
     }
-
 }

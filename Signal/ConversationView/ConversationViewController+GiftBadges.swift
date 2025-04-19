@@ -33,12 +33,12 @@ extension ConversationViewController {
         guard outgoingMessage.giftBadge?.redemptionState == .pending else {
             return
         }
-        self.databaseStorage.asyncWrite { transaction in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { transaction in
             outgoingMessage.anyUpdateOutgoingMessage(transaction: transaction) {
                 $0.giftBadge?.redemptionState = .opened
             }
 
-            self.receiptManager.outgoingGiftWasOpened(outgoingMessage, transaction: transaction)
+            SSKEnvironment.shared.receiptManagerRef.outgoingGiftWasOpened(outgoingMessage, transaction: transaction)
         }
     }
 
@@ -81,14 +81,14 @@ extension ConversationViewController {
         if isExpired {
             let mode: BadgeIssueSheetState.Mode
             if isRedeemed {
-                let hasCurrentSubscription = self.databaseStorage.read { transaction -> Bool in
-                    self.subscriptionManager.hasCurrentSubscription(transaction: transaction)
+                let hasCurrentSubscription = SSKEnvironment.shared.databaseStorageRef.read { tx -> Bool in
+                    return DonationSubscriptionManager.probablyHasCurrentSubscription(tx: tx)
                 }
                 mode = .giftBadgeExpired(hasCurrentSubscription: hasCurrentSubscription)
             } else {
-                let fullName = self.databaseStorage.read { transaction -> String in
+                let fullName = SSKEnvironment.shared.databaseStorageRef.read { transaction -> String in
                     let authorAddress = incomingMessage.authorAddress
-                    return self.contactsManager.displayName(for: authorAddress, tx: transaction).resolvedValue()
+                    return SSKEnvironment.shared.contactManagerRef.displayName(for: authorAddress, tx: transaction).resolvedValue()
                 }
                 mode = .giftNotRedeemed(fullName: fullName)
             }
@@ -97,9 +97,9 @@ extension ConversationViewController {
             return sheet
         }
         if isRedeemed {
-            let shortName = self.databaseStorage.read { transaction -> String in
+            let shortName = SSKEnvironment.shared.databaseStorageRef.read { transaction -> String in
                 let authorAddress = incomingMessage.authorAddress
-                return self.contactsManager.displayName(for: authorAddress, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
+                return SSKEnvironment.shared.contactManagerRef.displayName(for: authorAddress, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
             }
             return BadgeGiftingAlreadyRedeemedSheet(badge: profileBadge, shortName: shortName)
         }
@@ -108,8 +108,14 @@ extension ConversationViewController {
 
     private func giftRedemptionSheet(incomingMessage: TSIncomingMessage, profileBadge: ProfileBadge) -> UIViewController {
         let authorAddress = incomingMessage.authorAddress
-        let shortName = self.databaseStorage.read { transaction in
-            self.contactsManager.displayName(for: authorAddress, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
+        let contactManager = SSKEnvironment.shared.contactManagerRef
+        let profileManager = SSKEnvironment.shared.profileManagerRef
+        let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+        let (shortName, oldBadgesSnapshot) = databaseStorage.read { tx in
+            return (
+                contactManager.displayName(for: authorAddress, tx: tx).resolvedValue(useShortNameIfAvailable: true),
+                ProfileBadgesSnapshot.forLocalProfile(profileManager: profileManager, tx: tx)
+            )
         }
         return BadgeThanksSheet(
             newBadge: profileBadge,
@@ -118,7 +124,7 @@ extension ConversationViewController {
                 notNowAction: { [weak self] in self?.showRedeemBadgeLaterText() },
                 incomingMessage: incomingMessage
             ),
-            oldBadgesSnapshot: .current()
+            oldBadgesSnapshot: oldBadgesSnapshot
         )
     }
 

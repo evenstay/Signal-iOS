@@ -38,7 +38,7 @@ class ComposeViewController: RecipientPickerContainerViewController {
         AssertIsOnMainThread()
         owsAssertDebug(address.isValid)
 
-        let thread = Self.databaseStorage.write { transaction in
+        let thread = SSKEnvironment.shared.databaseStorageRef.write { transaction in
             TSContactThread.getOrCreateThread(withContactAddress: address,
                                               transaction: transaction)
         }
@@ -54,13 +54,21 @@ class ComposeViewController: RecipientPickerContainerViewController {
             // the conversationVC with the animated dismissal of the compose VC
             transitionCoordinator.animate { _ in
                 UIView.performWithoutAnimation {
-                    SignalApp.shared.presentConversationForThread(thread, action: .compose, animated: false)
+                    SignalApp.shared.presentConversationForThread(
+                        threadUniqueId: thread.uniqueId,
+                        action: .compose,
+                        animated: false
+                    )
                 }
             }
         } else {
             // There isn't a transition coordinator present for some reason, revert to displaying
             // the conversation VC in parallel with the animated dismissal of the compose VC
-            SignalApp.shared.presentConversationForThread(thread, action: .compose, animated: false)
+            SignalApp.shared.presentConversationForThread(
+                threadUniqueId: thread.uniqueId,
+                action: .compose,
+                animated: false
+            )
         }
     }
 
@@ -73,9 +81,10 @@ extension ComposeViewController: RecipientPickerDelegate, UsernameLinkScanDelega
 
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
-        getRecipientState recipient: PickedRecipient
-    ) -> RecipientPickerRecipientState {
-        return .canBeSelected
+        selectionStyleForRecipient recipient: PickedRecipient,
+        transaction: DBReadTransaction
+    ) -> UITableViewCell.SelectionStyle {
+        return .default
     }
 
     func recipientPicker(
@@ -93,27 +102,26 @@ extension ComposeViewController: RecipientPickerDelegate, UsernameLinkScanDelega
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         accessoryMessageForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> String? {
         switch recipient.identifier {
         case .address:
             return nil
         case .group(let thread):
-            guard blockingManager.isThreadBlocked(thread, transaction: transaction) else { return nil }
+            guard SSKEnvironment.shared.blockingManagerRef.isThreadBlocked(thread, transaction: transaction) else { return nil }
             return MessageStrings.conversationIsBlocked
         }
     }
 
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
                          attributedSubtitleForRecipient recipient: PickedRecipient,
-                         transaction: SDSAnyReadTransaction) -> NSAttributedString? {
+                         transaction: DBReadTransaction) -> NSAttributedString? {
         switch recipient.identifier {
         case .address(let address):
             guard !address.isLocalAddress else {
                 return nil
             }
-            if let bioForDisplay = Self.profileManagerImpl.profileBioForDisplay(for: address,
-                                                                                transaction: transaction) {
+            if let bioForDisplay = SSKEnvironment.shared.profileManagerRef.userProfile(for: address, tx: transaction)?.bioForDisplay {
                 return NSAttributedString(string: bioForDisplay)
             }
             return nil

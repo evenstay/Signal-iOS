@@ -42,14 +42,14 @@ public class ProvisioningProtoProvisioningUuid: NSObject, Codable, NSSecureCodin
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try ProvisioningProtos_ProvisioningUuid(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: ProvisioningProtos_ProvisioningUuid) throws {
         guard proto.hasUuid else {
-            throw ProvisioningProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: uuid")
+            throw ProvisioningProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: uuid")
         }
         let uuid = proto.uuid
 
@@ -204,19 +204,19 @@ public class ProvisioningProtoProvisionEnvelope: NSObject, Codable, NSSecureCodi
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try ProvisioningProtos_ProvisionEnvelope(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: ProvisioningProtos_ProvisionEnvelope) throws {
         guard proto.hasPublicKey else {
-            throw ProvisioningProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: publicKey")
+            throw ProvisioningProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: publicKey")
         }
         let publicKey = proto.publicKey
 
         guard proto.hasBody else {
-            throw ProvisioningProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: body")
+            throw ProvisioningProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: body")
         }
         let body = proto.body
 
@@ -452,6 +452,42 @@ public class ProvisioningProtoProvisionMessage: NSObject, Codable, NSSecureCodin
         return proto.hasMasterKey
     }
 
+    @objc
+    public var ephemeralBackupKey: Data? {
+        guard hasEphemeralBackupKey else {
+            return nil
+        }
+        return proto.ephemeralBackupKey
+    }
+    @objc
+    public var hasEphemeralBackupKey: Bool {
+        return proto.hasEphemeralBackupKey
+    }
+
+    @objc
+    public var accountEntropyPool: String? {
+        guard hasAccountEntropyPool else {
+            return nil
+        }
+        return proto.accountEntropyPool
+    }
+    @objc
+    public var hasAccountEntropyPool: Bool {
+        return proto.hasAccountEntropyPool
+    }
+
+    @objc
+    public var mediaRootBackupKey: Data? {
+        guard hasMediaRootBackupKey else {
+            return nil
+        }
+        return proto.mediaRootBackupKey
+    }
+    @objc
+    public var hasMediaRootBackupKey: Bool {
+        return proto.hasMediaRootBackupKey
+    }
+
     public var hasUnknownFields: Bool {
         return !proto.unknownFields.data.isEmpty
     }
@@ -482,39 +518,39 @@ public class ProvisioningProtoProvisionMessage: NSObject, Codable, NSSecureCodin
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try ProvisioningProtos_ProvisionMessage(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: ProvisioningProtos_ProvisionMessage) throws {
         guard proto.hasAciIdentityKeyPublic else {
-            throw ProvisioningProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: aciIdentityKeyPublic")
+            throw ProvisioningProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: aciIdentityKeyPublic")
         }
         let aciIdentityKeyPublic = proto.aciIdentityKeyPublic
 
         guard proto.hasAciIdentityKeyPrivate else {
-            throw ProvisioningProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: aciIdentityKeyPrivate")
+            throw ProvisioningProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: aciIdentityKeyPrivate")
         }
         let aciIdentityKeyPrivate = proto.aciIdentityKeyPrivate
 
         guard proto.hasPniIdentityKeyPublic else {
-            throw ProvisioningProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: pniIdentityKeyPublic")
+            throw ProvisioningProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: pniIdentityKeyPublic")
         }
         let pniIdentityKeyPublic = proto.pniIdentityKeyPublic
 
         guard proto.hasPniIdentityKeyPrivate else {
-            throw ProvisioningProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: pniIdentityKeyPrivate")
+            throw ProvisioningProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: pniIdentityKeyPrivate")
         }
         let pniIdentityKeyPrivate = proto.pniIdentityKeyPrivate
 
         guard proto.hasProvisioningCode else {
-            throw ProvisioningProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: provisioningCode")
+            throw ProvisioningProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: provisioningCode")
         }
         let provisioningCode = proto.provisioningCode
 
         guard proto.hasProfileKey else {
-            throw ProvisioningProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: profileKey")
+            throw ProvisioningProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: profileKey")
         }
         let profileKey = proto.profileKey
 
@@ -593,6 +629,15 @@ extension ProvisioningProtoProvisionMessage {
         }
         if let _value = masterKey {
             builder.setMasterKey(_value)
+        }
+        if let _value = ephemeralBackupKey {
+            builder.setEphemeralBackupKey(_value)
+        }
+        if let _value = accountEntropyPool {
+            builder.setAccountEntropyPool(_value)
+        }
+        if let _value = mediaRootBackupKey {
+            builder.setMediaRootBackupKey(_value)
         }
         if let _value = unknownFields {
             builder.setUnknownFields(_value)
@@ -750,6 +795,39 @@ public class ProvisioningProtoProvisionMessageBuilder: NSObject {
 
     public func setMasterKey(_ valueParam: Data) {
         proto.masterKey = valueParam
+    }
+
+    @objc
+    @available(swift, obsoleted: 1.0)
+    public func setEphemeralBackupKey(_ valueParam: Data?) {
+        guard let valueParam = valueParam else { return }
+        proto.ephemeralBackupKey = valueParam
+    }
+
+    public func setEphemeralBackupKey(_ valueParam: Data) {
+        proto.ephemeralBackupKey = valueParam
+    }
+
+    @objc
+    @available(swift, obsoleted: 1.0)
+    public func setAccountEntropyPool(_ valueParam: String?) {
+        guard let valueParam = valueParam else { return }
+        proto.accountEntropyPool = valueParam
+    }
+
+    public func setAccountEntropyPool(_ valueParam: String) {
+        proto.accountEntropyPool = valueParam
+    }
+
+    @objc
+    @available(swift, obsoleted: 1.0)
+    public func setMediaRootBackupKey(_ valueParam: Data?) {
+        guard let valueParam = valueParam else { return }
+        proto.mediaRootBackupKey = valueParam
+    }
+
+    public func setMediaRootBackupKey(_ valueParam: Data) {
+        proto.mediaRootBackupKey = valueParam
     }
 
     public func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {

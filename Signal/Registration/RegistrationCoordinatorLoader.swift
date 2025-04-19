@@ -27,7 +27,7 @@ public protocol RegistrationCoordinatorLoader {
 
 public class RegistrationCoordinatorLoaderImpl: RegistrationCoordinatorLoader {
 
-    public enum Mode: Codable, Equatable {
+    public enum Mode: Codable {
         case registering(RegisteringState)
         case reRegistering(ReRegisteringState)
         case changingNumber(ChangeNumberState)
@@ -46,15 +46,15 @@ public class RegistrationCoordinatorLoaderImpl: RegistrationCoordinatorLoader {
             }
         }
 
-        public struct ChangeNumberState: Codable, Equatable {
+        public struct ChangeNumberState: Codable {
             public let oldE164: E164
             public let oldAuthToken: String
             @AciUuid public var localAci: Aci
             public let localAccountId: String
-            public let localDeviceId: UInt32
-            public let localUserAllDeviceIds: [UInt32]
+            public let localDeviceId: DeviceId
+            public let localUserAllDeviceIds: [DeviceId]
 
-            public struct PendingPniState: Equatable {
+            public struct PendingPniState {
                 public let newE164: E164
                 public let pniIdentityKeyPair: ECKeyPair
                 public let localDevicePniSignedPreKeyRecord: SignalServiceKit.SignedPreKeyRecord
@@ -69,8 +69,8 @@ public class RegistrationCoordinatorLoaderImpl: RegistrationCoordinatorLoader {
                 oldAuthToken: String,
                 localAci: Aci,
                 localAccountId: String,
-                localDeviceId: UInt32,
-                localUserAllDeviceIds: [UInt32],
+                localDeviceId: DeviceId,
+                localUserAllDeviceIds: [DeviceId],
                 pniState: PendingPniState?
             ) {
                 self.oldE164 = oldE164
@@ -94,7 +94,7 @@ public class RegistrationCoordinatorLoaderImpl: RegistrationCoordinatorLoader {
     }
 
     private lazy var kvStore: KeyValueStore = {
-        deps.keyValueStoreFactory.keyValueStore(collection: Constants.collectionName)
+        KeyValueStore(collection: Constants.collectionName)
     }()
 
     private let deps: RegistrationCoordinatorDependencies
@@ -168,7 +168,7 @@ public class RegistrationCoordinatorLoaderImpl: RegistrationCoordinatorLoader {
             var newState = oldState
             newState.pniState = pniState
             try loader.kvStore.setCodable(Mode.changingNumber(newState), key: Constants.modeKey, transaction: transaction)
-            transaction.addAsyncCompletion(on: loader.deps.schedulers.main) { [messagePipelineSupervisor = loader.deps.messagePipelineSupervisor] in
+            transaction.addSyncCompletion { [messagePipelineSupervisor = loader.deps.messagePipelineSupervisor] in
                 if Mode.changingNumber(newState).hasPendingChangeNumber {
                     messagePipelineSupervisor.suspendMessageProcessingWithoutHandle(for: .pendingChangeNumber)
                 } else {

@@ -40,7 +40,7 @@ private func attestationError(reason: String) -> RemoteAttestation.Error {
 // MARK: - Auth
 
 public extension RemoteAttestation {
-    struct Auth: Dependencies, Equatable, Codable {
+    struct Auth: Equatable, Codable {
         public let username: String
         public let password: String
 
@@ -68,32 +68,28 @@ public extension RemoteAttestation {
 }
 
 fileprivate extension RemoteAttestation.Auth {
-    /// - parameter authUsername: If present (alongside authPassword), used in the request.
-    ///   If either authUsername or authPassword is missing, uses auth information from TSAccountManager.
-    /// - parameter authPassword: If present (alongside authUsername), used in the request.
-    ///   If either authUsername or authPassword is missing, uses auth information from TSAccountManager.
     static func fetch(
         forService service: RemoteAttestation.Service,
         auth: ChatServiceAuth
     ) -> Promise<RemoteAttestation.Auth> {
-        let request = service.authRequest()
+        var request = service.authRequest()
 
         switch auth.credentials {
         case .implicit:
             guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
                 return Promise(error: OWSGenericError("Not registered."))
             }
-        case let .explicit(username, password):
-            request.shouldHaveAuthorizationHeaders = true
-            request.authUsername = username
-            request.authPassword = password
+        case .explicit:
+            break
         }
 
+        request.auth = .identified(auth)
+
         return firstly {
-            networkManager.makePromise(request: request)
+            SSKEnvironment.shared.networkManagerRef.makePromise(request: request, canUseWebSocket: false)
         }.map(on: DispatchQueue.global()) { response in
 #if TESTABLE_BUILD
-            HTTPUtils.logCurl(for: request as URLRequest)
+            HTTPUtils.logCurl(for: request)
 #endif
 
             guard let json = response.responseBodyJson else {
@@ -109,13 +105,11 @@ fileprivate extension RemoteAttestation.Auth {
 
 fileprivate extension RemoteAttestation {
     enum Service {
-        case keyBackup
         case cdsi
         case svr2
 
         func authRequest() -> TSRequest {
             switch self {
-            case .keyBackup: return OWSRequestFactory.remoteAttestationAuthRequestForKeyBackup()
             case .cdsi: return OWSRequestFactory.remoteAttestationAuthRequestForCDSI()
             case .svr2: return OWSRequestFactory.remoteAttestationAuthRequestForSVR2()
             }

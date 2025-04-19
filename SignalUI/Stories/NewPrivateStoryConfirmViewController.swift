@@ -118,7 +118,7 @@ public class NewPrivateStoryConfirmViewController: OWSTableViewController2 {
             selector: #selector(didToggleReplies)
         ))
 
-        let viewerAddresses = databaseStorage.read { transaction in
+        let viewerAddresses = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             return BaseMemberViewController.sortedMemberAddresses(
                 recipientSet: self.recipientSet,
                 tx: transaction
@@ -141,7 +141,7 @@ public class NewPrivateStoryConfirmViewController: OWSTableViewController2 {
 
                     cell.selectionStyle = .none
 
-                    Self.databaseStorage.read { transaction in
+                    SSKEnvironment.shared.databaseStorageRef.read { transaction in
                         let configuration = ContactCellConfiguration(address: address, localUserDisplayMode: .asUser)
                         cell.configure(configuration: configuration, transaction: transaction)
                     }
@@ -163,27 +163,38 @@ public class NewPrivateStoryConfirmViewController: OWSTableViewController2 {
             return showMissingNameAlert()
         }
 
-        let newStory = TSPrivateStoryThread(
-            name: name,
-            allowsReplies: allowsReplies,
-            addresses: recipientSet.orderedMembers.compactMap { $0.address },
-            viewMode: .explicit
-        )
-        databaseStorage.asyncWrite { transaction in
-            newStory.anyInsert(transaction: transaction)
+        let allowsReplies = self.allowsReplies
+        let serviceIds = self.recipientSet.orderedMembers.compactMap { $0.address?.serviceId }
 
-            if let dlistId = newStory.distributionListIdentifier {
-                Self.storageServiceManager.recordPendingUpdates(updatedStoryDistributionListIds: [dlistId])
+        Task {
+            let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+            let threadUniqueId = await databaseStorage.awaitableWrite { tx in
+                let newStory = TSPrivateStoryThread(
+                    name: name,
+                    allowsReplies: allowsReplies,
+                    viewMode: .explicit
+                )
+                newStory.anyInsert(transaction: tx)
+
+                let recipientFetcher = DependenciesBridge.shared.recipientFetcher
+                let recipientIds = serviceIds.map { recipientFetcher.fetchOrCreate(serviceId: $0, tx: tx).id! }
+
+                let storyRecipientManager = DependenciesBridge.shared.storyRecipientManager
+                failIfThrows {
+                    try storyRecipientManager.setRecipientIds(
+                        recipientIds,
+                        for: newStory,
+                        shouldUpdateStorageService: true,
+                        tx: tx
+                    )
+                }
+
+                return newStory.uniqueId
             }
-        } completion: { [weak self] in
-            guard let self = self else { return }
             self.dismiss(animated: true)
             self.selectItemsInParent?(
                 [StoryConversationItem(
-                    backingItem: .privateStory(.init(
-                        storyThreadId: newStory.uniqueId,
-                        isMyStory: false
-                    )),
+                    backingItem: .privateStory(.init(storyThreadId: threadUniqueId, isMyStory: false)),
                     storyState: nil
                 )]
             )

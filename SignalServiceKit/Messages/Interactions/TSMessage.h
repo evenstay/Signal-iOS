@@ -13,15 +13,13 @@ NS_ASSUME_NONNULL_BEGIN
  */
 
 @class AciObjC;
+@class DBReadTransaction;
+@class DBWriteTransaction;
 @class MessageBodyRanges;
 @class MessageSticker;
 @class OWSContact;
 @class OWSGiftBadge;
 @class OWSLinkPreview;
-@class SDSAnyReadTransaction;
-@class SDSAnyWriteTransaction;
-@class TSAttachment;
-@class TSAttachmentStream;
 @class TSMessageBuilder;
 @class TSQuotedMessage;
 
@@ -85,8 +83,9 @@ typedef NS_CLOSED_ENUM(NSInteger, TSEditState) {
 
 @interface TSMessage : TSInteraction <NSObject>
 
-// WARNING: do not use this getter directly. Use TSResourceStore instead.
-@property (nonatomic, readonly) NSArray<NSString *> *attachmentIds;
+/// DO NOT USE.
+@property (nonatomic, nullable) NSArray<NSString *> *deprecated_attachmentIds;
+
 @property (nonatomic, readonly, nullable) NSString *body;
 @property (nonatomic, readonly, nullable) MessageBodyRanges *bodyRanges;
 
@@ -109,6 +108,8 @@ typedef NS_CLOSED_ENUM(NSInteger, TSEditState) {
 @property (nonatomic, readonly, nullable) MessageSticker *messageSticker;
 @property (nonatomic, readonly, nullable) OWSGiftBadge *giftBadge;
 
+/// Note: updates should be reflected in the MessageAttachmentReferences table.
+/// At time of writing, isPastRevision of edit state never changes after initialization.
 @property (nonatomic) TSEditState editState;
 
 @property (nonatomic, readonly) BOOL isViewOnceMessage;
@@ -126,6 +127,9 @@ typedef NS_CLOSED_ENUM(NSInteger, TSEditState) {
 @property (nonatomic, readonly) BOOL isSmsMessageRestoredFromBackup;
 
 // Story Context
+/// StoryTimestamp may be nil for 1:1 story reply messages or story reply reactions for which
+/// the story is since expired. If you want to determine if a message is a story reply/reaction, do
+/// not use presence of this field; use `isStoryReply` instead. Treat nil values as expired stories.
 @property (nonatomic, readonly, nullable) NSNumber *storyTimestamp;
 @property (nonatomic, readonly, nullable) AciObjC *storyAuthorAci;
 @property (nonatomic, readonly, nullable) SignalServiceAddress *storyAuthorAddress;
@@ -166,10 +170,10 @@ typedef NS_CLOSED_ENUM(NSInteger, TSEditState) {
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -188,50 +192,42 @@ typedef NS_CLOSED_ENUM(NSInteger, TSEditState) {
               storyReactionEmoji:(nullable NSString *)storyReactionEmoji
                   storyTimestamp:(nullable NSNumber *)storyTimestamp
               wasRemotelyDeleted:(BOOL)wasRemotelyDeleted
-NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp:sortId:timestamp:uniqueThreadId:attachmentIds:body:bodyRanges:contactShare:editState:expireStartedAt:expireTimerVersion:expiresAt:expiresInSeconds:giftBadge:isGroupStoryReply:isSmsMessageRestoredFromBackup:isViewOnceComplete:isViewOnceMessage:linkPreview:messageSticker:quotedMessage:storedShouldStartExpireTimer:storyAuthorUuidString:storyReactionEmoji:storyTimestamp:wasRemotelyDeleted:));
+NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp:sortId:timestamp:uniqueThreadId:body:bodyRanges:contactShare:deprecated_attachmentIds:editState:expireStartedAt:expireTimerVersion:expiresAt:expiresInSeconds:giftBadge:isGroupStoryReply:isSmsMessageRestoredFromBackup:isViewOnceComplete:isViewOnceMessage:linkPreview:messageSticker:quotedMessage:storedShouldStartExpireTimer:storyAuthorUuidString:storyReactionEmoji:storyTimestamp:wasRemotelyDeleted:));
 
 // clang-format on
 
 // --- CODE GENERATION MARKER
 
-// TODO: can be deleted when legacy attachment support is dropped
-- (void)setLegacyBodyAttachmentIds:(NSArray<NSString *> *)attachmentIds;
-
 - (BOOL)shouldStartExpireTimer;
 
 #pragma mark - Update With... Methods
 
-- (void)updateWithExpireStartedAt:(uint64_t)expireStartedAt transaction:(SDSAnyWriteTransaction *)transaction;
+- (void)updateStoredShouldStartExpireTimer;
 
-- (void)updateWithLinkPreview:(OWSLinkPreview *)linkPreview transaction:(SDSAnyWriteTransaction *)transaction;
+- (void)updateWithExpireStartedAt:(uint64_t)expireStartedAt transaction:(DBWriteTransaction *)transaction;
 
-- (void)updateWithQuotedMessage:(TSQuotedMessage *)linkPreview transaction:(SDSAnyWriteTransaction *)transaction;
+- (void)updateWithLinkPreview:(OWSLinkPreview *)linkPreview transaction:(DBWriteTransaction *)transaction;
 
-- (void)updateWithMessageSticker:(MessageSticker *)messageSticker transaction:(SDSAnyWriteTransaction *)transaction;
+- (void)updateWithQuotedMessage:(TSQuotedMessage *)linkPreview transaction:(DBWriteTransaction *)transaction;
 
-- (void)updateWithContactShare:(OWSContact *)contactShare transaction:(SDSAnyWriteTransaction *)transaction;
+- (void)updateWithMessageSticker:(MessageSticker *)messageSticker transaction:(DBWriteTransaction *)transaction;
+
+- (void)updateWithContactShare:(OWSContact *)contactShare transaction:(DBWriteTransaction *)transaction;
 
 #ifdef TESTABLE_BUILD
 
 // This method is for testing purposes only.
-- (void)updateWithMessageBody:(nullable NSString *)messageBody transaction:(SDSAnyWriteTransaction *)transaction;
+- (void)updateWithMessageBody:(nullable NSString *)messageBody transaction:(DBWriteTransaction *)transaction;
 
 #endif
 
 #pragma mark - View Once
 
-- (void)updateWithViewOnceCompleteAndRemoveRenderableContentWithTransaction:(SDSAnyWriteTransaction *)transaction;
+- (void)updateWithViewOnceCompleteAndRemoveRenderableContentWithTransaction:(DBWriteTransaction *)transaction;
 
 #pragma mark - Remote Delete
 
-- (void)updateWithRemotelyDeletedAndRemoveRenderableContentWithTransaction:(SDSAnyWriteTransaction *)transaction;
-
-#pragma mark - Partial Delete
-
-- (void)removeBodyTextWithTransaction:(SDSAnyWriteTransaction *)transaction NS_SWIFT_NAME(removeBodyText(transaction:));
-
-- (void)removeMediaAndShareAttachmentsWithTransaction:(SDSAnyWriteTransaction *)transaction
-    NS_SWIFT_NAME(removeMediaAndShareAttachments(transaction:));
+- (void)updateWithRemotelyDeletedAndRemoveRenderableContentWithTransaction:(DBWriteTransaction *)transaction;
 
 @end
 

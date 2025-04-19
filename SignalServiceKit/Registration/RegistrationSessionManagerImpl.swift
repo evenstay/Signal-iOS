@@ -9,21 +9,20 @@ import CoreTelephony
 public class RegistrationSessionManagerImpl: RegistrationSessionManager {
 
     private let dateProvider: DateProvider
-    private let db: DB
+    private let db: any DB
     private let kvStore: KeyValueStore
     private let schedulers: Schedulers
     private let signalService: OWSSignalServiceProtocol
 
     public init(
         dateProvider: @escaping DateProvider = Date.provider,
-        db: DB,
-        keyValueStoreFactory: KeyValueStoreFactory,
+        db: any DB,
         schedulers: Schedulers,
         signalService: OWSSignalServiceProtocol
     ) {
         self.dateProvider = dateProvider
         self.db = db
-        self.kvStore = keyValueStoreFactory.keyValueStore(collection: KvStore.collectionName)
+        self.kvStore = KeyValueStore(collection: KvStore.collectionName)
         self.schedulers = schedulers
         self.signalService = signalService
     }
@@ -589,7 +588,7 @@ public class RegistrationSessionManagerImpl: RegistrationSessionManager {
                 return handler(
                     e164,
                     response.responseStatusCode,
-                    response.responseHeaders[Constants.retryAfterHeader],
+                    response.headers[Constants.retryAfterHeader],
                     response.responseBodyData
                 )
             }
@@ -603,7 +602,7 @@ public class RegistrationSessionManagerImpl: RegistrationSessionManager {
                 let response = handler(
                     e164,
                     error.responseStatusCode,
-                    error.responseHeaders?.value(forHeader: Constants.retryAfterHeader),
+                    error.responseHeaders?[Constants.retryAfterHeader],
                     error.httpResponseData
                 )
                 return .value(response)

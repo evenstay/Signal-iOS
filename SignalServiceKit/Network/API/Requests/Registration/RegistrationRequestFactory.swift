@@ -38,8 +38,8 @@ public enum RegistrationRequestFactory {
             parameters["mnc"] = mnc
         }
 
-        let result = TSRequest(url: url, method: "POST", parameters: parameters)
-        result.shouldHaveAuthorizationHeaders = false
+        var result = TSRequest(url: url, method: "POST", parameters: parameters)
+        result.auth = .registration(nil)
         return result
     }
 
@@ -56,9 +56,9 @@ public enum RegistrationRequestFactory {
         urlComponents.percentEncodedPath = urlPathComponents.percentEncoded
         let url = urlComponents.url!
 
-        let result = TSRequest(url: url, method: "GET", parameters: nil)
-        result.shouldHaveAuthorizationHeaders = false
-        redactSessionIdFromLogs(sessionId, in: result)
+        var result = TSRequest(url: url, method: "GET", parameters: nil)
+        result.auth = .registration(nil)
+        redactSessionIdFromLogs(sessionId, in: &result)
         return result
     }
 
@@ -88,9 +88,9 @@ public enum RegistrationRequestFactory {
             parameters["pushChallenge"] = pushChallengeToken
         }
 
-        let result = TSRequest(url: url, method: "PATCH", parameters: parameters)
-        result.shouldHaveAuthorizationHeaders = false
-        redactSessionIdFromLogs(sessionId, in: result)
+        var result = TSRequest(url: url, method: "PATCH", parameters: parameters)
+        result.auth = .registration(nil)
+        redactSessionIdFromLogs(sessionId, in: &result)
         return result
     }
 
@@ -135,12 +135,12 @@ public enum RegistrationRequestFactory {
             languageCodes.append("en")
         }
 
-        let languageHeader: String = OWSHttpHeaders.formatAcceptLanguageHeader(languageCodes)
+        let languageHeader: String = HttpHeaders.formatAcceptLanguageHeader(languageCodes)
 
-        let result = TSRequest(url: url, method: "POST", parameters: parameters)
-        result.shouldHaveAuthorizationHeaders = false
-        result.setValue(languageHeader, forHTTPHeaderField: OWSHttpHeaders.acceptLanguageHeaderKey)
-        redactSessionIdFromLogs(sessionId, in: result)
+        var result = TSRequest(url: url, method: "POST", parameters: parameters)
+        result.auth = .registration(nil)
+        result.headers[HttpHeaders.acceptLanguageHeaderKey] = languageHeader
+        redactSessionIdFromLogs(sessionId, in: &result)
         return result
     }
 
@@ -163,9 +163,9 @@ public enum RegistrationRequestFactory {
             "code": code
         ]
 
-        let result = TSRequest(url: url, method: "PUT", parameters: parameters)
-        result.shouldHaveAuthorizationHeaders = false
-        redactSessionIdFromLogs(sessionId, in: result)
+        var result = TSRequest(url: url, method: "PUT", parameters: parameters)
+        result.auth = .registration(nil)
+        redactSessionIdFromLogs(sessionId, in: &result)
         return result
     }
 
@@ -191,8 +191,8 @@ public enum RegistrationRequestFactory {
             }
         ]
 
-        let result = TSRequest(url: url, method: "POST", parameters: parameters)
-        result.shouldHaveAuthorizationHeaders = false
+        var result = TSRequest(url: url, method: "POST", parameters: parameters)
+        result.auth = .registration(nil)
         return result
     }
 
@@ -280,12 +280,10 @@ public enum RegistrationRequestFactory {
             parameters["apnToken"] = apnRegistrationIdDict
         }
 
-        let result = TSRequest(url: url, method: "POST", parameters: parameters)
-        result.shouldHaveAuthorizationHeaders = true
-        result.addValue("OWI", forHTTPHeaderField: "X-Signal-Agent")
+        var result = TSRequest(url: url, method: "POST", parameters: parameters)
         // As odd as this is, it is to spec.
-        result.authUsername = e164.stringValue
-        result.authPassword = authPassword
+        result.auth = .registration((username: e164.stringValue, password: authPassword))
+        result.headers["X-Signal-Agent"] = "OWI"
         return result
     }
 
@@ -330,9 +328,7 @@ public enum RegistrationRequestFactory {
             }
         )
 
-        let result = TSRequest(url: url, method: "PUT", parameters: parameters)
-        result.shouldHaveAuthorizationHeaders = true
-        return result
+        return TSRequest(url: url, method: "PUT", parameters: parameters)
     }
 
     public static func updatePrimaryDeviceAccountAttributesRequest(
@@ -351,9 +347,8 @@ public enum RegistrationRequestFactory {
         let data = try! JSONEncoder().encode(accountAttributes)
         let parameters = try! JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as! [String: Any]
 
-        let result = TSRequest(url: url, method: "PUT", parameters: parameters)
-        result.shouldHaveAuthorizationHeaders = true
-        result.setAuth(auth)
+        var result = TSRequest(url: url, method: "PUT", parameters: parameters)
+        result.auth = .identified(auth)
         return result
     }
 
@@ -372,9 +367,9 @@ public enum RegistrationRequestFactory {
 
     // MARK: - Helpers
 
-    private static func redactSessionIdFromLogs(_ sessionId: String, in request: TSRequest) {
+    private static func redactSessionIdFromLogs(_ sessionId: String, in request: inout TSRequest) {
         request.applyRedactionStrategy(.redactURLForSuccessResponses(
-            replacementString: request.url?.absoluteString.replacingOccurrences(of: sessionId, with: "[REDACTED]") ?? "[REDACTED]"
+            replacementString: request.url.absoluteString.replacingOccurrences(of: sessionId, with: "[REDACTED]")
         ))
     }
 }

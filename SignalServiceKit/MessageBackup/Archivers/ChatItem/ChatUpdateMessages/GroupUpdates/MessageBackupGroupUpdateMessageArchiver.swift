@@ -15,21 +15,19 @@ final class MessageBackupGroupUpdateMessageArchiver {
     private typealias PersistableGroupUpdateItem = TSInfoMessage.PersistableGroupUpdateItem
 
     private let groupUpdateBuilder: GroupUpdateItemBuilder
-    private let groupUpdateHelper: GroupUpdateInfoMessageInserterBackupHelper
-    private let interactionStore: InteractionStore
+    private let interactionStore: MessageBackupInteractionStore
 
     public init(
         groupUpdateBuilder: GroupUpdateItemBuilder,
-        groupUpdateHelper: GroupUpdateInfoMessageInserterBackupHelper,
-        interactionStore: InteractionStore
+        interactionStore: MessageBackupInteractionStore
     ) {
         self.groupUpdateBuilder = groupUpdateBuilder
-        self.groupUpdateHelper = groupUpdateHelper
         self.interactionStore = interactionStore
     }
 
     func archiveGroupUpdate(
         infoMessage: TSInfoMessage,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveChatUpdateMessageResult {
         let groupUpdateItems: [TSInfoMessage.PersistableGroupUpdateItem]
@@ -42,7 +40,7 @@ final class MessageBackupGroupUpdateMessageArchiver {
                 OWSAssertionError("Invalid interaction type")
             )))
         case .legacyRawString:
-            return .skippableChatUpdate(.skippableGroupUpdate(.legacyRawString))
+            return .skippableInteraction(.skippableGroupUpdate(.legacyRawString))
         case .newGroup(let groupModel, let updateMetadata):
             groupUpdateItems = groupUpdateBuilder.precomputedUpdateItemsForNewGroup(
                 newGroupModel: groupModel.groupModel,
@@ -64,12 +62,25 @@ final class MessageBackupGroupUpdateMessageArchiver {
         case .precomputed(let persistableGroupUpdateItemsWrapper):
             groupUpdateItems = persistableGroupUpdateItemsWrapper.updateItems
         }
+        return archiveGroupUpdateItems(
+            groupUpdateItems,
+            for: infoMessage,
+            threadInfo: threadInfo,
+            context: context
+        )
+    }
 
+    func archiveGroupUpdateItems(
+        _ groupUpdateItems: [TSInfoMessage.PersistableGroupUpdateItem],
+        for interaction: TSInteraction,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
+        context: MessageBackup.ChatArchivingContext
+    ) -> ArchiveChatUpdateMessageResult {
         var partialErrors = [ArchiveFrameError]()
 
         let contentsResult = Self.archiveGroupUpdates(
             groupUpdates: groupUpdateItems,
-            interactionId: infoMessage.uniqueInteractionId,
+            interactionId: interaction.uniqueInteractionId,
             localIdentifiers: context.recipientContext.localIdentifiers,
             partialErrors: &partialErrors
         )
@@ -86,16 +97,27 @@ final class MessageBackupGroupUpdateMessageArchiver {
 
         let directionlessDetails = BackupProto_ChatItem.DirectionlessMessageDetails()
 
-        let details = Details(
-            author: context.recipientContext.localRecipientId,
+        let detailsResult = Details.validateAndBuild(
+            interactionUniqueId: interaction.uniqueInteractionId,
+            author: .localUser,
             directionalDetails: .directionless(directionlessDetails),
-            dateCreated: infoMessage.timestamp,
+            dateCreated: interaction.timestamp,
             expireStartDate: nil,
             expiresInMs: nil,
             isSealedSender: false,
             chatItemType: .updateMessage(chatUpdate),
-            isSmsPreviouslyRestoredFromBackup: false
+            isSmsPreviouslyRestoredFromBackup: false,
+            threadInfo: threadInfo,
+            context: context.recipientContext
         )
+
+        let details: Details
+        switch detailsResult.bubbleUp(Details.self, partialErrors: &partialErrors) {
+        case .continue(let _details):
+            details = _details
+        case .bubbleUpError(let error):
+            return error
+        }
 
         if partialErrors.isEmpty {
             return .success(details)
@@ -113,7 +135,7 @@ final class MessageBackupGroupUpdateMessageArchiver {
         var updates = [BackupProto_GroupChangeChatUpdate.Update]()
 
         var skipCount = 0
-        var latestSkipError: MessageBackup.SkippableChatUpdate.SkippableGroupUpdate?
+        var latestSkipError: MessageBackup.SkippableInteraction.SkippableGroupUpdate?
         for groupUpdate in groupUpdates {
             let result = MessageBackupGroupUpdateSwiftToProtoConverter
                 .archiveGroupUpdate(
@@ -129,7 +151,7 @@ final class MessageBackupGroupUpdateMessageArchiver {
                 updates.append(update)
             case .bubbleUpError(let errorResult):
                 switch errorResult {
-                case .skippableChatUpdate(.skippableGroupUpdate(let skipError)):
+                case .skippableInteraction(.skippableGroupUpdate(let skipError)):
                     // Don't stop when we encounter a skippable update.
                     skipCount += 1
                     latestSkipError = skipError
@@ -142,7 +164,7 @@ final class MessageBackupGroupUpdateMessageArchiver {
         guard updates.isEmpty.negated else {
             if groupUpdates.count == skipCount, let latestSkipError {
                 // Its ok; we just skipped everything.
-                return .skippableChatUpdate(.skippableGroupUpdate(latestSkipError))
+                return .skippableInteraction(.skippableGroupUpdate(latestSkipError))
             }
             return .messageFailure(partialErrors + [.archiveFrameError(.emptyGroupUpdate, interactionId)])
         }
@@ -161,7 +183,7 @@ final class MessageBackupGroupUpdateMessageArchiver {
         _ groupUpdate: BackupProto_GroupChangeChatUpdate,
         chatItem: BackupProto_ChatItem,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreChatUpdateMessageResult {
         let groupThread: TSGroupThread
         switch chatThread.threadType {
@@ -183,10 +205,12 @@ final class MessageBackupGroupUpdateMessageArchiver {
                 partialErrors: &partialErrors,
                 chatItemId: chatItem.id
             )
-        guard var persistableUpdates =
-                result.unwrap(partialErrors: &partialErrors)
-        else {
-            return .messageFailure(partialErrors)
+        var persistableUpdates: [PersistableGroupUpdateItem]
+        switch result.bubbleUp(Void.self, partialErrors: &partialErrors) {
+        case .continue(let component):
+            persistableUpdates = component
+        case .bubbleUpError(let error):
+            return error
         }
 
         guard persistableUpdates.isEmpty.negated else {
@@ -196,16 +220,6 @@ final class MessageBackupGroupUpdateMessageArchiver {
                 chatItem.id
             )])
         }
-
-        // FIRST, try and do any collapsing. This might collapse
-        // the passed in array of updates (modifying it), or
-        // may update the most recent TSInfoMessage on disk, or both.
-        groupUpdateHelper.collapseIfNeeded(
-            updates: &persistableUpdates,
-            localIdentifiers: context.recipientContext.localIdentifiers,
-            groupThread: groupThread,
-            tx: context.tx
-        )
 
         guard persistableUpdates.isEmpty.negated else {
             // If we got an empty array, that means it got collapsed!
@@ -223,7 +237,24 @@ final class MessageBackupGroupUpdateMessageArchiver {
             groupThread: groupThread,
             updateItems: persistableUpdates
         )
-        interactionStore.insertInteraction(infoMessage, tx: context.tx)
+
+        guard let directionalDetails = chatItem.directionalDetails else {
+            return .unrecognizedEnum(MessageBackup.UnrecognizedEnumError(
+                enumType: BackupProto_ChatItem.OneOf_DirectionalDetails.self
+            ))
+        }
+
+        do {
+            try interactionStore.insert(
+                infoMessage,
+                in: chatThread,
+                chatId: chatItem.typedChatId,
+                directionalDetails: directionalDetails,
+                context: context
+            )
+        } catch let error {
+            return .messageFailure(partialErrors + [.restoreFrameError(.databaseInsertionFailed(error), chatItem.id)])
+        }
 
         if partialErrors.isEmpty {
             return .success(())

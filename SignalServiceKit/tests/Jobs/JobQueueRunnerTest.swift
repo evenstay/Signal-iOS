@@ -9,7 +9,7 @@ import XCTest
 @testable import SignalServiceKit
 
 final class JobQueueRunnerTest: XCTestCase {
-    private var mockDb: MockDB!
+    private var mockDb: InMemoryDB!
     private var jobFinder: MockJobFinder!
     private var jobRunnerFactory: MockJobRunnerFactory!
     private var serialRunner: JobQueueRunner<MockJobFinder, MockJobRunnerFactory>!
@@ -17,7 +17,7 @@ final class JobQueueRunnerTest: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        mockDb = MockDB()
+        mockDb = InMemoryDB()
         jobFinder = MockJobFinder()
         jobRunnerFactory = MockJobRunnerFactory(jobFinder: jobFinder, mockDb: mockDb)
         serialRunner = JobQueueRunner(canExecuteJobsConcurrently: false, db: mockDb, jobFinder: jobFinder, jobRunnerFactory: jobRunnerFactory)
@@ -25,11 +25,11 @@ final class JobQueueRunnerTest: XCTestCase {
     }
 
     func testConcurrent() async throws {
-        let job1 = IncomingGroupSyncJobRecord(legacyAttachmentId: "A")
+        let job1 = SessionResetJobRecord(contactThreadId: "A")
         jobFinder.addJob(job1)
         concurrentRunner.addPersistedJob(job1, runner: jobRunnerFactory.buildRunner(retryInterval: 0.001))
 
-        let job2 = IncomingGroupSyncJobRecord(legacyAttachmentId: "B")
+        let job2 = SessionResetJobRecord(contactThreadId: "B")
         jobFinder.addJob(job2)
         concurrentRunner.addPersistedJob(job2, runner: jobRunnerFactory.buildRunner(retryInterval: nil))
 
@@ -43,7 +43,7 @@ final class JobQueueRunnerTest: XCTestCase {
         }
         try await Task.sleep(nanoseconds: NSEC_PER_USEC)
 
-        let job3 = IncomingGroupSyncJobRecord(legacyAttachmentId: "C")
+        let job3 = SessionResetJobRecord(contactThreadId: "C")
         jobFinder.addJob(job3)
         _ = await withCheckedContinuation { continuation in
             concurrentRunner.addPersistedJob(job3, runner: jobRunnerFactory.buildRunner(completionContinuation: continuation))
@@ -59,12 +59,12 @@ final class JobQueueRunnerTest: XCTestCase {
     func testEnqueuedWhileStarting() async throws {
         // Add an old job.
         do {
-            let job = IncomingGroupSyncJobRecord(legacyAttachmentId: "A")
+            let job = SessionResetJobRecord(contactThreadId: "A")
             jobFinder.addJob(job)
         }
         // Add a new job.
         async let result1: JobResult = withCheckedContinuation { continuation in
-            let job = IncomingGroupSyncJobRecord(legacyAttachmentId: "B")
+            let job = SessionResetJobRecord(contactThreadId: "B")
             jobFinder.addJob(job)
             serialRunner.addPersistedJob(job, runner: jobRunnerFactory.buildRunner(completionContinuation: continuation))
         }
@@ -74,7 +74,7 @@ final class JobQueueRunnerTest: XCTestCase {
         // Add another job that will hopefully restart a stopped queue.
         try await Task.sleep(nanoseconds: NSEC_PER_USEC)
         async let result2: JobResult = withCheckedContinuation { continuation in
-            let job = IncomingGroupSyncJobRecord(legacyAttachmentId: "C")
+            let job = SessionResetJobRecord(contactThreadId: "C")
             jobFinder.addJob(job)
             serialRunner.addPersistedJob(job, runner: jobRunnerFactory.buildRunner(completionContinuation: continuation))
         }
@@ -84,9 +84,9 @@ final class JobQueueRunnerTest: XCTestCase {
 
     func testRetryWaitingJobs() async throws {
         serialRunner.start(shouldRestartExistingJobs: false)
-        let job = IncomingGroupSyncJobRecord(legacyAttachmentId: "A")
+        let job = SessionResetJobRecord(contactThreadId: "A")
         jobFinder.addJob(job)
-        serialRunner.addPersistedJob(job, runner: jobRunnerFactory.buildRunner(completionContinuation: nil, retryInterval: kHourInterval))
+        serialRunner.addPersistedJob(job, runner: jobRunnerFactory.buildRunner(completionContinuation: nil, retryInterval: .hour))
         while true {
             serialRunner.retryWaitingJobs()
             if jobRunnerFactory.executedJobs.get() == ["A", "A"] {
@@ -97,7 +97,7 @@ final class JobQueueRunnerTest: XCTestCase {
     }
 
     func testRemovedElsewhere() async {
-        let job = IncomingGroupSyncJobRecord(legacyAttachmentId: "A")
+        let job = SessionResetJobRecord(contactThreadId: "A")
         jobFinder.addJob(job)
         mockDb.write { tx in jobFinder.removeJob(job, tx: tx) }
         async let result: JobResult = withCheckedContinuation { continuation in
@@ -109,40 +109,40 @@ final class JobQueueRunnerTest: XCTestCase {
 }
 
 private class MockJobFinder: JobRecordFinder {
-    let jobRecords = AtomicValue<[IncomingGroupSyncJobRecord?]>([], lock: .init())
+    let jobRecords = AtomicValue<[SessionResetJobRecord?]>([], lock: .init())
 
-    func addJob(_ jobRecord: IncomingGroupSyncJobRecord) {
+    func addJob(_ jobRecord: SessionResetJobRecord) {
         jobRecords.update {
             $0.append(jobRecord)
             jobRecord.id = Int64($0.count)
         }
     }
 
-    func removeJob(_ jobRecord: IncomingGroupSyncJobRecord, tx: DBWriteTransaction) {
+    func removeJob(_ jobRecord: SessionResetJobRecord, tx: DBWriteTransaction) {
         jobRecords.update {
             $0[Int(jobRecord.id! - 1)] = nil
         }
     }
 
-    func fetchJob(rowId: JobRecord.RowId, tx: DBReadTransaction) throws -> IncomingGroupSyncJobRecord? {
+    func fetchJob(rowId: JobRecord.RowId, tx: DBReadTransaction) throws -> SessionResetJobRecord? {
         return jobRecords.update { $0[Int(rowId - 1)] }
     }
 
-    func loadRunnableJobs() async throws -> [IncomingGroupSyncJobRecord] {
+    func loadRunnableJobs(updateRunnableJobRecord: @escaping (SessionResetJobRecord, DBWriteTransaction) -> Void) async throws -> [SessionResetJobRecord] {
         return jobRecords.update { $0.compacted() }
     }
 
-    func enumerateJobRecords(transaction: DBReadTransaction, block: (IncomingGroupSyncJobRecord, inout Bool) -> Void) throws { fatalError() }
-    func enumerateJobRecords(status: JobRecord.Status, transaction: DBReadTransaction, block: (IncomingGroupSyncJobRecord, inout Bool) -> Void) throws { fatalError() }
+    func enumerateJobRecords(transaction: DBReadTransaction, block: (SessionResetJobRecord, inout Bool) -> Void) throws { fatalError() }
+    func enumerateJobRecords(status: JobRecord.Status, transaction: DBReadTransaction, block: (SessionResetJobRecord, inout Bool) -> Void) throws { fatalError() }
 }
 
 private class MockJobRunnerFactory: JobRunnerFactory {
     private let jobFinder: MockJobFinder
-    private let mockDb: MockDB
+    private let mockDb: InMemoryDB
 
     let executedJobs = AtomicArray<String>(lock: .init())
 
-    init(jobFinder: MockJobFinder, mockDb: MockDB) {
+    init(jobFinder: MockJobFinder, mockDb: InMemoryDB) {
         self.jobFinder = jobFinder
         self.mockDb = mockDb
     }
@@ -169,14 +169,14 @@ private class MockJobRunner: JobRunner {
     let completionContinuation: CheckedContinuation<JobResult, Never>?
     let executedJobs: AtomicArray<String>
     let jobFinder: MockJobFinder
-    let mockDb: MockDB
+    let mockDb: InMemoryDB
     var retryInterval: TimeInterval?
 
     init(
         completionContinuation: CheckedContinuation<JobResult, Never>?,
         executedJobs: AtomicArray<String>,
         jobFinder: MockJobFinder,
-        mockDb: MockDB,
+        mockDb: InMemoryDB,
         retryInterval: TimeInterval?
     ) {
         self.completionContinuation = completionContinuation
@@ -186,8 +186,8 @@ private class MockJobRunner: JobRunner {
         self.retryInterval = retryInterval
     }
 
-    func runJobAttempt(_ jobRecord: IncomingGroupSyncJobRecord) async -> JobAttemptResult {
-        executedJobs.append(jobRecord.legacyAttachmentId)
+    func runJobAttempt(_ jobRecord: SessionResetJobRecord) async -> JobAttemptResult {
+        executedJobs.append(jobRecord.contactThreadId)
         if let retryInterval = self.retryInterval {
             self.retryInterval = nil
             return .retryAfter(retryInterval)

@@ -5,13 +5,13 @@
 
 import Foundation
 
+#if TESTABLE_BUILD
+
 public class BaseOWSURLSessionMock: OWSURLSessionProtocol {
 
     // MARK: - OWSURLSessionProtocol conformance
 
     public var endpoint: OWSURLSessionEndpoint
-
-    public var failOnError: Bool = true
 
     public var require2xxOr3xx: Bool = true
 
@@ -81,78 +81,81 @@ public class BaseOWSURLSessionMock: OWSURLSessionProtocol {
 
     public func promiseForTSRequest(_ rawRequest: TSRequest) -> Promise<HTTPResponse> {
         // Want different behavior? Write a custom mock class
-        return .value(HTTPResponseImpl(
-            requestUrl: rawRequest.url!,
+        return Promise.wrapAsync { try await self.performRequest(rawRequest) }
+    }
+
+    public func performRequest(_ rawRequest: TSRequest) async throws -> any HTTPResponse {
+        // Want different behavior? Write a custom mock class
+        return HTTPResponseImpl(
+            requestUrl: rawRequest.url,
             status: 200,
-            headers: OWSHttpHeaders(),
+            headers: HttpHeaders(),
             bodyData: nil
-        ))
+        )
     }
 
     // MARK: Tasks
 
-    public func uploadTaskPromise(
+    public func performUpload(
         request: URLRequest,
-        data requestData: Data,
-        progress progressBlock: ProgressBlock?
-    ) -> Promise<HTTPResponse> {
+        requestData: Data,
+        progress: OWSProgressSource?
+    ) async throws -> any HTTPResponse {
         // Want different behavior? Write a custom mock class
-        return .value(HTTPResponseImpl(
+        return HTTPResponseImpl(
             requestUrl: request.url!,
             status: 200,
-            headers: OWSHttpHeaders(),
+            headers: HttpHeaders(),
             bodyData: nil
-        ))
+        )
     }
 
-    public func uploadTaskPromise(
+    public func performUpload(
         request: URLRequest,
         fileUrl: URL,
         ignoreAppExpiry: Bool,
-        progress progressBlock: ProgressBlock?
-    ) -> Promise<HTTPResponse> {
+        progress: OWSProgressSource?
+    ) async throws -> any HTTPResponse {
         // Want different behavior? Write a custom mock class
-        return .value(HTTPResponseImpl(
+        return HTTPResponseImpl(
             requestUrl: request.url!,
             status: 200,
-            headers: OWSHttpHeaders(),
+            headers: HttpHeaders(),
             bodyData: nil
-        ))
+        )
     }
 
-    public func dataTaskPromise(request: URLRequest, ignoreAppExpiry: Bool = false) -> Promise<HTTPResponse> {
+    public func performRequest(request: URLRequest, ignoreAppExpiry: Bool) async throws -> any HTTPResponse {
         // Want different behavior? Write a custom mock class
-        return .value(HTTPResponseImpl(
+        return HTTPResponseImpl(
             requestUrl: request.url!,
             status: 200,
-            headers: OWSHttpHeaders(),
+            headers: HttpHeaders(),
             bodyData: nil
-        ))
+        )
     }
 
-    public func downloadTaskPromise(
+    public func performDownload(
         request: URLRequest,
-        progress progressBlock: ProgressBlock?
-    ) -> Promise<OWSUrlDownloadResponse> {
+        progress: OWSProgressSource?
+    ) async throws -> OWSUrlDownloadResponse {
         // Want different behavior? Write a custom mock class
-        return .value(OWSUrlDownloadResponse(
-            task: URLSession.shared.dataTask(with: request),
+        return OWSUrlDownloadResponse(
             httpUrlResponse: HTTPURLResponse(),
             downloadUrl: URL(fileURLWithPath: request.url!.lastPathComponent)
-        ))
+        )
     }
 
-    public func downloadTaskPromise(
+    public func performDownload(
         requestUrl: URL,
         resumeData: Data,
-        progress progressBlock: ProgressBlock?
-    ) -> Promise<OWSUrlDownloadResponse> {
+        progress: OWSProgressSource?
+    ) async throws -> OWSUrlDownloadResponse {
         // Want different behavior? Write a custom mock class
-        return .value(OWSUrlDownloadResponse(
-            task: URLSession.shared.downloadTask(with: URLRequest(url: requestUrl)),
+        return OWSUrlDownloadResponse(
             httpUrlResponse: HTTPURLResponse(),
             downloadUrl: URL(fileURLWithPath: requestUrl.lastPathComponent)
-        ))
+        )
     }
 
     public func webSocketTask(
@@ -164,3 +167,5 @@ public class BaseOWSURLSessionMock: OWSURLSessionProtocol {
         fatalError("Not implemented.")
     }
 }
+
+#endif

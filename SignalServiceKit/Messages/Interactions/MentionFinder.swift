@@ -9,26 +9,18 @@ public import LibSignalClient
 
 // MARK: -
 
-@objc
-public class MentionFinder: NSObject {
+public class MentionFinder {
 
     public class func messagesMentioning(
         aci: Aci,
         in thread: TSThread? = nil,
         includeReadMessages: Bool = true,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> [TSMessage] {
-        var sql = """
-            SELECT interaction.*
-            FROM \(InteractionRecord.databaseTableName) as interaction
-            INNER JOIN \(TSMention.databaseTableName) as mention
-                ON mention.\(TSMention.columnName(.uniqueMessageId)) = interaction.\(interactionColumn: .uniqueId)
-                AND mention.\(TSMention.columnName(.aciString)) = ?
-        """
-
+        var filters = [String]()
         var arguments = [aci.serviceIdUppercaseString]
 
-        var next = "WHERE"
+        var isIndexedByUnreadIndex = false
 
         if let thread {
             // The TSMention's uniqueThreadId should always match the TSInteraction's
@@ -47,27 +39,36 @@ public class MentionFinder: NSObject {
             // fast. (The alternative index is one which scans all the messages in the
             // conversation, and that's much slower.)
             if includeReadMessages {
-                sql += " \(next) mention.\(TSMention.columnName(.uniqueThreadId)) = ?"
+                filters.append("mention.\(TSMention.columnName(.uniqueThreadId)) = ?")
                 arguments.append(thread.uniqueId)
-                next = "AND"
             } else {
-                sql += " \(next) interaction.\(interactionColumn: .threadUniqueId) = ?"
+                filters.append("interaction.\(interactionColumn: .threadUniqueId) = ?")
                 arguments.append(thread.uniqueId)
-                next = "AND"
+                isIndexedByUnreadIndex = true
             }
         }
 
         if !includeReadMessages {
-            sql += " \(next) interaction.\(interactionColumn: .read) IS 0"
-            next = "AND"
+            filters.append("interaction.\(interactionColumn: .read) IS 0")
         }
 
-        sql += " \(next) interaction.\(interactionColumn: .isGroupStoryReply) IS 0"
-        next = "AND"
+        filters.append("interaction.\(interactionColumn: .isGroupStoryReply) IS 0")
+        // The "WHERE" breaks if this is empty. The prior line ensures it passes.
+        owsPrecondition(!filters.isEmpty)
 
-        sql += " ORDER BY \(interactionColumn: .id)"
+        let sql = """
+            SELECT interaction.*
+            FROM \(InteractionRecord.databaseTableName) as interaction
+            \(isIndexedByUnreadIndex ? DEBUG_INDEXED_BY("index_model_TSInteraction_UnreadMessages") : "")
+            INNER JOIN \(TSMention.databaseTableName) as mention
+                \(!isIndexedByUnreadIndex ? DEBUG_INDEXED_BY("index_model_TSMention_on_uuidString_and_uniqueThreadId") : "")
+                ON mention.\(TSMention.columnName(.uniqueMessageId)) = interaction.\(interactionColumn: .uniqueId)
+                AND mention.\(TSMention.columnName(.aciString)) = ?
+            WHERE \(filters.joined(separator: " AND "))
+            ORDER BY \(interactionColumn: .id)
+            """
 
-        let cursor = TSMessage.grdbFetchCursor(sql: sql, arguments: StatementArguments(arguments), transaction: tx.unwrapGrdbRead)
+        let cursor = TSMessage.grdbFetchCursor(sql: sql, arguments: StatementArguments(arguments), transaction: tx)
 
         var messages = [TSMessage]()
 
@@ -82,17 +83,15 @@ public class MentionFinder: NSObject {
         return messages
     }
 
-    @objc
-    public class func deleteAllMentions(for message: TSMessage, transaction: GRDBWriteTransaction) {
+    public class func deleteAllMentions(for message: TSMessage, transaction: DBWriteTransaction) {
         let sql = """
             DELETE FROM \(TSMention.databaseTableName)
             WHERE \(TSMention.columnName(.uniqueMessageId)) = ?
         """
-        transaction.execute(sql: sql, arguments: [message.uniqueId])
+        transaction.database.executeHandlingErrors(sql: sql, arguments: [message.uniqueId])
     }
 
-    @objc
-    public class func mentionedAddresses(for message: TSMessage, transaction: GRDBReadTransaction) -> [SignalServiceAddress] {
+    public class func mentionedAddresses(for message: TSMessage, transaction: DBReadTransaction) -> [SignalServiceAddress] {
         let sql = """
             SELECT *
             FROM \(TSMention.databaseTableName)
@@ -113,12 +112,11 @@ public class MentionFinder: NSObject {
         return addresses
     }
 
-    @objc
     public class func tryToCleanupOrphanedMention(
         uniqueId: String,
         thresholdDate: Date,
         shouldPerformRemove: Bool,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> Bool {
         guard let mention = TSMention.anyFetch(uniqueId: uniqueId, transaction: transaction) else {
             // This could just be a race condition, but it should be very unlikely.
@@ -126,7 +124,7 @@ public class MentionFinder: NSObject {
             return false
         }
 
-        guard !mention.creationDate.isAfter(thresholdDate) else {
+        guard mention.creationDate <= thresholdDate else {
             Logger.info("Skipping orphan mention due to age: \(mention.creationDate.timeIntervalSinceNow)")
             return false
         }

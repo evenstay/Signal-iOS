@@ -16,7 +16,7 @@ protocol BadgeConfigurationDelegate: AnyObject {
     func badgeConfirmationDidCancel(_: BadgeConfigurationViewController)
 }
 
-class BadgeConfigurationViewController: OWSTableViewController2, BadgeCollectionDataSource {
+final class BadgeConfigurationViewController: OWSTableViewController2, BadgeCollectionDataSource {
     private weak var badgeConfigDelegate: BadgeConfigurationDelegate?
 
     let availableBadges: [OWSUserProfileBadgeInfo]
@@ -60,12 +60,10 @@ class BadgeConfigurationViewController: OWSTableViewController2, BadgeCollection
         }
     }
 
-    convenience init(fetchingDataFromLocalProfileWithDelegate delegate: BadgeConfigurationDelegate) {
-        let snapshot = Self.profileManagerImpl.localProfileSnapshot(shouldIncludeAvatar: false)
-        let allBadges = snapshot.profileBadgeInfo ?? []
-        let shouldDisplayOnProfile = Self.subscriptionManager.displayBadgesOnProfile
-
-        self.init(availableBadges: allBadges, shouldDisplayOnProfile: shouldDisplayOnProfile, delegate: delegate)
+    static func load(delegate: BadgeConfigurationDelegate, tx: DBReadTransaction) -> Self {
+        let badges = SSKEnvironment.shared.profileManagerRef.localUserProfile(tx: tx)?.badges ?? []
+        let shouldDisplayOnProfile = DonationSubscriptionManager.displayBadgesOnProfile
+        return Self(availableBadges: badges, shouldDisplayOnProfile: shouldDisplayOnProfile, delegate: delegate)
     }
 
     init(availableBadges: [OWSUserProfileBadgeInfo], shouldDisplayOnProfile: Bool, avatarImage: UIImage? = nil, delegate: BadgeConfigurationDelegate) {
@@ -156,8 +154,8 @@ class BadgeConfigurationViewController: OWSTableViewController2, BadgeCollection
                             let collectionView = BadgeCollectionView(dataSource: self)
 
                             if let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress {
-                                let localShortName = self.databaseStorage.read {
-                                    return self.contactsManager.displayName(for: localAddress, tx: $0).resolvedValue(useShortNameIfAvailable: true)
+                                let localShortName = SSKEnvironment.shared.databaseStorageRef.read {
+                                    return SSKEnvironment.shared.contactManagerRef.displayName(for: localAddress, tx: $0).resolvedValue(useShortNameIfAvailable: true)
                                 }
                                 collectionView.badgeSelectionMode = .detailsSheet(owner: .local(shortName: localShortName))
                             } else {

@@ -293,7 +293,7 @@ class StoryItemMediaView: UIView {
     private lazy var timestampLabel = UILabel()
     private lazy var authorRow = UIStackView()
     private func updateAuthorRow(newContextButton contextButton: ContextMenuButton) {
-        let (avatarView, nameLabel) = databaseStorage.read { (
+        let (avatarView, nameLabel) = SSKEnvironment.shared.databaseStorageRef.read { (
             buildAvatarView(transaction: $0),
             buildNameLabel(transaction: $0)
         ) }
@@ -322,7 +322,7 @@ class StoryItemMediaView: UIView {
 
         if
             case .privateStory(let uniqueId) = delegate?.context,
-            let privateStoryThread = databaseStorage.read(
+            let privateStoryThread = SSKEnvironment.shared.databaseStorageRef.read(
                 block: { TSPrivateStoryThread.anyFetchPrivateStoryThread(uniqueId: uniqueId, transaction: $0) }
             ),
             !privateStoryThread.isMyStory {
@@ -387,7 +387,7 @@ class StoryItemMediaView: UIView {
         updateTimestampText()
     }
 
-    private func buildAvatarView(transaction: SDSAnyReadTransaction) -> UIView {
+    private func buildAvatarView(transaction: DBReadTransaction) -> UIView {
         let authorAvatarView = ConversationAvatarView(
             sizeClass: .twentyEight,
             localUserDisplayMode: .asLocalUser,
@@ -442,13 +442,13 @@ class StoryItemMediaView: UIView {
         }
     }
 
-    private func buildNameLabel(transaction: SDSAnyReadTransaction) -> UIView {
+    private func buildNameLabel(transaction: DBReadTransaction) -> UIView {
         let label = UILabel()
         label.textColor = Theme.darkThemePrimaryColor
         label.font = UIFont.dynamicTypeSubheadline.semibold()
         label.text = StoryUtil.authorDisplayName(
             for: item.message,
-            contactsManager: contactsManager,
+            contactsManager: SSKEnvironment.shared.contactManagerRef,
             useFullNameForLocalAddress: false,
             useShortGroupName: false,
             transaction: transaction
@@ -853,7 +853,7 @@ class StoryItemMediaView: UIView {
             container.addSubview(backgroundImageView)
             backgroundImageView.autoPinEdgesToSuperviewEdges()
 
-            switch stream.attachment.attachmentStream.computeContentType() {
+            switch stream.attachment.attachmentStream.contentType {
             case .video:
                 let videoView = buildVideoView(attachment: stream.attachment)
                 container.addSubview(videoView)
@@ -875,14 +875,14 @@ class StoryItemMediaView: UIView {
         case .pointer(let pointer):
             let container = UIView()
 
-            if let blurHashImageView = buildBlurHashImageViewIfAvailable(pointer: pointer.attachment) {
+            if let blurHashImageView = buildBlurHashImageViewIfAvailable(attachment: pointer.attachment.attachment) {
                 container.addSubview(blurHashImageView)
                 blurHashImageView.autoPinEdgesToSuperviewEdges()
             }
 
             let view = buildDownloadStateView(
                 for: pointer.attachment,
-                transitTierDownloadState: pointer.transitTierDownloadState
+                downloadState: pointer.downloadState
             )
             container.addSubview(view)
             view.autoPinEdgesToSuperviewEdges()
@@ -903,7 +903,7 @@ class StoryItemMediaView: UIView {
 
     private var videoPlayerLoopCount = 0
     private var videoPlayer: VideoPlayer?
-    private func buildVideoView(attachment: ReferencedTSResourceStream) -> UIView {
+    private func buildVideoView(attachment: ReferencedAttachmentStream) -> UIView {
         guard let player = try? VideoPlayer(attachment: attachment, shouldMixAudioWithOthers: true) else {
             owsFailDebug("Could not load attachment.")
             return buildContentUnavailableView()
@@ -923,7 +923,7 @@ class StoryItemMediaView: UIView {
     }
 
     private var yyImageView: YYAnimatedImageView?
-    private func buildYYImageView(attachment: TSResourceStream) -> UIView {
+    private func buildYYImageView(attachment: AttachmentStream) -> UIView {
         guard
             let image = try? attachment.decryptedYYImage()
         else {
@@ -945,7 +945,7 @@ class StoryItemMediaView: UIView {
         return animatedImageView
     }
 
-    private func buildImageView(attachment: TSResourceStream) -> UIView {
+    private func buildImageView(attachment: AttachmentStream) -> UIView {
         guard let image = try? attachment.decryptedImage() else {
             owsFailDebug("Could not load attachment.")
             return buildContentUnavailableView()
@@ -965,9 +965,9 @@ class StoryItemMediaView: UIView {
         return imageView
     }
 
-    private func buildBlurHashImageViewIfAvailable(pointer: TSResourcePointer) -> UIView? {
+    private func buildBlurHashImageViewIfAvailable(attachment: Attachment) -> UIView? {
         guard
-            let blurHash = pointer.resource.resourceBlurHash,
+            let blurHash = attachment.blurHash,
             let blurHashImage = BlurHash.image(for: blurHash)
         else {
             return nil
@@ -996,13 +996,13 @@ class StoryItemMediaView: UIView {
 
     private static let mediaCache = CVMediaCache()
     private func buildDownloadStateView(
-        for pointer: TSResourcePointer,
-        transitTierDownloadState: AttachmentDownloadState
+        for pointer: AttachmentPointer,
+        downloadState: AttachmentDownloadState
     ) -> UIView {
         let progressView = CVAttachmentProgressView(
             direction: .download(
                 attachmentPointer: pointer,
-                transitTierDownloadState: transitTierDownloadState
+                downloadState: downloadState
             ),
             diameter: 56,
             isDarkThemeEnabled: true,
@@ -1029,27 +1029,27 @@ class StoryItem: NSObject {
     let numberOfReplies: UInt64
     enum Attachment: Equatable {
         struct Pointer: Equatable {
-            let reference: TSResourceReference
-            let attachment: TSResourcePointer
-            let transitTierDownloadState: AttachmentDownloadState
+            let reference: AttachmentReference
+            let attachment: AttachmentPointer
+            let downloadState: AttachmentDownloadState
             var caption: String? { reference.storyMediaCaption?.text }
             var captionStyles: [NSRangedValue<MessageBodyRanges.CollapsedStyle>] { reference.storyMediaCaption?.collapsedStyles ?? [] }
 
             static func == (lhs: StoryItem.Attachment.Pointer, rhs: StoryItem.Attachment.Pointer) -> Bool {
-                return lhs.attachment.resourceId == rhs.attachment.resourceId
+                return lhs.attachment.id == rhs.attachment.id
                     && lhs.reference.hasSameOwner(as: rhs.reference)
-                    && lhs.transitTierDownloadState == rhs.transitTierDownloadState
+                    && lhs.downloadState == rhs.downloadState
             }
         }
 
         struct Stream: Equatable {
-            let attachment: ReferencedTSResourceStream
+            let attachment: ReferencedAttachmentStream
             var isLoopingVideo: Bool { attachment.reference.renderingFlag == .shouldLoop }
             var caption: String? { attachment.reference.storyMediaCaption?.text }
             var captionStyles: [NSRangedValue<MessageBodyRanges.CollapsedStyle>] { attachment.reference.storyMediaCaption?.collapsedStyles ?? [] }
 
             static func == (lhs: StoryItem.Attachment.Stream, rhs: StoryItem.Attachment.Stream) -> Bool {
-                return lhs.attachment.attachmentStream.resourceId == rhs.attachment.attachmentStream.resourceId
+                return lhs.attachment.attachmentStream.id == rhs.attachment.attachmentStream.id
                     && lhs.attachment.reference.hasSameOwner(as: rhs.attachment.reference)
             }
         }
@@ -1089,17 +1089,17 @@ extension StoryItem {
 
     @discardableResult
     func startAttachmentDownloadIfNecessary(priority: AttachmentDownloadPriority = .default) -> Bool {
-        return databaseStorage.write { tx in
+        return SSKEnvironment.shared.databaseStorageRef.write { tx in
             guard
                 case .pointer(let pointer) = attachment,
-                pointer.attachment.downloadState(tx: tx.asV2Read) != .enqueuedOrDownloading
+                pointer.attachment.downloadState(tx: tx) != .enqueuedOrDownloading
             else {
                 return false
             }
-            DependenciesBridge.shared.tsResourceDownloadManager.enqueueDownloadOfAttachmentsForStoryMessage(
+            DependenciesBridge.shared.attachmentDownloadManager.enqueueDownloadOfAttachmentsForStoryMessage(
                 message,
                 priority: priority,
-                tx: tx.asV2Write
+                tx: tx
             )
             return true
         }

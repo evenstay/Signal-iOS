@@ -29,7 +29,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         // check whether we should refresh the balance.
         //
         // TODO: Tune.
-        let refreshCheckInterval = kMinuteInterval * 5
+        let refreshCheckInterval: TimeInterval = .minute * 5
         refreshBalanceEvent = RefreshEvent(appReadiness: appReadiness, refreshInterval: refreshCheckInterval) { [weak self] in
             self?.updateCurrentPaymentBalanceIfNecessary()
         }
@@ -44,8 +44,8 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
     }
 
     // NOTE: This k-v store is shared by PaymentsHelperImpl and PaymentsImpl.
-    fileprivate static var keyValueStore: SDSKeyValueStore { paymentsHelper.keyValueStore}
-    fileprivate var keyValueStore: SDSKeyValueStore { paymentsHelper.keyValueStore}
+    fileprivate static var keyValueStore: KeyValueStore { SSKEnvironment.shared.paymentsHelperRef.keyValueStore}
+    fileprivate var keyValueStore: KeyValueStore { SSKEnvironment.shared.paymentsHelperRef.keyValueStore}
 
     private func updateLastKnownLocalPaymentAddressProtoDataIfNecessary() {
         guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
@@ -58,7 +58,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         let appVersionKey = "appVersion"
         let currentAppVersion = AppVersionImpl.shared.currentAppVersion
 
-        let shouldUpdate = Self.databaseStorage.read { (transaction: SDSAnyReadTransaction) -> Bool in
+        let shouldUpdate = SSKEnvironment.shared.databaseStorageRef.read { (transaction: DBReadTransaction) -> Bool in
             // Check if the app version has changed.
             let lastAppVersion = self.keyValueStore.getString(appVersionKey, transaction: transaction)
             guard lastAppVersion == currentAppVersion else {
@@ -71,7 +71,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         }
         Logger.info("Updating last known local payment address.")
 
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             self.updateLastKnownLocalPaymentAddressProtoData(transaction: transaction)
 
             self.keyValueStore.setString(currentAppVersion, key: appVersionKey, transaction: transaction)
@@ -85,8 +85,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         var hasExpired: Bool {
             // Authentication expires after 24 hours, so we build new
             // API instances every 12 hours.
-            let expiration = kHourInterval * 12
-            return abs(creationDate.timeIntervalSinceNow) > expiration
+            return abs(creationDate.timeIntervalSinceNow) > 12 * .hour
         }
     }
 
@@ -147,11 +146,11 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         }
     }
 
-    public var hasValidPhoneNumberForPayments: Bool { paymentsHelper.hasValidPhoneNumberForPayments }
+    public var hasValidPhoneNumberForPayments: Bool { SSKEnvironment.shared.paymentsHelperRef.hasValidPhoneNumberForPayments }
 
-    public var isKillSwitchActive: Bool { paymentsHelper.isKillSwitchActive }
+    public var isKillSwitchActive: Bool { SSKEnvironment.shared.paymentsHelperRef.isKillSwitchActive }
 
-    public var canEnablePayments: Bool { paymentsHelper.canEnablePayments }
+    public var canEnablePayments: Bool { SSKEnvironment.shared.paymentsHelperRef.canEnablePayments }
 
     public var shouldShowPaymentsUI: Bool {
         arePaymentsEnabled || canEnablePayments
@@ -160,15 +159,15 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
     // MARK: - PaymentsState
 
     public var paymentsState: PaymentsState {
-        paymentsHelperSwift.paymentsState
+        SSKEnvironment.shared.paymentsHelperRef.paymentsState
     }
 
     public var arePaymentsEnabled: Bool {
-        paymentsHelper.arePaymentsEnabled
+        SSKEnvironment.shared.paymentsHelperRef.arePaymentsEnabled
     }
 
     public var paymentsEntropy: Data? {
-        paymentsHelper.paymentsEntropy
+        SSKEnvironment.shared.paymentsHelperRef.paymentsEntropy
     }
 
     public var passphrase: PaymentsPassphrase? {
@@ -201,7 +200,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         MobileCoinAPI.isValidPassphraseWord(word)
     }
 
-    public func clearState(transaction: SDSAnyWriteTransaction) {
+    public func clearState(transaction: DBWriteTransaction) {
         paymentBalanceCache.set(nil)
 
         discardApiHandle()
@@ -237,13 +236,13 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
             // When the balance changes, there might be new transactions
             // that aren't accounted for in the database yet. Perform
             // reconciliation to ensure we're up-to-date.
-            Self.databaseStorage.asyncWrite { transaction in
+            SSKEnvironment.shared.databaseStorageRef.asyncWrite { transaction in
                 self.scheduleReconciliationNow(transaction: transaction)
             }
         }
 
         // TODO: We could only fire if the value actually changed.
-        NotificationCenter.default.postNotificationNameAsync(Self.currentPaymentBalanceDidChange, object: nil)
+        NotificationCenter.default.postOnMainThread(name: Self.currentPaymentBalanceDidChange, object: nil)
     }
 
     private var canUsePayments: Bool {
@@ -273,7 +272,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         }.catch { error in
             let paymentsError = error as? PaymentsError
             let outdated = paymentsError == .outdatedClient || paymentsError == .attestationVerificationFailed
-            Self.paymentsHelper.setPaymentsVersionOutdated(outdated)
+            SSKEnvironment.shared.paymentsHelperRef.setPaymentsVersionOutdated(outdated)
             owsFailDebugUnlessMCNetworkFailure(error)
         }
     }
@@ -293,8 +292,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
         }
         if let lastUpdateDate = paymentBalanceCache.get()?.date {
             // Don't bother updating if we've already updated in the last N hours.
-            let updateFrequency: TimeInterval = kHourInterval * 4
-            guard abs(lastUpdateDate.timeIntervalSinceNow) > updateFrequency else {
+            guard abs(lastUpdateDate.timeIntervalSinceNow) > 4 * .hour else {
                 return
             }
         }
@@ -310,7 +308,7 @@ public class PaymentsImpl: NSObject, PaymentsSwift {
 
     public func findPaymentModels(withMCLedgerBlockIndex mcLedgerBlockIndex: UInt64,
                                   mcIncomingTransactionPublicKey: Data,
-                                  transaction: SDSAnyReadTransaction) -> [TSPaymentModel] {
+                                  transaction: DBReadTransaction) -> [TSPaymentModel] {
         PaymentFinder.paymentModels(forMcLedgerBlockIndex: mcLedgerBlockIndex,
                                     transaction: transaction).filter {
                                         let publicKeys = $0.mobileCoin?.incomingTransactionPublicKeys ?? []
@@ -408,8 +406,8 @@ public extension PaymentsImpl {
                 throw OWSAssertionError("Invalid paymentModel.")
             }
 
-            try Self.databaseStorage.write { transaction in
-                try self.paymentsHelper.tryToInsertPaymentModel(paymentModel, transaction: transaction)
+            try SSKEnvironment.shared.databaseStorageRef.write { transaction in
+                try SSKEnvironment.shared.paymentsHelperRef.tryToInsertPaymentModel(paymentModel, transaction: transaction)
             }
 
             return paymentModel
@@ -422,8 +420,6 @@ public extension PaymentsImpl {
 public extension PaymentsImpl {
 
     private func localMobileCoinAccount(paymentsState: PaymentsState) -> MobileCoinAPI.MobileCoinAccount? {
-        owsAssertDebug(paymentsState.isEnabled)
-
         guard let paymentsEntropy = paymentsState.paymentsEntropy else {
             owsFailDebug("Missing paymentsEntropy.")
             return nil
@@ -437,27 +433,14 @@ public extension PaymentsImpl {
         }
     }
 
-    private func localMobileCoinAccount() -> MobileCoinAPI.MobileCoinAccount? {
-        localMobileCoinAccount(paymentsState: self.paymentsState)
-    }
-
     // Only valid for the recipient
     func unmaskReceiptAmount(data: Data?) -> Amount? {
         guard let data = data else { return nil }
-        let account = localMobileCoinAccount()
+        let account = localMobileCoinAccount(paymentsState: self.paymentsState)
         guard let accountKey = account?.accountKey else { return nil }
         guard let receipt = Receipt(serializedData: data) else { return nil }
         guard let amount = receipt.validateAndUnmaskAmount(accountKey: accountKey) else { return nil }
         return amount
-    }
-
-    // Only valid for the recipient
-    func decryptReceipt(data: Data) -> (Amount?, Receipt?) {
-        let account = localMobileCoinAccount()
-        guard let accountKey = account?.accountKey else { return (nil, nil) }
-        guard let receipt = Receipt(serializedData: data) else { return (nil, nil) }
-        guard let amount = receipt.validateAndUnmaskAmount(accountKey: accountKey) else { return (nil, nil) }
-        return (amount, receipt)
     }
 
     func buildLocalPaymentAddress(paymentsState: PaymentsState) -> TSPaymentAddress? {
@@ -471,24 +454,15 @@ public extension PaymentsImpl {
     }
 
     func walletAddressBase58() -> String? {
-        guard let localAccount = self.localMobileCoinAccount() else {
+        let paymentsState = self.paymentsState
+        owsAssertDebug(paymentsState.isEnabled)
+        guard let localAccount = self.localMobileCoinAccount(paymentsState: paymentsState) else {
             return nil
         }
         return Self.formatAsBase58(publicAddress: localAccount.accountKey.publicAddress)
     }
 
-    func walletAddressQRUrl() -> URL? {
-        guard let localAccount = self.localMobileCoinAccount() else {
-            return nil
-        }
-        guard let url = URL(string: Self.formatAsUrl(publicAddress: localAccount.accountKey.publicAddress)) else {
-            owsFailDebug("Invalid url.")
-            return nil
-        }
-        return url
-    }
-
-    func localPaymentAddressProtoData(paymentsState: PaymentsState, tx: SDSAnyReadTransaction) -> Data? {
+    func localPaymentAddressProtoData(paymentsState: PaymentsState, tx: DBReadTransaction) -> Data? {
         owsAssertDebug(paymentsState.isEnabled)
 
         guard let localPaymentAddress = buildLocalPaymentAddress(paymentsState: paymentsState) else {
@@ -509,7 +483,7 @@ public extension PaymentsImpl {
         }
     }
 
-    func updateLastKnownLocalPaymentAddressProtoData(transaction: SDSAnyWriteTransaction) {
+    func updateLastKnownLocalPaymentAddressProtoData(transaction: DBWriteTransaction) {
         let data: Data?
         let paymentsState = self.paymentsState
         if paymentsState.isEnabled {
@@ -517,7 +491,7 @@ public extension PaymentsImpl {
         } else {
             data = nil
         }
-        paymentsHelper.setLastKnownLocalPaymentAddressProtoData(data, transaction: transaction)
+        SSKEnvironment.shared.paymentsHelperRef.setLastKnownLocalPaymentAddressProtoData(data, transaction: transaction)
     }
 }
 
@@ -575,7 +549,7 @@ public extension PaymentsImpl {
         switch recipient {
         case .address(let recipientAddress):
             // Cannot send "user-to-user" payment if kill switch is active.
-            guard !payments.isKillSwitchActive else {
+            guard !SUIEnvironment.shared.paymentsRef.isKillSwitchActive else {
                 return Promise(error: PaymentsError.killSwitch)
             }
 
@@ -690,7 +664,7 @@ public extension PaymentsImpl {
             // is save TSPaymentModels to the database. The PaymentsProcessor
             // will observe this and take responsibility for their submission,
             // verification.
-            return try Self.databaseStorage.write { dbTransaction in
+            return try SSKEnvironment.shared.databaseStorageRef.write { dbTransaction in
                 try mcTransactions.map { mcTransaction in
                     let paymentAmount = TSPaymentAmount(currency: .mobileCoin, picoMob: 0)
                     let feeAmount = TSPaymentAmount(currency: .mobileCoin, picoMob: mcTransaction.fee)
@@ -723,7 +697,7 @@ public extension PaymentsImpl {
                         throw OWSAssertionError("Invalid paymentModel.")
                     }
 
-                    try self.paymentsHelper.tryToInsertPaymentModel(paymentModel, transaction: dbTransaction)
+                    try SSKEnvironment.shared.paymentsHelperRef.tryToInsertPaymentModel(paymentModel, transaction: dbTransaction)
 
                     return paymentModel
                 }
@@ -761,7 +735,7 @@ public extension PaymentsImpl {
     }
 
     private func blockOnVerificationOfDefragmentation(paymentModels: [TSPaymentModel]) -> Promise<Void> {
-        let maxBlockInterval = kSecondInterval * 30
+        let maxBlockInterval: TimeInterval = .second * 30
 
         return firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
             let promises = paymentModels.map { paymentModel in
@@ -780,49 +754,47 @@ public extension PaymentsImpl {
     }
 
     func blockOnOutgoingVerification(paymentModel: TSPaymentModel) -> Promise<Bool> {
-        firstly(on: DispatchQueue.global()) { () -> Promise<Bool> in
-            let paymentModelLatest = Self.databaseStorage.read { transaction in
-                TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId,
-                                        transaction: transaction)
-            }
-            guard let paymentModel = paymentModelLatest else {
-                throw PaymentsError.missingModel
-            }
-
-            switch paymentModel.paymentState {
-            case .outgoingUnsubmitted,
-                 .outgoingUnverified:
-                // Not yet verified, wait then try again.
-                return firstly(on: DispatchQueue.global()) {
-                    Guarantee.after(seconds: 0.05)
-                }.then(on: DispatchQueue.global()) { () -> Promise<Bool> in
-                    // Recurse.
-                    self.blockOnOutgoingVerification(paymentModel: paymentModel)
+        Promise.wrapAsync {
+            while true {
+                let paymentModelLatest = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+                    TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId,
+                                            transaction: transaction)
                 }
-            case .outgoingVerified,
-                 .outgoingSending,
-                 .outgoingSent,
-                 .outgoingComplete:
-                // Success: Verified.
-                return Promise.value(true)
-            case .outgoingFailed:
-                // Success: Failed.
-                return Promise.value(false)
-            case .incomingUnverified,
-                 .incomingVerified,
-                 .incomingComplete,
-                 .incomingFailed:
-                owsFailDebug("Unexpected paymentState: \(paymentModel.descriptionForLogs)")
-                throw PaymentsError.invalidModel
-            @unknown default:
-                owsFailDebug("Invalid paymentState: \(paymentModel.descriptionForLogs)")
-                throw PaymentsError.invalidModel
+                guard let paymentModel = paymentModelLatest else {
+                    throw PaymentsError.missingModel
+                }
+
+                switch paymentModel.paymentState {
+                case .outgoingUnsubmitted,
+                        .outgoingUnverified:
+                    // Not yet verified, wait then try again.
+                    try await Task.sleep(nanoseconds: 50_000_000)
+                    // loop by not returning
+                case .outgoingVerified,
+                        .outgoingSending,
+                        .outgoingSent,
+                        .outgoingComplete:
+                    // Success: Verified.
+                    return true
+                case .outgoingFailed:
+                    // Success: Failed.
+                    return false
+                case .incomingUnverified,
+                        .incomingVerified,
+                        .incomingComplete,
+                        .incomingFailed:
+                    owsFailDebug("Unexpected paymentState: \(paymentModel.descriptionForLogs)")
+                    throw PaymentsError.invalidModel
+                @unknown default:
+                    owsFailDebug("Invalid paymentState: \(paymentModel.descriptionForLogs)")
+                    throw PaymentsError.invalidModel
+                }
             }
         }
     }
 
     class func sendDefragmentationSyncMessage(paymentModel: TSPaymentModel,
-                                              transaction: SDSAnyWriteTransaction) {
+                                              transaction: DBWriteTransaction) {
         guard paymentModel.isDefragmentation else {
             owsFailDebug("Invalid paymentType.")
             return
@@ -894,7 +866,7 @@ public extension PaymentsImpl {
     }
 
     class func sendPaymentNotificationMessage(paymentModel: TSPaymentModel,
-                                              transaction: SDSAnyWriteTransaction) throws -> OWSOutgoingPaymentMessage {
+                                              transaction: DBWriteTransaction) throws -> OWSOutgoingPaymentMessage {
         guard paymentModel.paymentType == .outgoingPayment else {
             owsFailDebug("Invalid paymentType.")
             throw PaymentsError.invalidModel
@@ -946,7 +918,7 @@ public extension PaymentsImpl {
     }
 
     class func sendOutgoingPaymentSyncMessage(paymentModel: TSPaymentModel,
-                                              transaction: SDSAnyWriteTransaction) {
+                                              transaction: DBWriteTransaction) {
 
         guard let recipientAci = paymentModel.senderOrRecipientAci else {
             owsFailDebug("Missing recipientAci.")
@@ -1034,7 +1006,7 @@ public extension PaymentsImpl {
         recipientAci: Aci,
         memoMessage: String?,
         mcReceiptData: Data,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> OWSOutgoingPaymentMessage {
 
         if
@@ -1061,7 +1033,7 @@ public extension PaymentsImpl {
             mcReceiptData: mcReceiptData
         )
         let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-        let dmConfig = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: transaction.asV2Read)
+        let dmConfig = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: transaction)
 
         let messageBody: String? = {
             guard let picoMob = paymentModel.paymentAmount?.picoMob else {
@@ -1107,7 +1079,7 @@ public extension PaymentsImpl {
                                               mcOutputPublicKeys: [Data],
                                               mcReceiptData: Data,
                                               isDefragmentation: Bool,
-                                              transaction: SDSAnyWriteTransaction) -> TSOutgoingMessage? {
+                                              transaction: DBWriteTransaction) -> TSOutgoingMessage? {
 
         guard let thread = TSContactThread.getOrCreateLocalThread(transaction: transaction) else {
             owsFailDebug("Missing local thread.")
@@ -1127,7 +1099,7 @@ public extension PaymentsImpl {
             isDefragmentation: isDefragmentation
         )
         let message = OutgoingPaymentSyncMessage(
-            thread: thread,
+            localThread: thread,
             mobileCoin: mobileCoin,
             transaction: transaction
         )
@@ -1142,8 +1114,8 @@ public extension PaymentsImpl {
 // MARK: -
 
 public class PaymentsEventsMainApp: NSObject, PaymentsEvents {
-    public func willInsertPayment(_ paymentModel: TSPaymentModel, transaction: SDSAnyWriteTransaction) {
-        let payments = self.payments as! PaymentsImpl
+    public func willInsertPayment(_ paymentModel: TSPaymentModel, transaction: DBWriteTransaction) {
+        let payments = SUIEnvironment.shared.paymentsRef as! PaymentsImpl
 
         payments.paymentsReconciliation.willInsertPayment(paymentModel, transaction: transaction)
 
@@ -1151,22 +1123,22 @@ public class PaymentsEventsMainApp: NSObject, PaymentsEvents {
         payments.updateCurrentPaymentBalance()
     }
 
-    public func willUpdatePayment(_ paymentModel: TSPaymentModel, transaction: SDSAnyWriteTransaction) {
-        let payments = self.payments as! PaymentsImpl
+    public func willUpdatePayment(_ paymentModel: TSPaymentModel, transaction: DBWriteTransaction) {
+        let payments = SUIEnvironment.shared.paymentsRef as! PaymentsImpl
         payments.paymentsReconciliation.willUpdatePayment(paymentModel, transaction: transaction)
     }
 
-    public func updateLastKnownLocalPaymentAddressProtoData(transaction: SDSAnyWriteTransaction) {
-        paymentsImpl.updateLastKnownLocalPaymentAddressProtoData(transaction: transaction)
+    public func updateLastKnownLocalPaymentAddressProtoData(transaction: DBWriteTransaction) {
+        SUIEnvironment.shared.paymentsImplRef.updateLastKnownLocalPaymentAddressProtoData(transaction: transaction)
     }
 
     public func paymentsStateDidChange() {
-        paymentsImpl.updateCurrentPaymentBalance()
+        SUIEnvironment.shared.paymentsImplRef.updateCurrentPaymentBalance()
     }
 
-    public func clearState(transaction: SDSAnyWriteTransaction) {
-        paymentsHelperSwift.clearState(transaction: transaction)
-        payments.clearState(transaction: transaction)
+    public func clearState(transaction: DBWriteTransaction) {
+        SSKEnvironment.shared.paymentsHelperRef.clearState(transaction: transaction)
+        SUIEnvironment.shared.paymentsRef.clearState(transaction: transaction)
     }
 }
 
@@ -1174,12 +1146,12 @@ public class PaymentsEventsMainApp: NSObject, PaymentsEvents {
 
 public extension PaymentsImpl {
 
-    func scheduleReconciliationNow(transaction: SDSAnyWriteTransaction) {
+    func scheduleReconciliationNow(transaction: DBWriteTransaction) {
         paymentsReconciliation.scheduleReconciliationNow(transaction: transaction)
     }
 
     func replaceAsUnidentified(paymentModel oldPaymentModel: TSPaymentModel,
-                               transaction: SDSAnyWriteTransaction) {
+                               transaction: DBWriteTransaction) {
         paymentsReconciliation.replaceAsUnidentified(paymentModel: oldPaymentModel,
                                                      transaction: transaction)
     }
@@ -1188,10 +1160,6 @@ public extension PaymentsImpl {
 
     static func formatAsBase58(publicAddress: MobileCoin.PublicAddress) -> String {
         MobileCoinAPI.formatAsBase58(publicAddress: publicAddress)
-    }
-
-    static func formatAsUrl(publicAddress: MobileCoin.PublicAddress) -> String {
-        return MobileCoinAPI.formatAsUrl(publicAddress: publicAddress)
     }
 
     static func parseAsPublicAddress(url: URL) -> MobileCoin.PublicAddress? {

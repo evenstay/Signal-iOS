@@ -17,27 +17,33 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Path format pulled from https://github.com/actions/runner-images/blob/main/images/macos/macos-14-Readme.md#xcode
-  DEVELOPER_DIR: /Applications/Xcode_16.0.app
+  # Path format pulled from https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md#xcode
+  DEVELOPER_DIR: /Applications/Xcode_16.3.app
 
 jobs:
   build_and_test:
     name: Build and Test
     timeout-minutes: 20
-    runs-on: macos-14-xlarge
+    runs-on: macos-15-xlarge
     env:
       FASTLANE_XCODEBUILD_SETTINGS_RETRIES: 7
 
     strategy:
       matrix:
         # Add additional Xcode versions here if necessary.
-        xcode: ["Xcode_16.0"]
+        xcode: ["Xcode_16.3"]
 
     steps:
       - name: Set Xcode version
         run: |
           echo DEVELOPER_DIR=/Applications/${{matrix.xcode}}.app >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
+
+      - name: Check Xcode version
+        run: |
+          Scripts/check_xcode_version.py
+
       - uses: ./.github/actions/clone-everything
         with:
           access-token: ${{ secrets.ACCESS_TOKEN }}
@@ -74,7 +80,7 @@ jobs:
 
     timeout-minutes: 10
 
-    runs-on: macos-14
+    runs-on: macos-15
 
     if: github.event_name == 'pull_request'
 
@@ -92,7 +98,7 @@ jobs:
 
     timeout-minutes: 5
 
-    runs-on: macos-14
+    runs-on: macos-15
 
     if: github.event_name == 'pull_request'
 

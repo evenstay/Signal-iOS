@@ -57,7 +57,7 @@ public class AddToGroupViewController: OWSTableViewController2 {
     }
 
     private class func fetchGroupThreads() -> [TSGroupThread] {
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             var result = [TSGroupThread]()
 
             do {
@@ -107,8 +107,8 @@ public class AddToGroupViewController: OWSTableViewController2 {
     }
 
     private func didSelectGroup(_ groupThread: TSGroupThread) {
-        let shortName = databaseStorage.read { transaction in
-            return Self.contactsManager.displayName(for: self.address, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
+        let shortName = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            return SSKEnvironment.shared.contactManagerRef.displayName(for: self.address, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
         }
 
         guard !groupThread.groupModel.groupMembership.isMemberOfAnyKind(address) else {
@@ -156,14 +156,14 @@ public class AddToGroupViewController: OWSTableViewController2 {
 
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: self,
-            updateDescription: self.logTag,
+            updateDescription: "[\(type(of: self))]",
             updateBlock: {
-                _ = try await GroupManager.addOrInvite(
+                try await GroupManager.addOrInvite(
                     serviceIds: [serviceId],
                     toExistingGroup: oldGroupModel
                 )
             },
-            completion: { [weak self] _ in
+            completion: { [weak self] in
                 self?.notifyOfAddedAndDismiss(groupThread: groupThread, shortName: shortName)
             }
         )

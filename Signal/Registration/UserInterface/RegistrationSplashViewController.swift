@@ -12,6 +12,7 @@ public import SignalUI
 
 public protocol RegistrationSplashPresenter: AnyObject {
     func continueFromSplash()
+    func setHasOldDevice(_ hasOldDevice: Bool)
 
     func switchToDeviceLinkingMode()
     func transferDevice()
@@ -112,24 +113,29 @@ public class RegistrationSplashViewController: OWSViewController {
         let titleLabel = UILabel.titleLabelForRegistration(text: titleText)
         titleLabel.accessibilityIdentifier = "registration.splash.titleLabel"
         stackView.addArrangedSubview(titleLabel)
-        stackView.setCustomSpacing(92, after: titleLabel)
+        stackView.setCustomSpacing(12, after: titleLabel)
 
-        // TODO: This should be a button, not a label.
-        let explanationLabel = UILabel()
-        explanationLabel.text = OWSLocalizedString(
-            "ONBOARDING_SPLASH_TERM_AND_PRIVACY_POLICY",
-            comment: "Link to the 'terms and privacy policy' in the 'onboarding splash' view."
+        let explanationButton = UIButton()
+        explanationButton.setTitle(
+            OWSLocalizedString(
+                "ONBOARDING_SPLASH_TERM_AND_PRIVACY_POLICY",
+                comment: "Link to the 'terms and privacy policy' in the 'onboarding splash' view."
+            ),
+            for: .normal
         )
-        explanationLabel.textColor = Theme.accentBlueColor
-        explanationLabel.font = UIFont.dynamicTypeSubheadlineClamped
-        explanationLabel.numberOfLines = 0
-        explanationLabel.textAlignment = .center
-        explanationLabel.lineBreakMode = .byWordWrapping
-        explanationLabel.isUserInteractionEnabled = true
-        explanationLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(explanationLabelTapped)))
-        explanationLabel.accessibilityIdentifier = "registration.splash.explanationLabel"
-        stackView.addArrangedSubview(explanationLabel)
-        stackView.setCustomSpacing(24, after: explanationLabel)
+        explanationButton.setTitleColor(Theme.secondaryTextAndIconColor, for: .normal)
+        explanationButton.titleLabel?.font = UIFont.dynamicTypeBody2
+        explanationButton.titleLabel?.numberOfLines = 0
+        explanationButton.titleLabel?.textAlignment = .center
+        explanationButton.titleLabel?.lineBreakMode = .byWordWrapping
+        explanationButton.addTarget(
+            self,
+            action: #selector(explanationButtonTapped),
+            for: .touchUpInside
+        )
+        explanationButton.accessibilityIdentifier = "registration.splash.explanationLabel"
+        stackView.addArrangedSubview(explanationButton)
+        stackView.setCustomSpacing(57, after: explanationButton)
 
         let continueButton = OWSFlatButton.primaryButtonForRegistration(
             title: CommonStrings.continueButton,
@@ -143,6 +149,27 @@ public class RegistrationSplashViewController: OWSViewController {
         NSLayoutConstraint.autoSetPriority(.defaultLow) {
             continueButton.autoPinEdge(toSuperviewEdge: .leading)
             continueButton.autoPinEdge(toSuperviewEdge: .trailing)
+        }
+
+        if FeatureFlags.MessageBackup.quickRestoreFlow {
+            stackView.setCustomSpacing(16, after: continueButton)
+
+            let restoreOrTransferButton = OWSFlatButton.secondaryButtonForRegistration(
+                title: OWSLocalizedString(
+                    "ONBOARDING_SPLASH_RESTORE_OR_TRANSFER_BUTTON_TITLE",
+                    comment: "Button for restoring or transferring account in the 'onboarding splash' view."
+                ),
+                target: self,
+                selector: #selector(didTapRestoreOrTransfer)
+            )
+            restoreOrTransferButton.accessibilityIdentifier = "registration.splash.continueButton"
+            stackView.addArrangedSubview(restoreOrTransferButton)
+            restoreOrTransferButton.autoSetDimension(.width, toSize: 280)
+            restoreOrTransferButton.autoHCenterInSuperview()
+            NSLayoutConstraint.autoSetPriority(.defaultLow) {
+                restoreOrTransferButton.autoPinEdge(toSuperviewEdge: .leading)
+                restoreOrTransferButton.autoPinEdge(toSuperviewEdge: .trailing)
+            }
         }
     }
 
@@ -163,8 +190,7 @@ public class RegistrationSplashViewController: OWSViewController {
     }
 
     @objc
-    private func explanationLabelTapped(sender: UIGestureRecognizer) {
-        guard sender.state == .recognized else { return }
+    private func explanationButtonTapped(sender: UIGestureRecognizer) {
         let safariVC = SFSafariViewController(url: TSConstants.legalTermsUrl)
         present(safariVC, animated: true)
     }
@@ -174,4 +200,95 @@ public class RegistrationSplashViewController: OWSViewController {
         Logger.info("")
         presenter?.continueFromSplash()
     }
+
+    @objc
+    private func didTapRestoreOrTransfer() {
+        Logger.info("")
+        let sheet = RestoreOrTransferPickerController(
+            setHasOldDeviceBlock: { [weak self] hasOldDevice in
+                self?.dismiss(animated: true) {
+                    self?.presenter?.setHasOldDevice(hasOldDevice)
+                }
+            }
+        )
+        self.present(sheet, animated: true)
+    }
 }
+
+private class RestoreOrTransferPickerController: StackSheetViewController {
+
+    private let setHasOldDeviceBlock: ((Bool) -> Void)
+    init(setHasOldDeviceBlock: @escaping (Bool) -> Void) {
+        self.setHasOldDeviceBlock = setHasOldDeviceBlock
+        super.init()
+    }
+
+    open override var sheetBackgroundColor: UIColor { Theme.secondaryBackgroundColor }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        stackView.spacing = 16
+
+        let hasDeviceButton = RegistrationChoiceButton(
+            title: OWSLocalizedString(
+                "ONBOARDING_SPLASH_HAVE_OLD_DEVICE_TITLE",
+                comment: "Title for the 'have my old device' choice of the 'Restore or Transfer' prompt"
+            ),
+            body: OWSLocalizedString(
+                "ONBOARDING_SPLASH_HAVE_OLD_DEVICE_BODY",
+                comment: "Explanation of 'have old device' flow for the 'Restore or Transfer' prompt"
+            ),
+            iconName: Theme.iconName(.qrCodeLight)
+        )
+        hasDeviceButton.addTarget(target: self, selector: #selector(hasDevice))
+        stackView.addArrangedSubview(hasDeviceButton)
+
+        let noDeviceButton = RegistrationChoiceButton(
+            title: OWSLocalizedString(
+                "ONBOARDING_SPLASH_DO_NOT_HAVE_OLD_DEVICE_TITLE",
+                comment: "Title for the 'do not have my old device' choice of the 'Restore or Transfer' prompt"
+            ),
+            body: OWSLocalizedString(
+                "ONBOARDING_SPLASH_DO_NOT_HAVE_OLD_DEVICE_BODY",
+                comment: "Explanation of 'do not have old device' flow for the 'Restore or Transfer' prompt"
+            ),
+            iconName: Theme.iconName(.noDevice)
+        )
+        noDeviceButton.addTarget(target: self, selector: #selector(noDevice))
+        stackView.addArrangedSubview(noDeviceButton)
+    }
+
+    @objc func hasDevice() {
+        setHasOldDeviceBlock(true)
+    }
+
+    @objc func noDevice() {
+        setHasOldDeviceBlock(false)
+    }
+}
+
+#if DEBUG
+private class PreviewRegistrationSplashPresenter: RegistrationSplashPresenter {
+    func continueFromSplash() {
+        print("continueFromSplash")
+    }
+
+    func setHasOldDevice(_ hasOldDevice: Bool) {
+        print("setHasOldDevice: \(hasOldDevice)")
+    }
+
+    func switchToDeviceLinkingMode() {
+        print("switchToDeviceLinkingMode")
+    }
+
+    func transferDevice() {
+        print("transferDevice")
+    }
+}
+
+@available(iOS 17, *)
+#Preview {
+    let presenter = PreviewRegistrationSplashPresenter()
+    return RegistrationSplashViewController(presenter: presenter)
+}
+#endif

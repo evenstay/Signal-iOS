@@ -4,7 +4,6 @@
 //
 
 #import "TSInfoMessage.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -125,10 +124,10 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -160,10 +159,10 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
                             sortId:sortId
                          timestamp:timestamp
                     uniqueThreadId:uniqueThreadId
-                     attachmentIds:attachmentIds
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+          deprecated_attachmentIds:deprecated_attachmentIds
                          editState:editState
                    expireStartedAt:expireStartedAt
                 expireTimerVersion:expireTimerVersion
@@ -206,7 +205,7 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
     return OWSInteractionType_Info;
 }
 
-- (NSString *)conversationSystemMessageComponentTextWithTransaction:(SDSAnyReadTransaction *)transaction
+- (NSString *)conversationSystemMessageComponentTextWithTransaction:(DBReadTransaction *)transaction
 {
     switch (self.messageType) {
         case TSInfoMessageSyncedThread:
@@ -221,7 +220,7 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
     }
 }
 
-- (NSString *)infoMessagePreviewTextWithTransaction:(SDSAnyReadTransaction *)transaction
+- (NSString *)infoMessagePreviewTextWithTransaction:(DBReadTransaction *)transaction
 {
     switch (_messageType) {
         case TSInfoMessageTypeLocalUserEndedSession:
@@ -231,8 +230,9 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
             return OWSLocalizedString(@"UNSUPPORTED_ATTACHMENT", nil);
         case TSInfoMessageUserNotRegistered:
             if (self.unregisteredAddress.isValid) {
-                NSString *recipientName = [self.contactManagerObjC displayNameStringForAddress:self.unregisteredAddress
-                                                                                   transaction:transaction];
+                NSString *recipientName =
+                    [SSKEnvironment.shared.contactManagerObjcRef displayNameStringForAddress:self.unregisteredAddress
+                                                                                 transaction:transaction];
                 return [NSString stringWithFormat:OWSLocalizedString(@"ERROR_UNREGISTERED_USER_FORMAT",
                                                       @"Format string for 'unregistered user' error. Embeds {{the "
                                                       @"unregistered user's name or signal id}}."),
@@ -263,8 +263,9 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
         case TSInfoMessageUserJoinedSignal: {
             SignalServiceAddress *address = [TSContactThread contactAddressFromThreadId:self.uniqueThreadId
                                                                             transaction:transaction];
-            NSString *recipientName = [self.contactManagerObjC displayNameStringForAddress:address
-                                                                               transaction:transaction];
+            NSString *recipientName =
+                [SSKEnvironment.shared.contactManagerObjcRef displayNameStringForAddress:address
+                                                                             transaction:transaction];
             NSString *format = OWSLocalizedString(@"INFO_MESSAGE_USER_JOINED_SIGNAL_BODY_FORMAT",
                 @"Shown in inbox and conversation when a user joins Signal, embeds the new user's {{contact "
                 @"name}}");
@@ -281,7 +282,8 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
                 return @"";
             }
             SignalServiceAddress *address = [[SignalServiceAddress alloc] initWithServiceIdObjC:aci];
-            NSString *userName = [self.contactManagerObjC displayNameStringForAddress:address transaction:transaction];
+            NSString *userName = [SSKEnvironment.shared.contactManagerObjcRef displayNameStringForAddress:address
+                                                                                              transaction:transaction];
 
             NSString *format = OWSLocalizedString(@"INFO_MESSAGE_USER_CHANGED_PHONE_NUMBER_FORMAT",
                 @"Indicates that another user has changed their phone number. Embeds: {{ the user's name}}".);
@@ -348,7 +350,7 @@ NSUInteger TSInfoMessageSchemaVersion = 2;
                        thread:(TSThread *)thread
                  circumstance:(OWSReceiptCircumstance)circumstance
      shouldClearNotifications:(BOOL)shouldClearNotifications
-                  transaction:(SDSAnyWriteTransaction *)transaction
+                  transaction:(DBWriteTransaction *)transaction
 {
     OWSAssertDebug(transaction);
 

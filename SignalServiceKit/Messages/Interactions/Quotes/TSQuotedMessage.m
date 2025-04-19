@@ -5,9 +5,6 @@
 
 #import "TSQuotedMessage.h"
 #import "OWSPaymentMessage.h"
-#import "TSAttachment.h"
-#import "TSAttachmentPointer.h"
-#import "TSAttachmentStream.h"
 #import "TSIncomingMessage.h"
 #import "TSInteraction.h"
 #import "TSOutgoingMessage.h"
@@ -23,59 +20,60 @@ NS_ASSUME_NONNULL_BEGIN
 
 @implementation OWSAttachmentInfo
 
-- (nullable NSString *)attachmentId
-{
-    return _rawAttachmentId.ows_nilIfEmpty;
-}
-
-- (nullable NSString *)stubMimeType
+- (nullable NSString *)originalAttachmentMimeType
 {
     return _contentType;
 }
 
-- (nullable NSString *)stubSourceFilename
+- (nullable NSString *)originalAttachmentSourceFilename
 {
     return _sourceFilename;
 }
 
-- (instancetype)initStubWithMimeType:(NSString *)mimeType sourceFilename:(NSString *_Nullable)sourceFilename
++ (NSUInteger)currentSchemaVersion
 {
-    return [self initWithAttachmentId:nil
-                               ofType:OWSAttachmentInfoReferenceUnset
-                          contentType:mimeType
-                       sourceFilename:sourceFilename];
+    return 2;
 }
 
-- (instancetype)initForV2ThumbnailReference
+// MARK: -
+
++ (instancetype)stubWithOriginalAttachmentMimeType:(NSString *)originalAttachmentMimeType
+                  originalAttachmentSourceFilename:(NSString *_Nullable)originalAttachmentSourceFilename
 {
-    return [self initWithAttachmentId:nil ofType:OWSAttachmentInfoReferenceV2 contentType:nil sourceFilename:nil];
+    return [[OWSAttachmentInfo alloc] initWithOriginalAttachmentMimeType:originalAttachmentMimeType
+                                        originalAttachmentSourceFilename:originalAttachmentSourceFilename];
 }
 
-- (instancetype)initWithLegacyAttachmentId:(NSString *)attachmentId ofType:(OWSAttachmentInfoReference)attachmentType
++ (instancetype)forThumbnailReferenceWithOriginalAttachmentMimeType:(NSString *)originalAttachmentMimeType
+                                   originalAttachmentSourceFilename:
+                                       (NSString *_Nullable)originalAttachmentSourceFilename
 {
-    return [self initWithAttachmentId:attachmentId ofType:attachmentType contentType:nil sourceFilename:nil];
+    return [[OWSAttachmentInfo alloc] initWithOriginalAttachmentMimeType:originalAttachmentMimeType
+                                        originalAttachmentSourceFilename:originalAttachmentSourceFilename];
 }
 
-- (instancetype)initWithAttachmentId:(NSString *_Nullable)attachmentId
-                              ofType:(OWSAttachmentInfoReference)attachmentType
-                         contentType:(NSString *_Nullable)contentType
-                      sourceFilename:(NSString *_Nullable)sourceFilename
+#if TESTABLE_BUILD
++ (instancetype)stubWithNullableOriginalAttachmentMimeType:(NSString *_Nullable)originalAttachmentMimeType
+                          originalAttachmentSourceFilename:(NSString *_Nullable)originalAttachmentSourceFilename
+{
+    return [[OWSAttachmentInfo alloc] initWithOriginalAttachmentMimeType:originalAttachmentMimeType
+                                        originalAttachmentSourceFilename:originalAttachmentSourceFilename];
+}
+#endif
+
+- (instancetype)initWithOriginalAttachmentMimeType:(NSString *_Nullable)originalAttachmentMimeType
+                  originalAttachmentSourceFilename:(NSString *_Nullable)originalAttachmentSourceFilename
 {
     self = [super init];
     if (self) {
         _schemaVersion = self.class.currentSchemaVersion;
-        _rawAttachmentId = attachmentId;
-        _attachmentType = attachmentType;
-        _contentType = contentType;
-        _sourceFilename = sourceFilename;
+        _contentType = originalAttachmentMimeType;
+        _sourceFilename = originalAttachmentSourceFilename;
     }
     return self;
 }
 
-+ (NSUInteger)currentSchemaVersion
-{
-    return 1;
-}
+// MARK: -
 
 - (nullable instancetype)initWithCoder:(NSCoder *)coder
 {
@@ -84,37 +82,13 @@ NS_ASSUME_NONNULL_BEGIN
         return self;
     }
 
-    if (_schemaVersion == 0) {
-        NSString *_Nullable oldStreamId = [coder decodeObjectOfClass:[NSString class]
-                                                              forKey:@"thumbnailAttachmentStreamId"];
-        NSString *_Nullable oldPointerId = [coder decodeObjectOfClass:[NSString class]
-                                                               forKey:@"thumbnailAttachmentPointerId"];
-        NSString *_Nullable oldSourceAttachmentId = [coder decodeObjectOfClass:[NSString class] forKey:@"attachmentId"];
-
-        // Before, we maintained each of these IDs in parallel, though in practice only one in use at a time.
-        // Migration codifies this behavior.
-        if (oldStreamId && [oldPointerId isEqualToString:oldStreamId]) {
-            _attachmentType = OWSAttachmentInfoReferenceThumbnail;
-            _rawAttachmentId = oldStreamId;
-        } else if (oldPointerId) {
-            _attachmentType = OWSAttachmentInfoReferenceUntrustedPointer;
-            _rawAttachmentId = oldPointerId;
-        } else if (oldStreamId) {
-            _attachmentType = OWSAttachmentInfoReferenceThumbnail;
-            _rawAttachmentId = oldStreamId;
-        } else if (oldSourceAttachmentId) {
-            _attachmentType = OWSAttachmentInfoReferenceOriginalForSend;
-            _rawAttachmentId = oldSourceAttachmentId;
-        } else {
-            _attachmentType = OWSAttachmentInfoReferenceUnset;
-            _rawAttachmentId = nil;
-        }
-    }
     _schemaVersion = self.class.currentSchemaVersion;
     return self;
 }
 
 @end
+
+// MARK: -
 
 @interface TSQuotedMessage ()
 @property (nonatomic, readonly) uint64_t timestamp;
@@ -131,6 +105,7 @@ NS_ASSUME_NONNULL_BEGIN
                        bodySource:(TSQuotedMessageContentSource)bodySource
      receivedQuotedAttachmentInfo:(nullable OWSAttachmentInfo *)attachmentInfo
                       isGiftBadge:(BOOL)isGiftBadge
+          isTargetMessageViewOnce:(BOOL)isTargetMessageViewOnce
 {
     OWSAssertDebug(authorAddress.isValid);
 
@@ -146,6 +121,7 @@ NS_ASSUME_NONNULL_BEGIN
     _bodySource = bodySource;
     _quotedAttachment = attachmentInfo;
     _isGiftBadge = isGiftBadge;
+    _isTargetMessageViewOnce = isTargetMessageViewOnce;
 
     return self;
 }
@@ -157,6 +133,7 @@ NS_ASSUME_NONNULL_BEGIN
                        bodyRanges:(nullable MessageBodyRanges *)bodyRanges
        quotedAttachmentForSending:(nullable OWSAttachmentInfo *)attachmentInfo
                       isGiftBadge:(BOOL)isGiftBadge
+          isTargetMessageViewOnce:(BOOL)isTargetMessageViewOnce
 {
     OWSAssertDebug(authorAddress.isValid);
 
@@ -165,18 +142,14 @@ NS_ASSUME_NONNULL_BEGIN
         return nil;
     }
 
-    if (timestamp) {
-        OWSAssertDebug(timestamp > 0);
-        _timestamp = [timestamp unsignedLongLongValue];
-    } else {
-        _timestamp = 0;
-    }
+    _timestamp = [timestamp unsignedLongLongValue];
     _authorAddress = authorAddress;
     _body = body;
     _bodyRanges = bodyRanges;
     _bodySource = TSQuotedMessageContentSourceLocal;
     _quotedAttachment = attachmentInfo;
     _isGiftBadge = isGiftBadge;
+    _isTargetMessageViewOnce = isTargetMessageViewOnce;
 
     return self;
 }
@@ -208,24 +181,19 @@ NS_ASSUME_NONNULL_BEGIN
     return self;
 }
 
-+ (instancetype)quotedMessageWithTargetMessageTimestamp:(nullable NSNumber *)timestamp
-                                          authorAddress:(SignalServiceAddress *)authorAddress
-                                                   body:(nullable NSString *)body
-                                             bodyRanges:(nullable MessageBodyRanges *)bodyRanges
-                                             bodySource:(TSQuotedMessageContentSource)bodySource
-                                   quotedAttachmentInfo:(nullable OWSAttachmentInfo *)attachmentInfo
-                                            isGiftBadge:(BOOL)isGiftBadge
++ (instancetype)quotedMessageFromBackupWithTargetMessageTimestamp:(nullable NSNumber *)timestamp
+                                                    authorAddress:(SignalServiceAddress *)authorAddress
+                                                             body:(nullable NSString *)body
+                                                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
+                                                       bodySource:(TSQuotedMessageContentSource)bodySource
+                                             quotedAttachmentInfo:(nullable OWSAttachmentInfo *)attachmentInfo
+                                                      isGiftBadge:(BOOL)isGiftBadge
+                                          isTargetMessageViewOnce:(BOOL)isTargetMessageViewOnce
 {
-    OWSAssertDebug(body != nil || attachmentInfo != nil || isGiftBadge);
     OWSAssertDebug(authorAddress.isValid);
 
     uint64_t rawTimestamp;
-    if (timestamp) {
-        OWSAssertDebug(timestamp > 0);
-        rawTimestamp = [timestamp unsignedLongLongValue];
-    } else {
-        rawTimestamp = 0;
-    }
+    rawTimestamp = [timestamp unsignedLongLongValue];
 
     return [[TSQuotedMessage alloc] initWithTimestamp:rawTimestamp
                                         authorAddress:authorAddress
@@ -233,10 +201,16 @@ NS_ASSUME_NONNULL_BEGIN
                                            bodyRanges:bodyRanges
                                            bodySource:bodySource
                          receivedQuotedAttachmentInfo:attachmentInfo
-                                          isGiftBadge:isGiftBadge];
+                                          isGiftBadge:isGiftBadge
+                              isTargetMessageViewOnce:isTargetMessageViewOnce];
 }
 
 - (nullable NSNumber *)getTimestampValue
+{
+    return [self timestampValue];
+}
+
+- (nullable NSNumber *)timestampValue
 {
     if (_timestamp == 0) {
         return nil;
@@ -249,12 +223,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable OWSAttachmentInfo *)attachmentInfo
 {
     return _quotedAttachment;
-}
-
-- (void)setLegacyThumbnailAttachmentStream:(TSAttachmentStream *)attachmentStream
-{
-    self.quotedAttachment.attachmentType = OWSAttachmentInfoReferenceThumbnail;
-    self.quotedAttachment.rawAttachmentId = attachmentStream.uniqueId;
 }
 
 @end

@@ -12,6 +12,13 @@ public enum RegistrationStep: Equatable {
     case changeNumberSplash
     case permissions
 
+    // MARK: - Quick Restore
+
+    /// Display a QR code similar to provisioning that, when scanned,
+    /// sets up a connection for the old device to sent registration information
+    /// to the new device.
+    case scanQuickRegistrationQrCode
+
     // MARK: - Actually registering
 
     /// The user should enter or confirm their phone number.
@@ -49,11 +56,16 @@ public enum RegistrationStep: Equatable {
     /// PIN guesses got used up), we have no choice but to wait out the reglock.
     case reglockTimeout(RegistrationReglockTimeoutState)
 
+    // MARK: From Backup
+
+    /// If the user elects to restore from backup and doesn't have their old phone,
+    /// they are prompted to manually enter their backup key.
+    case enterBackupKey
+
     // MARK: - Post-Registration
 
-    /// If the user has successfully recovered their master key and can attempt to
-    /// restore from a local message backup.
-    case restoreFromLocalMessageBackup
+    /// Prompt the user to choose from the available restore methods
+    case chooseRestoreMethod
 
     /// If the account has not set whether its phone number should be
     /// discoverable, this step happens after registration is complete.
@@ -117,6 +129,7 @@ public enum RegistrationStep: Equatable {
         case .registrationSplash: return "registrationSplash"
         case .changeNumberSplash: return "changeNumberSplash"
         case .permissions: return "permissions"
+        case .scanQuickRegistrationQrCode: return "scanQuickRegistrationQrCode"
         case .phoneNumberEntry: return "phoneNumberEntry"
         case .verificationCodeEntry: return "verificationCodeEntry"
         case .transferSelection: return "transferSelection"
@@ -124,7 +137,8 @@ public enum RegistrationStep: Equatable {
         case .pinAttemptsExhaustedWithoutReglock: return "pinAttemptsExhaustedWithoutReglock"
         case .captchaChallenge: return "captchaChallenge"
         case .reglockTimeout: return "reglockTimeout"
-        case .restoreFromLocalMessageBackup: return "restoreFromLocalMessageBackup"
+        case .enterBackupKey: return "enterBackupKey"
+        case .chooseRestoreMethod: return "chooseRestoreMethod"
         case .phoneNumberDiscoverability: return "phoneNumberDiscoverability"
         case .setupProfile: return "setupProfile"
         case .showErrorSheet: return "showErrorSheet"

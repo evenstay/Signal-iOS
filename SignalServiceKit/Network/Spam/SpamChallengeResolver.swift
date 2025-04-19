@@ -111,7 +111,7 @@ public class SpamChallengeResolver: NSObject, SpamChallengeSchedulingDelegate {
             Logger.warn("Can't retry send. \(challenges?.count ?? 0) challenges remain unresolved.")
             return
         }
-        databaseStorage.asyncWrite { writeTx in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { writeTx in
             let pendingInteractionIds = InteractionFinder.pendingInteractionIds(transaction: writeTx)
             Logger.info("retrying paused messages: \(pendingInteractionIds)")
 
@@ -133,6 +133,8 @@ public class SpamChallengeResolver: NSObject, SpamChallengeSchedulingDelegate {
 extension SpamChallengeResolver {
     @objc
     static public var NeedsCaptchaNotification: Notification.Name { .init("NeedsCaptchaNotification") }
+
+    public static let didCompleteAnyChallenge = Notification.Name("SpamChallengeResolver.DidCompleteAnyChallenge")
 
     @objc
     public func handleIncomingPushChallengeToken(_ token: String) {
@@ -279,9 +281,9 @@ extension SpamChallengeResolver {
 
 extension SpamChallengeResolver {
     static private let outstandingChallengesKey = "OutstandingChallengesArray"
-    static private let keyValueStore = SDSKeyValueStore(collection: "SpamChallengeResolver")
+    static private let keyValueStore = KeyValueStore(collection: "SpamChallengeResolver")
     private var outstandingChallengesKey: String { Self.outstandingChallengesKey }
-    private var keyValueStore: SDSKeyValueStore { Self.keyValueStore }
+    private var keyValueStore: KeyValueStore { Self.keyValueStore }
 
     private func loadChallengesFromDatabase() {
         assertOnQueue(workQueue)
@@ -291,7 +293,7 @@ extension SpamChallengeResolver {
         }
 
         do {
-            challenges = try SDSDatabaseStorage.shared.read { readTx in
+            challenges = try SSKEnvironment.shared.databaseStorageRef.read { readTx in
                 try keyValueStore.getCodableValue(
                     forKey: outstandingChallengesKey,
                     transaction: readTx)
@@ -308,7 +310,7 @@ extension SpamChallengeResolver {
         assertOnQueue(workQueue)
 
         do {
-            try SDSDatabaseStorage.shared.write { writeTx in
+            try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
                 if let challenges = challenges {
                     try keyValueStore.setCodable(challenges, key: outstandingChallengesKey, transaction: writeTx)
                 } else {
@@ -328,6 +330,9 @@ extension SpamChallengeResolver {
                        stateDidChangeFrom priorState: SpamChallenge.State) {
         if challenge.state != .inProgress, challenge.state != priorState {
             workQueue.async { self.recheckChallenges() }
+        }
+        if challenge.state == .complete {
+            NotificationCenter.default.postOnMainThread(name: Self.didCompleteAnyChallenge, object: self)
         }
     }
 }

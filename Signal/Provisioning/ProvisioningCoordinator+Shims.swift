@@ -54,12 +54,11 @@ public class _ProvisioningCoordinator_MessageFactoryWrapper: _ProvisioningCoordi
 
 public protocol _ProvisioningCoordinator_ProfileManagerShim {
 
-    func localProfileKey() -> Aes256Key
+    func localUserProfile(tx: DBReadTransaction) -> OWSUserProfile?
 
     func setLocalProfileKey(
         _ key: Aes256Key,
         userProfileWriter: UserProfileWriter,
-        authedAccount: AuthedAccount,
         tx: DBWriteTransaction
     )
 }
@@ -72,14 +71,13 @@ public class _ProvisioningCoordinator_ProfileManagerWrapper: _ProvisioningCoordi
         self.profileManager = profileManager
     }
 
-    public func localProfileKey() -> Aes256Key {
-        return profileManager.localProfileKey
+    public func localUserProfile(tx: DBReadTransaction) -> OWSUserProfile? {
+        return profileManager.localUserProfile(tx: SDSDB.shimOnlyBridge(tx))
     }
 
     public func setLocalProfileKey(
         _ key: Aes256Key,
         userProfileWriter: UserProfileWriter,
-        authedAccount: AuthedAccount,
         tx: DBWriteTransaction
     ) {
         profileManager.setLocalProfileKey(
@@ -147,9 +145,9 @@ public protocol _ProvisioningCoordinator_SyncManagerShim {
 
 public class _ProvisioningCoordinator_SyncManagerWrapper: _ProvisioningCoordinator_SyncManagerShim {
 
-    private let syncManager: OWSSyncManager
+    private let syncManager: SyncManagerProtocol
 
-    public init(_ syncManager: OWSSyncManager) {
+    public init(_ syncManager: SyncManagerProtocol) {
         self.syncManager = syncManager
     }
 

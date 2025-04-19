@@ -6,28 +6,15 @@
 import SignalServiceKit
 import SignalUI
 
-fileprivate extension AllMediaCategory {
-    var titleString: String {
-        switch self {
-        case .photoVideo:
-            return OWSLocalizedString("ALL_MEDIA_FILE_TYPE_MEDIA",
-                                      comment: "Media (i.e., graphical) file type in All Meda file type picker.")
-        case .audio:
-            return OWSLocalizedString("ALL_MEDIA_FILE_TYPE_AUDIO",
-                                      comment: "Audio file type in All Meda file type picker.")
-        }
-    }
-}
-
 protocol MediaGalleryPrimaryViewController: UIViewController {
     var scrollView: UIScrollView { get }
     var mediaGalleryFilterMenuItems: [MediaGalleryAccessoriesHelper.MenuItem] { get }
-    var isFiltering: Bool { get }
     var isEmpty: Bool { get }
     var hasSelection: Bool { get }
     func selectionInfo() -> (count: Int, totalSize: Int64)?
     func disableFiltering()
     func batchSelectionModeDidChange(isInBatchSelectMode: Bool)
+    func selectAll()
     func didEndSelectMode()
     func deleteSelectedItems()
     func shareSelectedItems(_ sender: Any)
@@ -83,7 +70,8 @@ public class MediaGalleryAccessoriesHelper {
     private lazy var headerView: UISegmentedControl = {
         let items = [
             AllMediaCategory.photoVideo,
-            AllMediaCategory.audio
+            AllMediaCategory.audio,
+            AllMediaCategory.otherFiles,
         ].map { $0.titleString }
         let segmentedControl = UISegmentedControl(items: items)
         segmentedControl.selectedSegmentTintColor = .init(dynamicProvider: { _ in
@@ -181,6 +169,8 @@ public class MediaGalleryAccessoriesHelper {
         updateShareButton()
     }
 
+    private var previousLeftBarButtonItem: UIBarButtonItem?
+
     private func updateSelectionModeControls() {
         guard let viewController else {
             return
@@ -189,8 +179,20 @@ public class MediaGalleryAccessoriesHelper {
             viewController.navigationItem.rightBarButtonItem = .cancelButton { [weak self] in
                 self?.didCancelSelect()
             }
+            previousLeftBarButtonItem = viewController.navigationItem.leftBarButtonItem
+            viewController.navigationItem.leftBarButtonItem = .button(
+                title: OWSLocalizedString(
+                    "SELECT_ALL",
+                    comment: "Button text to select all in any list selection mode"
+                ),
+                style: .plain,
+                action: { [weak self] in
+                    self?.didSelectAll()
+                })
         } else {
             viewController.navigationItem.rightBarButtonItem = nil // TODO: Search
+            viewController.navigationItem.leftBarButtonItem = previousLeftBarButtonItem
+            previousLeftBarButtonItem = nil
         }
 
         headerView.isHidden = isInBatchSelectMode
@@ -207,6 +209,11 @@ public class MediaGalleryAccessoriesHelper {
 
     private func didCancelSelect() {
         endSelectMode()
+    }
+
+    private func didSelectAll() {
+        self.viewController?.selectAll()
+        self.didModifySelection()
     }
 
     // Call this to exit select mode, for example after completing a deletion.
@@ -229,16 +236,12 @@ public class MediaGalleryAccessoriesHelper {
     }
 
     private lazy var filterButton: UIBarButtonItem = {
-        let (buttonTitle, menuItems) = filterMenuItemsAndCurrentValue()
-
         var configuration = UIButton.Configuration.plain()
         configuration.imagePlacement = .trailing
         configuration.image = UIImage(imageLiteralResourceName: "chevron-down-compact-bold")
         configuration.imagePadding = 4
-        configuration.attributedTitle = AttributedString(buttonTitle)
 
         let button = UIButton(configuration: configuration, primaryAction: nil)
-        button.menu = menuItems.menu(with: .singleSelection)
         button.showsMenuAsPrimaryAction = true
         return UIBarButtonItem(customView: button)
     }()
@@ -249,6 +252,7 @@ public class MediaGalleryAccessoriesHelper {
             button.setAttributedTitle(buttonTitle, for: .normal)
             button.menu = menuItems.menu()
             button.sizeToFit()
+            button.isHidden = menuItems.isEmpty
         }
     }
 
@@ -329,21 +333,6 @@ public class MediaGalleryAccessoriesHelper {
         }
     }
 
-    private var isGridViewAllowed: Bool {
-        return mediaCategory.supportsGridView
-    }
-
-    private var currentFileTypeSupportsFiltering: Bool {
-        switch AllMediaCategory(rawValue: headerView.selectedSegmentIndex) {
-        case .audio:
-            return false
-        case .photoVideo:
-            return true
-        case .none:
-            return false
-        }
-    }
-
     private func updateBottomToolbarControls() {
         guard footerBarState != .hidden else { return }
 
@@ -356,18 +345,18 @@ public class MediaGalleryAccessoriesHelper {
                 return [ shareButton, .flexibleSpace(), selectionInfoButton, .flexibleSpace(), deleteButton ]
             case .regular:
                 let firstItem: UIBarButtonItem
-                if isGridViewAllowed {
+                if mediaCategory.supportsGridView {
                     firstItem = layout == .list ? listViewButton : gridViewButton
                 } else {
                     firstItem = fixedSpace()
                 }
-                if currentFileTypeSupportsFiltering {
-                    updateFilterButton()
-                }
+
+                updateFilterButton()
+
                 return [
                     firstItem,
                     .flexibleSpace(),
-                    currentFileTypeSupportsFiltering ? filterButton : fixedSpace(),
+                    filterButton,
                     .flexibleSpace(),
                     selectButton
                 ]
@@ -560,6 +549,24 @@ extension AllMediaCategory {
             return true
         case .audio:
             return false
+        case .otherFiles:
+            return false
+        }
+    }
+
+    var titleString: String {
+        switch self {
+        case .photoVideo:
+            return OWSLocalizedString("ALL_MEDIA_FILE_TYPE_MEDIA",
+                                      comment: "Media (i.e., graphical) file type in All Meda file type picker.")
+        case .audio:
+            return OWSLocalizedString("ALL_MEDIA_FILE_TYPE_AUDIO",
+                                      comment: "Audio file type in All Meda file type picker.")
+        case .otherFiles:
+            return OWSLocalizedString(
+                "ALL_MEDIA_FILE_TYPE_FILES",
+                comment: "Generic All Media file type for non-audiovisual files used in file type picker"
+            )
         }
     }
 }

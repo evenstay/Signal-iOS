@@ -78,8 +78,8 @@ class DeleteForMeOutgoingSyncMessage: OWSOutgoingSyncMessage {
 
     init?(
         contents: Contents,
-        thread: TSThread,
-        tx: SDSAnyReadTransaction
+        localThread: TSContactThread,
+        tx: DBReadTransaction
     ) {
         do {
             self.contentsData = try JSONEncoder().encode(contents)
@@ -88,7 +88,7 @@ class DeleteForMeOutgoingSyncMessage: OWSOutgoingSyncMessage {
             return nil
         }
 
-        super.init(thread: thread, transaction: tx)
+        super.init(localThread: localThread, transaction: tx)
     }
 
     required init?(coder: NSCoder) {
@@ -101,7 +101,7 @@ class DeleteForMeOutgoingSyncMessage: OWSOutgoingSyncMessage {
 
     override public var isUrgent: Bool { false }
 
-    override public func syncMessageBuilder(transaction: SDSAnyReadTransaction) -> SSKProtoSyncMessageBuilder? {
+    override public func syncMessageBuilder(transaction: DBReadTransaction) -> SSKProtoSyncMessageBuilder? {
         let contents: Contents
         do {
             contents = try JSONDecoder().decode(Contents.self, from: contentsData)

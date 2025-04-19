@@ -7,7 +7,7 @@ import Foundation
 public import MobileCoin
 public import SignalServiceKit
 
-public class PaymentsReconciliation: Dependencies {
+public class PaymentsReconciliation {
 
     private let appReadiness: AppReadiness
     private var refreshEvent: RefreshEvent?
@@ -19,7 +19,7 @@ public class PaymentsReconciliation: Dependencies {
             // check whether we should perform reconciliation.
             //
             // TODO: Tune.
-            let refreshCheckInterval = kMinuteInterval * 5
+            let refreshCheckInterval: TimeInterval = .minute * 5
             self.refreshEvent = RefreshEvent(appReadiness: appReadiness, refreshInterval: refreshCheckInterval) { [weak self] in
                 self?.reconcileIfNecessary()
             }
@@ -30,38 +30,19 @@ public class PaymentsReconciliation: Dependencies {
                                                object: nil)
     }
 
+    private let operationQueue = SerialTaskQueue()
+
     @objc
     private func reconcileIfNecessary() {
         if CurrentAppContext().isNSE {
             return
         }
-        operationQueue.addOperation(PaymentsReconciliationOperation(appReadiness: appReadiness))
-    }
-
-    let operationQueue: OperationQueue = {
-        let operationQueue = OperationQueue()
-        operationQueue.name = "PaymentsReconciliation"
-        operationQueue.maxConcurrentOperationCount = 1
-        return operationQueue
-    }()
-
-    public class PaymentsReconciliationOperation: OWSOperation, @unchecked Sendable {
-
-        private let appReadiness: AppReadiness
-
-        init(appReadiness: AppReadiness) {
-            self.appReadiness = appReadiness
-        }
-
-        override public func run() {
-            firstly(on: DispatchQueue.global()) { [appReadiness] in
-                PaymentsReconciliation.reconciliationPromise(appReadiness: appReadiness)
-            }.done(on: DispatchQueue.global()) { _ in
-                self.reportSuccess()
-            }.catch(on: DispatchQueue.global()) { error in
+        operationQueue.enqueue { [appReadiness] in
+            do {
+                try await Self._reconcileIfNecessary(appReadiness: appReadiness)
+            } catch {
                 owsFailDebugUnlessMCNetworkFailure(error)
-                let error = SSKUnretryableError.paymentsReconciliationFailure
-                self.reportError(error)
+                Logger.warn("\(error)")
             }
         }
     }
@@ -70,7 +51,7 @@ public class PaymentsReconciliation: Dependencies {
         guard !CurrentAppContext().isRunningTests else {
             return false
         }
-        guard Self.paymentsHelper.arePaymentsEnabled else {
+        guard SSKEnvironment.shared.paymentsHelperRef.arePaymentsEnabled else {
             return false
         }
         guard
@@ -86,49 +67,43 @@ public class PaymentsReconciliation: Dependencies {
         return true
     }
 
-    private static func reconciliationPromise(appReadiness: AppReadiness) -> Promise<Void> {
-        owsAssertDebug(!Thread.isMainThread)
-
+    private static func _reconcileIfNecessary(appReadiness: AppReadiness) async throws {
         guard shouldReconcile(appReadiness: appReadiness) else {
-            return Promise.value(())
+            return
         }
-        return firstly { () -> Promise<MobileCoinAPI> in
-            Self.paymentsImpl.getMobileCoinAPI()
-        }.then(on: DispatchQueue.global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<MobileCoin.AccountActivity> in
-            mobileCoinAPI.getAccountActivity()
-        }.map(on: DispatchQueue.global()) { (accountActivity: MobileCoin.AccountActivity) -> Void in
-            Self.reconcileIfNecessary(transactionHistory: accountActivity)
-        }
+        let mobileCoinAPI = try await SUIEnvironment.shared.paymentsImplRef.getMobileCoinAPI().awaitable()
+        let accountActivity = try await mobileCoinAPI.getAccountActivity().awaitable()
+        await Self.reconcileIfNecessary(transactionHistory: accountActivity)
     }
 
-    private static let schedulingStore = SDSKeyValueStore(collection: "PaymentsReconciliation.schedulingStore")
+    private static let schedulingStore = KeyValueStore(collection: "PaymentsReconciliation.schedulingStore")
     private static let successDateKey = "successDateKey"
     private static let lastKnownBlockCountKey = "lastKnownBlockCountKey"
     private static let lastKnownReceivedTXOCountKey = "lastKnownReceivedTXOCountKey"
     private static let lastKnownSpentTXOCountKey = "lastKnownSpentTXOCountKey"
+    private static let hasReconciledPreviously = "hasReconciledPreviously"
 
     private static func shouldReconcileByDateWithSneakyTransaction() -> Bool {
-        Self.databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             Self.shouldReconcileByDate(transaction: transaction)
         }
     }
 
-    private static func shouldReconcileByDate(transaction: SDSAnyReadTransaction) -> Bool {
+    private static func shouldReconcileByDate(transaction: DBReadTransaction) -> Bool {
         guard let date = Self.schedulingStore.getDate(Self.successDateKey, transaction: transaction) else {
             return true
         }
-        let reconciliationInterval = kHourInterval * 1
-        return abs(date.timeIntervalSinceNow) >= reconciliationInterval
+        return abs(date.timeIntervalSinceNow) >= .hour
     }
 
     private static func shouldReconcileWithSneakyTransaction(transactionHistory: MCTransactionHistory) -> Bool {
-        Self.databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             Self.shouldReconcile(transaction: transaction,
                                  transactionHistory: transactionHistory)
         }
     }
 
-    private static func shouldReconcile(transaction: SDSAnyReadTransaction,
+    private static func shouldReconcile(transaction: DBReadTransaction,
                                         transactionHistory: MCTransactionHistory) -> Bool {
 
         // Ledger state monotonically increases, so its sufficient
@@ -155,11 +130,8 @@ public class PaymentsReconciliation: Dependencies {
         return false
     }
 
-    private static func reconciliationDidSucceed(transaction: SDSAnyWriteTransaction,
+    private static func reconciliationDidSucceed(transaction: DBWriteTransaction,
                                                  transactionHistory: MCTransactionHistory) {
-        // TODO: Until reconciliation testing is complete, don't mark reconciliation as complete.
-        #if TESTABLE_BUILD
-        #else
         Self.schedulingStore.setDate(Date(), key: Self.successDateKey, transaction: transaction)
 
         let lastKnownBlockCount = transactionHistory.blockCount
@@ -175,14 +147,18 @@ public class PaymentsReconciliation: Dependencies {
         Self.schedulingStore.setInt(receivedItemsCount,
                                     key: Self.lastKnownReceivedTXOCountKey,
                                     transaction: transaction)
-        #endif
+        Self.schedulingStore.setBool(true,
+                                     key: Self.hasReconciledPreviously,
+                                     transaction: transaction)
     }
 
-    public func scheduleReconciliationNow(transaction: SDSAnyWriteTransaction) {
+    public func scheduleReconciliationNow(transaction: DBWriteTransaction) {
         Self.schedulingStore.removeAll(transaction: transaction)
 
-        transaction.addAsyncCompletionOffMain {
-            self.reconcileIfNecessary()
+        transaction.addSyncCompletion {
+            Task {
+                self.reconcileIfNecessary()
+            }
         }
     }
 
@@ -190,7 +166,7 @@ public class PaymentsReconciliation: Dependencies {
         case unsavedChanges
     }
 
-    private static func reconcileIfNecessary(transactionHistory: MCTransactionHistory) {
+    private static func reconcileIfNecessary(transactionHistory: MCTransactionHistory) async {
 
         // We should skip reconciliation if accountActivity hasn't changed
         // since the last reconciliation.
@@ -213,7 +189,7 @@ public class PaymentsReconciliation: Dependencies {
         // perform any db writes, so in this way we can avoid write transactions unless
         // necessary.
         do {
-            try databaseStorage.read { transaction in
+            try SSKEnvironment.shared.databaseStorageRef.read { transaction in
                 let databaseState = Self.buildPaymentsDatabaseState(transaction: transaction)
 
                 try reconcile(transactionHistory: transactionHistory,
@@ -222,7 +198,7 @@ public class PaymentsReconciliation: Dependencies {
 
                 try cleanUpDatabase(transaction: transaction)
             }
-            databaseStorage.write { transaction in
+            await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
                 reconciliationDidSucceed(transaction: transaction,
                                          transactionHistory: transactionHistory)
             }
@@ -231,7 +207,7 @@ public class PaymentsReconciliation: Dependencies {
                 Logger.info("Reconciliation has unsaved changes.")
 
                 do {
-                    try databaseStorage.write { transaction in
+                    try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
                         let databaseState = Self.buildPaymentsDatabaseState(transaction: transaction)
 
                         try reconcile(transactionHistory: transactionHistory,
@@ -291,9 +267,20 @@ public class PaymentsReconciliation: Dependencies {
     // NOTE: There's no reliable way to identify defrag transactions.
     internal static func reconcile(transactionHistory: MCTransactionHistory,
                                    databaseState: PaymentsDatabaseState,
-                                   transaction: SDSAnyReadTransaction) throws {
+                                   transaction: DBReadTransaction) throws {
 
         Logger.info("")
+
+        let hasReconciledOnce = Self.schedulingStore.getBool(
+            Self.hasReconciledPreviously,
+            defaultValue: false,
+            transaction: transaction
+        )
+        let isPrimaryDevice = DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction).isPrimaryDevice ?? true
+
+        // If payments have reconciled once, or if this is a primary device, default to marking
+        // newly discovered unidentified payments as unread.
+        let markUnaccountedForItemsAsUnread = hasReconciledOnce || isPrimaryDevice
 
         // Fill in/reconcile incoming transactions.
 
@@ -409,8 +396,8 @@ public class PaymentsReconciliation: Dependencies {
             )
 
             func insert(model: TSPaymentModel) throws {
-                if let transaction = transaction as? SDSAnyWriteTransaction {
-                    try Self.paymentsHelper.tryToInsertPaymentModel(model, transaction: transaction)
+                if let transaction = transaction as? DBWriteTransaction {
+                    try SSKEnvironment.shared.paymentsHelperRef.tryToInsertPaymentModel(model, transaction: transaction)
                 } else {
                     throw ReconciliationError.unsavedChanges
                 }
@@ -444,7 +431,8 @@ public class PaymentsReconciliation: Dependencies {
                     timestamp: createdTimestamp,
                     blockActivity: blockActivity,
                     unaccountedForSpentItems: unaccountedForSpentItems,
-                    unaccountedForReceivedItems: unaccountedForReceivedItems
+                    unaccountedForReceivedItems: unaccountedForReceivedItems,
+                    markUnaccountedForItemsAsUnread: markUnaccountedForItemsAsUnread
                 )
                 try insert(model: paymentModel)
                 databaseState.add(paymentModel: paymentModel)
@@ -466,7 +454,7 @@ public class PaymentsReconciliation: Dependencies {
                 guard case .model(let paymentModel) = paymentState else { continue }
                 let hasLedgerBlockIndex = (paymentModel.mobileCoin?.ledgerBlockIndex ?? 0) > 0
                 if !hasLedgerBlockIndex {
-                    if let transaction = transaction as? SDSAnyWriteTransaction {
+                    if let transaction = transaction as? DBWriteTransaction {
                         paymentModel.update(mcLedgerBlockTimestamp: ledgerBlockTimestamp,
                                             transaction: transaction)
                     } else {
@@ -481,7 +469,8 @@ public class PaymentsReconciliation: Dependencies {
         timestamp: UInt64,
         blockActivity: BlockActivity,
         unaccountedForSpentItems: [MCTransactionHistoryItem],
-        unaccountedForReceivedItems: [MCTransactionHistoryItem]
+        unaccountedForReceivedItems: [MCTransactionHistoryItem],
+        markUnaccountedForItemsAsUnread: Bool
     ) -> TSPaymentModel {
         let spentPicoMob = unaccountedForSpentItems.map { $0.amountPicoMob }.reduce(0, +)
         let receivedPicoMob = unaccountedForReceivedItems.map { $0.amountPicoMob }.reduce(0, +)
@@ -527,7 +516,7 @@ public class PaymentsReconciliation: Dependencies {
                               createdDate: createdDate,
                               senderOrRecipientAci: nil,
                               memoMessage: nil,
-                              isUnread: true,
+                              isUnread: markUnaccountedForItemsAsUnread,
                               interactionUniqueId: nil,
                               mobileCoin: mobileCoin)
     }
@@ -642,11 +631,11 @@ public class PaymentsReconciliation: Dependencies {
         return timestampUpperBound - 1
     }
 
-    private static func cleanUpDatabase(transaction: SDSAnyReadTransaction) throws {
+    private static func cleanUpDatabase(transaction: DBReadTransaction) throws {
         try cleanUpDatabaseMobileCoin(transaction: transaction)
     }
 
-    private static func cleanUpDatabaseMobileCoin(transaction: SDSAnyReadTransaction) throws {
+    private static func cleanUpDatabaseMobileCoin(transaction: DBReadTransaction) throws {
 
         var unidentifiedPaymentModelsToCull = [String: TSPaymentModel]()
 
@@ -737,7 +726,7 @@ public class PaymentsReconciliation: Dependencies {
 
         if !unidentifiedPaymentModelsToCull.isEmpty {
             owsFailDebug("Culling payment models: \(unidentifiedPaymentModelsToCull.count)")
-            if let transaction = transaction as? SDSAnyWriteTransaction {
+            if let transaction = transaction as? DBWriteTransaction {
                 for paymentModel in unidentifiedPaymentModelsToCull.values {
                     Logger.info("Culling payment model: \(paymentModel.descriptionForLogs)")
                     paymentModel.anyRemove(transaction: transaction)
@@ -749,7 +738,7 @@ public class PaymentsReconciliation: Dependencies {
     }
 
     public func replaceAsUnidentified(paymentModel oldPaymentModel: TSPaymentModel,
-                                      transaction: SDSAnyWriteTransaction) {
+                                      transaction: DBWriteTransaction) {
         guard !oldPaymentModel.isUnidentified else {
             owsFailDebug("Unexpected payment: \(oldPaymentModel.descriptionForLogs)")
             return
@@ -803,7 +792,7 @@ public class PaymentsReconciliation: Dependencies {
                                              interactionUniqueId: nil,
                                              mobileCoin: mobileCoin)
         do {
-            try Self.paymentsHelper.tryToInsertPaymentModel(newPaymentModel, transaction: transaction)
+            try SSKEnvironment.shared.paymentsHelperRef.tryToInsertPaymentModel(newPaymentModel, transaction: transaction)
         } catch {
             owsFailDebug("Error: \(error)")
         }
@@ -813,7 +802,7 @@ public class PaymentsReconciliation: Dependencies {
 
     // MARK: -
 
-    internal static func buildPaymentsDatabaseState(transaction: SDSAnyReadTransaction) -> PaymentsDatabaseState {
+    internal static func buildPaymentsDatabaseState(transaction: DBReadTransaction) -> PaymentsDatabaseState {
         let databaseState = PaymentsDatabaseState()
 
         TSPaymentModel.anyEnumerate(transaction: transaction,
@@ -821,7 +810,7 @@ public class PaymentsReconciliation: Dependencies {
             databaseState.add(paymentModel: paymentModel)
         }
 
-        DependenciesBridge.shared.archivedPaymentStore.enumerateAll(tx: transaction.asV2Read) { (archivedPayment, _) in
+        DependenciesBridge.shared.archivedPaymentStore.enumerateAll(tx: transaction) { (archivedPayment, _) in
             databaseState.add(archivedPayment: archivedPayment)
         }
         return databaseState
@@ -829,7 +818,7 @@ public class PaymentsReconciliation: Dependencies {
 
     // MARK: -
 
-    public func willInsertPayment(_ paymentModel: TSPaymentModel, transaction: SDSAnyWriteTransaction) {
+    public func willInsertPayment(_ paymentModel: TSPaymentModel, transaction: DBWriteTransaction) {
         // Cull unidentified payment models which might be replaced by this identified model,
         // then schedule reconciliation pass to create new unidentified payment models if necessary.
         if !paymentModel.isUnidentified,
@@ -838,7 +827,7 @@ public class PaymentsReconciliation: Dependencies {
         }
     }
 
-    public func willUpdatePayment(_ paymentModel: TSPaymentModel, transaction: SDSAnyWriteTransaction) {
+    public func willUpdatePayment(_ paymentModel: TSPaymentModel, transaction: DBWriteTransaction) {
         // Cull unidentified payment models which might be replaced by this identified model,
         // then schedule reconciliation pass to create new unidentified payment models if necessary.
         if !paymentModel.isUnidentified,
@@ -847,7 +836,7 @@ public class PaymentsReconciliation: Dependencies {
         }
     }
 
-    private func cullUnidentifiedPaymentsInSameBlock(_ paymentModel: TSPaymentModel, transaction: SDSAnyWriteTransaction) {
+    private func cullUnidentifiedPaymentsInSameBlock(_ paymentModel: TSPaymentModel, transaction: DBWriteTransaction) {
         guard !paymentModel.isUnidentified,
               paymentModel.mcLedgerBlockIndex > 0 else {
             owsFailDebug("Invalid paymentModel.")

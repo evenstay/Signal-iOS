@@ -60,10 +60,12 @@ NSUInteger const TSGroupModelSchemaVersion = 2;
     _addedByAddress = addedByAddress;
     _groupModelSchemaVersion = TSGroupModelSchemaVersion;
 
-    NSError *error;
-    [self persistAvatarData:avatarData error:&error];
-    if (error) {
-        OWSFailDebug(@"Failed to persist group avatar data %@", error);
+    if (avatarData) {
+        NSError *error;
+        [self persistAvatarData:avatarData error:&error];
+        if (error) {
+            OWSFailDebug(@"Failed to persist group avatar data %@", error);
+        }
     }
 
     OWSAssertDebug([GroupManager isValidGroupId:groupId groupsVersion:self.groupsVersion]);
@@ -180,26 +182,6 @@ NSUInteger const TSGroupModelSchemaVersion = 2;
 {
     NSString *_Nullable groupName = [self.groupName filterStringForDisplay];
     return groupName.length > 0 ? groupName : TSGroupThread.defaultGroupName;
-}
-
-+ (NSData *)generateRandomV1GroupId
-{
-    return [Randomness generateRandomBytes:kGroupIdLengthV1];
-}
-
-- (NSString *)debugDescription
-{
-    NSMutableString *result = [NSMutableString new];
-    [result appendString:@"["];
-    [result appendFormat:@"groupId: %@,\n", self.groupId.hexadecimalString];
-    [result appendFormat:@"groupModelSchemaVersion: %lu,\n", (unsigned long)self.groupModelSchemaVersion];
-    [result appendFormat:@"groupsVersion: %lu,\n", (unsigned long)self.groupsVersion];
-    [result appendFormat:@"groupName: %@,\n", self.groupName];
-    [result appendFormat:@"avatarHash: %@,\n", self.avatarHash];
-    [result appendFormat:@"groupMembers: %@,\n", [GroupMembership normalize:self.groupMembers]];
-    [result appendFormat:@"addedByAddress: %@,\n", self.addedByAddress];
-    [result appendString:@"]"];
-    return [result copy];
 }
 
 @end

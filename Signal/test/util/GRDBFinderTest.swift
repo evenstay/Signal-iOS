@@ -13,10 +13,10 @@ class GRDBFinderTest: SignalBaseTest {
     override func setUp() {
         super.setUp()
 
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: .forUnitTests,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
     }
@@ -150,9 +150,9 @@ class GRDBFinderTest: SignalBaseTest {
         /// diff in the code just below, I've recreated a type with the same
         /// name such that the lines below didn't need to change.
         struct SignalRecipientFinder {
-            func signalRecipient(for address: SignalServiceAddress, tx: SDSAnyReadTransaction) -> SignalRecipient? {
+            func signalRecipient(for address: SignalServiceAddress, tx: DBReadTransaction) -> SignalRecipient? {
                 return DependenciesBridge.shared.recipientDatabaseTable
-                    .fetchRecipient(address: address, tx: tx.asV2Read)
+                    .fetchRecipient(address: address, tx: tx)
             }
         }
 
@@ -212,8 +212,7 @@ class GRDBFinderTest: SignalBaseTest {
                     lastFetchDate: lastFetchDate,
                     lastMessagingDate: lastMessagingDate,
                     userProfileWriter: .metadataUpdate,
-                    transaction: tx,
-                    completion: nil
+                    transaction: tx
                 )
             }
 
@@ -225,19 +224,19 @@ class GRDBFinderTest: SignalBaseTest {
             do {
                 // This profile is _not_ expected; lastMessagingDate is nil.
                 let userProfile = buildUserProfile()
-                updateUserProfile(userProfile, lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * kMonthInterval)))
+                updateUserProfile(userProfile, lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * TimeInterval.month)))
             }
 
             do {
                 // This profile is _not_ expected; lastMessagingDate is nil.
                 let userProfile = buildUserProfile()
-                updateUserProfile(userProfile, lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * kMinuteInterval)))
+                updateUserProfile(userProfile, lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * TimeInterval.minute)))
             }
 
             do {
                 // This profile is _not_ expected; lastMessagingDate is old.
                 let userProfile = buildUserProfile()
-                updateUserProfile(userProfile, lastMessagingDate: .setTo(dateWithOffsetFromNow(-2 * kMonthInterval)))
+                updateUserProfile(userProfile, lastMessagingDate: .setTo(dateWithOffsetFromNow(-2 * TimeInterval.month)))
             }
 
             do {
@@ -245,8 +244,8 @@ class GRDBFinderTest: SignalBaseTest {
                 let userProfile = buildUserProfile()
                 updateUserProfile(
                     userProfile,
-                    lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * kMonthInterval)),
-                    lastMessagingDate: .setTo(dateWithOffsetFromNow(-2 * kMonthInterval))
+                    lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * TimeInterval.month)),
+                    lastMessagingDate: .setTo(dateWithOffsetFromNow(-2 * TimeInterval.month))
                 )
             }
 
@@ -255,15 +254,15 @@ class GRDBFinderTest: SignalBaseTest {
                 let userProfile = buildUserProfile()
                 updateUserProfile(
                     userProfile,
-                    lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * kMinuteInterval)),
-                    lastMessagingDate: .setTo(dateWithOffsetFromNow(-2 * kMonthInterval))
+                    lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * TimeInterval.minute)),
+                    lastMessagingDate: .setTo(dateWithOffsetFromNow(-2 * TimeInterval.month))
                 )
             }
 
             do {
                 // This profile is expected; lastMessagingDate is recent and lastFetchDate is nil.
                 let userProfile = buildUserProfile()
-                updateUserProfile(userProfile, lastMessagingDate: .setTo(dateWithOffsetFromNow(-1 * kHourInterval)))
+                updateUserProfile(userProfile, lastMessagingDate: .setTo(dateWithOffsetFromNow(-1 * TimeInterval.hour)))
                 expectedAddresses.insert(userProfile.internalAddress)
             }
 
@@ -272,8 +271,8 @@ class GRDBFinderTest: SignalBaseTest {
                 let userProfile = buildUserProfile()
                 updateUserProfile(
                     userProfile,
-                    lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * kMonthInterval)),
-                    lastMessagingDate: .setTo(dateWithOffsetFromNow(-1 * kHourInterval))
+                    lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * TimeInterval.month)),
+                    lastMessagingDate: .setTo(dateWithOffsetFromNow(-1 * TimeInterval.hour))
                 )
                 expectedAddresses.insert(userProfile.internalAddress)
             }
@@ -283,8 +282,8 @@ class GRDBFinderTest: SignalBaseTest {
                 let userProfile = buildUserProfile()
                 updateUserProfile(
                     userProfile,
-                    lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * kMinuteInterval)),
-                    lastMessagingDate: .setTo(dateWithOffsetFromNow(-1 * kHourInterval))
+                    lastFetchDate: .setTo(dateWithOffsetFromNow(-1 * TimeInterval.minute)),
+                    lastMessagingDate: .setTo(dateWithOffsetFromNow(-1 * TimeInterval.hour))
                 )
             }
         }

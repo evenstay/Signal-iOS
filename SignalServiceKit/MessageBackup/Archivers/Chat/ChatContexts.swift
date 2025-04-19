@@ -92,34 +92,62 @@ extension MessageBackup {
 
         private var currentChatId = ChatId(value: 1)
         private let map = SharedMap<ThreadUniqueId, ChatId>()
+        public var gv1ThreadIds = Set<ThreadUniqueId>()
 
-        internal init(
-            currentBackupAttachmentUploadEra: String?,
+        public enum CachedThreadInfo {
+            case groupThread
+            // Contact threads may be _missing_ their address, which
+            // will likely cause partial failures downstream.
+            case contactThread(contactAddress: MessageBackup.ContactAddress?)
+        }
+
+        private let threadCache = SharedMap<ChatId, CachedThreadInfo>()
+
+        init(
             backupAttachmentUploadManager: BackupAttachmentUploadManager,
+            bencher: MessageBackup.ArchiveBencher,
+            currentBackupAttachmentUploadEra: String?,
             customChatColorContext: CustomChatColorArchivingContext,
+            includedContentFilter: IncludedContentFilter,
             recipientContext: RecipientArchivingContext,
+            startTimestampMs: UInt64,
             tx: DBWriteTransaction
         ) {
             self.customChatColorContext = customChatColorContext
             self.recipientContext = recipientContext
             super.init(
-                currentBackupAttachmentUploadEra: currentBackupAttachmentUploadEra,
                 backupAttachmentUploadManager: backupAttachmentUploadManager,
+                bencher: bencher,
+                currentBackupAttachmentUploadEra: currentBackupAttachmentUploadEra,
+                includedContentFilter: includedContentFilter,
+                startTimestampMs: startTimestampMs,
                 tx: tx
             )
         }
 
-        internal func assignChatId(to threadUniqueId: ThreadUniqueId) -> ChatId {
+        internal func assignChatId(to thread: TSThread) -> ChatId {
             defer {
                 currentChatId = ChatId(value: currentChatId.value + 1)
             }
-            map[threadUniqueId] = currentChatId
+            map[ThreadUniqueId(thread: thread)] = currentChatId
+            if let contactThread = thread as? TSContactThread {
+                threadCache[currentChatId] = .contactThread(
+                    contactAddress: contactThread.contactAddress.asSingleServiceIdBackupAddress()
+                )
+            } else if thread is TSGroupThread {
+                threadCache[currentChatId] = .groupThread
+            }
             return currentChatId
         }
 
         internal subscript(_ threadUniqueId: ThreadUniqueId) -> ChatId? {
             // swiftlint:disable:next implicit_getter
             get { map[threadUniqueId] }
+        }
+
+        internal subscript(_ chatId: ChatId) -> CachedThreadInfo? {
+            // swiftlint:disable:next implicit_getter
+            get { threadCache[chatId] }
         }
     }
 
@@ -128,36 +156,66 @@ extension MessageBackup {
         public let customChatColorContext: CustomChatColorRestoringContext
         public let recipientContext: RecipientRestoringContext
 
-        private let map = SharedMap<ChatId, ThreadUniqueId>()
+        private let recipientToChatMap = SharedMap<RecipientId, ChatId>()
+
+        private let contactThreadMap = SharedMap<ChatId, (Int64, TSContactThread)>()
+        private let groupIdMap = SharedMap<ChatId, (Int64, GroupId)>()
         private let pinnedThreadIndexMap = SharedMap<ThreadUniqueId, UInt32>()
 
         internal init(
             customChatColorContext: CustomChatColorRestoringContext,
             recipientContext: RecipientRestoringContext,
+            startTimestampMs: UInt64,
             tx: DBWriteTransaction
         ) {
             self.customChatColorContext = customChatColorContext
             self.recipientContext = recipientContext
-            super.init(tx: tx)
+            super.init(
+                startTimestampMs: startTimestampMs,
+                tx: tx
+            )
         }
 
-        internal subscript(_ chatId: ChatId) -> ThreadUniqueId? {
-            map[chatId]
+        internal subscript(_ recipientId: RecipientId) -> ChatId? {
+            // swiftlint:disable:next implicit_getter
+            get { recipientToChatMap[recipientId] }
+        }
+
+        internal subscript(_ chatId: ChatId) -> ChatThread? {
+            if let (rowId, contactThread) = contactThreadMap[chatId] {
+                return ChatThread(threadType: .contact(contactThread), threadRowId: rowId)
+            }
+            if
+                let (rowId, groupId) = groupIdMap[chatId],
+                let groupThread = recipientContext[groupId]
+            {
+                return ChatThread(threadType: .groupV2(groupThread), threadRowId: rowId)
+            }
+            return nil
         }
 
         internal func mapChatId(
             _ chatId: ChatId,
-            to thread: ChatThread
+            to thread: ChatThread,
+            recipientId: RecipientId
         ) {
-            map[chatId] = ThreadUniqueId(chatThread: thread)
+            switch thread.threadType {
+            case .contact(let tSContactThread):
+                contactThreadMap[chatId] = (thread.threadRowId, tSContactThread)
+            case .groupV2(let tSGroupThread):
+                groupIdMap[chatId] = (thread.threadRowId, MessageBackup.GroupId(groupModel: tSGroupThread.groupModel))
+            }
+            recipientToChatMap[recipientId] = chatId
         }
 
         /// Given a newly encountered pinned thread, return all pinned thread ids encountered so far, in order.
         internal func pinnedThreadOrder(
             newPinnedThreadId: ThreadUniqueId,
+            newPinnedThreadChatId: ChatId,
             newPinnedThreadIndex: UInt32
         ) -> [ThreadUniqueId] {
             pinnedThreadIndexMap[newPinnedThreadId] = newPinnedThreadIndex
+            setChatIsPinned(chatId: newPinnedThreadChatId)
             return pinnedThreadIndexMap
                 .keys
                 .lazy
@@ -173,6 +231,70 @@ extension MessageBackup {
                     return lhsSortIndex < rhsSortIndex
                 })
                 .map(\.0)
+        }
+
+        // MARK: Post-Frame Restore
+
+        public struct PostFrameRestoreActions {
+            var isPinned: Bool
+            var lastVisibleInteractionRowId: Int64?
+            var hadAnyUnreadMessages: Bool = false
+
+            /// Maintained for group chats only.
+            /// Maps a group member's aci (including the local user's aci) to the
+            /// largest timestamp for messages sent by that member.
+            var groupMemberLastInteractionTimestamp = SharedMap<Aci, UInt64>()
+
+            var shouldBeMarkedVisible: Bool {
+                isPinned || lastVisibleInteractionRowId != nil
+            }
+
+            static var `default`: Self {
+                return .init(isPinned: false, lastVisibleInteractionRowId: nil)
+            }
+        }
+
+        /// Represents actions that should be taken after all `Frame`s have been restored.
+        private(set) var postFrameRestoreActions = SharedMap<ChatId, PostFrameRestoreActions>()
+
+        func setChatIsPinned(chatId: ChatId) {
+            var actions = postFrameRestoreActions[chatId] ?? .default
+            actions.isPinned = true
+            postFrameRestoreActions[chatId] = actions
+        }
+
+        func updateLastVisibleInteractionRowId(
+            interactionRowId: Int64,
+            wasRead: Bool,
+            chatId: ChatId
+        ) {
+            var actions = postFrameRestoreActions[chatId] ?? .default
+            if
+                actions.lastVisibleInteractionRowId == nil
+                // We don't _really_ need to compare as row ids are always
+                // increasing, but doesn't hurt to check.
+                || actions.lastVisibleInteractionRowId! < interactionRowId
+            {
+                actions.lastVisibleInteractionRowId = interactionRowId
+            }
+            actions.hadAnyUnreadMessages = actions.hadAnyUnreadMessages || !wasRead
+            postFrameRestoreActions[chatId] = actions
+        }
+
+        func updateGroupMemberLastInteractionTimestamp(
+            groupThread: TSGroupThread,
+            chatId: ChatId,
+            senderAci: Aci,
+            timestamp: UInt64
+        ) {
+            let actions = postFrameRestoreActions[chatId] ?? .default
+            let oldTimestamp = actions.groupMemberLastInteractionTimestamp[senderAci]
+            if
+                oldTimestamp == nil
+                || oldTimestamp! < timestamp
+            {
+                actions.groupMemberLastInteractionTimestamp[senderAci] = timestamp
+            }
         }
     }
 
@@ -209,14 +331,20 @@ extension MessageBackup {
         private var currentCustomChatColorId = CustomChatColorId(value: 1)
         private let map = SharedMap<CustomChatColor.Key, CustomChatColorId>()
 
-        internal override init(
-            currentBackupAttachmentUploadEra: String?,
+        override init(
             backupAttachmentUploadManager: BackupAttachmentUploadManager,
+            bencher: MessageBackup.ArchiveBencher,
+            currentBackupAttachmentUploadEra: String?,
+            includedContentFilter: IncludedContentFilter,
+            startTimestampMs: UInt64,
             tx: DBWriteTransaction
         ) {
             super.init(
-                currentBackupAttachmentUploadEra: currentBackupAttachmentUploadEra,
                 backupAttachmentUploadManager: backupAttachmentUploadManager,
+                bencher: bencher,
+                currentBackupAttachmentUploadEra: currentBackupAttachmentUploadEra,
+                includedContentFilter: includedContentFilter,
+                startTimestampMs: startTimestampMs,
                 tx: tx
             )
         }
@@ -239,8 +367,18 @@ extension MessageBackup {
 
         private let map = SharedMap<CustomChatColorId, CustomChatColor.Key>()
 
-        internal override init(tx: DBWriteTransaction) {
-            super.init(tx: tx)
+        /// Will only be nil if there was no earier AccountData frame to set it, which
+        /// should be treated as an error at read time when processing all subsequent frames.
+        var uploadEra: RestoredAttachmentUploadEra?
+
+        override init(
+            startTimestampMs: UInt64,
+            tx: DBWriteTransaction
+        ) {
+            super.init(
+                startTimestampMs: startTimestampMs,
+                tx: tx
+            )
         }
 
         internal subscript(_ chatColorId: CustomChatColorId) -> CustomChatColor.Key? {

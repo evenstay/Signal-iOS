@@ -2,7 +2,30 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>ACCESSIBILITY_LABEL_VOICE_MEMO_%d</key>
+	<key>ACCESSIBILITY_LABEL_LONG_VOICE_MEMO_%d_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@minutes@ และ %2$#@seconds@</string>
+		<key>minutes</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>other</key>
+			<string>%1$d นาที</string>
+		</dict>
+		<key>seconds</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>other</key>
+			<string>%2$d วินาที</string>
+		</dict>
+	</dict>
+	<key>ACCESSIBILITY_LABEL_SHORT_VOICE_MEMO_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -58,7 +81,7 @@
 			<string>เพิ่มสมาชิกใหม่</string>
 		</dict>
 	</dict>
-	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<key>CALLS_TAB_DELETE_MULTIPLE_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -68,6 +91,20 @@
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
+			<key>other</key>
+			<string>ลบการโทร %1$ld รายการใช่หรือไม่</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
 			<key>other</key>
 			<string>ระบบจะเพิ่มผู้ใช้ %1$ld คนในการโทรนี้</string>
 		</dict>
@@ -81,7 +118,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>other</key>
 			<string>อนุมัติคำขอ %1$ld รายการใช่หรือไม่</string>
 		</dict>
@@ -95,7 +132,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>other</key>
 			<string>ระบบจะไม่เพิ่มผู้ใช้ %1$ld คนในการโทรนี้</string>
 		</dict>
@@ -109,7 +146,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>other</key>
 			<string>ปฏิเสธคำขอ %1$ld รายการใช่หรือไม่</string>
 		</dict>
@@ -123,9 +160,23 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>other</key>
+			<string>+%1$ld คำขอ</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_MULTI_SUCCESS</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>other</key>
-			<string>+%1$ld Requests</string>
+			<string>ลบบันทึกการโทร %1$ld รายการแล้ว</string>
 		</dict>
 	</dict>
 	<key>CALL_LINK_REQUEST_HEADER_COUNT_%d</key>
@@ -457,6 +508,20 @@
 			<string>d</string>
 			<key>other</key>
 			<string>%2$@, %3$@ และคนอื่นๆ อีก %1$d คน อยู่ในสายนี้</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_MEMBER_LIST_UNKNOWN_MEMBERS_ROW_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>other</key>
+			<string>+%1$ld คน</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_NOTIFICATION_MANY_JOINED_%d</key>
@@ -1241,6 +1306,34 @@
 			<string>d</string>
 			<key>other</key>
 			<string>ดู &lt;bold&gt;%1$d&lt;/bold&gt; ครั้ง</string>
+		</dict>
+	</dict>
+	<key>THREAD_DETAILS_MORE_MUTUAL_GROUP_%3$ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>other</key>
+			<string>Member of %1$@, %2$@, and %3$ld additional groups</string>
+		</dict>
+	</dict>
+	<key>THREAD_DETAILS_OTHER_MEMBERS_COUNT_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>other</key>
+			<string>%1$ld others</string>
 		</dict>
 	</dict>
 	<key>USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE_%d</key>

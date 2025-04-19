@@ -33,7 +33,7 @@ extension StoryContextMenuDelegate {
     func storyContextMenuDidFinishDisplayingFollowups() {}
 }
 
-class StoryContextMenuGenerator: Dependencies {
+class StoryContextMenuGenerator {
 
     private weak var presentingController: UIViewController?
 
@@ -57,7 +57,7 @@ class StoryContextMenuGenerator: Dependencies {
         spoilerState: SpoilerRenderState,
         sourceView: @escaping () -> UIView?
     ) -> [UIAction] {
-        return Self.databaseStorage.read {
+        return SSKEnvironment.shared.databaseStorageRef.read {
             let thread = model.context.thread(transaction: $0)
             return self.nativeContextMenuActions(
                 for: model.latestMessage,
@@ -78,7 +78,7 @@ class StoryContextMenuGenerator: Dependencies {
         sourceView: @escaping () -> UIView?,
         hideSaveAction: Bool = false,
         onlyRenderMyStories: Bool = false,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> [UIAction] {
         return [
             deleteAction(for: message, in: thread),
@@ -95,7 +95,7 @@ class StoryContextMenuGenerator: Dependencies {
         for model: StoryViewModel
     ) -> UIContextualAction? {
         guard
-            let action = Self.databaseStorage.read(block: { transaction -> GenericContextAction? in
+            let action = SSKEnvironment.shared.databaseStorageRef.read(block: { transaction -> GenericContextAction? in
                 return self.hideAction(for: model.latestMessage, useShortTitle: true, transaction: transaction)
             })
         else {
@@ -118,7 +118,7 @@ class StoryContextMenuGenerator: Dependencies {
     public func goToChatContextualAction(
         for model: StoryViewModel
     ) -> UIContextualAction? {
-        guard let thread = Self.databaseStorage.read(block: { model.context.thread(transaction: $0) }) else {
+        guard let thread = SSKEnvironment.shared.databaseStorageRef.read(block: { model.context.thread(transaction: $0) }) else {
             return nil
         }
         return goToChatContextualAction(thread: thread)
@@ -141,7 +141,7 @@ extension StoryContextMenuGenerator {
     private func hideAction(
         for message: StoryMessage,
         useShortTitle: Bool = false,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> GenericContextAction? {
         if
             message.authorAddress.isLocalAddress,
@@ -275,7 +275,7 @@ extension StoryContextMenuGenerator {
     }
 
     private func loadThreadDisplayNameWithSneakyTransaction(context: StoryContext) -> String? {
-        return Self.databaseStorage.read { transaction -> String? in
+        return SSKEnvironment.shared.databaseStorageRef.read { transaction -> String? in
             switch context {
             case .groupId(let groupId):
                 return TSGroupThread.fetch(groupId: groupId, transaction: transaction)?.groupNameOrDefault
@@ -286,7 +286,7 @@ extension StoryContextMenuGenerator {
                         comment: "Name to display for the 'system' sender, e.g. for release notes and the onboarding story"
                     )
                 }
-                return Self.contactsManager.displayName(
+                return SSKEnvironment.shared.contactManagerRef.displayName(
                     for: SignalServiceAddress(authorAci),
                     tx: transaction
                 ).resolvedValue(useShortNameIfAvailable: true)
@@ -307,10 +307,10 @@ extension StoryContextMenuGenerator {
         associatedData: StoryContextAssociatedData,
         shouldHide: Bool
     ) {
-        Self.databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             guard !message.authorAddress.isSystemStoryAddress else {
                 // System stories go through SystemStoryManager
-                Self.systemStoryManager.setSystemStoriesHidden(shouldHide, transaction: transaction)
+                SSKEnvironment.shared.systemStoryManagerRef.setSystemStoriesHidden(shouldHide, transaction: transaction)
                 return
             }
             associatedData.update(isHidden: shouldHide, transaction: transaction)
@@ -411,7 +411,7 @@ extension StoryContextMenuGenerator {
             icon: .contextMenuOpenInChat,
             contextualActionImage: UIImage(imageLiteralResourceName: "arrow-square-upright-fill"),
             handler: { completion in
-                SignalApp.shared.presentConversationForThread(thread, action: .compose, animated: true)
+                SignalApp.shared.presentConversationForThread(threadUniqueId: thread.uniqueId, action: .compose, animated: true)
                 completion(true)
             }
         )
@@ -489,7 +489,7 @@ extension StoryContextMenuGenerator {
         )
         actionSheet.addAction(.init(title: CommonStrings.deleteButton, style: .destructive, handler: { _ in
             willDelete {
-                Self.databaseStorage.write { transaction in
+                SSKEnvironment.shared.databaseStorageRef.write { transaction in
                     message.remotelyDelete(for: thread, transaction: transaction)
                 }
                 didDelete(true)
@@ -546,7 +546,7 @@ extension StoryThumbnailView.Attachment {
         case .text:
             return true
         case .file(let attachment):
-            guard let stream = attachment.attachment.asResourceStream() else {
+            guard let stream = attachment.attachment.asStream() else {
                 return false
             }
             return MimeTypeUtil.isSupportedVisualMediaMimeType(stream.mimeType)
@@ -554,68 +554,13 @@ extension StoryThumbnailView.Attachment {
     }
 
     func save(interactionIdentifier: InteractionSnapshotIdentifier, spoilerState: SpoilerRenderState) {
-        guard let vc = CurrentAppContext().frontmostViewController() else {
-            return owsFailDebug("Missing frontmost view controller")
-        }
-
         switch self {
         case .file(let fileAttachment):
-            guard
-                let attachment = fileAttachment.attachment.asResourceStream(),
-                MimeTypeUtil.isSupportedVisualMediaMimeType(attachment.mimeType)
-            else { break }
-
-            var mediaURL: URL?
-            let shouldDeleteFileAfterComplete: Bool
-            switch attachment.concreteStreamType {
-            case .legacy(let tsAttachmentStream):
-                mediaURL = tsAttachmentStream.originalMediaURL
-                shouldDeleteFileAfterComplete = false
-            case .v2(let attachmentStream):
-                // Make a copy since we are about to send this off to the system anyway.
-                mediaURL = try? attachmentStream.makeDecryptedCopy(filename: fileAttachment.reference.sourceFilename)
-                shouldDeleteFileAfterComplete = true
-            }
-            guard let mediaURL else {
+            guard let referencedAttachmentStream = fileAttachment.asReferencedStream else {
                 break
             }
 
-            vc.ows_askForMediaLibraryPermissions { isGranted in
-                guard isGranted else {
-                    return
-                }
-
-                PHPhotoLibrary.shared().performChanges({
-                    if MimeTypeUtil.isSupportedImageMimeType(attachment.mimeType) {
-                        PHAssetCreationRequest.creationRequestForAssetFromImage(atFileURL: mediaURL)
-                    } else if MimeTypeUtil.isSupportedVideoMimeType(attachment.mimeType) {
-                        PHAssetCreationRequest.creationRequestForAssetFromVideo(atFileURL: mediaURL)
-                    }
-                }, completionHandler: { didSucceed, error in
-                    DispatchQueue.main.async {
-                        if shouldDeleteFileAfterComplete {
-                            try? OWSFileSystem.deleteFile(url: mediaURL)
-                        }
-                        if didSucceed {
-                            let toastController = ToastController(
-                                text: OWSLocalizedString(
-                                    "STORIES_DID_SAVE",
-                                    comment: "toast alert shown after user taps the 'save' button"
-                                )
-                            )
-                            toastController.presentToastView(from: .bottom, of: vc.view, inset: 16)
-                        } else {
-                            owsFailDebug("error: \(String(describing: error))")
-                            OWSActionSheets.showErrorAlert(
-                                message: OWSLocalizedString(
-                                    "STORIES_SAVE_FAILED",
-                                    comment: "alert notifying that the 'save' operation failed"
-                                )
-                            )
-                        }
-                    }
-                })
-            }
+            AttachmentSaving.saveToPhotoLibrary(referencedAttachmentStreams: [referencedAttachmentStream])
         case .text(let attachment):
             let view = TextAttachmentView(
                 attachment: attachment,
@@ -626,35 +571,7 @@ extension StoryThumbnailView.Attachment {
             view.layoutIfNeeded()
             let image = view.renderAsImage()
 
-            vc.ows_askForMediaLibraryPermissions { isGranted in
-                guard isGranted else {
-                    return
-                }
-
-                PHPhotoLibrary.shared().performChanges({
-                    PHAssetCreationRequest.creationRequestForAsset(from: image)
-                }, completionHandler: { didSucceed, error in
-                    DispatchQueue.main.async {
-                        if didSucceed {
-                            let toastController = ToastController(
-                                text: OWSLocalizedString(
-                                    "STORIES_DID_SAVE",
-                                    comment: "toast alert shown after user taps the 'save' button"
-                                )
-                            )
-                            toastController.presentToastView(from: .bottom, of: vc.view, inset: 16)
-                        } else {
-                            owsFailDebug("error: \(String(describing: error))")
-                            OWSActionSheets.showErrorAlert(
-                                message: OWSLocalizedString(
-                                    "STORIES_SAVE_FAILED",
-                                    comment: "alert notifying that the 'save' operation failed"
-                                )
-                            )
-                        }
-                    }
-                })
-            }
+            AttachmentSaving.saveToPhotoLibrary(image: image)
         case .missing:
             owsFailDebug("Unexpectedly missing attachment for story.")
         }
@@ -745,7 +662,7 @@ extension StoryContextMenuGenerator {
                 }
                 switch attachment {
                 case .file(let attachment):
-                    guard let attachment = try? attachment.asReferencedStream?.asShareableResource() else {
+                    guard let attachment = (try? [attachment.asReferencedStream].compacted().asShareableAttachments())?.first else {
                         completion(false)
                         return owsFailDebug("Unexpectedly tried to share undownloaded attachment")
                     }

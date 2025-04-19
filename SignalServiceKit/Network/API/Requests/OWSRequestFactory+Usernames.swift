@@ -88,13 +88,13 @@ public extension OWSRequestFactory {
             forUsernameHash: usernameHash
         ))!
 
-        let request = TSRequest(
+        var request = TSRequest(
             url: url,
             method: HTTPMethod.get.methodName,
             parameters: nil
         )
 
-        request.shouldHaveAuthorizationHeaders = false
+        request.auth = .anonymous
 
         return request
     }
@@ -130,13 +130,13 @@ public extension OWSRequestFactory {
             handle: handle
         ))!
 
-        let request = TSRequest(
+        var request = TSRequest(
             url: url,
             method: HTTPMethod.get.methodName,
             parameters: nil
         )
 
-        request.shouldHaveAuthorizationHeaders = false
+        request.auth = .anonymous
 
         return request
     }

@@ -14,10 +14,10 @@ class StoryManagerTest: SSKBaseTest {
     override func setUp() {
         super.setUp()
 
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: .forUnitTests,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
     }
@@ -30,8 +30,13 @@ class StoryManagerTest: SSKBaseTest {
         let author = Aci.randomForTesting()
         let storyMessage = try Self.makePrivateStory()
 
+        let profileManager = SSKEnvironment.shared.profileManagerRef as! OWSFakeProfileManager
+        profileManager.fakeUserProfiles = [
+            SignalServiceAddress(author): OWSUserProfile(address: .otherUser(SignalServiceAddress(author))),
+        ]
+
         try write {
-            profileManager.addUser(
+            SSKEnvironment.shared.profileManagerRef.addUser(
                 toProfileWhitelist: SignalServiceAddress(author),
                 userProfileWriter: .localUser,
                 transaction: $0
@@ -88,13 +93,13 @@ class StoryManagerTest: SSKBaseTest {
         let groupStoryMessage = try Self.makeGroupStory()
 
         try write {
-            profileManager.addUser(
+            SSKEnvironment.shared.profileManagerRef.addUser(
                 toProfileWhitelist: SignalServiceAddress(author),
                 userProfileWriter: .localUser,
                 transaction: $0
             )
 
-            blockingManager.addBlockedAddress(
+            SSKEnvironment.shared.blockingManagerRef.addBlockedAddress(
                 SignalServiceAddress(author),
                 blockMode: .localShouldNotLeaveGroups,
                 transaction: $0
@@ -132,17 +137,21 @@ class StoryManagerTest: SSKBaseTest {
         let author = Aci.randomForTesting()
         let storyMessage = try Self.makeGroupStory()
 
-        let groupId = try GroupV2ContextInfo.deriveFrom(masterKeyData: storyMessage.group!.masterKey!).groupId
+        let groupMasterKey = try GroupMasterKey(contents: [UInt8](storyMessage.group!.masterKey!))
+        let groupId = try GroupSecretParams.deriveFromMasterKey(groupMasterKey: groupMasterKey).getPublicParams().getGroupIdentifier().serialize().asData
 
         try write {
-            profileManager.addUser(
+            SSKEnvironment.shared.profileManagerRef.addUser(
                 toProfileWhitelist: SignalServiceAddress(author),
                 userProfileWriter: .localUser,
                 transaction: $0
             )
 
-            blockingManager.addBlockedGroup(
-                groupId: groupId,
+            TSGroupThread.forUnitTest(
+                masterKey: groupMasterKey
+            ).anyInsert(transaction: $0)
+            SSKEnvironment.shared.blockingManagerRef.addBlockedGroupId(
+                groupId,
                 blockMode: .localShouldNotLeaveGroups,
                 transaction: $0
             )
@@ -174,7 +183,7 @@ class StoryManagerTest: SSKBaseTest {
         let groupId = try GroupV2ContextInfo.deriveFrom(masterKeyData: storyMessage.group!.masterKey!).groupId
 
         try write {
-            profileManager.addUser(
+            SSKEnvironment.shared.profileManagerRef.addUser(
                 toProfileWhitelist: SignalServiceAddress(author),
                 userProfileWriter: .localUser,
                 transaction: $0
@@ -209,7 +218,7 @@ class StoryManagerTest: SSKBaseTest {
         let groupId = try GroupV2ContextInfo.deriveFrom(masterKeyData: storyMessage.group!.masterKey!).groupId
 
         try write {
-            profileManager.addUser(
+            SSKEnvironment.shared.profileManagerRef.addUser(
                 toProfileWhitelist: SignalServiceAddress(author),
                 userProfileWriter: .localUser,
                 transaction: $0
@@ -243,8 +252,13 @@ class StoryManagerTest: SSKBaseTest {
 
         let groupId = try GroupV2ContextInfo.deriveFrom(masterKeyData: storyMessage.group!.masterKey!).groupId
 
+        let profileManager = SSKEnvironment.shared.profileManagerRef as! OWSFakeProfileManager
+        profileManager.fakeUserProfiles = [
+            SignalServiceAddress(author): OWSUserProfile(address: .otherUser(SignalServiceAddress(author))),
+        ]
+
         try write {
-            profileManager.addUser(
+            SSKEnvironment.shared.profileManagerRef.addUser(
                 toProfileWhitelist: SignalServiceAddress(author),
                 userProfileWriter: .localUser,
                 transaction: $0
@@ -278,8 +292,13 @@ class StoryManagerTest: SSKBaseTest {
 
         let groupId = try GroupV2ContextInfo.deriveFrom(masterKeyData: storyMessage.group!.masterKey!).groupId
 
+        let profileManager = SSKEnvironment.shared.profileManagerRef as! OWSFakeProfileManager
+        profileManager.fakeUserProfiles = [
+            SignalServiceAddress(author): OWSUserProfile(address: .otherUser(SignalServiceAddress(author))),
+        ]
+
         try write {
-            profileManager.addUser(
+            SSKEnvironment.shared.profileManagerRef.addUser(
                 toProfileWhitelist: SignalServiceAddress(author),
                 userProfileWriter: .localUser,
                 transaction: $0
@@ -311,8 +330,13 @@ class StoryManagerTest: SSKBaseTest {
         let author = Aci.randomForTesting()
         let storyMessage = try Self.makePrivateStory()
 
+        let profileManager = SSKEnvironment.shared.profileManagerRef as! OWSFakeProfileManager
+        profileManager.fakeUserProfiles = [
+            SignalServiceAddress(author): OWSUserProfile(address: .otherUser(SignalServiceAddress(author))),
+        ]
+
         try write {
-            profileManager.addUser(
+            SSKEnvironment.shared.profileManagerRef.addUser(
                 toProfileWhitelist: SignalServiceAddress(author),
                 userProfileWriter: .localUser,
                 transaction: $0
@@ -326,11 +350,12 @@ class StoryManagerTest: SSKBaseTest {
                 transaction: $0
             )
 
-            let profileKey = profileManager.profileKeyData(
+            let profileManager = SSKEnvironment.shared.profileManagerRef
+            let profileKey = profileManager.userProfile(
                 for: SignalServiceAddress(author),
-                transaction: $0
-            )
-            XCTAssertEqual(profileKey, storyMessage.profileKey)
+                tx: $0
+            )?.profileKey
+            XCTAssertEqual(profileKey?.keyData, storyMessage.profileKey)
         }
     }
 
@@ -349,7 +374,7 @@ class StoryManagerTest: SSKBaseTest {
                 transaction: $0
             )
 
-            profileManager.addUser(
+            SSKEnvironment.shared.profileManagerRef.addUser(
                 toProfileWhitelist: SignalServiceAddress(author),
                 userProfileWriter: .localUser,
                 transaction: $0
@@ -366,7 +391,7 @@ class StoryManagerTest: SSKBaseTest {
             let count = try StoryMessage
                 .filter(Column(StoryMessage.columnName(.timestamp)) == timestamp)
                 .filter(Column(StoryMessage.columnName(.authorAci)) == author.serviceIdUppercaseString)
-                .fetchCount($0.unwrapGrdbRead.database)
+                .fetchCount($0.database)
             XCTAssertEqual(count, 1)
         }
     }
@@ -408,7 +433,7 @@ class StoryManagerTest: SSKBaseTest {
         announcementOnly: Bool = false,
         members: [Aci] = [],
         admins: [Aci] = [],
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) throws {
         var membershipBuilder = GroupMembership.Builder()
 
@@ -447,7 +472,7 @@ class StoryManagerTest: SSKBaseTest {
 
         override static func enqueueDownloadOfAttachmentsForStoryMessage(
             _ message: StoryMessage,
-            tx: any DBWriteTransaction
+            tx: DBWriteTransaction
         ) {
             // Do nothing
         }

@@ -16,7 +16,7 @@ public extension OWSUnknownProtocolVersionMessage {
     // NOTE: This method will fail if the object has unexpected type.
     class func anyFetchUnknownProtocolVersionMessage(
         uniqueId: String,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> OWSUnknownProtocolVersionMessage? {
         assert(!uniqueId.isEmpty)
 
@@ -32,7 +32,7 @@ public extension OWSUnknownProtocolVersionMessage {
     }
 
     // NOTE: This method will fail if the object has unexpected type.
-    func anyUpdateUnknownProtocolVersionMessage(transaction: SDSAnyWriteTransaction, block: (OWSUnknownProtocolVersionMessage) -> Void) {
+    func anyUpdateUnknownProtocolVersionMessage(transaction: DBWriteTransaction, block: (OWSUnknownProtocolVersionMessage) -> Void) {
         anyUpdate(transaction: transaction) { (object) in
             guard let instance = object as? OWSUnknownProtocolVersionMessage else {
                 owsFailDebug("Object has unexpected type: \(type(of: object))")
@@ -56,7 +56,7 @@ class OWSUnknownProtocolVersionMessageSerializer: SDSSerializer {
 
     // MARK: - Record
 
-    func asRecord() throws -> SDSRecord {
+    func asRecord() -> SDSRecord {
         let id: Int64? = model.sortId > 0 ? Int64(model.sortId) : model.grdbId?.int64Value
 
         let recordType: SDSRecordType = .unknownProtocolVersionMessage
@@ -66,7 +66,7 @@ class OWSUnknownProtocolVersionMessageSerializer: SDSSerializer {
         let receivedAtTimestamp: UInt64 = model.receivedAtTimestamp
         let timestamp: UInt64 = model.timestamp
         let threadUniqueId: String = model.uniqueThreadId
-        let attachmentIds: Data? = optionalArchive(model.attachmentIds)
+        let deprecated_attachmentIds: Data? = optionalArchive(model.deprecated_attachmentIds)
         let authorId: String? = nil
         let authorPhoneNumber: String? = nil
         let authorUUID: String? = nil
@@ -137,6 +137,6 @@ class OWSUnknownProtocolVersionMessageSerializer: SDSSerializer {
         let expireTimerVersion: UInt32? = archiveOptionalNSNumber(model.expireTimerVersion, conversion: { $0.uint32Value })
         let isSmsMessageRestoredFromBackup: Bool? = model.isSmsMessageRestoredFromBackup
 
-        return InteractionRecord(delegate: model, id: id, recordType: recordType, uniqueId: uniqueId, receivedAtTimestamp: receivedAtTimestamp, timestamp: timestamp, threadUniqueId: threadUniqueId, attachmentIds: attachmentIds, authorId: authorId, authorPhoneNumber: authorPhoneNumber, authorUUID: authorUUID, body: body, callType: callType, configurationDurationSeconds: configurationDurationSeconds, configurationIsEnabled: configurationIsEnabled, contactShare: contactShare, createdByRemoteName: createdByRemoteName, createdInExistingGroup: createdInExistingGroup, customMessage: customMessage, envelopeData: envelopeData, errorType: errorType, expireStartedAt: expireStartedAt, expiresAt: expiresAt, expiresInSeconds: expiresInSeconds, groupMetaMessage: groupMetaMessage, hasLegacyMessageState: hasLegacyMessageState, hasSyncedTranscript: hasSyncedTranscript, wasNotCreatedLocally: wasNotCreatedLocally, isLocalChange: isLocalChange, isViewOnceComplete: isViewOnceComplete, isViewOnceMessage: isViewOnceMessage, isVoiceMessage: isVoiceMessage, legacyMessageState: legacyMessageState, legacyWasDelivered: legacyWasDelivered, linkPreview: linkPreview, messageId: messageId, messageSticker: messageSticker, messageType: messageType, mostRecentFailureText: mostRecentFailureText, preKeyBundle: preKeyBundle, protocolVersion: protocolVersion, quotedMessage: quotedMessage, read: read, recipientAddress: recipientAddress, recipientAddressStates: recipientAddressStates, sender: sender, serverTimestamp: serverTimestamp, deprecated_sourceDeviceId: deprecated_sourceDeviceId, storedMessageState: storedMessageState, storedShouldStartExpireTimer: storedShouldStartExpireTimer, unregisteredAddress: unregisteredAddress, verificationState: verificationState, wasReceivedByUD: wasReceivedByUD, infoMessageUserInfo: infoMessageUserInfo, wasRemotelyDeleted: wasRemotelyDeleted, bodyRanges: bodyRanges, offerType: offerType, serverDeliveryTimestamp: serverDeliveryTimestamp, eraId: eraId, hasEnded: hasEnded, creatorUuid: creatorUuid, joinedMemberUuids: joinedMemberUuids, wasIdentityVerified: wasIdentityVerified, paymentCancellation: paymentCancellation, paymentNotification: paymentNotification, paymentRequest: paymentRequest, viewed: viewed, serverGuid: serverGuid, storyAuthorUuidString: storyAuthorUuidString, storyTimestamp: storyTimestamp, isGroupStoryReply: isGroupStoryReply, storyReactionEmoji: storyReactionEmoji, giftBadge: giftBadge, editState: editState, archivedPaymentInfo: archivedPaymentInfo, expireTimerVersion: expireTimerVersion, isSmsMessageRestoredFromBackup: isSmsMessageRestoredFromBackup)
+        return InteractionRecord(delegate: model, id: id, recordType: recordType, uniqueId: uniqueId, receivedAtTimestamp: receivedAtTimestamp, timestamp: timestamp, threadUniqueId: threadUniqueId, deprecated_attachmentIds: deprecated_attachmentIds, authorId: authorId, authorPhoneNumber: authorPhoneNumber, authorUUID: authorUUID, body: body, callType: callType, configurationDurationSeconds: configurationDurationSeconds, configurationIsEnabled: configurationIsEnabled, contactShare: contactShare, createdByRemoteName: createdByRemoteName, createdInExistingGroup: createdInExistingGroup, customMessage: customMessage, envelopeData: envelopeData, errorType: errorType, expireStartedAt: expireStartedAt, expiresAt: expiresAt, expiresInSeconds: expiresInSeconds, groupMetaMessage: groupMetaMessage, hasLegacyMessageState: hasLegacyMessageState, hasSyncedTranscript: hasSyncedTranscript, wasNotCreatedLocally: wasNotCreatedLocally, isLocalChange: isLocalChange, isViewOnceComplete: isViewOnceComplete, isViewOnceMessage: isViewOnceMessage, isVoiceMessage: isVoiceMessage, legacyMessageState: legacyMessageState, legacyWasDelivered: legacyWasDelivered, linkPreview: linkPreview, messageId: messageId, messageSticker: messageSticker, messageType: messageType, mostRecentFailureText: mostRecentFailureText, preKeyBundle: preKeyBundle, protocolVersion: protocolVersion, quotedMessage: quotedMessage, read: read, recipientAddress: recipientAddress, recipientAddressStates: recipientAddressStates, sender: sender, serverTimestamp: serverTimestamp, deprecated_sourceDeviceId: deprecated_sourceDeviceId, storedMessageState: storedMessageState, storedShouldStartExpireTimer: storedShouldStartExpireTimer, unregisteredAddress: unregisteredAddress, verificationState: verificationState, wasReceivedByUD: wasReceivedByUD, infoMessageUserInfo: infoMessageUserInfo, wasRemotelyDeleted: wasRemotelyDeleted, bodyRanges: bodyRanges, offerType: offerType, serverDeliveryTimestamp: serverDeliveryTimestamp, eraId: eraId, hasEnded: hasEnded, creatorUuid: creatorUuid, joinedMemberUuids: joinedMemberUuids, wasIdentityVerified: wasIdentityVerified, paymentCancellation: paymentCancellation, paymentNotification: paymentNotification, paymentRequest: paymentRequest, viewed: viewed, serverGuid: serverGuid, storyAuthorUuidString: storyAuthorUuidString, storyTimestamp: storyTimestamp, isGroupStoryReply: isGroupStoryReply, storyReactionEmoji: storyReactionEmoji, giftBadge: giftBadge, editState: editState, archivedPaymentInfo: archivedPaymentInfo, expireTimerVersion: expireTimerVersion, isSmsMessageRestoredFromBackup: isSmsMessageRestoredFromBackup)
     }
 }

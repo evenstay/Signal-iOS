@@ -13,12 +13,13 @@ public protocol LinkPreviewFetcher {
 #if TESTABLE_BUILD
 
 class MockLinkPreviewFetcher: LinkPreviewFetcher {
-    var fetchedURLs = [URL]()
+    var fetchedURLs: [URL] { _fetchedURLs.get() }
+    let _fetchedURLs = AtomicValue<[URL]>([], lock: .init())
 
     var fetchLinkPreviewBlock: ((URL) async throws -> OWSLinkPreviewDraft)?
 
     func fetchLinkPreview(for url: URL) async throws -> OWSLinkPreviewDraft {
-        fetchedURLs.append(url)
+        _fetchedURLs.update { $0.append(url) }
         return try await fetchLinkPreviewBlock!(url)
     }
 }
@@ -113,7 +114,7 @@ public class LinkPreviewFetcherImpl: LinkPreviewFetcher {
         // `curl -A Signal "https://twitter.com/signalapp/status/1280166087577997312?s=20"`
         // If this ever changes, we can switch back to our default User-Agent
         let userAgentString = "WhatsApp/2"
-        let extraHeaders: [String: String] = [OWSHttpHeaders.userAgentHeaderKey: userAgentString]
+        let extraHeaders: HttpHeaders = [HttpHeaders.userAgentHeaderKey: userAgentString]
 
         let urlSession = OWSURLSession(
             securityPolicy: OWSURLSession.defaultSecurityPolicy,
@@ -128,12 +129,17 @@ public class LinkPreviewFetcherImpl: LinkPreviewFetcher {
             }
             return request
         }
-        urlSession.failOnError = false
         return urlSession
     }
 
     func fetchStringResource(from url: URL) async throws -> (URL, String) {
-        let response = try await self.buildOWSURLSession().dataTaskPromise(url.absoluteString, method: .get, ignoreAppExpiry: true).awaitable()
+        let response: any HTTPResponse
+        do {
+            response = try await self.buildOWSURLSession().performRequest(url.absoluteString, method: .get, ignoreAppExpiry: true)
+        } catch {
+            Logger.warn("Invalid response: \(error.shortDescription).")
+            throw LinkPreviewError.fetchFailure
+        }
         let statusCode = response.responseStatusCode
         guard statusCode >= 200 && statusCode < 300 else {
             Logger.warn("Invalid response: \(statusCode).")
@@ -147,13 +153,19 @@ public class LinkPreviewFetcherImpl: LinkPreviewFetcher {
     }
 
     private func fetchImageResource(from url: URL) async throws -> Data {
-        let httpResponse = try await self.buildOWSURLSession().dataTaskPromise(url.absoluteString, method: .get, ignoreAppExpiry: true).awaitable()
-        let statusCode = httpResponse.responseStatusCode
+        let response: any HTTPResponse
+        do {
+            response = try await self.buildOWSURLSession().performRequest(url.absoluteString, method: .get, ignoreAppExpiry: true)
+        } catch {
+            Logger.warn("Invalid response: \(error.shortDescription).")
+            throw LinkPreviewError.fetchFailure
+        }
+        let statusCode = response.responseStatusCode
         guard statusCode >= 200 && statusCode < 300 else {
             Logger.warn("Invalid response: \(statusCode).")
             throw LinkPreviewError.fetchFailure
         }
-        guard let rawData = httpResponse.responseBodyData, rawData.count < Self.maxFetchedContentSize else {
+        guard let rawData = response.responseBodyData, rawData.count < Self.maxFetchedContentSize else {
             Logger.warn("Response object could not be parsed")
             throw LinkPreviewError.invalidPreview
         }
@@ -334,6 +346,14 @@ fileprivate extension HTMLMetadata {
     var dateForLinkPreview: Date? {
         [ogPublishDateString, articlePublishDateString, ogModifiedDateString, articleModifiedDateString]
             .first(where: {$0 != nil})?
-            .flatMap { Date.ows_parseFromISO8601String($0) }
+            .flatMap {
+                guard
+                    let date = Date.ows_parseFromISO8601String($0),
+                    date.timeIntervalSince1970 > 0
+                else {
+                    return nil
+                }
+                return date
+            }
     }
 }

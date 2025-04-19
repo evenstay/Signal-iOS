@@ -26,7 +26,7 @@ private class BannerHiding {
         let numberOfTimesHidden: UInt
     }
 
-    let bannerHidingStore: SDSKeyValueStore
+    let bannerHidingStore: KeyValueStore
 
     private let hideDuration: TimeInterval
     private let hideForeverAfterNumberOfHides: UInt?
@@ -39,13 +39,13 @@ private class BannerHiding {
         hideDuration: TimeInterval,
         hideForeverAfterNumberOfHides: UInt? = nil
     ) {
-        bannerHidingStore = SDSKeyValueStore(collection: identifier)
+        bannerHidingStore = KeyValueStore(collection: identifier)
 
         self.hideDuration = hideDuration
         self.hideForeverAfterNumberOfHides = hideForeverAfterNumberOfHides
     }
 
-    func isHidden(threadUniqueId threadId: String, transaction: SDSAnyReadTransaction) -> Bool {
+    func isHidden(threadUniqueId threadId: String, transaction: DBReadTransaction) -> Bool {
         guard let hiddenState = getHiddenState(forThreadId: threadId, transaction: transaction) else {
             // We've never hidden this banner before, so no reason to hide it now.
             return false
@@ -68,7 +68,7 @@ private class BannerHiding {
         return false
     }
 
-    func hide(threadUniqueId threadId: String, transaction: SDSAnyWriteTransaction) {
+    func hide(threadUniqueId threadId: String, transaction: DBWriteTransaction) {
         let stateToWrite: HiddenState
 
         if let existingHiddenState = getHiddenState(forThreadId: threadId, transaction: transaction) {
@@ -91,7 +91,7 @@ private class BannerHiding {
         }
     }
 
-    private func getHiddenState(forThreadId threadId: String, transaction: SDSAnyReadTransaction) -> HiddenState? {
+    private func getHiddenState(forThreadId threadId: String, transaction: DBReadTransaction) -> HiddenState? {
         do {
             return try bannerHidingStore.getCodableValue(
                 forKey: Self.hiddenStateKey(forThreadId: threadId),
@@ -121,7 +121,7 @@ private class PendingMemberRequestsBannerHiding: BannerHiding {
     func isHidden(
         currentRequestingMemberAcis: [Aci],
         threadUniqueId threadId: String,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> Bool {
         guard isHidden(threadUniqueId: threadId, transaction: transaction) else {
             return false
@@ -141,7 +141,7 @@ private class PendingMemberRequestsBannerHiding: BannerHiding {
     func hide(
         currentPendingMemberRequestAcis: [Aci],
         threadUniqueId threadId: String,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         super.hide(threadUniqueId: threadId, transaction: transaction)
 
@@ -162,7 +162,7 @@ private class PendingMemberRequestsBannerHiding: BannerHiding {
 
     private func getRequestingMembersState(
         forThreadId threadId: String,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> RequestingMembersState? {
         do {
             return try bannerHidingStore.getCodableValue(
@@ -182,19 +182,19 @@ public extension CVViewState {
     /// responsive to changes in pending member request state.
     private static let isPendingMemberRequestsBannerHiding = PendingMemberRequestsBannerHiding(
         identifier: "BannerHiding_pendingMemberRequests",
-        hideDuration: kWeekInterval
+        hideDuration: .week
     )
 
     /// This banner will snooze for only 1 hour after each hiding, since this
     /// is a potential safety concern (and only appears in message requests).
     private static let isMessageRequestNameCollisionBannerHiding = BannerHiding(
         identifier: "BannerHiding_messageRequestNameCollision",
-        hideDuration: kHourInterval
+        hideDuration: .hour
     )
 
     func shouldShowPendingMemberRequestsBanner(
         currentPendingMembers: some Sequence<SignalServiceAddress>,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> Bool {
         let currentPendingMemberAcis = currentPendingMembers.compactMap { $0.serviceId as? Aci }
 
@@ -207,7 +207,7 @@ public extension CVViewState {
 
     func hidePendingMemberRequestsBanner(
         currentPendingMembers: some Sequence<SignalServiceAddress>,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         let currentPendingMemberAcis = currentPendingMembers.compactMap { $0.serviceId as? Aci }
 
@@ -218,11 +218,11 @@ public extension CVViewState {
         )
     }
 
-    func shouldShowMessageRequestNameCollisionBanner(transaction: SDSAnyReadTransaction) -> Bool {
+    func shouldShowMessageRequestNameCollisionBanner(transaction: DBReadTransaction) -> Bool {
         !Self.isMessageRequestNameCollisionBannerHiding.isHidden(threadUniqueId: threadUniqueId, transaction: transaction)
     }
 
-    func hideMessageRequestNameCollisionBanner(transaction: SDSAnyWriteTransaction) {
+    func hideMessageRequestNameCollisionBanner(transaction: DBWriteTransaction) {
         Self.isMessageRequestNameCollisionBannerHiding.hide(threadUniqueId: threadUniqueId, transaction: transaction)
     }
 }

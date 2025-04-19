@@ -10,7 +10,7 @@ public class ContactShareViewModel: NSObject {
 
     public let dbRecord: OWSContact
 
-    private let existingAvatarAttachment: ReferencedTSResource?
+    private let existingAvatarAttachment: ReferencedAttachment?
 
     public var avatarImageData: Data? {
         didSet {
@@ -35,7 +35,7 @@ public class ContactShareViewModel: NSObject {
 
     private init(
         contactShareRecord: OWSContact,
-        existingAvatarAttachment: ReferencedTSResource?,
+        existingAvatarAttachment: ReferencedAttachment?,
         avatarImageData: Data?
     ) {
         self.dbRecord = contactShareRecord
@@ -46,25 +46,25 @@ public class ContactShareViewModel: NSObject {
     public convenience init(
         contactShareRecord: OWSContact,
         parentMessage: TSMessage,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) {
         if
-            let avatarAttachmentRef = DependenciesBridge.shared.tsResourceStore.contactShareAvatarAttachment(
-                for: parentMessage,
-                tx: transaction.asV2Read
-            ),
-            let avatarAttachment = avatarAttachmentRef.fetch(tx: transaction)?.asResourceStream()
+            let parentMessageRowId = parentMessage.sqliteRowId,
+            let avatarAttachment = DependenciesBridge.shared.attachmentStore.fetchFirstReferencedAttachment(
+                for: .messageContactAvatar(messageRowId: parentMessageRowId),
+                tx: transaction
+            )?.asReferencedStream
         {
             let avatarImageData: Data?
-            switch avatarAttachment.computeContentType() {
+            switch avatarAttachment.attachmentStream.contentType {
             case .file, .invalid, .video, .animatedImage, .audio:
                 avatarImageData = nil
             case .image:
-                avatarImageData = try? avatarAttachment.decryptedRawData()
+                avatarImageData = try? avatarAttachment.attachmentStream.decryptedRawData()
             }
             self.init(
                 contactShareRecord: contactShareRecord,
-                existingAvatarAttachment: .init(reference: avatarAttachmentRef, attachment: avatarAttachment),
+                existingAvatarAttachment: avatarAttachment,
                 avatarImageData: avatarImageData
             )
         } else {
@@ -77,12 +77,12 @@ public class ContactShareViewModel: NSObject {
     }
 
     public func getAvatarImageWithSneakyTransaction(diameter: CGFloat) -> UIImage? {
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             self.getAvatarImage(diameter: diameter, transaction: transaction)
         }
     }
 
-    public func getAvatarImage(diameter: CGFloat, transaction: SDSAnyReadTransaction) -> UIImage? {
+    public func getAvatarImage(diameter: CGFloat, transaction: DBReadTransaction) -> UIImage? {
         if let avatarImage = avatarImage {
             return avatarImage
         }
@@ -92,7 +92,7 @@ public class ContactShareViewModel: NSObject {
         // This could mislead the user into thinking
         // that an avatar they did not share was in fact included in the
         // contact share.
-        return Self.avatarBuilder.avatarImage(
+        return SSKEnvironment.shared.avatarBuilderRef.defaultAvatarImage(
             personNameComponents: name.components,
             diameterPoints: UInt(diameter),
             transaction: transaction

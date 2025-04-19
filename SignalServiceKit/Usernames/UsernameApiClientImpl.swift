@@ -16,11 +16,12 @@ public class UsernameApiClientImpl: UsernameApiClient {
 
     private func performRequest<T>(
         request: TSRequest,
+        canUseWebSocket: Bool = true,
         onSuccess: @escaping (HTTPResponse) throws -> T,
         onFailure: @escaping (Error) throws -> T
     ) -> Promise<T> {
         firstly {
-            networkManager.makePromise(request: request)
+            networkManager.makePromise(request: request, canUseWebSocket: canUseWebSocket)
         }.map(on: schedulers.sharedUserInitiated) { response throws in
             try onSuccess(response)
         }.recover(on: schedulers.sharedUserInitiated) { error throws -> Promise<T> in
@@ -83,7 +84,7 @@ public class UsernameApiClientImpl: UsernameApiClient {
                 //
                 // Either way, the reservation has been rejected.
                 return .rejected
-            case 413, 429:
+            case 429:
                 return .rateLimited
             default:
                 throw OWSAssertionError("Unexpected status code: \(statusCode)!")
@@ -102,12 +103,12 @@ public class UsernameApiClientImpl: UsernameApiClient {
         encryptedUsernameForLink: Data,
         chatServiceAuth: ChatServiceAuth
     ) -> Promise<Usernames.ApiClientConfirmationResult> {
-        let request = OWSRequestFactory.confirmReservedUsernameRequest(
+        var request = OWSRequestFactory.confirmReservedUsernameRequest(
             reservedUsernameHash: reservedUsername.hashString,
             reservedUsernameZKProof: reservedUsername.proofString,
             encryptedUsernameForLink: encryptedUsernameForLink
         )
-        request.setAuth(chatServiceAuth)
+        request.auth = .identified(chatServiceAuth)
 
         func onRequestSuccess(response: HTTPResponse) throws -> Usernames.ApiClientConfirmationResult {
             guard response.responseStatusCode == 200 else {
@@ -141,7 +142,7 @@ public class UsernameApiClientImpl: UsernameApiClient {
                 //
                 // Either way, we've been rejected.
                 return .rejected
-            case 413, 429:
+            case 429:
                 return .rateLimited
             default:
                 throw OWSAssertionError("Unexpected status code: \(statusCode)")
@@ -150,6 +151,7 @@ public class UsernameApiClientImpl: UsernameApiClient {
 
         return performRequest(
             request: request,
+            canUseWebSocket: false,
             onSuccess: onRequestSuccess,
             onFailure: onRequestFailure
         )
@@ -313,7 +315,7 @@ extension UsernameApiClientImpl {
 }
 
 protocol _UsernameApiClientImpl_NetworkManager_Shim {
-    func makePromise(request: TSRequest) -> Promise<HTTPResponse>
+    func makePromise(request: TSRequest, canUseWebSocket: Bool) -> Promise<HTTPResponse>
 }
 
 class _UsernameApiClientImpl_NetworkManager_Wrapper: _UsernameApiClientImpl_NetworkManager_Shim {
@@ -323,7 +325,7 @@ class _UsernameApiClientImpl_NetworkManager_Wrapper: _UsernameApiClientImpl_Netw
         self.networkManager = networkManager
     }
 
-    func makePromise(request: TSRequest) -> Promise<HTTPResponse> {
-        return networkManager.makePromise(request: request)
+    func makePromise(request: TSRequest, canUseWebSocket: Bool) -> Promise<HTTPResponse> {
+        return networkManager.makePromise(request: request, canUseWebSocket: canUseWebSocket)
     }
 }

@@ -4,6 +4,7 @@
 //
 
 import Foundation
+public import GRDB
 import LibSignalClient
 
 public protocol InteractionStore {
@@ -34,8 +35,8 @@ public protocol InteractionStore {
         tx: DBReadTransaction
     ) -> TSMessage?
 
-    func interactions(
-        withTimestamp timestamp: UInt64,
+    func fetchInteractions(
+        timestamp: UInt64,
         tx: DBReadTransaction
     ) throws -> [TSInteraction]
 
@@ -48,6 +49,12 @@ public protocol InteractionStore {
         tx: DBReadTransaction,
         block: (TSInteraction) throws -> Bool
     ) throws
+
+    func fetchCursor(
+        minRowIdExclusive: Int64?,
+        maxRowIdInclusive: Int64?,
+        tx: DBReadTransaction
+    ) throws -> AnyCursor<TSInteraction>
 
     func insertedMessageHasRenderableContent(
         message: TSMessage,
@@ -107,11 +114,11 @@ public class InteractionStoreImpl: InteractionStore {
 
     // MARK: -
 
-    public func exists(uniqueId: String, tx: any DBReadTransaction) -> Bool {
+    public func exists(uniqueId: String, tx: DBReadTransaction) -> Bool {
         return TSInteraction.anyExists(uniqueId: uniqueId, transaction: SDSDB.shimOnlyBridge(tx))
     }
 
-    public func fetchAllUniqueIds(tx: any DBReadTransaction) -> [String] {
+    public func fetchAllUniqueIds(tx: DBReadTransaction) -> [String] {
         return TSInteraction.anyAllUniqueIds(transaction: SDSDB.shimOnlyBridge(tx))
     }
 
@@ -145,13 +152,12 @@ public class InteractionStoreImpl: InteractionStore {
         )
     }
 
-    public func interactions(
-        withTimestamp timestamp: UInt64,
+    public func fetchInteractions(
+        timestamp: UInt64,
         tx: DBReadTransaction
     ) throws -> [TSInteraction] {
-        return try InteractionFinder.interactions(
-            withTimestamp: timestamp,
-            filter: { _ in true },
+        return try InteractionFinder.fetchInteractions(
+            timestamp: timestamp,
             transaction: SDSDB.shimOnlyBridge(tx)
         )
     }
@@ -161,13 +167,32 @@ public class InteractionStoreImpl: InteractionStore {
         block: (TSInteraction) throws -> Bool
     ) throws {
         let cursor = TSInteraction.grdbFetchCursor(
-            transaction: SDSDB.shimOnlyBridge(tx).unwrapGrdbRead
+            transaction: SDSDB.shimOnlyBridge(tx)
         )
 
         while
             let interaction = try cursor.next(),
             try block(interaction)
         {}
+    }
+
+    public func fetchCursor(
+        minRowIdExclusive: Int64?,
+        maxRowIdInclusive: Int64?,
+        tx: DBReadTransaction
+    ) throws -> AnyCursor<TSInteraction> {
+        let idColumn = Column(InteractionRecord.CodingKeys.id)
+        var query = InteractionRecord
+            .order(idColumn.asc)
+        if let minRowIdExclusive {
+            query = query.filter(idColumn > minRowIdExclusive)
+        }
+        if let maxRowIdInclusive {
+            query = query.filter(idColumn <= maxRowIdInclusive)
+        }
+        let cursor = try query.fetchCursor(tx.database)
+            .map(TSInteraction.fromRecord(_:))
+        return AnyCursor(cursor)
     }
 
     public func insertedMessageHasRenderableContent(
@@ -264,11 +289,11 @@ open class MockInteractionStore: InteractionStore {
 
     // MARK: -
 
-    public func exists(uniqueId: String, tx: any DBReadTransaction) -> Bool {
+    public func exists(uniqueId: String, tx: DBReadTransaction) -> Bool {
         return insertedInteractions.contains { $0.uniqueId == uniqueId }
     }
 
-    public func fetchAllUniqueIds(tx: any DBReadTransaction) -> [String] {
+    public func fetchAllUniqueIds(tx: DBReadTransaction) -> [String] {
         return insertedInteractions.map { $0.uniqueId }
     }
 
@@ -312,8 +337,8 @@ open class MockInteractionStore: InteractionStore {
             .first
     }
 
-    public func interactions(
-        withTimestamp timestamp: UInt64,
+    public func fetchInteractions(
+        timestamp: UInt64,
         tx: DBReadTransaction
     ) throws -> [TSInteraction] {
         return insertedInteractions.filter { $0.timestamp == timestamp }
@@ -328,6 +353,49 @@ open class MockInteractionStore: InteractionStore {
                 return
             }
         }
+    }
+
+    open func fetchCursor(
+        minRowIdExclusive: Int64?,
+        maxRowIdInclusive: Int64?,
+        tx: DBReadTransaction
+    ) throws -> AnyCursor<TSInteraction> {
+        let filtered = insertedInteractions.lazy
+            .filter { interaction in
+                guard let rowId = interaction.sqliteRowId else { return false }
+                if let minRowIdExclusive, rowId <= minRowIdExclusive {
+                    return false
+                }
+                if let maxRowIdInclusive, rowId > maxRowIdInclusive {
+                    return false
+                }
+                return true
+            }
+            .sorted(by: { lhs, rhs in
+                return lhs.sqliteRowId! < rhs.sqliteRowId!
+            })
+
+        class Iterator: IteratorProtocol {
+            var index = 0
+            var array: [TSInteraction]
+
+            init(index: Int = 0, array: [TSInteraction]) {
+                self.index = index
+                self.array = array
+            }
+
+            func next() -> TSInteraction? {
+                guard index < array.count else {
+                    return nil
+                }
+                defer { index += 1 }
+                return array[index]
+            }
+
+            typealias Element = TSInteraction
+        }
+
+        return AnyCursor(iterator: Iterator(array: filtered))
     }
 
     open func insertedMessageHasRenderableContent(
@@ -401,7 +469,7 @@ open class MockInteractionStore: InteractionStore {
         note: String?,
         tx: DBReadTransaction
     ) -> OWSOutgoingArchivedPaymentMessage {
-        owsFail("Not implemented, because this message type really needs an SDSAnyReadTransaction to be initialized, and at the time of writing no caller cares.")
+        owsFail("Not implemented, because this message type really needs an DBReadTransaction to be initialized, and at the time of writing no caller cares.")
     }
 
     open func insertOrReplacePlaceholder(

@@ -38,7 +38,7 @@ final class ShareAppExtensionContext: NSObject {
             forName: NSNotification.Name.NSExtensionHostDidBecomeActive,
             object: nil,
             queue: mainQueue) { [weak self] notification in
-                Logger.info("")
+                Logger.info("NSExtensionHostDidBecomeActive")
                 self?.internalReportedApplicationState = .active
                 BenchManager.bench(
                     title: "Slow post DidBecomeActive",
@@ -52,7 +52,7 @@ final class ShareAppExtensionContext: NSObject {
             forName: NSNotification.Name.NSExtensionHostWillResignActive,
             object: nil,
             queue: mainQueue) { [weak self] notification in
-                Logger.info("")
+                Logger.info("NSExtensionHostWillResignActive")
                 self?.internalReportedApplicationState = .inactive
                 BenchManager.bench(
                     title: "Slow post WillResignActive",
@@ -66,7 +66,7 @@ final class ShareAppExtensionContext: NSObject {
             forName: NSNotification.Name.NSExtensionHostDidEnterBackground,
             object: nil,
             queue: mainQueue) { [weak self] notification in
-                Logger.info("")
+                Logger.info("NSExtensionHostDidEnterBackground")
                 self?.internalReportedApplicationState = .background
                 BenchManager.bench(
                     title: "Slow post DidEnterBackground",
@@ -80,7 +80,7 @@ final class ShareAppExtensionContext: NSObject {
             forName: NSNotification.Name.NSExtensionHostWillEnterForeground,
             object: nil,
             queue: mainQueue) { [weak self] notification in
-                Logger.info("")
+                Logger.info("NSExtensionHostWillEnterForeground")
                 self?.internalReportedApplicationState = .inactive
                 BenchManager.bench(
                     title: "Slow post WillEnterForeground",
@@ -105,6 +105,8 @@ extension ShareAppExtensionContext: AppContext {
 
     var isMainAppAndActive: Bool { false }
 
+    var isMainAppAndActiveIsolated: Bool { false }
+
     var isRTL: Bool { Self.isRTL }
 
     var isRunningTests: Bool { false }
@@ -126,10 +128,6 @@ extension ShareAppExtensionContext: AppContext {
     func beginBackgroundTask(with expirationHandler: BackgroundTaskExpirationHandler) -> UIBackgroundTaskIdentifier { .invalid }
     func endBackgroundTask(_ backgroundTaskIdentifier: UIBackgroundTaskIdentifier) {
         owsAssertBeta(backgroundTaskIdentifier == .invalid)
-    }
-
-    func ensureSleepBlocking(_ shouldBeBlocking: Bool, blockingObjectsDescription: String) {
-        Logger.debug("Ignoring request to block sleep.")
     }
 
     func frontmostViewController() -> UIViewController? {
@@ -186,6 +184,7 @@ extension ShareAppExtensionContext: AppContext {
 
     var debugLogsDirPath: String { DebugLogger.shareExtensionDebugLogsDirPath }
 
+    @MainActor
     func resetAppDataAndExit() -> Never {
         owsFail("Not main app.")
     }

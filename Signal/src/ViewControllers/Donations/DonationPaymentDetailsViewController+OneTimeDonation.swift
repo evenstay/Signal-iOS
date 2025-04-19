@@ -18,8 +18,8 @@ extension DonationPaymentDetailsViewController {
 
         DonationViewsUtil.wrapPromiseInProgressView(
             from: self,
-            promise: firstly(on: DispatchQueue.sharedUserInitiated) {
-                Stripe.boost(
+            promise: Promise.wrapAsync {
+                try await Stripe.boost(
                     amount: amount,
                     level: .boostBadge,
                     for: validForm.stripePaymentMethod
@@ -32,11 +32,11 @@ extension DonationPaymentDetailsViewController {
                             paymentIntentId: confirmedIntent.paymentIntentId,
                             amount: amount
                         )
-                        self.databaseStorage.write { transaction in
+                        SSKEnvironment.shared.databaseStorageRef.write { transaction in
                             do {
                                 try DependenciesBridge.shared.externalPendingIDEALDonationStore.setPendingOneTimeDonation(
                                     donation: donation,
-                                    tx: transaction.asV2Write
+                                    tx: transaction
                                 )
                             } catch {
                                 owsFailDebug("[Donations] Failed to persist pending One-time iDEAL donation")
@@ -53,12 +53,14 @@ extension DonationPaymentDetailsViewController {
             }.then(on: DispatchQueue.sharedUserInitiated) { intentId in
                 Logger.info("[Donations] Creating and redeeming one-time boost receipt")
 
-                return DonationViewsUtil.completeOneTimeDonation(
-                    paymentIntentId: intentId,
-                    amount: amount,
-                    paymentMethod: validForm.donationPaymentMethod,
-                    databaseStorage: self.databaseStorage
-                )
+                return Promise.wrapAsync {
+                    try await DonationViewsUtil.completeOneTimeDonation(
+                        paymentIntentId: intentId,
+                        amount: amount,
+                        paymentMethod: validForm.donationPaymentMethod,
+                        databaseStorage: SSKEnvironment.shared.databaseStorageRef
+                    )
+                }
             }
         ).done(on: DispatchQueue.main) { [weak self] in
             Logger.info("[Donations] One-time donation finished")

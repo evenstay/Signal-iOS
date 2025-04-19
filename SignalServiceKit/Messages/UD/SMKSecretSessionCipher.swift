@@ -8,16 +8,16 @@ public import LibSignalClient
 
 public struct SecretSessionKnownSenderError: Error {
     public let senderAci: Aci
-    public let senderDeviceId: UInt32
+    public let senderDeviceId: DeviceId
     public let cipherType: CiphertextMessage.MessageType
     public let groupId: Data?
     public let unsealedContent: Data
     public let contentHint: UnidentifiedSenderMessageContent.ContentHint
     public let underlyingError: Error
 
-    init(senderAci: Aci, messageContent: UnidentifiedSenderMessageContent, underlyingError: Error) {
+    init(senderAci: Aci, senderDeviceId: DeviceId, messageContent: UnidentifiedSenderMessageContent, underlyingError: Error) {
         self.senderAci = senderAci
-        self.senderDeviceId = messageContent.senderCertificate.sender.deviceId
+        self.senderDeviceId = senderDeviceId
         self.cipherType = messageContent.messageType
         self.groupId = messageContent.groupId.map { Data($0) }
         self.unsealedContent = Data(messageContent.contents)
@@ -45,7 +45,7 @@ public enum SMKMessageType: Int {
 public struct SMKDecryptResult {
     let senderAci: Aci
     let senderE164: String?
-    let senderDeviceId: UInt32
+    let senderDeviceId: DeviceId
     let paddedPayload: Data
     let messageType: SMKMessageType
 }
@@ -104,7 +104,7 @@ public class SMKSecretSessionCipher: NSObject {
 
     public func encryptMessage(
         for serviceId: ServiceId,
-        deviceId: UInt32,
+        deviceId: DeviceId,
         paddedPlaintext: Data,
         contentHint: UnidentifiedSenderMessageContent.ContentHint,
         groupId: Data?,
@@ -174,11 +174,11 @@ public class SMKSecretSessionCipher: NSObject {
         cipherTextData: Data,
         timestamp: UInt64,
         localIdentifiers: LocalIdentifiers,
-        localDeviceId: UInt32,
+        localDeviceId: LocalDeviceId,
         protocolContext: StoreContext?
     ) throws -> SMKDecryptResult {
         guard timestamp > 0 else {
-            throw SMKError.assertionError(description: "\(logTag) invalid timestamp")
+            throw SMKError.assertionError(description: "[\(type(of: self))] invalid timestamp")
         }
 
         // Allow nil contexts for testing.
@@ -190,15 +190,15 @@ public class SMKSecretSessionCipher: NSObject {
         let sender = messageContent.senderCertificate.sender
 
         // NOTE: We use the sender properties from the sender certificate, not from this class' properties.
-        guard sender.deviceId <= Int32.max else {
-            throw SMKError.assertionError(description: "\(logTag) Invalid senderDeviceId.")
+        guard let deviceId = DeviceId(validating: sender.deviceId) else {
+            throw SMKError.assertionError(description: "[\(type(of: self))] Invalid senderDeviceId.")
         }
         guard let senderAci = Aci.parseFrom(aciString: sender.uuidString) else {
-            throw SMKError.assertionError(description: "\(logTag) Invalid senderAci.")
+            throw SMKError.assertionError(description: "[\(type(of: self))] Invalid senderAci.")
         }
 
-        if localIdentifiers.aci == senderAci && sender.deviceId == localDeviceId {
-            Logger.info("Discarding self-sent message")
+        if localIdentifiers.aci == senderAci && localDeviceId.equals(deviceId) {
+            Logger.warn("Discarding self-sent message")
             throw SMKSecretSessionCipherError.selfSentMessage
         }
 
@@ -216,13 +216,14 @@ public class SMKSecretSessionCipher: NSObject {
             return SMKDecryptResult(
                 senderAci: senderAci,
                 senderE164: sender.e164,
-                senderDeviceId: sender.deviceId,
+                senderDeviceId: deviceId,
                 paddedPayload: Data(paddedMessagePlaintext),
                 messageType: SMKMessageType(messageContent.messageType)
             )
         } catch {
             throw SecretSessionKnownSenderError(
                 senderAci: senderAci,
+                senderDeviceId: deviceId,
                 messageContent: messageContent,
                 underlyingError: error
             )
@@ -242,7 +243,7 @@ public class SMKSecretSessionCipher: NSObject {
         // NOTE: We use the sender properties from the sender certificate, not from this class' properties.
         let sender = messageContent.senderCertificate.sender
         guard sender.deviceId >= 0 && sender.deviceId <= Int32.max else {
-            throw SMKError.assertionError(description: "\(logTag) Invalid senderDeviceId.")
+            throw SMKError.assertionError(description: "[\(type(of: self))] Invalid senderDeviceId.")
         }
 
         // switch (message.getType()) {
@@ -283,7 +284,7 @@ public class SMKSecretSessionCipher: NSObject {
             plaintextData = plaintextMessage.body
         case let unknownType:
             throw SMKError.assertionError(
-                description: "\(logTag) Not prepared to handle this message type: \(unknownType.rawValue)")
+                description: "[\(type(of: self))] Not prepared to handle this message type: \(unknownType.rawValue)")
         }
         return Data(plaintextData)
     }

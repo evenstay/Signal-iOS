@@ -20,13 +20,15 @@ class AppSettingsViewController: OWSTableViewController2 {
     }
 
     private var localUsernameState: Usernames.LocalUsernameState!
+    private var localUserProfile: OWSUserProfile?
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        databaseStorage.read { tx in
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
+            updateLocalUserProfile(tx: tx)
             localUsernameState = DependenciesBridge.shared.localUsernameManager
-                .usernameState(tx: tx.asV2Read)
+                .usernameState(tx: tx)
         }
 
         title = OWSLocalizedString("SETTINGS_NAV_BAR_TITLE", comment: "Title for settings activity")
@@ -41,7 +43,7 @@ class AppSettingsViewController: OWSTableViewController2 {
         if let localAci = tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci {
             Task {
                 let profileFetcher = SSKEnvironment.shared.profileFetcherRef
-                _ = try? await profileFetcher.fetchProfile(for: localAci, options: [.opportunistic])
+                _ = try? await profileFetcher.fetchProfile(for: localAci, context: .init(isOpportunistic: true))
             }
         }
 
@@ -62,7 +64,7 @@ class AppSettingsViewController: OWSTableViewController2 {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(subscriptionStateDidChange),
-            name: ReceiptCredentialRedemptionJob.didSucceedNotification,
+            name: DonationReceiptCredentialRedemptionJob.didSucceedNotification,
             object: nil
         )
 
@@ -74,10 +76,17 @@ class AppSettingsViewController: OWSTableViewController2 {
         )
     }
 
+    private func updateLocalUserProfile(tx: DBReadTransaction) {
+        let profileManager = SSKEnvironment.shared.profileManagerRef
+        self.localUserProfile = profileManager.localUserProfile(tx: tx)
+    }
+
     @objc
     private func localProfileDidChange() {
         AssertIsOnMainThread()
 
+        let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+        databaseStorage.read(block: updateLocalUserProfile(tx:))
         updateTableContents()
     }
 
@@ -152,8 +161,10 @@ class AppSettingsViewController: OWSTableViewController2 {
                 icon: .settingsLinkedDevices,
                 withText: OWSLocalizedString("LINKED_DEVICES_TITLE", comment: "Menu item and navbar title for the device manager"),
                 actionBlock: { [weak self] in
-                    let vc = LinkedDevicesTableViewController()
-                    self?.navigationController?.pushViewController(vc, animated: true)
+                    self?.navigationController?.pushViewController(
+                        LinkedDevicesHostingController(),
+                        animated: true
+                    )
                 }
             ))
         }
@@ -224,6 +235,51 @@ class AppSettingsViewController: OWSTableViewController2 {
                 self?.navigationController?.pushViewController(vc, animated: true)
             }
         ))
+#if TESTABLE_BUILD
+        section2.add(.disclosureItem(
+            icon: .backup,
+            withText: OWSLocalizedString("SETTINGS_BACKUPS", comment: "Label for the 'backups' section of app settings."),
+            actionBlock: { [weak self] in
+                guard let self else { return }
+
+                let backupSettingsStore = BackupSettingsStore()
+                let db = InMemoryDB()
+
+                func pushBackupsSettings() {
+                    let vc = BackupSettingsViewController(
+                        backupSettingsStore: backupSettingsStore,
+                        backupSubscriptionManager: DependenciesBridge.shared.backupSubscriptionManager,
+                        dateProvider: { Date() },
+                        db: db,
+                        networkManager: SSKEnvironment.shared.networkManagerRef
+                    )
+                    navigationController?.pushViewController(vc, animated: true)
+                }
+
+                let hasUserEnabledOrDisabledBackups = db.read { tx in
+                    return backupSettingsStore.areBackupsEnabled(tx: tx) != nil
+                }
+
+                if hasUserEnabledOrDisabledBackups {
+                    pushBackupsSettings()
+                } else {
+                    // TODO: Replace with Backups onboarding flow.
+                    OWSActionSheets.showConfirmationAlert(
+                        title: "Signal Backups",
+                        message: "Enable Signal Backups? (This message is dev-only, and nothing beyond here is currently persisted or affects the rest of the app.)",
+                        proceedTitle: "Enable",
+                        proceedAction: { _ in
+                            db.write { tx in
+                                backupSettingsStore.setAreBackupsEnabled(true, tx: tx)
+                            }
+
+                            pushBackupsSettings()
+                        }
+                    )
+                }
+            }
+        ))
+#endif
         section2.add(.disclosureItem(
             icon: .settingsDataUsage,
             withText: OWSLocalizedString("SETTINGS_DATA", comment: "Label for the 'data' section of the app settings."),
@@ -234,7 +290,7 @@ class AppSettingsViewController: OWSTableViewController2 {
         ))
         contents.add(section2)
 
-        if payments.shouldShowPaymentsUI {
+        if SUIEnvironment.shared.paymentsRef.shouldShowPaymentsUI {
             let paymentsSection = OWSTableSection()
             paymentsSection.add(.init(
                 customCellBlock: {
@@ -265,7 +321,7 @@ class AppSettingsViewController: OWSTableViewController2 {
 
                     subviews.append(UIView.hStretchingSpacer())
 
-                    let unreadPaymentsCount = Self.databaseStorage.read { transaction in
+                    let unreadPaymentsCount = SSKEnvironment.shared.databaseStorageRef.read { transaction in
                         PaymentFinder.unreadCount(transaction: transaction)
                     }
                     if unreadPaymentsCount > 0 {
@@ -341,10 +397,8 @@ class AppSettingsViewController: OWSTableViewController2 {
         self.contents = contents
     }
 
-    private var inviteFlow: InviteFlow?
     private func showInviteFlow() {
         let inviteFlow = InviteFlow(presentingViewController: self)
-        self.inviteFlow = inviteFlow
         inviteFlow.present(isAnimated: true, completion: nil)
     }
 
@@ -393,8 +447,6 @@ class AppSettingsViewController: OWSTableViewController2 {
 
     /// A view presenting quick info about the user's profile.
     private func profileCellProfileInfoStack() -> UIView {
-        let snapshot = profileManagerImpl.localProfileSnapshot(shouldIncludeAvatar: false)
-
         let profileInfoStack = UIStackView()
         profileInfoStack.axis = .vertical
         profileInfoStack.spacing = 0
@@ -402,7 +454,7 @@ class AppSettingsViewController: OWSTableViewController2 {
         let nameLabel = UILabel()
         profileInfoStack.addArrangedSubview(nameLabel)
         nameLabel.font = UIFont.dynamicTypeTitle2Clamped.medium()
-        if let fullName = snapshot.fullName, !fullName.isEmpty {
+        if let fullName = localUserProfile?.filteredFullName?.nilIfEmpty {
             nameLabel.text = fullName
             nameLabel.textColor = Theme.primaryTextColor
         } else {
@@ -455,7 +507,7 @@ class AppSettingsViewController: OWSTableViewController2 {
             }
         }
 
-        if let bioText = OWSUserProfile.bioForDisplay(bio: snapshot.bio, bioEmoji: snapshot.bioEmoji) {
+        if let bioText = localUserProfile?.bioForDisplay {
             let bioLabel = addSubtitleLabel(
                 text: bioText,
                 textColor: Theme.secondaryTextAndIconColor
@@ -539,7 +591,7 @@ extension AppSettingsViewController: UsernameLinkScanDelegate {
         }
 
         presentingViewController.dismiss(animated: true) {
-            self.databaseStorage.read { tx in
+            SSKEnvironment.shared.databaseStorageRef.read { tx in
                 UsernameQuerier().queryForUsernameLink(
                     link: usernameLink,
                     fromViewController: presentingViewController,

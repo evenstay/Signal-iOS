@@ -6,23 +6,25 @@
 import Foundation
 
 public protocol ProvisioningSocketDelegate: AnyObject {
-    func provisioningSocket(_ provisioningSocket: ProvisioningSocket, didReceiveDeviceId deviceID: String)
-    func provisioningSocket(_ provisioningSocket: ProvisioningSocket, didReceiveEnvelope envelope: ProvisioningProtoProvisionEnvelope)
+    func provisioningSocket(_ provisioningSocket: ProvisioningSocket, didReceiveProvisioningUuid provisioningUuid: String)
+    func provisioningSocket(_ provisioningSocket: ProvisioningSocket, didReceiveEnvelopeData data: Data)
     func provisioningSocket(_ provisioningSocket: ProvisioningSocket, didError error: Error)
 }
 
 // MARK: -
 
 public class ProvisioningSocket {
-    let socket: SSKWebSocket
+    public let id = UUID()
     public weak var delegate: ProvisioningSocketDelegate?
+
+    let socket: SSKWebSocket
 
     public init(webSocketFactory: WebSocketFactory) {
         // TODO: Should we (sometimes?) use the unidentified service?
         let request = WebSocketRequest(
             signalService: .mainSignalServiceIdentified,
             urlPath: "v1/websocket/provisioning/",
-            urlQueryItems: [URLQueryItem(name: "agent", value: OWSDeviceProvisioner.userAgent)],
+            urlQueryItems: [URLQueryItem(name: "agent", value: LinkingProvisioningMessage.Constants.userAgent)],
             extraHeaders: [:]
         )
         let webSocket = webSocketFactory.buildSocket(request: request, callbackScheduler: DispatchQueue.main)!
@@ -31,8 +33,7 @@ public class ProvisioningSocket {
     }
 
     public convenience init() {
-        struct GlobalDependencies: Dependencies {}
-        self.init(webSocketFactory: GlobalDependencies.webSocketFactory)
+        self.init(webSocketFactory: SSKEnvironment.shared.webSocketFactoryRef)
     }
 
     public var state: SSKWebSocketState {
@@ -96,13 +97,12 @@ extension ProvisioningSocket: SSKWebSocketDelegate {
                 throw OWSAssertionError("body was unexpectedly nil")
             }
             let uuidProto = try ProvisioningProtoProvisioningUuid(serializedData: body)
-            delegate?.provisioningSocket(self, didReceiveDeviceId: uuidProto.uuid)
+            delegate?.provisioningSocket(self, didReceiveProvisioningUuid: uuidProto.uuid)
         case ("PUT", "/v1/message"):
             guard let body = request.body else {
                 throw OWSAssertionError("body was unexpectedly nil")
             }
-            let envelopeProto = try ProvisioningProtoProvisionEnvelope(serializedData: body)
-            delegate?.provisioningSocket(self, didReceiveEnvelope: envelopeProto)
+            delegate?.provisioningSocket(self, didReceiveEnvelopeData: body)
         default:
             throw OWSAssertionError("unexpected request: \(request)")
         }

@@ -18,10 +18,10 @@ NS_ASSUME_NONNULL_BEGIN
                             sortId:(uint64_t)sortId
                          timestamp:(uint64_t)timestamp
                     uniqueThreadId:(NSString *)uniqueThreadId
-                     attachmentIds:(NSArray<NSString *> *)attachmentIds
                               body:(nullable NSString *)body
                         bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                       contactShare:(nullable OWSContact *)contactShare
+          deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                          editState:(TSEditState)editState
                    expireStartedAt:(uint64_t)expireStartedAt
                 expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -62,14 +62,14 @@ NS_ASSUME_NONNULL_BEGIN
                           additionalRecipients:(NSArray<SignalServiceAddress *> *)additionalRecipients
                             explicitRecipients:(NSArray<AciObjC *> *)explicitRecipients
                              skippedRecipients:(NSArray<SignalServiceAddress *> *)skippedRecipients
-                                   transaction:(SDSAnyReadTransaction *)transaction NS_UNAVAILABLE;
+                                   transaction:(DBReadTransaction *)transaction NS_UNAVAILABLE;
 
 - (instancetype)initWithContactThread:(TSContactThread *)contactThread
-                          transaction:(SDSAnyReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
+                          transaction:(DBReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)initWithContactThread:(TSContactThread *)contactThread
          verificationStateSyncMessage:(OWSVerificationStateSyncMessage *)verificationStateSyncMessage
-                          transaction:(SDSAnyReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
+                          transaction:(DBReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
 ;
 
 @end

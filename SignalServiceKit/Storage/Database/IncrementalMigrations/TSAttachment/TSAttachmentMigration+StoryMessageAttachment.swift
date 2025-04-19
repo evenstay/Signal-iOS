@@ -26,7 +26,7 @@ extension TSAttachmentMigration {
     enum StoryMessageMigration {
 
         /// Phase 1
-        static func prepareStoryMessageMigration(tx: GRDBWriteTransaction) throws {
+        static func prepareStoryMessageMigration(tx: DBWriteTransaction) throws {
             let storyMessageCursor = try Row.fetchCursor(
                 tx.database,
                 sql: "SELECT id, attachment FROM model_StoryMessage"
@@ -36,11 +36,11 @@ extension TSAttachmentMigration {
             while let storyMessageRow = try storyMessageCursor.next() {
                 guard
                     let storyMessageRowId = storyMessageRow["id"] as? Int64,
-                    let storyAttachmentString = storyMessageRow["attachment"] as? String,
-                    let storyMessageAttachmentData = storyAttachmentString.data(using: .utf8)
+                    let storyAttachmentString = storyMessageRow["attachment"] as? String
                 else {
                     throw OWSAssertionError("Unexpected row format")
                 }
+                let storyMessageAttachmentData = Data(storyAttachmentString.utf8)
                 let storyAttachment = try decoder.decode(
                     TSAttachmentMigration.SerializedStoryMessageAttachment.self,
                     from: storyMessageAttachmentData
@@ -60,7 +60,7 @@ extension TSAttachmentMigration {
         }
 
         /// Phase 2
-        static func completeStoryMessageMigration(tx: GRDBWriteTransaction) throws {
+        static func completeStoryMessageMigration(tx: DBWriteTransaction) throws {
             let decoder = JSONDecoder()
             let encoder = JSONEncoder()
             let reservedFileIdsCursor = try TSAttachmentMigration.V1AttachmentReservedFileIds
@@ -76,20 +76,18 @@ extension TSAttachmentMigration {
                     sql: "SELECT attachment FROM model_StoryMessage WHERE id = ?;",
                     arguments: [storyMessageRowId]
                 )
-                guard
-                    let storyAttachmentString,
-                    let storyMessageAttachmentData = storyAttachmentString.data(using: .utf8)
-                else {
-                    try reservedFileIds.cleanUpFiles()
+                guard let storyAttachmentString else {
+                    reservedFileIds.cleanUpFiles()
                     continue
                 }
+                let storyMessageAttachmentData = Data(storyAttachmentString.utf8)
                 // The `attachment` column is a SerializedStoryMessageAttachment encoded as a JSON string.
                 let storyAttachment = try decoder.decode(
                     TSAttachmentMigration.SerializedStoryMessageAttachment.self,
                     from: storyMessageAttachmentData
                 )
                 guard let tsAttachmentUniqueId = storyAttachment.tsAttachmentUniqueId else {
-                    try reservedFileIds.cleanUpFiles()
+                    reservedFileIds.cleanUpFiles()
                     continue
                 }
                 try Self.migrateStoryMessageAttachment(
@@ -136,12 +134,14 @@ extension TSAttachmentMigration {
                 .filter(Column("storyMessageRowId") != nil)
                 .deleteAll(tx.database)
 
-            tx.addAsyncCompletion(queue: .global()) {
-                // Delete the files asynchronously after committing the tx. We can't do it
-                // inside the tx because if the tx is rolled back we DON'T want the files gone.
-                // This does mean we might fail to delete the files; we will delete the whole
-                // TSAttachment folder after migrating everything anyway so its not a huge deal.
-                deletedAttachments.forEach { try? $0.deleteFiles() }
+            tx.addSyncCompletion {
+                Task {
+                    // Delete the files asynchronously after committing the tx. We can't do it
+                    // inside the tx because if the tx is rolled back we DON'T want the files gone.
+                    // This does mean we might fail to delete the files; we will delete the whole
+                    // TSAttachment folder after migrating everything anyway so its not a huge deal.
+                    deletedAttachments.forEach { try? $0.deleteFiles() }
+                }
             }
         }
 
@@ -151,13 +151,13 @@ extension TSAttachmentMigration {
             storyAttachment: TSAttachmentMigration.SerializedStoryMessageAttachment,
             storyMessageRowId: Int64,
             tsAttachmentUniqueId: String,
-            tx: GRDBWriteTransaction
+            tx: DBWriteTransaction
         ) throws {
             let oldAttachment = try TSAttachmentMigration.V1Attachment
                 .filter(Column("uniqueId") == tsAttachmentUniqueId)
                 .fetchOne(tx.database)
             guard let oldAttachment else {
-                try reservedFileIds.cleanUpFiles()
+                reservedFileIds.cleanUpFiles()
                 return
             }
 
@@ -181,14 +181,14 @@ extension TSAttachmentMigration {
                 } catch {
                     Logger.error("Failed to read story attachment file \((error as NSError).domain) \((error as NSError).code)")
                     // Clean up files just in case.
-                    try reservedFileIds.cleanUpFiles()
+                    reservedFileIds.cleanUpFiles()
                     pendingAttachment = nil
                 }
             } else {
                 // A pointer; no validation needed.
                 pendingAttachment = nil
                 // Clean up files just in case.
-                try reservedFileIds.cleanUpFiles()
+                reservedFileIds.cleanUpFiles()
             }
 
             let v2AttachmentId: Int64
@@ -202,7 +202,7 @@ extension TSAttachmentMigration {
                 // create new references to it and drop the pending attachment.
                 v2AttachmentId = existingV2Attachment.id!
                 // Delete the reserved files being used by the pending attachment.
-                try reservedFileIds.cleanUpFiles()
+                reservedFileIds.cleanUpFiles()
             } else {
                 var v2Attachment: TSAttachmentMigration.V2Attachment
                 if let pendingAttachment {

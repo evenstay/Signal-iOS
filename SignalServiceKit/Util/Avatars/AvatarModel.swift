@@ -94,8 +94,6 @@ public enum AvatarIcon: String, CaseIterable {
 
     public var imageName: String { "avatar_\(rawValue)"}
 
-    // todo: real names / final icons
-
     public static var defaultGroupIcons: [AvatarIcon] = [
         .heart,
         .house,
@@ -141,6 +139,8 @@ public enum AvatarTheme: String, CaseIterable {
     case A200
     case A210
 
+    public static var `default`: AvatarTheme { .A100 }
+
     public var foregroundColor: UIColor {
         switch self {
         case .A100: return UIColor(rgbHex: 0x3838F5)
@@ -174,49 +174,8 @@ public enum AvatarTheme: String, CaseIterable {
         case .A210: return UIColor(rgbHex: 0xD7D7D9)
         }
     }
-}
 
-// MARK: - Avatar Colors
-
-public extension AvatarTheme {
-    static var `default`: AvatarTheme { .A100 }
-
-    static func forThread(_ thread: TSThread) -> AvatarTheme {
-        if let contactThread = thread as? TSContactThread {
-            return forAddress(contactThread.contactAddress)
-        } else if let groupThread = thread as? TSGroupThread {
-            return forGroupId(groupThread.groupId)
-        } else {
-            owsFailDebug("Invalid thread.")
-            return Self.default
-        }
-    }
-
-    static func forGroupModel(_ groupModel: TSGroupModel) -> AvatarTheme {
-        forGroupId(groupModel.groupId)
-    }
-
-    static func forGroupId(_ groupId: Data) -> AvatarTheme {
-        forData(groupId)
-    }
-
-    static func forAddress(_ address: SignalServiceAddress) -> AvatarTheme {
-        guard let seed = address.serviceIdentifier else {
-            owsFailDebug("Missing serviceIdentifier.")
-            return Self.default
-        }
-        return forSeed(seed)
-    }
-
-    static func forSeed(_ seed: String) -> AvatarTheme {
-        guard let data = seed.data(using: .utf8) else {
-            owsFailDebug("Invalid seed.")
-            return Self.default
-        }
-        return forData(data)
-    }
-
-    static func forIcon(_ icon: AvatarIcon) -> AvatarTheme {
+    public static func forIcon(_ icon: AvatarIcon) -> AvatarTheme {
         switch icon {
         case .abstract01: return .A130
         case .abstract02: return .A120
@@ -244,42 +203,119 @@ public extension AvatarTheme {
         case .football: return .A210
         }
     }
-
-    private static func forData(_ data: Data) -> AvatarTheme {
-        var hash: UInt = 0
-        for value in data {
-            // A primitive hashing function.
-            // We only require it to be stable and fast.
-            hash = hash.rotateLeft(3) ^ UInt(value)
-        }
-        let values = AvatarTheme.allCases
-        guard let value = values[safe: Int(hash % UInt(values.count))] else {
-            owsFailDebug("Could not determine avatar color.")
-            return Self.default
-        }
-        return value
-    }
 }
 
 // MARK: -
 
-extension UInt {
-    public static let is64bit = { UInt.bitWidth == UInt64.bitWidth }()
-    public static let is32bit = { UInt.bitWidth == UInt32.bitWidth }()
-
-    public static let highestBit: UInt = {
-        if is32bit {
-            return UInt(1).rotateLeft(31)
-        } else if is64bit {
-            return UInt(1).rotateLeft(63)
-        } else {
-            owsFail("Unexpected UInt width.")
+extension AvatarTheme {
+    var asStorageServiceProtoAvatarColor: StorageServiceProtoAvatarColor {
+        return switch self {
+        case .A100: .a100
+        case .A110: .a110
+        case .A120: .a120
+        case .A130: .a130
+        case .A140: .a140
+        case .A150: .a150
+        case .A160: .a160
+        case .A170: .a170
+        case .A180: .a180
+        case .A190: .a190
+        case .A200: .a200
+        case .A210: .a210
         }
-    }()
+    }
 
-    // <<<
-    public func rotateLeft(_ count: Int) -> UInt {
-        let count = count % UInt.bitWidth
-        return (self << count) | (self >> (UInt.bitWidth - count))
+    static func from(storageServiceProtoAvatarColor: StorageServiceProtoAvatarColor) -> AvatarTheme? {
+        return switch storageServiceProtoAvatarColor {
+        case .a100: .A100
+        case .a110: .A110
+        case .a120: .A120
+        case .a130: .A130
+        case .a140: .A140
+        case .a150: .A150
+        case .a160: .A160
+        case .a170: .A170
+        case .a180: .A180
+        case .a190: .A190
+        case .a200: .A200
+        case .a210: .A210
+        case .UNRECOGNIZED: nil
+        }
+    }
+}
+
+// MARK: - Avatar Gradients
+
+public struct AvatarGradient: Equatable {
+    let id: Int
+    let topColor: UIColor
+    let bottomColor: UIColor
+
+    init(id: Int, topHex: UInt32, bottomHex: UInt32) {
+        self.id = id
+        self.topColor = UIColor(rgbHex: topHex)
+        self.bottomColor = UIColor(rgbHex: bottomHex)
+    }
+
+    static let gradients: [AvatarGradient] = [
+        AvatarGradient(id: 00, topHex: 0x252568, bottomHex: 0x9C8F8F),
+        AvatarGradient(id: 01, topHex: 0x2A4275, bottomHex: 0x9D9EA1),
+        AvatarGradient(id: 02, topHex: 0x2E4B5F, bottomHex: 0x8AA9B1),
+        AvatarGradient(id: 03, topHex: 0x2E426C, bottomHex: 0x7A9377),
+        AvatarGradient(id: 04, topHex: 0x1A341A, bottomHex: 0x807F6E),
+        AvatarGradient(id: 05, topHex: 0x464E42, bottomHex: 0xD5C38F),
+        AvatarGradient(id: 06, topHex: 0x595643, bottomHex: 0x93A899),
+        AvatarGradient(id: 07, topHex: 0x2C2F36, bottomHex: 0x687466),
+        AvatarGradient(id: 08, topHex: 0x2B1E18, bottomHex: 0x968980),
+        AvatarGradient(id: 09, topHex: 0x7B7067, bottomHex: 0xA5A893),
+        AvatarGradient(id: 10, topHex: 0x706359, bottomHex: 0xBDA194),
+        AvatarGradient(id: 11, topHex: 0x383331, bottomHex: 0xA48788),
+        AvatarGradient(id: 12, topHex: 0x924F4F, bottomHex: 0x897A7A),
+        AvatarGradient(id: 13, topHex: 0x663434, bottomHex: 0xC58D77),
+        AvatarGradient(id: 14, topHex: 0x8F4B02, bottomHex: 0xAA9274),
+        AvatarGradient(id: 15, topHex: 0x784747, bottomHex: 0x8C8F6F),
+        AvatarGradient(id: 16, topHex: 0x747474, bottomHex: 0xACACAC),
+        AvatarGradient(id: 17, topHex: 0x49484C, bottomHex: 0xA5A6B5),
+        AvatarGradient(id: 18, topHex: 0x4A4E4D, bottomHex: 0xABAFAE),
+        AvatarGradient(id: 19, topHex: 0x3A3A3A, bottomHex: 0x929887),
+    ]
+}
+
+// MARK: -
+
+extension AvatarTheme {
+    var asBackupProtoAvatarColor: BackupProto_AvatarColor {
+        return switch self {
+        case .A100: .a100
+        case .A110: .a110
+        case .A120: .a120
+        case .A130: .a130
+        case .A140: .a140
+        case .A150: .a150
+        case .A160: .a160
+        case .A170: .a170
+        case .A180: .a180
+        case .A190: .a190
+        case .A200: .a200
+        case .A210: .a210
+        }
+    }
+
+    static func from(backupProtoAvatarColor: BackupProto_AvatarColor) -> AvatarTheme? {
+        return switch backupProtoAvatarColor {
+        case .a100: .A100
+        case .a110: .A110
+        case .a120: .A120
+        case .a130: .A130
+        case .a140: .A140
+        case .a150: .A150
+        case .a160: .A160
+        case .a170: .A170
+        case .a180: .A180
+        case .a190: .A190
+        case .a200: .A200
+        case .a210: .A210
+        case .UNRECOGNIZED: nil
+        }
     }
 }

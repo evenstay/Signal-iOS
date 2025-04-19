@@ -8,9 +8,9 @@ import Foundation
 public class UsernameValidationObserver {
     private let appReadiness: AppReadiness
     private let manager: UsernameValidationManager
-    private let database: DB
+    private let database: any DB
 
-    public init(appReadiness: AppReadiness, manager: UsernameValidationManager, database: DB) {
+    public init(appReadiness: AppReadiness, manager: UsernameValidationManager, database: any DB) {
         self.appReadiness = appReadiness
         self.manager = manager
         self.database = database
@@ -18,8 +18,8 @@ public class UsernameValidationObserver {
         observeNotifications()
 
         appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
-            self.database.read { transaction in
-                self.manager.validateUsernameIfNecessary(transaction)
+            Task {
+                await self.manager.validateUsernameIfNecessary()
             }
         }
     }
@@ -38,8 +38,8 @@ public class UsernameValidationObserver {
     func didBecomeActive() {
         AssertIsOnMainThread()
         appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
-            self.database.read { transaction in
-                self.manager.validateUsernameIfNecessary(transaction)
+            Task {
+                await self.manager.validateUsernameIfNecessary()
             }
         }
     }

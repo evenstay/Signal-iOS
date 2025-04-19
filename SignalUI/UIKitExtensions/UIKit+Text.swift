@@ -37,13 +37,26 @@ public extension UITextView {
     }
 }
 
-extension UITextInputTraits {
+extension UITextView {
     public func disableAiWritingTools() {
         if #available(iOS 18, *) {
-            let setWritingToolsBehavior = #selector(setter: writingToolsBehavior)
-            if self.responds(to: setWritingToolsBehavior) {
-                self.perform(setWritingToolsBehavior, with: UIWritingToolsBehavior.none)
-            }
+            self.writingToolsBehavior = .none
+        }
+    }
+}
+
+extension UITextField {
+    public func disableAiWritingTools() {
+        if #available(iOS 18, *) {
+            self.writingToolsBehavior = .none
+        }
+    }
+}
+
+extension UISearchBar {
+    public func disableAiWritingTools() {
+        if #available(iOS 18, *) {
+            self.writingToolsBehavior = .none
         }
     }
 }

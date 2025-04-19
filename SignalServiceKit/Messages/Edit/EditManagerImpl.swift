@@ -13,7 +13,7 @@ public class EditManagerImpl: EditManager {
 
         // Edits will only be received for up to 48 hours from the
         // original message
-        static let editWindowMilliseconds: UInt64 = UInt64(kHourInterval * 48 * 1000)
+        static let editWindowMilliseconds: UInt64 = 2 * UInt64.dayInMs
 
         // Receiving more than this number of edits on the same message
         // will result in subsequent edits being dropped
@@ -23,31 +23,31 @@ public class EditManagerImpl: EditManager {
 
         // Edits can only be sent for up to 24 hours from the
         // original message
-        static let editSendWindowMilliseconds: UInt64 = UInt64(kHourInterval * 24 * 1000)
+        static let editSendWindowMilliseconds: UInt64 = UInt64.dayInMs
 
         // Message can only be edited 10 times
         static let maxSendEdits: UInt = UInt(10)
     }
 
     public struct Context {
+        let attachmentStore: AttachmentStore
         let dataStore: EditManagerImpl.Shims.DataStore
-        let editManagerAttachments: EditManagerTSResources
+        let editManagerAttachments: EditManagerAttachments
         let editMessageStore: EditMessageStore
         let receiptManagerShim: EditManagerImpl.Shims.ReceiptManager
-        let tsResourceStore: TSResourceStore
 
         public init(
+            attachmentStore: AttachmentStore,
             dataStore: EditManagerImpl.Shims.DataStore,
-            editManagerAttachments: EditManagerTSResources,
+            editManagerAttachments: EditManagerAttachments,
             editMessageStore: EditMessageStore,
-            receiptManagerShim: EditManagerImpl.Shims.ReceiptManager,
-            tsResourceStore: TSResourceStore
+            receiptManagerShim: EditManagerImpl.Shims.ReceiptManager
         ) {
+            self.attachmentStore = attachmentStore
             self.dataStore = dataStore
             self.editManagerAttachments = editManagerAttachments
             self.editMessageStore = editMessageStore
             self.receiptManagerShim = receiptManagerShim
-            self.tsResourceStore = tsResourceStore
         }
     }
 
@@ -148,6 +148,13 @@ public class EditManagerImpl: EditManager {
             return .messageTypeNotSupported
         }
 
+        // isVoiceMessage is only available on outgoing messages, so make this check
+        // here instead of in 'editMessageTypeSupported'.  For incoming edits, this
+        // voice message check is done by inspecting the incoming attachments.
+        if message.isVoiceMessage {
+            return .messageTypeNotSupported
+        }
+
         if !thread.isNoteToSelf {
             let (result, isOverflow) = interaction.timestamp.addingReportingOverflow(Constants.editSendWindowMilliseconds)
             guard !isOverflow && Date.ows_millisecondTimestamp() <= result else {
@@ -198,9 +205,9 @@ public class EditManagerImpl: EditManager {
         targetMessage: TSOutgoingMessage,
         thread: TSThread,
         edits: MessageEdits,
-        oversizeText: OversizeTextDataSource?,
+        oversizeText: AttachmentDataSource?,
         quotedReplyEdit: MessageEdits.Edit<Void>,
-        linkPreview: LinkPreviewTSResourceDataSource?,
+        linkPreview: LinkPreviewDataSource?,
         tx: DBWriteTransaction
     ) throws -> OutgoingEditMessage {
         guard let threadRowId = thread.sqliteRowId else {
@@ -306,7 +313,11 @@ public class EditManagerImpl: EditManager {
             pastRevisionId: priorRevisionRowId,
             read: editTargetWrapper.wasRead
         )
-        context.editMessageStore.insert(editRecord, tx: tx)
+        do {
+            try context.editMessageStore.insert(editRecord, tx: tx)
+        } catch {
+            owsFailDebug("Unexpected edit record insertion error \(error)")
+        }
 
         return latestRevisionMessage
     }
@@ -402,14 +413,14 @@ public class EditManagerImpl: EditManager {
             throw OWSAssertionError("Edit of message type not supported")
         }
 
-        let currentAttachmentRefs = context.tsResourceStore.bodyMediaAttachments(
-            for: targetMessage,
+        let firstAttachmentRef = context.attachmentStore.fetchFirstReference(
+            owner: .messageBodyAttachment(messageRowId: targetMessage.sqliteRowId!),
             tx: tx
         )
 
         // Voice memos only ever have one attachment; only need to check the first.
         if
-            let firstAttachmentRef = currentAttachmentRefs.first,
+            let firstAttachmentRef,
             firstAttachmentRef.renderingFlag == .voiceMessage
         {
             // This will bail if it finds a voice memo

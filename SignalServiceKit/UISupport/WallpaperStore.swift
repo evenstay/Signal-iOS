@@ -15,16 +15,12 @@ public class WallpaperStore {
     private let wallpaperImageStore: WallpaperImageStore
     private let enumStore: KeyValueStore
     private let dimmingStore: KeyValueStore
-    private let notificationScheduler: Scheduler
 
     init(
-        keyValueStoreFactory: KeyValueStoreFactory,
-        notificationScheduler: Scheduler,
         wallpaperImageStore: WallpaperImageStore
     ) {
-        self.enumStore = keyValueStoreFactory.keyValueStore(collection: "Wallpaper+Enum")
-        self.dimmingStore = keyValueStoreFactory.keyValueStore(collection: "Wallpaper+Dimming")
-        self.notificationScheduler = notificationScheduler
+        self.enumStore = KeyValueStore(collection: "Wallpaper+Enum")
+        self.dimmingStore = KeyValueStore(collection: "Wallpaper+Dimming")
         self.wallpaperImageStore = wallpaperImageStore
     }
 
@@ -131,8 +127,8 @@ public class WallpaperStore {
     }
 
     private func postWallpaperDidChangeNotification(for threadUniqueId: String?, tx: DBWriteTransaction) {
-        tx.addAsyncCompletion(on: notificationScheduler) {
-            NotificationCenter.default.post(name: Self.wallpaperDidChangeNotification, object: threadUniqueId)
+        tx.addSyncCompletion {
+            NotificationCenter.default.postOnMainThread(name: Self.wallpaperDidChangeNotification, object: threadUniqueId)
         }
     }
 }

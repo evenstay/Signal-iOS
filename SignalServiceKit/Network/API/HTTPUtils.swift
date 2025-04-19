@@ -29,24 +29,45 @@ private extension Dictionary where Key == String {
     }
 }
 
-class HTTPUtils: Dependencies {
+public class HTTPUtils {
     #if TESTABLE_BUILD
-    public static func logCurl(for task: URLSessionTask) {
-        guard let request = task.originalRequest else {
-            Logger.debug("attempted to log curl on a task with no original request")
-            return
-        }
-        logCurl(for: request)
-    }
-
     public static func logCurl(for request: URLRequest) {
         guard let httpMethod = request.httpMethod else {
             Logger.debug("attempted to log curl on a request with no http method")
             return
         }
+        guard let url = request.url else {
+            Logger.debug("attempted to log curl on a request with no url")
+            return
+        }
+        logCurl(
+            url: url,
+            method: httpMethod,
+            headers: HttpHeaders(httpHeaders: request.allHTTPHeaderFields, overwriteOnConflict: true),
+            body: request.httpBody
+        )
+    }
+
+    public static func logCurl(for request: TSRequest) {
+        logCurl(
+            url: request.url,
+            method: request.method,
+            headers: request.headers,
+            body: {
+                switch request.body {
+                case .data(let bodyData):
+                    return bodyData
+                case .parameters(_):
+                    return nil
+                }
+            }()
+        )
+    }
+
+    public static func logCurl(url: URL, method httpMethod: String, headers: HttpHeaders, body httpBody: Data?) {
         var curlComponents = ["curl", "-v", "-k", "-X", httpMethod]
 
-        for (header, headerValue) in request.allHTTPHeaderFields ?? [:] {
+        for (header, headerValue) in headers.headers {
             // We don't yet support escaping header values.
             // If these asserts trip, we'll need to add that.
             owsAssertDebug(!header.contains("'"))
@@ -56,9 +77,8 @@ class HTTPUtils: Dependencies {
             curlComponents.append("'\(header): \(headerValue)'")
         }
 
-        if let httpBody = request.httpBody,
-           !httpBody.isEmpty {
-            let contentType = request.allHTTPHeaderFields?[header: "Content-Type"]
+        if let httpBody, !httpBody.isEmpty {
+            let contentType = headers["Content-Type"]
             switch contentType {
             case MimeType.applicationJson.rawValue:
                 guard let jsonBody = String(data: httpBody, encoding: .utf8) else {
@@ -87,10 +107,6 @@ class HTTPUtils: Dependencies {
 
         }
         // TODO: Add support for cookies.
-        guard let url = request.url else {
-            Logger.debug("attempted to log curl on a request with no url")
-            return
-        }
         curlComponents.append("\"\(url.absoluteString)\"")
         let curlCommand = curlComponents.joined(separator: " ")
         Logger.verbose("curl for request: \(curlCommand)")
@@ -104,7 +120,7 @@ class HTTPUtils: Dependencies {
         request: TSRequest,
         requestUrl: URL,
         responseStatus: Int,
-        responseHeaders: OWSHttpHeaders,
+        responseHeaders: HttpHeaders,
         responseData: Data?
     ) -> OWSHTTPError {
         let httpError = HTTPUtils.buildServiceError(
@@ -118,7 +134,7 @@ class HTTPUtils: Dependencies {
         applyHTTPError(httpError)
 
 #if TESTABLE_BUILD
-        HTTPUtils.logCurl(for: request as URLRequest)
+        HTTPUtils.logCurl(for: request)
 #endif
 
         return httpError
@@ -129,7 +145,7 @@ class HTTPUtils: Dependencies {
     public static func applyHTTPError(_ httpError: OWSHTTPError) {
 
         if httpError.isNetworkConnectivityError {
-            Self.outageDetection.reportConnectionFailure()
+            OutageDetection.shared.reportConnectionFailure()
         }
 
         if httpError.responseStatusCode == AppExpiryImpl.appExpiredStatusCode {
@@ -139,11 +155,24 @@ class HTTPUtils: Dependencies {
         }
     }
 
+    public static func retryDelayNanoSeconds(_ response: HTTPResponse, defaultRetryTime: TimeInterval = 15) -> UInt64 {
+        let retryAfter: TimeInterval
+        if
+            let retryAfterHeader = response.headers["retry-after"],
+            let retryAfterTime = TimeInterval(retryAfterHeader)
+        {
+            retryAfter = retryAfterTime
+        } else {
+            retryAfter = defaultRetryTime
+        }
+        return UInt64(retryAfter * 1000) * NSEC_PER_MSEC
+    }
+
     private static func buildServiceError(
         request: TSRequest,
         requestUrl: URL,
         responseStatus: Int,
-        responseHeaders: OWSHttpHeaders,
+        responseHeaders: HttpHeaders,
         responseData: Data?
     ) -> OWSHTTPError {
 
@@ -166,18 +195,10 @@ class HTTPUtils: Dependencies {
 
         switch responseStatus {
         case 0:
-            return .networkFailure(requestUrl: requestUrl)
-        case 413, 429:
+            return .networkFailure(.invalidResponseStatus)
+        case 429:
             let description = OWSLocalizedString("REGISTER_RATE_LIMITING_ERROR", comment: "")
             let recoverySuggestion = OWSLocalizedString("REGISTER_RATE_LIMITING_BODY", comment: "")
-            return buildServiceResponseError(
-                localizedDescription: description,
-                localizedRecoverySuggestion: recoverySuggestion
-            )
-        case 417:
-            // TODO: Is this response code obsolete?
-            let description = OWSLocalizedString("REGISTRATION_ERROR", comment: "")
-            let recoverySuggestion = OWSLocalizedString("RELAY_REGISTERED_ERROR_RECOVERY", comment: "")
             return buildServiceResponseError(
                 localizedDescription: description,
                 localizedRecoverySuggestion: recoverySuggestion
@@ -203,15 +224,8 @@ public extension Error {
         HTTPUtils.httpStatusCode(forError: self)
     }
 
-    var httpRequestUrl: URL? {
-        guard let error = self as? HTTPError else {
-            return nil
-        }
-        return error.requestUrl
-    }
-
-    var httpResponseHeaders: OWSHttpHeaders? {
-        guard let error = self as? HTTPError else {
+    var httpResponseHeaders: HttpHeaders? {
+        guard let error = self as? OWSHTTPError else {
             return nil
         }
         return error.responseHeaders
@@ -243,26 +257,6 @@ public extension Error {
             return false
         }
         return 400 <= statusCode && statusCode <= 499
-    }
-}
-
-// MARK: -
-
-public extension NSError {
-    @objc
-    @available(swift, obsoleted: 1.0)
-    var httpStatusCode: NSNumber? {
-        guard let statusCode = HTTPUtils.httpStatusCode(forError: self) else {
-            return nil
-        }
-        owsAssertDebug(statusCode > 0)
-        return NSNumber(value: statusCode)
-    }
-
-    @objc
-    @available(swift, obsoleted: 1.0)
-    var isNetworkFailureOrTimeout: Bool {
-        HTTPUtils.isNetworkFailureOrTimeout(forError: self)
     }
 }
 
@@ -333,6 +327,7 @@ fileprivate extension HTTPUtils {
         case PaymentsError.timeout: return true
         case SignalError.connectionTimeoutError: return true
         case SignalError.connectionFailed: return true
+        case StorageService.StorageError.networkError: return true
         default: return false
         }
     }
@@ -370,21 +365,7 @@ public func owsFailBetaUnlessNetworkFailure(
 
 // MARK: -
 
-extension NSError {
-    @objc
-    public func matchesDomainAndCode(of other: NSError) -> Bool {
-        other.hasDomain(domain, code: code)
-    }
-
-    @objc
-    public func hasDomain(_ domain: String, code: Int) -> Bool {
-        self.domain == domain && self.code == code
-    }
-}
-
-// MARK: -
-
-extension OWSHttpHeaders {
+extension HttpHeaders {
 
     // fallback retry-after delay if we fail to parse a non-empty retry-after string
     private static var kOWSFallbackRetryAfter: TimeInterval { 60 }

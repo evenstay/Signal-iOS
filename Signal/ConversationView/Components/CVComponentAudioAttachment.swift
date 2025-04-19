@@ -12,8 +12,8 @@ public class CVComponentAudioAttachment: CVComponentBase, CVComponent {
 
     private let audioAttachment: AudioAttachment
     private let nextAudioAttachment: AudioAttachment?
-    private var attachment: TSResource { audioAttachment.attachment }
-    private var attachmentStream: TSResourceStream? { audioAttachment.attachmentStream?.attachmentStream }
+    private var attachment: Attachment { audioAttachment.attachment }
+    private var attachmentStream: AttachmentStream? { audioAttachment.attachmentStream?.attachmentStream }
     private let footerOverlay: CVComponent?
 
     init(itemModel: CVItemModel, audioAttachment: AudioAttachment, nextAudioAttachment: AudioAttachment?, footerOverlay: CVComponent?) {
@@ -23,7 +23,12 @@ public class CVComponentAudioAttachment: CVComponentBase, CVComponent {
 
         super.init(itemModel: itemModel)
 
-        databaseStorage.appendDatabaseChangeDelegate(self)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            // TODO: This type isn't well-equipped to implement this logic.
+            DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
+            self.checkIfMessageStillExists()
+        }
     }
 
     public func buildComponentView(componentDelegate: CVComponentDelegate) -> CVComponentView {
@@ -93,7 +98,7 @@ public class CVComponentAudioAttachment: CVComponentBase, CVComponent {
 
         // Listen for when our audio attachment finishes playing, so we can
         // start playing the next attachment.
-        cvAudioPlayer.addListener(self)
+        AppEnvironment.shared.cvAudioPlayerRef.addListener(self)
     }
 
     private var stackViewConfig: CVStackViewConfig {
@@ -140,14 +145,18 @@ public class CVComponentAudioAttachment: CVComponentBase, CVComponent {
 
     /// Checks if the message still exists and stops playback if it does not.
     private func checkIfMessageStillExists() {
-        let messageWasDeleted = databaseStorage.read { tx in
-            TSInteraction.anyFetch(uniqueId: interaction.uniqueId, transaction: tx) == nil
+        guard AppEnvironment.shared.cvAudioPlayerRef.audioPlaybackState(forAttachmentId: attachment.id) == .playing else {
+            return
         }
 
-        if messageWasDeleted,
-           cvAudioPlayer.audioPlaybackState(forAttachmentId: attachment.resourceId) == .playing {
-            cvAudioPlayer.stopAll()
+        let messageWasDeleted = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            TSInteraction.anyFetch(uniqueId: interaction.uniqueId, transaction: tx) == nil
         }
+        guard messageWasDeleted else {
+            return
+        }
+
+        AppEnvironment.shared.cvAudioPlayerRef.stopAll()
     }
 
     // MARK: - Events
@@ -166,19 +175,19 @@ public class CVComponentAudioAttachment: CVComponentBase, CVComponent {
         }
 
         if audioAttachment.isDownloaded {
-            cvAudioPlayer.setPlaybackRate(
+            AppEnvironment.shared.cvAudioPlayerRef.setPlaybackRate(
                 renderItem.itemViewState.audioPlaybackRate,
                 forThreadUniqueId: renderItem.itemModel.thread.uniqueId
             )
-            cvAudioPlayer.togglePlayState(forAudioAttachment: audioAttachment)
+            AppEnvironment.shared.cvAudioPlayerRef.togglePlayState(forAudioAttachment: audioAttachment)
             return true
 
-        } else if audioAttachment.isDownloading, let pointerId = audioAttachment.attachmentPointer?.attachment.resourceId {
+        } else if audioAttachment.isDownloading, let pointerId = audioAttachment.attachmentPointer?.attachment.id {
             Logger.debug("Cancelling in-progress download because of user action: \(interaction.uniqueId):\(pointerId)")
-            self.databaseStorage.write { tx in
-                DependenciesBridge.shared.tsResourceDownloadManager.cancelDownload(
+            SSKEnvironment.shared.databaseStorageRef.write { tx in
+                DependenciesBridge.shared.attachmentDownloadManager.cancelDownload(
                     for: pointerId,
-                    tx: tx.asV2Write
+                    tx: tx
                 )
             }
             return true
@@ -266,7 +275,7 @@ public class CVComponentAudioAttachment: CVComponentBase, CVComponent {
             // we still call `scrubToLocation` above in order to update the slider.
             audioMessageView.clearOverrideProgress(animated: false)
             let scrubbedTime = audioMessageView.scrubToLocation(location)
-            cvAudioPlayer.setPlaybackProgress(progress: scrubbedTime, forAttachmentStream: attachmentStream)
+            AppEnvironment.shared.cvAudioPlayerRef.setPlaybackProgress(progress: scrubbedTime, forAttachmentStream: attachmentStream)
         case .possible, .began, .failed, .cancelled:
             audioMessageView.clearOverrideProgress(animated: false)
         @unknown default:
@@ -310,14 +319,14 @@ public class CVComponentAudioAttachment: CVComponentBase, CVComponent {
 // MARK: - CVAudioPlayerListener
 
 extension CVComponentAudioAttachment: CVAudioPlayerListener {
-    func audioPlayerStateDidChange(attachmentId: TSResourceId) {}
+    func audioPlayerStateDidChange(attachmentId: Attachment.IDType) {}
 
-    func audioPlayerDidFinish(attachmentId: TSResourceId) {
-        guard attachmentId == audioAttachment.attachment.resourceId else { return }
-        cvAudioPlayer.autoplayNextAudioAttachmentIfNeeded(nextAudioAttachment)
+    func audioPlayerDidFinish(attachmentId: Attachment.IDType) {
+        guard attachmentId == audioAttachment.attachment.id else { return }
+        AppEnvironment.shared.cvAudioPlayerRef.autoplayNextAudioAttachmentIfNeeded(nextAudioAttachment)
     }
 
-    func audioPlayerDidMarkViewed(attachmentId: TSResourceId) {}
+    func audioPlayerDidMarkViewed(attachmentId: Attachment.IDType) {}
 }
 
 // MARK: - DatabaseChangeDelegate
@@ -345,10 +354,22 @@ extension CVComponentAudioAttachment: DatabaseChangeDelegate {
 extension CVComponentAudioAttachment: CVAccessibilityComponent {
     public var accessibilityDescription: String {
         if audioAttachment.isVoiceMessage {
-            if audioAttachment.durationSeconds > 0 {
-                let format = OWSLocalizedString("ACCESSIBILITY_LABEL_VOICE_MEMO_%d", tableName: "PluralAware",
-                                               comment: "Accessibility label for a voice memo. Embeds: {{ the duration of the voice message }}.")
+            if audioAttachment.durationSeconds > 0 && audioAttachment.durationSeconds < 60 {
+                let format = OWSLocalizedString(
+                    "ACCESSIBILITY_LABEL_SHORT_VOICE_MEMO_%d",
+                    tableName: "PluralAware",
+                    comment: "Accessibility label for a short (under 60 seconds) voice memo. Embeds: {{ the duration of the voice message in seconds }}."
+                )
                 return String.localizedStringWithFormat(format, Int(audioAttachment.durationSeconds))
+            } else if audioAttachment.durationSeconds >= 60 {
+                let minutes = (audioAttachment.durationSeconds / 60).rounded(.down)
+                let seconds = audioAttachment.durationSeconds.truncatingRemainder(dividingBy: 60)
+                let format = OWSLocalizedString(
+                    "ACCESSIBILITY_LABEL_LONG_VOICE_MEMO_%d_%d",
+                    tableName: "PluralAware",
+                    comment: "Accessibility label for a long (60+ seconds) voice memo. Embeds: {{ %1$@ the minutes component of the duration, %2$@ the seconds component of the duration }}."
+                )
+                return String.localizedStringWithFormat(format, Int(minutes), Int(seconds))
             } else {
                 return OWSLocalizedString("ACCESSIBILITY_LABEL_VOICE_MEMO",
                                          comment: "Accessibility label for a voice memo.")

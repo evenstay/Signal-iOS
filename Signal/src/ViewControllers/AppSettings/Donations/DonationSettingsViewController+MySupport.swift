@@ -67,7 +67,7 @@ extension DonationSettingsViewController {
     func mySupportSection(
         subscriptionStatus: State.SubscriptionStatus,
         profileBadgeLookup: ProfileBadgeLookup,
-        oneTimeBoostReceiptCredentialRequestError: ReceiptCredentialRequestError?,
+        oneTimeBoostReceiptCredentialRequestError: DonationReceiptCredentialRequestError?,
         pendingOneTimeDonation: PendingOneTimeIDEALDonation?,
         hasAnyBadges: Bool
     ) -> OWSTableSection? {
@@ -123,7 +123,9 @@ extension DonationSettingsViewController {
                 withText: OWSLocalizedString("DONATION_VIEW_MANAGE_BADGES", comment: "Title for the 'Badges' button on the donation screen"),
                 actionBlock: { [weak self] in
                     guard let self = self else { return }
-                    let vc = BadgeConfigurationViewController(fetchingDataFromLocalProfileWithDelegate: self)
+                    let vc = SSKEnvironment.shared.databaseStorageRef.read { tx in
+                        return BadgeConfigurationViewController.load(delegate: self, tx: tx)
+                    }
                     self.navigationController?.pushViewController(vc, animated: true)
                 }
             ))
@@ -145,7 +147,7 @@ extension DonationSettingsViewController {
         subscriptionType: RecurringSubscriptionTableItemType,
         subscriptionBadge: ProfileBadge?,
         previouslyHadActiveSubscription: Bool,
-        receiptCredentialRequestError: ReceiptCredentialRequestError?
+        receiptCredentialRequestError: DonationReceiptCredentialRequestError?
     ) -> OWSTableItem? {
         let errorState: MySupportErrorState? = {
             switch subscriptionType {
@@ -153,8 +155,24 @@ extension DonationSettingsViewController {
                 return .awaitingIDEALAuthorization
 
             case .subscription(let subscription):
-
-                if let receiptCredentialRequestError {
+                if
+                    let receiptCredentialRequestError,
+                    receiptCredentialRequestError.errorCode == .paymentStillProcessing,
+                    subscription.status == .canceled
+                {
+                    /// The receipt credential redemption job may have run out
+                    /// of retries while the payment was still processing,
+                    /// leaving us with that persisted error. If the
+                    /// subscription is now canceled, though we know the payment
+                    /// never went through, and we should show as much.
+                    ///
+                    /// - Note This should no longer be possible, as the job in
+                    /// question no longer runs out of retries.
+                    return .paymentFailed(
+                        chargeFailureCode: nil,
+                        paymentMethod: receiptCredentialRequestError.paymentMethod
+                    )
+                } else if let receiptCredentialRequestError {
                     logger.warn("Recurring subscription with receipt credential request error! \(receiptCredentialRequestError)")
 
                     return receiptCredentialRequestError.mySupportErrorState(
@@ -162,8 +180,19 @@ extension DonationSettingsViewController {
                     )
                 } else {
                     if subscription.isPaymentProcessing {
-                        logger.warn("Subscription is processing, but we don't have a receipt credential request error about it!")
-                    } else if subscription.chargeFailure != nil {
+                        switch subscription.status {
+                        case .pastDue:
+                            /// Payments in `.pastDue` will be processing, but
+                            /// we won't have tried to redeem a receipt credential
+                            /// for them so it's expected we won't have a
+                            /// corresponding error.
+                            break
+                        case .active, .canceled, .incomplete, .unpaid, .unknown:
+                            logger.warn("Subscription is processing, but we don't have a receipt credential request error about it!")
+                        }
+                    }
+
+                    if subscription.chargeFailure != nil {
                         logger.warn("Subscription has charge failure, but we don't have a receipt credential request error about it!")
                     }
 
@@ -175,12 +204,29 @@ extension DonationSettingsViewController {
                         // for the purposes of this view – it may yet succeed!
                         return nil
                     case .canceled:
+                        /// This is weird, but could apply to subscriptions that
+                        /// were canceled due to charge failures before we used
+                        /// `ReceiptCredentialRequestError`s to track failures.
                         logger.warn("Subscription is canceled, but we don't have a receipt credential request error about it!")
+
+                        if
+                            let chargeFailure = subscription.chargeFailure,
+                            previouslyHadActiveSubscription
+                        {
+                            return .previouslyActiveSubscriptionLapsed(
+                                chargeFailureCode: chargeFailure.code,
+                                paymentMethod: subscription.donationPaymentMethod
+                            )
+                        } else if let chargeFailure = subscription.chargeFailure {
+                            return .paymentFailed(
+                                chargeFailureCode: chargeFailure.code,
+                                paymentMethod: subscription.donationPaymentMethod
+                            )
+                        }
+
                         return nil
                     case
                             .incomplete,
-                            .incompleteExpired,
-                            .trialing,
                             .unpaid,
                             .unknown:
                         // Not sure what's going on here, but we don't want to show a
@@ -207,7 +253,7 @@ extension DonationSettingsViewController {
                 }
             }()
 
-            let currencyString = DonationUtilities.format(money: amount)
+            let currencyString = CurrencyFormatter.format(money: amount)
 
             return String(format: pricingFormat, currencyString)
         }()
@@ -295,7 +341,7 @@ extension DonationSettingsViewController {
     private func mySupportOneTimeBoostTableItem(
         boostBadge: ProfileBadge?,
         pendingOneTimeIDEALDonation: PendingOneTimeIDEALDonation?,
-        receiptCredentialRequestError: ReceiptCredentialRequestError?
+        receiptCredentialRequestError: DonationReceiptCredentialRequestError?
     ) -> OWSTableItem? {
 
         var amount: FiatMoney?
@@ -334,7 +380,7 @@ extension DonationSettingsViewController {
 
                     return String(
                         format: pricingFormat,
-                        DonationUtilities.format(money: amount)
+                        CurrencyFormatter.format(money: amount)
                     )
                 }()
 
@@ -529,26 +575,23 @@ extension DonationSettingsViewController {
 
     private func showOneTimeDonateAndClearErrorAction(title: ShowDonateActionTitle) -> ActionSheetAction {
         clearErrorAndShowDonateAction(title: title.localizedTitle, donateMode: .oneTime) { tx in
-            DependenciesBridge.shared.receiptCredentialResultStore
-                .clearRequestError(errorMode: .oneTimeBoost, tx: tx.asV2Write)
+            DependenciesBridge.shared.donationReceiptCredentialResultStore
+                .clearRequestError(errorMode: .oneTimeBoost, tx: tx)
         }
     }
 
     private func showDonateAndCancelSubscriptionAction(title: ShowDonateActionTitle) -> ActionSheetAction {
         return ActionSheetAction(title: title.localizedTitle) { _ in
-            firstly(on: DispatchQueue.global()) {
-                self.databaseStorage.read { tx in
-                    SubscriptionManagerImpl.getSubscriberID(transaction: tx)
+            Task.detached {
+                let subscriberId = SSKEnvironment.shared.databaseStorageRef.read { tx in
+                    return DonationSubscriptionManager.getSubscriberID(transaction: tx)
                 }
-            }.then(on: DispatchQueue.global()) { subscriberID in
-                guard let subscriberID else { return Promise.value(())}
-                return SubscriptionManagerImpl.cancelSubscription(for: subscriberID)
-            }.then(on: DispatchQueue.main) {
-                self.loadAndUpdateState()
-            }.done(on: DispatchQueue.main) { [weak self] in
-                guard let self else { return }
-                self.showDonateViewController(preferredDonateMode: .monthly)
-            }.cauterize()
+                if let subscriberId {
+                    try await DonationSubscriptionManager.cancelSubscription(for: subscriberId)
+                }
+                await self.loadAndUpdateState()
+                await self.showDonateViewController(preferredDonateMode: .monthly)
+            }
         }
     }
 
@@ -563,19 +606,7 @@ extension DonationSettingsViewController {
     }
 }
 
-private extension Subscription {
-    /// If this subscription has a payment processing, returns an error state
-    /// describing that fact.
-    var errorStateIfIsPaymentProcessing: MySupportErrorState? {
-        if isPaymentProcessing {
-            return .paymentProcessing(paymentMethod: paymentMethod)
-        }
-
-        return nil
-    }
-}
-
-private extension ReceiptCredentialRequestError {
+private extension DonationReceiptCredentialRequestError {
     func mySupportErrorState(
         previouslyHadActiveSubscription: Bool
     ) -> MySupportErrorState {

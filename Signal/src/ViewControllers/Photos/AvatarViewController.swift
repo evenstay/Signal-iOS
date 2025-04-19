@@ -28,11 +28,11 @@ class AvatarViewController: UIViewController, InteractivelyDismissableViewContro
 
     private var navigationBarTopLayoutConstraint: NSLayoutConstraint?
 
-    init?(thread: TSThread, renderLocalUserAsNoteToSelf: Bool, readTx: SDSAnyReadTransaction) {
+    init?(thread: TSThread, renderLocalUserAsNoteToSelf: Bool, readTx: DBReadTransaction) {
         let localUserDisplayMode: LocalUserDisplayMode = (renderLocalUserAsNoteToSelf
                                                             ? .noteToSelf
                                                             : .asUser)
-        guard let avatarImage = Self.avatarBuilder.avatarImage(
+        guard let avatarImage = SSKEnvironment.shared.avatarBuilderRef.avatarImage(
                 forThread: thread,
                 diameterPoints: UInt(UIScreen.main.bounds.size.smallerAxis),
                 localUserDisplayMode: localUserDisplayMode,
@@ -45,26 +45,16 @@ class AvatarViewController: UIViewController, InteractivelyDismissableViewContro
         transitioningDelegate = self
     }
 
-    init?(address: SignalServiceAddress, renderLocalUserAsNoteToSelf: Bool, readTx: SDSAnyReadTransaction) {
-        let diameter = UInt(UIScreen.main.bounds.size.smallerAxis)
-        guard let avatarImage: UIImage = {
-            let localUserDisplayMode: LocalUserDisplayMode = (renderLocalUserAsNoteToSelf
-                                                                ? .noteToSelf
-                                                                : .asUser)
-            if address.isLocalAddress, !renderLocalUserAsNoteToSelf {
-                if let avatar = Self.profileManager.localProfileAvatarImage {
-                    return avatar
-                }
-                return Self.avatarBuilder.avatarImageForLocalUser(diameterPoints: diameter,
-                                                                  localUserDisplayMode: localUserDisplayMode,
-                                                                  transaction: readTx)
-            } else {
-                return Self.avatarBuilder.avatarImage(forAddress: address,
-                                                      diameterPoints: diameter,
-                                                      localUserDisplayMode: localUserDisplayMode,
-                                                      transaction: readTx)
-            }
-        }() else { return nil }
+    init?(address: SignalServiceAddress, renderLocalUserAsNoteToSelf: Bool, readTx: DBReadTransaction) {
+        let avatarImage = SSKEnvironment.shared.avatarBuilderRef.avatarImage(
+            forAddress: address,
+            diameterPoints: UInt(UIScreen.main.bounds.size.smallerAxis),
+            localUserDisplayMode: renderLocalUserAsNoteToSelf ? .noteToSelf : .asUser,
+            transaction: readTx
+        )
+        guard let avatarImage else {
+            return nil
+        }
 
         self.avatarImage = avatarImage
         super.init(nibName: nil, bundle: nil)

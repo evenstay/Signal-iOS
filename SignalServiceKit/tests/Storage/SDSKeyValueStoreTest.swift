@@ -7,10 +7,10 @@ import Foundation
 import XCTest
 @testable import SignalServiceKit
 
-class SDSKeyValueStoreTest: SSKBaseTest {
+class KeyValueStoreTest: SSKBaseTest {
 
     func test_bool() {
-        let store = SDSKeyValueStore(collection: "test")
+        let store = KeyValueStore(collection: "test")
 
         self.write { transaction in
             XCTAssertFalse(store.getBool("boolA", defaultValue: false, transaction: transaction))
@@ -54,7 +54,7 @@ class SDSKeyValueStoreTest: SSKBaseTest {
     }
 
     func test_string() {
-        let store = SDSKeyValueStore(collection: "test")
+        let store = KeyValueStore(collection: "test")
 
         self.write { transaction in
             XCTAssertNil(store.getString("stringA", transaction: transaction))
@@ -88,7 +88,7 @@ class SDSKeyValueStoreTest: SSKBaseTest {
     }
 
     func test_data() {
-        let store = SDSKeyValueStore(collection: "test")
+        let store = KeyValueStore(collection: "test")
 
         let bytesA = Randomness.generateRandomBytes(32)
         let bytesB = Randomness.generateRandomBytes(32)
@@ -125,95 +125,95 @@ class SDSKeyValueStoreTest: SSKBaseTest {
     }
 
     func test_misc() {
-        let store = SDSKeyValueStore(collection: "test")
+        let store = KeyValueStore(collection: "test")
 
         self.write { transaction in
             let key = "string"
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
             store.setString("value", key: key, transaction: transaction)
-            XCTAssertTrue(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertTrue(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(1, store.numberOfKeys(transaction: transaction))
             store.removeValue(forKey: key, transaction: transaction)
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
         }
 
         self.write { transaction in
             let key = "date"
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
             store.setDate(Date(), key: key, transaction: transaction)
-            XCTAssertTrue(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertTrue(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(1, store.numberOfKeys(transaction: transaction))
             store.removeValue(forKey: key, transaction: transaction)
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
         }
 
         self.write { transaction in
             let key = "date edge cases"
 
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
 
             let date1 = Date()
             store.setDate(date1, key: key, transaction: transaction)
-            XCTAssertTrue(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertTrue(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(date1.timeIntervalSince1970,
                            store.getDate(key, transaction: transaction)?.timeIntervalSince1970)
             XCTAssertEqual(1, store.numberOfKeys(transaction: transaction))
 
             store.removeValue(forKey: key, transaction: transaction)
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
 
             let date2 = Date()
             store.setObject(date2, key: key, transaction: transaction)
-            XCTAssertTrue(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertTrue(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(date2.timeIntervalSince1970,
                            store.getDate(key, transaction: transaction)?.timeIntervalSince1970)
             XCTAssertEqual(1, store.numberOfKeys(transaction: transaction))
 
             store.removeValue(forKey: key, transaction: transaction)
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
         }
 
         let bytes = Randomness.generateRandomBytes(32)
         self.write { transaction in
             let key = "data"
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
             store.setData(bytes, key: key, transaction: transaction)
-            XCTAssertTrue(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertTrue(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(1, store.numberOfKeys(transaction: transaction))
             store.removeValue(forKey: key, transaction: transaction)
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
         }
 
         self.write { transaction in
             let key = "bool"
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
             store.setBool(true, key: key, transaction: transaction)
-            XCTAssertTrue(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertTrue(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(1, store.numberOfKeys(transaction: transaction))
             store.removeValue(forKey: key, transaction: transaction)
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
         }
 
         self.write { transaction in
             let key = "uint"
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
             store.setUInt(0, key: key, transaction: transaction)
-            XCTAssertTrue(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertTrue(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(1, store.numberOfKeys(transaction: transaction))
             store.removeValue(forKey: key, transaction: transaction)
-            XCTAssertFalse(store.hasValue(forKey: key, transaction: transaction))
+            XCTAssertFalse(store.hasValue(key, transaction: transaction))
             XCTAssertEqual(0, store.numberOfKeys(transaction: transaction))
         }
     }

@@ -7,7 +7,7 @@ import Foundation
 
 #if TESTABLE_BUILD
 
-public class OWSSignalServiceMock: OWSSignalServiceProtocol, Dependencies {
+public class OWSSignalServiceMock: OWSSignalServiceProtocol {
     public func warmCaches() {}
 
     public var isCensorshipCircumventionActive: Bool = false
@@ -21,6 +21,7 @@ public class OWSSignalServiceMock: OWSSignalServiceProtocol, Dependencies {
     public var manualCensorshipCircumventionCountryCode: String?
 
     public func updateHasCensoredPhoneNumberDuringProvisioning(_ e164: E164) {}
+    public func resetHasCensoredPhoneNumberFromProvisioning() {}
 
     public var urlEndpointBuilder: ((SignalServiceInfo) -> OWSURLSessionEndpoint)?
 

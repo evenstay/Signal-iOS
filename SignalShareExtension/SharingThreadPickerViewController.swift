@@ -14,24 +14,16 @@ class SharingThreadPickerViewController: ConversationPickerViewController {
 
     private var sendProgressSheet: SharingThreadPickerProgressSheet?
 
-    /// It can take a while to fully process attachments, and until we do we aren't
-    /// fully sure if the attachments are stories-compatible. To speed things up,
-    /// we do some fast pre-checks and store the result here.
-    /// True if these pre-checks determine all attachments are stories-compatible.
-    /// Once this is set, we show stories forever, even if the attachments end up being
-    /// incompatible, because it would be weird to have the stories destinations disappear.
-    /// Instead, we show an error when actually sending if stories are selected.
-    public var areAttachmentStoriesCompatPrecheck: Bool? {
-        didSet {
-            // If we've already processed attachments, ignore the setting.
-            guard attachments == nil else {
-                areAttachmentStoriesCompatPrecheck = nil
-                return
-            }
-            updateStoriesState()
-            updateApprovalMode()
-        }
-    }
+    /// It can take a while to fully process attachments, and until we do, we
+    /// aren't fully sure if the attachments are stories-compatible. To speed
+    /// things up, we do some fast pre-checks and store the result here.
+    ///
+    /// True if these pre-checks determine all attachments are
+    /// stories-compatible. If this is true, we show stories forever, even if
+    /// the attachments end up being incompatible, because it would be weird to
+    /// have the stories destinations disappear. Instead, we show an error when
+    /// actually sending if stories are selected.
+    public let areAttachmentStoriesCompatPrecheck: Bool
 
     var attachments: [SignalAttachment]? {
         didSet {
@@ -59,13 +51,17 @@ class SharingThreadPickerViewController: ConversationPickerViewController {
 
     var selectedConversations: [ConversationItem] { selection.conversations }
 
-    public init(shareViewDelegate: ShareViewDelegate) {
+    public init(areAttachmentStoriesCompatPrecheck: Bool, shareViewDelegate: ShareViewDelegate) {
+        self.areAttachmentStoriesCompatPrecheck = areAttachmentStoriesCompatPrecheck
         self.shareViewDelegate = shareViewDelegate
 
         super.init(selection: ConversationPickerSelection())
 
         shouldBatchUpdateIdentityKeys = true
         pickerDelegate = self
+
+        self.updateStoriesState()
+        self.updateApprovalMode()
     }
 
     public func presentActionSheetOnNavigationController(_ alert: ActionSheetController) {
@@ -85,7 +81,7 @@ class SharingThreadPickerViewController: ConversationPickerViewController {
             return
         }
 
-        let groupThread = databaseStorage.read { readTx in
+        let groupThread = SSKEnvironment.shared.databaseStorageRef.read { readTx in
             TSGroupThread.anyFetchGroupThread(uniqueId: groupThreadId, transaction: readTx)
         }
 
@@ -151,13 +147,13 @@ extension SharingThreadPickerViewController {
         } else if isContactShare {
             let cnContact = try SystemContact.parseVCardData(firstAttachment.data)
 
-            let contactShareDraft = databaseStorage.read { tx in
+            let contactShareDraft = SSKEnvironment.shared.databaseStorageRef.read { tx in
                 return ContactShareDraft.load(
                     cnContact: cnContact,
                     signalContact: SystemContact(cnContact: cnContact),
-                    contactManager: Self.contactsManager,
-                    phoneNumberUtil: Self.phoneNumberUtil,
-                    profileManager: Self.profileManager,
+                    contactManager: SSKEnvironment.shared.contactManagerRef,
+                    phoneNumberUtil: SSKEnvironment.shared.phoneNumberUtilRef,
+                    profileManager: SSKEnvironment.shared.profileManagerRef,
                     recipientManager: DependenciesBridge.shared.recipientManager,
                     tsAccountManager: DependenciesBridge.shared.tsAccountManager,
                     tx: tx
@@ -230,11 +226,10 @@ extension SharingThreadPickerViewController {
                 return .failure(.init(outgoingMessages: [], error: OWSAssertionError("Missing body.")))
             }
 
-            let linkPreviewDataSource: LinkPreviewTSResourceDataSource?
+            let linkPreviewDataSource: LinkPreviewDataSource?
             if let linkPreviewDraft {
                 linkPreviewDataSource = try? DependenciesBridge.shared.linkPreviewManager.buildDataSource(
-                    from: linkPreviewDraft,
-                    ownerType: .message
+                    from: linkPreviewDraft
                 )
             } else {
                 linkPreviewDataSource = nil
@@ -284,7 +279,7 @@ extension SharingThreadPickerViewController {
                         thread: destination.thread,
                         expiresInSeconds: dmConfigurationStore.durationSeconds(
                             for: destination.thread,
-                            tx: tx.asV2Read
+                            tx: tx
                         )
                     )
                     let message = builder.build(transaction: tx)
@@ -303,9 +298,9 @@ extension SharingThreadPickerViewController {
             }
 
             // This method will also add threads to the profile whitelist.
-            let sendResult = TSResourceMultisend.sendApprovedMedia(
+            let sendResult = AttachmentMultisend.sendApprovedMedia(
                 conversations: selectedConversations,
-                approvalMessageBody: messageBody,
+                approvedMessageBody: messageBody,
                 approvedAttachments: attachments
             )
 
@@ -329,13 +324,13 @@ extension SharingThreadPickerViewController {
     }
 
     private func presentOrUpdateSendProgressSheet(outgoingMessages: [PreparedOutgoingMessage]) {
-        let attachmentIds = databaseStorage.read { tx in
+        let attachmentIds = SSKEnvironment.shared.databaseStorageRef.read { tx in
             return outgoingMessages.attachmentIdsForUpload(tx: tx)
         }
         presentOrUpdateSendProgressSheet(attachmentIds: attachmentIds)
     }
 
-    private func presentOrUpdateSendProgressSheet(attachmentIds: [TSResourceId]) {
+    private func presentOrUpdateSendProgressSheet(attachmentIds: [Attachment.IDType]) {
         AssertIsOnMainThread()
 
         if let sendProgressSheet {
@@ -364,7 +359,7 @@ extension SharingThreadPickerViewController {
     private nonisolated func sendToOutgoingMessageThreads(
         selectedConversations: [ConversationItem],
         messageBody: MessageBody?,
-        messageBlock: @escaping (AttachmentMultisend.Destination, SDSAnyWriteTransaction) throws -> PreparedOutgoingMessage,
+        messageBlock: @escaping (AttachmentMultisend.Destination, DBWriteTransaction) throws -> PreparedOutgoingMessage,
         storySendBlock: (([ConversationItem]) -> AttachmentMultisend.Result?)?
     ) async -> Result<Void, SendError> {
         let conversations = selectedConversations.filter { $0.outgoingMessageType == .message }
@@ -376,11 +371,11 @@ extension SharingThreadPickerViewController {
             let destinations = try await AttachmentMultisend.prepareForSending(
                 messageBody,
                 to: conversations,
-                db: self.databaseStorage,
-                attachmentValidator: DependenciesBridge.shared.tsResourceContentValidator
+                db: SSKEnvironment.shared.databaseStorageRef,
+                attachmentValidator: DependenciesBridge.shared.attachmentContentValidator
             )
 
-            (preparedNonStoryMessages, nonStorySendPromises) = try await self.databaseStorage.awaitableWrite { tx in
+            (preparedNonStoryMessages, nonStorySendPromises) = try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
                 let preparedMessages = try destinations.map { destination in
                     return try messageBlock(destination, tx)
                 }
@@ -439,7 +434,7 @@ extension SharingThreadPickerViewController {
         }
     }
 
-    private nonisolated func threads(for conversationItems: [ConversationItem], tx: SDSAnyWriteTransaction) -> [TSThread] {
+    private nonisolated func threads(for conversationItems: [ConversationItem], tx: DBWriteTransaction) -> [TSThread] {
         return conversationItems.compactMap { conversation in
             guard let thread = conversation.getOrCreateThread(transaction: tx) else {
                 owsFailDebug("Missing thread for conversation")
@@ -459,7 +454,7 @@ extension SharingThreadPickerViewController {
             style: .cancel
         ) { [weak self] _ in
             guard let self = self else { return }
-            self.databaseStorage.write { transaction in
+            SSKEnvironment.shared.databaseStorageRef.write { transaction in
                 for message in error.outgoingMessages {
                     // If we sent the message to anyone, mark it as failed
                     message.updateWithAllSendingRecipientsMarkedAsFailed(tx: transaction)
@@ -476,8 +471,8 @@ extension SharingThreadPickerViewController {
                 "SHARE_EXTENSION_FAILED_SENDING_BECAUSE_UNTRUSTED_IDENTITY_FORMAT",
                 comment: "alert body when sharing file failed because of untrusted/changed identity keys"
             )
-            let displayName = databaseStorage.read { tx in
-                return contactsManager.displayName(for: SignalServiceAddress(untrustedServiceId), tx: tx).resolvedValue()
+            let displayName = SSKEnvironment.shared.databaseStorageRef.read { tx in
+                return SSKEnvironment.shared.contactManagerRef.displayName(for: SignalServiceAddress(untrustedServiceId), tx: tx).resolvedValue()
             }
             let failureMessage = String(format: failureFormat, displayName)
 
@@ -485,9 +480,9 @@ extension SharingThreadPickerViewController {
             actionSheet.addAction(cancelAction)
 
             // Capture the identity key before showing the prompt about it.
-            let identityKey = databaseStorage.read { tx in
+            let identityKey = SSKEnvironment.shared.databaseStorageRef.read { tx in
                 let identityManager = DependenciesBridge.shared.identityManager
-                return identityManager.identityKey(for: SignalServiceAddress(untrustedServiceId), tx: tx.asV2Read)
+                return identityManager.identityKey(for: SignalServiceAddress(untrustedServiceId), tx: tx)
             }
 
             let confirmAction = ActionSheetAction(
@@ -497,11 +492,11 @@ extension SharingThreadPickerViewController {
                 guard let self = self else { return }
 
                 // Confirm Identity
-                self.databaseStorage.write { transaction in
+                SSKEnvironment.shared.databaseStorageRef.write { transaction in
                     let identityManager = DependenciesBridge.shared.identityManager
                     let verificationState = identityManager.verificationState(
                         for: SignalServiceAddress(untrustedServiceId),
-                        tx: transaction.asV2Write
+                        tx: transaction
                     )
                     switch verificationState {
                     case .verified:
@@ -517,7 +512,7 @@ extension SharingThreadPickerViewController {
                             of: identityKey,
                             for: SignalServiceAddress(untrustedServiceId),
                             isUserInitiatedChange: true,
-                            tx: transaction.asV2Write
+                            tx: transaction
                         )
                     }
                 }
@@ -546,7 +541,7 @@ extension SharingThreadPickerViewController {
         owsAssertDebug(outgoingMessages.count > 0)
 
         var promises = [Promise<Void>]()
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             for message in outgoingMessages {
                 promises.append(SSKEnvironment.shared.messageSenderJobQueueRef.add(
                     .promise,

@@ -7,16 +7,8 @@ import CryptoKit
 import Foundation
 public import LibSignalClient
 
-// Like TSGroupModel, TSGroupModelV2 is intended to be immutable.
-//
-// NOTE: This class is tightly coupled to TSGroupModelBuilder.
-//       If you modify this class - especially if you
-//       add any new properties - make sure to update
-//       TSGroupModelBuilder.
 @objc
 public class TSGroupModelV2: TSGroupModel {
-
-    // These properties TSGroupModel, TSGroupModelV2 is intended to be immutable.
     @objc
     var membership: GroupMembership
     @objc
@@ -31,6 +23,9 @@ public class TSGroupModelV2: TSGroupModel {
     public var inviteLinkPassword: Data?
     @objc
     public var isAnnouncementsOnly: Bool = false
+    @objc
+    public var descriptionText: String?
+
     /// Whether this group model is a placeholder for a group we've requested to
     /// join, but don't yet have access to on the service. Other fields on this
     /// group model may not be populated.
@@ -44,28 +39,29 @@ public class TSGroupModelV2: TSGroupModel {
     public var wasJustMigrated: Bool = false
     @objc
     public var didJustAddSelfViaGroupLink: Bool = false
-    @objc
-    public var droppedMembers = [SignalServiceAddress]()
-    @objc
-    public var descriptionText: String?
 
     @objc
-    public init(groupId: Data,
-                name: String?,
-                descriptionText: String?,
-                avatarData: Data?,
-                groupMembership: GroupMembership,
-                groupAccess: GroupAccess,
-                revision: UInt32,
-                secretParamsData: Data,
-                avatarUrlPath: String?,
-                inviteLinkPassword: Data?,
-                isAnnouncementsOnly: Bool,
-                isJoinRequestPlaceholder: Bool,
-                wasJustMigrated: Bool,
-                didJustAddSelfViaGroupLink: Bool,
-                addedByAddress: SignalServiceAddress?,
-                droppedMembers: [SignalServiceAddress]) {
+    public var avatarDataFailedToFetchFromCDN: Bool = false
+    @objc
+    public var lowTrustAvatarDownloadWasBlocked: Bool = false
+
+    public init(
+        groupId: Data,
+        name: String?,
+        descriptionText: String?,
+        avatarDataState: AvatarDataState,
+        groupMembership: GroupMembership,
+        groupAccess: GroupAccess,
+        revision: UInt32,
+        secretParamsData: Data,
+        avatarUrlPath: String?,
+        inviteLinkPassword: Data?,
+        isAnnouncementsOnly: Bool,
+        isJoinRequestPlaceholder: Bool,
+        wasJustMigrated: Bool,
+        didJustAddSelfViaGroupLink: Bool,
+        addedByAddress: SignalServiceAddress?
+    ) {
         self.descriptionText = descriptionText
         self.membership = groupMembership
         self.secretParamsData = secretParamsData
@@ -77,13 +73,28 @@ public class TSGroupModelV2: TSGroupModel {
         self.isJoinRequestPlaceholder = isJoinRequestPlaceholder
         self.wasJustMigrated = wasJustMigrated
         self.didJustAddSelfViaGroupLink = didJustAddSelfViaGroupLink
-        self.droppedMembers = droppedMembers
 
-        super.init(groupId: groupId,
-                   name: name,
-                   avatarData: avatarData,
-                   members: [],
-                   addedBy: addedByAddress)
+        let avatarData: Data?
+        switch avatarDataState {
+        case .available(let _avatarData):
+            avatarData = _avatarData
+        case .missing:
+            avatarData = nil
+        case .failedToFetchFromCDN:
+            avatarData = nil
+            avatarDataFailedToFetchFromCDN = true
+        case .lowTrustDownloadWasBlocked:
+            avatarData = nil
+            lowTrustAvatarDownloadWasBlocked = true
+        }
+
+        super.init(
+            groupId: groupId,
+            name: name,
+            avatarData: avatarData,
+            members: [],
+            addedBy: addedByAddress
+        )
     }
 
     public func secretParams() throws -> GroupSecretParams {
@@ -197,7 +208,6 @@ public class TSGroupModelV2: TSGroupModel {
         result += "isJoinRequestPlaceholder: \(isJoinRequestPlaceholder),\n"
         result += "wasJustMigrated: \(wasJustMigrated),\n"
         result += "didJustAddSelfViaGroupLink: \(didJustAddSelfViaGroupLink),\n"
-        result += "droppedMembers: \(droppedMembers),\n"
         result += "descriptionText: \(String(describing: descriptionText)),\n"
         result += "]"
         return result
@@ -258,39 +268,14 @@ public extension TSGroupModel {
         }
         return groupModelV2.didJustAddSelfViaGroupLink
     }
-
-    var getDroppedMembers: [SignalServiceAddress] {
-        guard let groupModelV2 = self as? TSGroupModelV2 else {
-            return []
-        }
-        return groupModelV2.droppedMembers
-    }
 }
 
-@objc
+// MARK: -
+
 public extension TSGroupModel {
-    private static let appSharedDataDirectory = URL(fileURLWithPath: OWSFileSystem.appSharedDataDirectoryPath())
-    static let avatarsDirectory = URL(fileURLWithPath: "GroupAvatars", isDirectory: true, relativeTo: appSharedDataDirectory)
-    @nonobjc
     private static let avatarsCache = LRUCache<String, Data>(maxSize: 16, nseMaxSize: 0)
 
-    func attemptToMigrateLegacyAvatarDataToDisk() throws {
-        guard let legacyAvatarData = legacyAvatarData, !legacyAvatarData.isEmpty else {
-            self.legacyAvatarData = nil
-            return
-        }
-
-        guard Self.isValidGroupAvatarData(legacyAvatarData) else {
-            owsFailDebug("Invalid legacy avatar data. Removing it completely")
-            self.avatarHash = nil
-            self.legacyAvatarData = nil
-            return
-        }
-
-        try persistAvatarData(legacyAvatarData)
-        self.legacyAvatarData = nil
-    }
-
+    @objc
     func persistAvatarData(_ data: Data) throws {
         guard !data.isEmpty else {
             self.avatarHash = nil
@@ -312,7 +297,7 @@ public extension TSGroupModel {
             return
         }
 
-        try data.write(to: Self.avatarFilePath(forHash: hash))
+        try data.write(to: filePath)
         Self.avatarsCache.set(key: hash, value: data)
 
         // Note: Old avatars are explicitly not cleaned up from the file
@@ -324,20 +309,64 @@ public extension TSGroupModel {
         self.avatarHash = hash
     }
 
-    class func hash(forAvatarData avatarData: Data) throws -> String {
-        return Data(SHA256.hash(data: avatarData)).hexadecimalString
+    // MARK: -
+
+    enum AvatarDataState {
+        case available(Data)
+        case missing
+        case failedToFetchFromCDN
+        case lowTrustDownloadWasBlocked
+
+        init(avatarData: Data?) {
+            if let avatarData {
+                self = .available(avatarData)
+            } else {
+                self = .missing
+            }
+        }
+
+        public var dataIfPresent: Data? {
+            switch self {
+            case .available(let data): return data
+            default: return nil
+            }
+        }
     }
 
-    var avatarData: Data? {
-        if let avatarHash = avatarHash, let cachedData = Self.avatarsCache.object(forKey: avatarHash) {
+    var avatarDataState: AvatarDataState {
+        if let selfAsV2 = self as? TSGroupModelV2 {
+            if selfAsV2.avatarDataFailedToFetchFromCDN {
+                return .failedToFetchFromCDN
+            }
+            if selfAsV2.lowTrustAvatarDownloadWasBlocked {
+                return .lowTrustDownloadWasBlocked
+            }
+        }
+
+        if let dataFromDisk = readAvatarDataFromDisk() {
+            return .available(dataFromDisk)
+        } else {
+            return .missing
+        }
+    }
+
+    /// Reads the data for this group's avatar from disk. Only present if an
+    /// `avatarUrlPath` is also present, and the data from that URL was
+    /// successfully fetched and determined to be valid.
+    private func readAvatarDataFromDisk() -> Data? {
+        guard let avatarHash else {
+            // We write this when we persist data, so if it's missing we don't
+            // have persisted data.
+            return nil
+        }
+
+        if let cachedData = Self.avatarsCache.object(forKey: avatarHash) {
             return cachedData
         }
 
-        guard let fileName = avatarFileName else { return nil }
-        let filePath = URL(fileURLWithPath: fileName, relativeTo: Self.avatarsDirectory)
-
         let avatarData: Data
         do {
+            let filePath = Self.avatarFilePath(forHash: avatarHash)
             avatarData = try Data(contentsOf: filePath)
         } catch {
             owsFailDebug("Failed to read group avatar data \(error)")
@@ -352,31 +381,26 @@ public extension TSGroupModel {
         return avatarData
     }
 
-    var avatarImage: UIImage? {
-        guard let avatarData = avatarData else {
-            return nil
-        }
-        return UIImage(data: avatarData)
+    // MARK: -
+
+    private static func avatarFilePath(forHash hash: String) -> URL {
+        return URL(fileURLWithPath: "\(hash).png", relativeTo: avatarsDirectory)
     }
 
-    var avatarFileName: String? {
-        guard let hash = avatarHash else { return nil }
-        return Self.avatarFileName(forHash: hash)
+    static let avatarsDirectory = URL(
+        fileURLWithPath: "GroupAvatars",
+        isDirectory: true,
+        relativeTo: URL(fileURLWithPath: OWSFileSystem.appSharedDataDirectoryPath())
+    )
+
+    static func hash(forAvatarData avatarData: Data) throws -> String {
+        return Data(SHA256.hash(data: avatarData)).hexadecimalString
     }
 
-    static func avatarFileName(forHash hash: String) -> String {
-        // All group avatars are PNGs, use the appropriate file extension.
-        return "\(hash).png"
-    }
-
-    static func avatarFilePath(forHash hash: String) -> URL {
-        URL(fileURLWithPath: avatarFileName(forHash: hash), relativeTo: avatarsDirectory)
-    }
-
-    class func allGroupAvatarFilePaths(transaction: SDSAnyReadTransaction) throws -> Set<String> {
+    static func allGroupAvatarFilePaths(transaction: DBReadTransaction) throws -> Set<String> {
         let cursor = TSThread.grdbFetchCursor(
             sql: "SELECT * FROM \(ThreadRecord.databaseTableName) WHERE \(threadColumn: .recordType) = \(SDSRecordType.groupThread.rawValue)",
-            transaction: transaction.unwrapGrdbRead
+            transaction: transaction
         )
 
         var filePaths = Set<String>()
@@ -387,5 +411,18 @@ public extension TSGroupModel {
         }
 
         return filePaths
+    }
+}
+
+// MARK: -
+
+extension TSGroupModel {
+    static func generateRandomGroupId(_ version: GroupsVersion) -> Data {
+        let length = switch version {
+        case .V1: kGroupIdLengthV1
+        case .V2: kGroupIdLengthV2
+        }
+
+        return Randomness.generateRandomBytes(length)
     }
 }

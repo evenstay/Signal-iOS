@@ -39,16 +39,21 @@ open class AttachmentManagerMock: AttachmentManager {
         return nil
     }
 
-    open func createQuotedReplyMessageThumbnail(
-        consuming: OwnedQuotedReplyAttachmentDataSource,
+    open func createQuotedReplyMessageThumbnailBuilder(
+        from dataSource: QuotedReplyAttachmentDataSource,
         tx: DBWriteTransaction
-    ) throws {
-        // Do nothing
+    ) -> OwnedAttachmentBuilder<QuotedAttachmentInfo> {
+        return .withoutFinalizer(.init(
+            info: .stub(
+                withOriginalAttachmentMimeType: dataSource.originalAttachmentMimeType,
+                originalAttachmentSourceFilename: dataSource.originalAttachmentSourceFilename
+            ),
+            renderingFlag: dataSource.renderingFlag
+        ))
     }
 
     open func removeAttachment(
-        _ attachment: Attachment,
-        from owner: AttachmentReference.OwnerId,
+        reference: AttachmentReference,
         tx: DBWriteTransaction
     ) throws {
         // Do nothing

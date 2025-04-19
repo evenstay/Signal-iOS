@@ -8,29 +8,39 @@ public import XCTest
 import CocoaLumberjack
 
 public class SSKBaseTest: XCTestCase {
+    private var oldContext: (any AppContext)!
+
+    @MainActor
     public override func setUp() {
         DDLog.add(DDTTYLogger.sharedInstance!)
-        MockSSKEnvironment.activate()
+        let setupExpectation = expectation(description: "mock ssk environment setup completed")
+        self.oldContext = CurrentAppContext()
+        Task {
+            await MockSSKEnvironment.activate()
+            setupExpectation.fulfill()
+        }
+        waitForExpectations(timeout: 2)
     }
 
+    @MainActor
     public override func tearDown() {
-        MockSSKEnvironment.flushAndWait()
+        MockSSKEnvironment.deactivate(oldContext: self.oldContext)
         super.tearDown()
     }
 
-    public func read(_ block: (SDSAnyReadTransaction) -> Void) {
-        return databaseStorage.read(block: block)
+    public func read(_ block: (DBReadTransaction) -> Void) {
+        return SSKEnvironment.shared.databaseStorageRef.read(block: block)
     }
 
-    public func write<T>(_ block: (SDSAnyWriteTransaction) -> T) -> T {
-        return databaseStorage.write(block: block)
+    public func write<T>(_ block: (DBWriteTransaction) -> T) -> T {
+        return SSKEnvironment.shared.databaseStorageRef.write(block: block)
     }
 
-    public func write<T>(_ block: (SDSAnyWriteTransaction) throws -> T) rethrows -> T {
-        try databaseStorage.write(block: block)
+    public func write<T>(_ block: (DBWriteTransaction) throws -> T) rethrows -> T {
+        try SSKEnvironment.shared.databaseStorageRef.write(block: block)
     }
 
-    public func asyncWrite(_ block: @escaping (SDSAnyWriteTransaction) -> Void) {
-        return databaseStorage.asyncWrite(block: block)
+    public func asyncWrite(_ block: @escaping (DBWriteTransaction) -> Void) {
+        return SSKEnvironment.shared.databaseStorageRef.asyncWrite(block: block)
     }
 }

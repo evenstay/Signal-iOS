@@ -173,11 +173,11 @@ class PreviewWallpaperViewController: UIViewController {
             blurButton.isHidden = true
         }
         mockConversationView.model = buildMockConversationModel()
-        mockConversationView.customChatColor = databaseStorage.read { tx in
+        mockConversationView.customChatColor = SSKEnvironment.shared.databaseStorageRef.read { tx in
             DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(
                 for: thread,
                 previewWallpaper: resolvedWallpaper,
-                tx: tx.asV2Read
+                tx: tx
             )
         }
     }
@@ -195,7 +195,7 @@ class PreviewWallpaperViewController: UIViewController {
                 "WALLPAPER_PREVIEW_OUTGOING_MESSAGE_FORMAT",
                 comment: "The outgoing bubble text when setting a wallpaper for specific chat. Embeds {{chat name}}"
             )
-            let displayName = databaseStorage.read { tx in contactsManager.displayName(for: thread, transaction: tx) }
+            let displayName = SSKEnvironment.shared.databaseStorageRef.read { tx in SSKEnvironment.shared.contactManagerRef.displayName(for: thread, transaction: tx) }
             return String(format: formatString, displayName)
         }()
 
@@ -328,10 +328,10 @@ private class WallpaperPage: UIViewController {
         rootView.backgroundColor = Theme.darkThemeBackgroundColor
         view = rootView
 
-        let shouldDimInDarkTheme = databaseStorage.read { transaction in
+        let shouldDimInDarkTheme = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             DependenciesBridge.shared.wallpaperStore.fetchDimInDarkMode(
                 for: thread?.uniqueId,
-                tx: transaction.asV2Read
+                tx: transaction
             )
         }
         let wallpaperView = Wallpaper.viewBuilder(
@@ -486,16 +486,7 @@ class BlurButton: UIButton {
     let checkImageView = UIImageView()
     let label = UILabel()
     let action: (Bool) -> Void
-    let backgroundView: UIView = {
-        if UIAccessibility.isReduceTransparencyEnabled {
-            let backgroundView = UIView()
-            backgroundView.backgroundColor = .ows_blackAlpha80
-            return backgroundView
-        } else {
-            let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
-            return blurView
-        }
-    }()
+    let backgroundView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
 
     init(action: @escaping (Bool) -> Void) {
         self.action = action

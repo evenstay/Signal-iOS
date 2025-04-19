@@ -11,20 +11,21 @@ public class NoopCallMessageHandler: CallMessageHandler {
     public func receivedEnvelope(
         _ envelope: SSKProtoEnvelope,
         callEnvelope: CallEnvelopeType,
-        from caller: (aci: Aci, deviceId: UInt32),
+        from caller: (aci: Aci, deviceId: DeviceId),
+        toLocalIdentity localIdentity: OWSIdentity,
         plaintextData: Data,
         wasReceivedByUD: Bool,
         sentAtTimestamp: UInt64,
         serverReceivedTimestamp: UInt64,
         serverDeliveryTimestamp: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         owsFailDebug("")
     }
 
     public func receivedGroupCallUpdateMessage(
         _ updateMessage: SSKProtoDataMessageGroupCallUpdate,
-        for groupThread: TSGroupThread,
+        forGroupId groupId: GroupIdentifier,
         serverReceivedTimestamp: UInt64
     ) async {
         owsFailDebug("")

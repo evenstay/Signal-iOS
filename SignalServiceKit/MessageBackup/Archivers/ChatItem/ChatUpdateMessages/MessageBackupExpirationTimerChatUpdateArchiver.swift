@@ -19,13 +19,16 @@ final class MessageBackupExpirationTimerChatUpdateArchiver {
     private typealias RestoreFrameError = MessageBackup.RestoreFrameError<MessageBackup.ChatItemId>
 
     private let contactManager: MessageBackup.Shims.ContactManager
-    private let interactionStore: any InteractionStore
+    private let groupUpdateArchiver: MessageBackupGroupUpdateMessageArchiver
+    private let interactionStore: MessageBackupInteractionStore
 
     init(
         contactManager: MessageBackup.Shims.ContactManager,
-        interactionStore: any InteractionStore
+        groupUpdateArchiver: MessageBackupGroupUpdateMessageArchiver,
+        interactionStore: MessageBackupInteractionStore
     ) {
         self.contactManager = contactManager
+        self.groupUpdateArchiver = groupUpdateArchiver
         self.interactionStore = interactionStore
     }
 
@@ -33,7 +36,7 @@ final class MessageBackupExpirationTimerChatUpdateArchiver {
 
     func archiveExpirationTimerChatUpdate(
         infoMessage: TSInfoMessage,
-        thread: TSThread,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveChatUpdateMessageResult {
         func messageFailure(
@@ -50,30 +53,42 @@ final class MessageBackupExpirationTimerChatUpdateArchiver {
         guard let dmUpdateInfoMessage = infoMessage as? OWSDisappearingConfigurationUpdateInfoMessage else {
             return messageFailure(.disappearingMessageConfigUpdateNotExpectedSDSRecordType)
         }
-        guard let contactThread = thread as? TSContactThread else {
-            return messageFailure(.disappearingMessageConfigUpdateNotInContactThread)
-        }
+
+        // If the "remote name" is `nil`, the author is the local user.
+        let wasAuthoredByLocalUser = dmUpdateInfoMessage.createdByRemoteName == nil
 
         let chatUpdateExpiresInMs: UInt64
         if dmUpdateInfoMessage.configurationIsEnabled {
-            chatUpdateExpiresInMs = UInt64(dmUpdateInfoMessage.configurationDurationSeconds) * kSecondInMs
+            chatUpdateExpiresInMs = UInt64(dmUpdateInfoMessage.configurationDurationSeconds) * UInt64.secondInMs
         } else {
             chatUpdateExpiresInMs = 0
         }
 
-        let chatUpdateAuthorRecipientId: MessageBackup.RecipientId
-        if dmUpdateInfoMessage.createdByRemoteName == nil {
-            /// If the "remote name" is `nil`, the author is the local user.
-            chatUpdateAuthorRecipientId = context.recipientContext.localRecipientId
+        let recipientAddress: MessageBackup.ContactAddress?
+        switch threadInfo {
+        case .contactThread(let contactAddress):
+            recipientAddress = contactAddress
+        case .groupThread:
+            // This may have been a DM timer update in a gv1 group that became a gv2 group;
+            // we can't tell anymore if this group was ever gv1 so just assume so
+            // and swizzle this to a gv2 timer update for backup purposes.
+            return swizzleGV1ExpirationTimerChatUpdateToGV2Update(
+                dmUpdateInfoMessage: dmUpdateInfoMessage,
+                wasAuthoredByLocalUser: wasAuthoredByLocalUser,
+                updatedExpiresInMs: chatUpdateExpiresInMs,
+                threadInfo: threadInfo,
+                context: context
+            )
+        }
+
+        let chatUpdateAuthorAddress: Details.AuthorAddress
+        if wasAuthoredByLocalUser {
+            chatUpdateAuthorAddress = .localUser
         } else {
-            guard let recipientAddress = contactThread.contactAddress.asSingleServiceIdBackupAddress() else {
+            guard let recipientAddress else {
                 return messageFailure(.disappearingMessageConfigUpdateMissingAuthor)
             }
-            guard let recipientId = context.recipientContext[.contact(recipientAddress)] else {
-                return messageFailure(.referencedRecipientIdMissing(.contact(recipientAddress)))
-            }
-
-            chatUpdateAuthorRecipientId = recipientId
+            chatUpdateAuthorAddress = .contact(recipientAddress)
         }
 
         var expirationTimerChatUpdate = BackupProto_ExpirationTimerChatUpdate()
@@ -82,18 +97,49 @@ final class MessageBackupExpirationTimerChatUpdateArchiver {
         var chatUpdateMessage = BackupProto_ChatUpdateMessage()
         chatUpdateMessage.update = .expirationTimerChange(expirationTimerChatUpdate)
 
-        let interactionArchiveDetails = Details(
-            author: chatUpdateAuthorRecipientId,
+        return Details.validateAndBuild(
+            interactionUniqueId: infoMessage.uniqueInteractionId,
+            author: chatUpdateAuthorAddress,
             directionalDetails: .directionless(BackupProto_ChatItem.DirectionlessMessageDetails()),
             dateCreated: infoMessage.timestamp,
             expireStartDate: nil,
             expiresInMs: nil,
             isSealedSender: false,
             chatItemType: .updateMessage(chatUpdateMessage),
-            isSmsPreviouslyRestoredFromBackup: false
+            isSmsPreviouslyRestoredFromBackup: false,
+            threadInfo: threadInfo,
+            context: context.recipientContext
         )
+    }
 
-        return .success(interactionArchiveDetails)
+    /// Its possible to have had a gv1 group that had an expiration timer
+    /// update, then migrate the group to gv2. We need to swizzle that
+    /// OWSDisappearingConfigurationUpdateInfoMessage into a group update proto.
+    private func swizzleGV1ExpirationTimerChatUpdateToGV2Update(
+        dmUpdateInfoMessage: OWSDisappearingConfigurationUpdateInfoMessage,
+        wasAuthoredByLocalUser: Bool,
+        updatedExpiresInMs: UInt64,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
+        context: MessageBackup.ChatArchivingContext
+    ) -> ArchiveChatUpdateMessageResult {
+
+        let swizzledGroupUpdateItem: TSInfoMessage.PersistableGroupUpdateItem
+        if dmUpdateInfoMessage.configurationIsEnabled {
+            swizzledGroupUpdateItem = wasAuthoredByLocalUser
+                ? .disappearingMessagesEnabledByLocalUser(durationMs: updatedExpiresInMs)
+                : .disappearingMessagesEnabledByUnknownUser(durationMs: updatedExpiresInMs)
+        } else {
+            swizzledGroupUpdateItem = wasAuthoredByLocalUser
+                ? .disappearingMessagesDisabledByLocalUser
+                : .disappearingMessagesDisabledByUnknownUser
+        }
+
+        return groupUpdateArchiver.archiveGroupUpdateItems(
+            [swizzledGroupUpdateItem],
+            for: dmUpdateInfoMessage,
+            threadInfo: threadInfo,
+            context: context
+        )
     }
 
     // MARK: -
@@ -102,7 +148,7 @@ final class MessageBackupExpirationTimerChatUpdateArchiver {
         _ expirationTimerChatUpdate: BackupProto_ExpirationTimerChatUpdate,
         chatItem: BackupProto_ChatItem,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreChatUpdateMessageResult {
         func invalidProtoData(
             _ error: RestoreFrameError.ErrorType.InvalidProtoDataError,
@@ -144,7 +190,24 @@ final class MessageBackupExpirationTimerChatUpdateArchiver {
             configurationDurationSeconds: UInt32(clamping: expiresInSeconds), // Safe to clamp, we checked for overflow above
             createdByRemoteName: createdByRemoteName
         )
-        interactionStore.insertInteraction(dmUpdateInfoMessage, tx: context.tx)
+
+        guard let directionalDetails = chatItem.directionalDetails else {
+            return .unrecognizedEnum(MessageBackup.UnrecognizedEnumError(
+                enumType: BackupProto_ChatItem.OneOf_DirectionalDetails.self
+            ))
+        }
+
+        do {
+            try interactionStore.insert(
+                dmUpdateInfoMessage,
+                in: chatThread,
+                chatId: chatItem.typedChatId,
+                directionalDetails: directionalDetails,
+                context: context
+            )
+        } catch let error {
+            return .messageFailure([.restoreFrameError(.databaseInsertionFailed(error), chatItem.id)])
+        }
 
         return .success(())
     }

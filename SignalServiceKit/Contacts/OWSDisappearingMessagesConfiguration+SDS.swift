@@ -130,8 +130,8 @@ extension OWSDisappearingMessagesConfiguration: SDSModel {
         }
     }
 
-    public func asRecord() throws -> SDSRecord {
-        try serializer.asRecord()
+    public func asRecord() -> SDSRecord {
+        serializer.asRecord()
     }
 
     public var sdsTableName: String {
@@ -148,12 +148,12 @@ extension OWSDisappearingMessagesConfiguration: SDSModel {
 extension OWSDisappearingMessagesConfiguration: DeepCopyable {
 
     public func deepCopy() throws -> AnyObject {
-        // Any subclass can be cast to it's superclass,
-        // so the order of this switch statement matters.
-        // We need to do a "depth first" search by type.
         guard let id = self.grdbId?.int64Value else {
             throw OWSAssertionError("Model missing grdbId.")
         }
+
+        // Any subclass can be cast to its superclass, so the order of these if
+        // statements matters. We need to do a "depth first" search by type.
 
         do {
             let modelToCopy = self
@@ -206,7 +206,7 @@ extension OWSDisappearingMessagesConfigurationSerializer {
 
 @objc
 public extension OWSDisappearingMessagesConfiguration {
-    func anyInsert(transaction: SDSAnyWriteTransaction) {
+    func anyInsert(transaction: DBWriteTransaction) {
         sdsSave(saveMode: .insert, transaction: transaction)
     }
 
@@ -218,7 +218,7 @@ public extension OWSDisappearingMessagesConfiguration {
     //
     // For performance, when possible, you should explicitly specify whether
     // you are inserting or updating rather than calling this method.
-    func anyUpsert(transaction: SDSAnyWriteTransaction) {
+    func anyUpsert(transaction: DBWriteTransaction) {
         let isInserting: Bool
         if OWSDisappearingMessagesConfiguration.anyFetch(uniqueId: uniqueId, transaction: transaction) != nil {
             isInserting = false
@@ -252,7 +252,7 @@ public extension OWSDisappearingMessagesConfiguration {
     //
     // This isn't a perfect arrangement, but in practice this will prevent
     // data loss and will resolve all known issues.
-    func anyUpdate(transaction: SDSAnyWriteTransaction, block: (OWSDisappearingMessagesConfiguration) -> Void) {
+    func anyUpdate(transaction: DBWriteTransaction, block: (OWSDisappearingMessagesConfiguration) -> Void) {
 
         block(self)
 
@@ -280,27 +280,12 @@ public extension OWSDisappearingMessagesConfiguration {
     // There are cases when this doesn't make sense, e.g. when  we know we've
     // just loaded the model in the same transaction. In those cases it is
     // safe and faster to do a "overwriting" update
-    func anyOverwritingUpdate(transaction: SDSAnyWriteTransaction) {
+    func anyOverwritingUpdate(transaction: DBWriteTransaction) {
         sdsSave(saveMode: .update, transaction: transaction)
     }
 
-    func anyRemove(transaction: SDSAnyWriteTransaction) {
+    func anyRemove(transaction: DBWriteTransaction) {
         sdsRemove(transaction: transaction)
-    }
-
-    func anyReload(transaction: SDSAnyReadTransaction) {
-        anyReload(transaction: transaction, ignoreMissing: false)
-    }
-
-    func anyReload(transaction: SDSAnyReadTransaction, ignoreMissing: Bool) {
-        guard let latestVersion = type(of: self).anyFetch(uniqueId: uniqueId, transaction: transaction) else {
-            if !ignoreMissing {
-                owsFailDebug("`latest` was unexpectedly nil")
-            }
-            return
-        }
-
-        setValuesForKeys(latestVersion.dictionaryValue)
     }
 }
 
@@ -308,10 +293,10 @@ public extension OWSDisappearingMessagesConfiguration {
 
 @objc
 public class OWSDisappearingMessagesConfigurationCursor: NSObject, SDSCursor {
-    private let transaction: GRDBReadTransaction
+    private let transaction: DBReadTransaction
     private let cursor: RecordCursor<DisappearingMessagesConfigurationRecord>?
 
-    init(transaction: GRDBReadTransaction, cursor: RecordCursor<DisappearingMessagesConfigurationRecord>?) {
+    init(transaction: DBReadTransaction, cursor: RecordCursor<DisappearingMessagesConfigurationRecord>?) {
         self.transaction = transaction
         self.cursor = cursor
     }
@@ -342,7 +327,8 @@ public class OWSDisappearingMessagesConfigurationCursor: NSObject, SDSCursor {
 
 @objc
 public extension OWSDisappearingMessagesConfiguration {
-    class func grdbFetchCursor(transaction: GRDBReadTransaction) -> OWSDisappearingMessagesConfigurationCursor {
+    @nonobjc
+    class func grdbFetchCursor(transaction: DBReadTransaction) -> OWSDisappearingMessagesConfigurationCursor {
         let database = transaction.database
         do {
             let cursor = try DisappearingMessagesConfigurationRecord.fetchCursor(database)
@@ -359,20 +345,17 @@ public extension OWSDisappearingMessagesConfiguration {
 
     // Fetches a single model by "unique id".
     class func anyFetch(uniqueId: String,
-                        transaction: SDSAnyReadTransaction) -> OWSDisappearingMessagesConfiguration? {
+                        transaction: DBReadTransaction) -> OWSDisappearingMessagesConfiguration? {
         assert(!uniqueId.isEmpty)
 
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let sql = "SELECT * FROM \(DisappearingMessagesConfigurationRecord.databaseTableName) WHERE \(disappearingMessagesConfigurationColumn: .uniqueId) = ?"
-            return grdbFetchOne(sql: sql, arguments: [uniqueId], transaction: grdbTransaction)
-        }
+        let sql = "SELECT * FROM \(DisappearingMessagesConfigurationRecord.databaseTableName) WHERE \(disappearingMessagesConfigurationColumn: .uniqueId) = ?"
+        return grdbFetchOne(sql: sql, arguments: [uniqueId], transaction: transaction)
     }
 
     // Traverses all records.
     // Records are not visited in any particular order.
     class func anyEnumerate(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         block: (OWSDisappearingMessagesConfiguration, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
         anyEnumerate(transaction: transaction, batched: false, block: block)
@@ -381,7 +364,7 @@ public extension OWSDisappearingMessagesConfiguration {
     // Traverses all records.
     // Records are not visited in any particular order.
     class func anyEnumerate(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batched: Bool = false,
         block: (OWSDisappearingMessagesConfiguration, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
@@ -394,32 +377,29 @@ public extension OWSDisappearingMessagesConfiguration {
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
     class func anyEnumerate(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batchSize: UInt,
         block: (OWSDisappearingMessagesConfiguration, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let cursor = OWSDisappearingMessagesConfiguration.grdbFetchCursor(transaction: grdbTransaction)
-            Batching.loop(batchSize: batchSize,
-                          loopBlock: { stop in
-                                do {
-                                    guard let value = try cursor.next() else {
-                                        stop.pointee = true
-                                        return
-                                    }
-                                    block(value, stop)
-                                } catch let error {
-                                    owsFailDebug("Couldn't fetch model: \(error)")
+        let cursor = OWSDisappearingMessagesConfiguration.grdbFetchCursor(transaction: transaction)
+        Batching.loop(batchSize: batchSize,
+                        loopBlock: { stop in
+                            do {
+                                guard let value = try cursor.next() else {
+                                    stop.pointee = true
+                                    return
                                 }
-                              })
-        }
+                                block(value, stop)
+                            } catch let error {
+                                owsFailDebug("Couldn't fetch model: \(error)")
+                            }
+                            })
     }
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
     class func anyEnumerateUniqueIds(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
         anyEnumerateUniqueIds(transaction: transaction, batched: false, block: block)
@@ -428,7 +408,7 @@ public extension OWSDisappearingMessagesConfiguration {
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
     class func anyEnumerateUniqueIds(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batched: Bool = false,
         block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
@@ -441,24 +421,21 @@ public extension OWSDisappearingMessagesConfiguration {
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
     class func anyEnumerateUniqueIds(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batchSize: UInt,
         block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            grdbEnumerateUniqueIds(transaction: grdbTransaction,
-                                   sql: """
-                    SELECT \(disappearingMessagesConfigurationColumn: .uniqueId)
-                    FROM \(DisappearingMessagesConfigurationRecord.databaseTableName)
-                """,
-                batchSize: batchSize,
-                block: block)
-        }
+        grdbEnumerateUniqueIds(transaction: transaction,
+                                sql: """
+                SELECT \(disappearingMessagesConfigurationColumn: .uniqueId)
+                FROM \(DisappearingMessagesConfigurationRecord.databaseTableName)
+            """,
+            batchSize: batchSize,
+            block: block)
     }
 
     // Does not order the results.
-    class func anyFetchAll(transaction: SDSAnyReadTransaction) -> [OWSDisappearingMessagesConfiguration] {
+    class func anyFetchAll(transaction: DBReadTransaction) -> [OWSDisappearingMessagesConfiguration] {
         var result = [OWSDisappearingMessagesConfiguration]()
         anyEnumerate(transaction: transaction) { (model, _) in
             result.append(model)
@@ -467,7 +444,7 @@ public extension OWSDisappearingMessagesConfiguration {
     }
 
     // Does not order the results.
-    class func anyAllUniqueIds(transaction: SDSAnyReadTransaction) -> [String] {
+    class func anyAllUniqueIds(transaction: DBReadTransaction) -> [String] {
         var result = [String]()
         anyEnumerateUniqueIds(transaction: transaction) { (uniqueId, _) in
             result.append(uniqueId)
@@ -475,14 +452,11 @@ public extension OWSDisappearingMessagesConfiguration {
         return result
     }
 
-    class func anyCount(transaction: SDSAnyReadTransaction) -> UInt {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            return DisappearingMessagesConfigurationRecord.ows_fetchCount(grdbTransaction.database)
-        }
+    class func anyCount(transaction: DBReadTransaction) -> UInt {
+        return DisappearingMessagesConfigurationRecord.ows_fetchCount(transaction.database)
     }
 
-    class func anyRemoveAllWithInstantiation(transaction: SDSAnyWriteTransaction) {
+    class func anyRemoveAllWithInstantiation(transaction: DBWriteTransaction) {
         // To avoid mutationDuringEnumerationException, we need to remove the
         // instances outside the enumeration.
         let uniqueIds = anyAllUniqueIds(transaction: transaction)
@@ -500,23 +474,20 @@ public extension OWSDisappearingMessagesConfiguration {
 
     class func anyExists(
         uniqueId: String,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> Bool {
         assert(!uniqueId.isEmpty)
 
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let sql = "SELECT EXISTS ( SELECT 1 FROM \(DisappearingMessagesConfigurationRecord.databaseTableName) WHERE \(disappearingMessagesConfigurationColumn: .uniqueId) = ? )"
-            let arguments: StatementArguments = [uniqueId]
-            do {
-                return try Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
-            } catch {
-                DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
-                    userDefaults: CurrentAppContext().appUserDefaults(),
-                    error: error
-                )
-                owsFail("Missing instance.")
-            }
+        let sql = "SELECT EXISTS ( SELECT 1 FROM \(DisappearingMessagesConfigurationRecord.databaseTableName) WHERE \(disappearingMessagesConfigurationColumn: .uniqueId) = ? )"
+        let arguments: StatementArguments = [uniqueId]
+        do {
+            return try Bool.fetchOne(transaction.database, sql: sql, arguments: arguments) ?? false
+        } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
+            owsFail("Missing instance.")
         }
     }
 }
@@ -526,7 +497,7 @@ public extension OWSDisappearingMessagesConfiguration {
 public extension OWSDisappearingMessagesConfiguration {
     class func grdbFetchCursor(sql: String,
                                arguments: StatementArguments = StatementArguments(),
-                               transaction: GRDBReadTransaction) -> OWSDisappearingMessagesConfigurationCursor {
+                               transaction: DBReadTransaction) -> OWSDisappearingMessagesConfigurationCursor {
         do {
             let sqlRequest = SQLRequest<Void>(sql: sql, arguments: arguments, cached: true)
             let cursor = try DisappearingMessagesConfigurationRecord.fetchCursor(transaction.database, sqlRequest)
@@ -543,7 +514,7 @@ public extension OWSDisappearingMessagesConfiguration {
 
     class func grdbFetchOne(sql: String,
                             arguments: StatementArguments = StatementArguments(),
-                            transaction: GRDBReadTransaction) -> OWSDisappearingMessagesConfiguration? {
+                            transaction: DBReadTransaction) -> OWSDisappearingMessagesConfiguration? {
         assert(!sql.isEmpty)
 
         do {
@@ -573,7 +544,7 @@ class OWSDisappearingMessagesConfigurationSerializer: SDSSerializer {
 
     // MARK: - Record
 
-    func asRecord() throws -> SDSRecord {
+    func asRecord() -> SDSRecord {
         let id: Int64? = model.grdbId?.int64Value
 
         let recordType: SDSRecordType = .disappearingMessagesConfiguration
@@ -587,20 +558,3 @@ class OWSDisappearingMessagesConfigurationSerializer: SDSSerializer {
         return DisappearingMessagesConfigurationRecord(delegate: model, id: id, recordType: recordType, uniqueId: uniqueId, durationSeconds: durationSeconds, enabled: enabled, timerVersion: timerVersion)
     }
 }
-
-// MARK: - Deep Copy
-
-#if TESTABLE_BUILD
-@objc
-public extension OWSDisappearingMessagesConfiguration {
-    // We're not using this method at the moment,
-    // but we might use it for validation of
-    // other deep copy methods.
-    func deepCopyUsingRecord() throws -> OWSDisappearingMessagesConfiguration {
-        guard let record = try asRecord() as? DisappearingMessagesConfigurationRecord else {
-            throw OWSAssertionError("Could not convert to record.")
-        }
-        return try OWSDisappearingMessagesConfiguration.fromRecord(record)
-    }
-}
-#endif

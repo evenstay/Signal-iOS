@@ -11,7 +11,6 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
     private let attachmentStore: AttachmentStore
     private let backupAttachmentDownloadManager: BackupAttachmentDownloadManager
     private let chatColorSettingStore: ChatColorSettingStore
-    private let dateProvider: DateProvider
     private let wallpaperStore: WallpaperStore
 
     public init(
@@ -19,14 +18,12 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
         attachmentStore: AttachmentStore,
         backupAttachmentDownloadManager: BackupAttachmentDownloadManager,
         chatColorSettingStore: ChatColorSettingStore,
-        dateProvider: @escaping DateProvider,
         wallpaperStore: WallpaperStore
     ) {
         self.attachmentManager = attachmentManager
         self.attachmentStore = attachmentStore
         self.backupAttachmentDownloadManager = backupAttachmentDownloadManager
         self.chatColorSettingStore = chatColorSettingStore
-        self.dateProvider = dateProvider
         self.wallpaperStore = wallpaperStore
     }
 
@@ -61,13 +58,16 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
                     key
                 ))
                 fallthrough
-            case .gradient(let gradientColor1, let gradientColor2, let angleRadians):
+            case .gradient(let gradientColor1, let gradientColor2, var angleRadians):
                 var gradient = BackupProto_ChatStyle.Gradient()
 
                 /// Convert radians to degrees. We manually round since the
                 /// float math is slightly lossy and sometimes gives back
                 /// `N.99999999999`; we want to return `N+1`, but the `UInt32`
                 /// conversion always rounds down.
+                while angleRadians < 0 {
+                    angleRadians += .pi * 2
+                }
                 gradient.angle = UInt32(round(angleRadians * 180 / .pi))
 
                 /// iOS only supports 2 "positions"; hardcode them.
@@ -86,7 +86,11 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
 
         if !partialErrors.isEmpty {
             // Just log these errors, but count as success and proceed.
-            MessageBackup.log(partialErrors)
+            MessageBackup
+                .collapse(partialErrors
+                    .map { MessageBackup.LoggableErrorAndProto(error: $0, wasFrameDropped: false) }
+                )
+                .forEach { $0.log() }
         }
 
         return .success(protos)
@@ -104,7 +108,7 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
         /// in the Backup, we can't use the same timestamp for all colors. To
         /// that end, we'll start with "now" and increment as we create more
         /// colors.
-        var chatColorCreationTimestamp = dateProvider().ows_millisecondsSince1970
+        var chatColorCreationTimestamp = context.startTimestampMs
 
         for chatColorProto in chatColorProtos {
             let customChatColorId = MessageBackup.CustomChatColorId(value: chatColorProto.id)
@@ -112,10 +116,7 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
             let colorOrGradientSetting: ColorOrGradientSetting
             switch chatColorProto.color {
             case .none:
-                partialErrors.append(.restoreFrameError(
-                    .invalidProtoData(.unrecognizedCustomChatStyleColor),
-                    .forCustomChatColorError(chatColorId: customChatColorId)
-                ))
+                // Fallback to default (skip this chat color)
                 continue
             case .solid(let colorARGBHex):
                 colorOrGradientSetting = .solidColor(
@@ -191,7 +192,6 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
 
     func archiveChatStyle(
         thread: MessageBackup.ChatThread,
-        chatId: MessageBackup.ChatId,
         context: MessageBackup.CustomChatColorArchivingContext
     ) -> MessageBackup.ArchiveSingleFrameResult<BackupProto_ChatStyle?, MessageBackup.ThreadUniqueId> {
         return _archiveChatStyle(
@@ -208,17 +208,21 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
         errorId: IDType
     ) -> MessageBackup.ArchiveSingleFrameResult<BackupProto_ChatStyle?, IDType> {
         var proto = BackupProto_ChatStyle()
+        // This can never be unset, so we'll default it to "auto". If we have an
+        // explicit bubble color, we'll overwrite this below.
+        proto.bubbleColor = .autoBubbleColor(BackupProto_ChatStyle.AutomaticBubbleColor())
 
         // If none of the things that feed the fields of the chat style are
         // _explicitly_ set, don't generate a chat style.
         var hasAnExplicitlySetField = false
 
         if let wallpaper = wallpaperStore.fetchWallpaper(for: thread?.tsThread.uniqueId, tx: context.tx) {
-            var protoWallpaper: BackupProto_ChatStyle.OneOf_Wallpaper?
+            let protoWallpaper: BackupProto_ChatStyle.OneOf_Wallpaper?
 
-            if let preset = wallpaper.asBackupProto() {
+            switch wallpaper.asBackupProto() {
+            case .wallpaperPreset(let preset):
                 protoWallpaper = .wallpaperPreset(preset)
-            } else if wallpaper == .photo {
+            case .photo:
                 switch self.archiveWallpaperAttachment(
                     thread: thread,
                     errorId: errorId,
@@ -227,25 +231,15 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
                 case .success(.some(let wallpaperAttachmentProto)):
                     protoWallpaper = .wallpaperPhoto(wallpaperAttachmentProto)
                 case .success(nil):
-                    // No wallpaper found; don't set.
-                    break
+                    protoWallpaper = nil
                 case .failure(let error):
                     return .failure(error)
                 }
-            } else {
-                return .failure(.archiveFrameError(
-                    .unknownWallpaper,
-                    errorId
-                ))
             }
 
             if let protoWallpaper {
                 hasAnExplicitlySetField = true
-
                 proto.wallpaper = protoWallpaper
-                /// We'll set this to `.auto` for now, so it's never unset. If
-                /// we have an explicit bubble color we'll overwrite this below.
-                proto.bubbleColor = .autoBubbleColor(BackupProto_ChatStyle.AutomaticBubbleColor())
             }
         }
 
@@ -341,10 +335,8 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
                 break
             case .bubbleColorPreset(let bubbleColorPreset):
                 guard let palette = bubbleColorPreset.asPaletteChatColor() else {
-                    return .failure([.restoreFrameError(
-                        .invalidProtoData(.unrecognizedChatStyleBubbleColorPreset),
-                        errorId
-                    )])
+                    // If we can't recognize the preset, use auto (skip)
+                    break
                 }
                 chatColorSettingStore.setChatColorSetting(
                     ChatColorSetting.builtIn(palette),
@@ -398,10 +390,9 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
                 break
             case .wallpaperPreset(let wallpaperPreset):
                 guard let wallpaper = wallpaperPreset.asWallpaper() else {
-                    return .failure([.restoreFrameError(
-                        .invalidProtoData(.unrecognizedChatStyleWallpaperPreset),
-                        errorId
-                    )])
+                    // If we can't recognize the preset enum,
+                    // leave the wallpaper unset.
+                    break
                 }
                 wallpaperStore.setWallpaperType(
                     wallpaper,
@@ -423,6 +414,8 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
                 switch attachmentResult {
                 case .success:
                     break
+                case .unrecognizedEnum:
+                    return attachmentResult
                 case .partialRestore(let errors):
                     partialErrors.append(contentsOf: errors)
                 case .failure(let errors):
@@ -469,10 +462,13 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
             } catch {
                 // Just log these errors, but count as success and proceed.
                 // The wallpaper just won't upload.
-                MessageBackup.log([MessageBackup.ArchiveFrameError<IDType>.archiveFrameError(
-                    .failedToEnqueueAttachmentForUpload,
-                    errorId
-                )])
+                MessageBackup.collapse([.init(
+                    error: MessageBackup.ArchiveFrameError<IDType>.archiveFrameError(
+                        .failedToEnqueueAttachmentForUpload,
+                        errorId
+                    ),
+                    wasFrameDropped: false
+                )]).forEach { $0.log() }
             }
         }
 
@@ -483,14 +479,15 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
         _ attachment: BackupProto_FilePointer,
         thread: MessageBackup.ChatThread?,
         errorId: IDType,
-        context: MessageBackup.RestoringContext
+        context: MessageBackup.CustomChatColorRestoringContext
     ) -> MessageBackup.RestoreFrameResult<IDType> {
         let uploadEra: String
-        do {
-            uploadEra = try MessageBackupMessageAttachmentArchiver.uploadEra()
-        } catch {
+        switch context.uploadEra {
+        case .fromProtoSubscriberId(let value), .random(let value):
+            uploadEra = value
+        case nil:
             return .failure([.restoreFrameError(
-                .uploadEraDerivationFailed(error),
+                .invalidProtoData(.accountDataNotFound),
                 errorId
             )])
         }
@@ -506,7 +503,8 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
                 } else {
                     return .globalThreadWallpaperImage
                 }
-            }())
+            }()
+        )
 
         let errors = attachmentManager.createAttachmentPointers(
             from: [ownedAttachment],
@@ -554,33 +552,38 @@ public class MessageBackupChatStyleArchiver: MessageBackupProtoArchiver {
 
 fileprivate extension Wallpaper {
 
-    func asBackupProto() -> BackupProto_ChatStyle.WallpaperPreset? {
+    enum BackupRepresentation {
+        case wallpaperPreset(BackupProto_ChatStyle.WallpaperPreset)
+        case photo
+    }
+
+    func asBackupProto() -> BackupRepresentation {
         // These don't match names exactly because...well nobody knows why
         // the iOS enum names were defined this way. They're persisted to the
         // db now, so we just gotta keep the mapping.
         return switch self {
-        case .blush: .solidBlush
-        case .copper: .solidCopper
-        case .zorba: .solidDust
-        case .envy: .solidCeladon
-        case .sky: .solidPacific
-        case .wildBlueYonder: .solidFrost
-        case .lavender: .solidLilac
-        case .shocking: .solidPink
-        case .gray: .solidSilver
-        case .eden: .solidRainforest
-        case .violet: .solidNavy
-        case .eggplant: .solidEggplant
-        case .starshipGradient: .gradientSunset
-        case .woodsmokeGradient: .gradientNoir
-        case .coralGradient: .gradientHeatmap
-        case .ceruleanGradient: .gradientAqua
-        case .roseGradient: .gradientIridescent
-        case .aquamarineGradient: .gradientMonstera
-        case .tropicalGradient: .gradientBliss
-        case .blueGradient: .gradientSky
-        case .bisqueGradient: .gradientPeach
-        case .photo: nil
+        case .blush: .wallpaperPreset(.solidBlush)
+        case .copper: .wallpaperPreset(.solidCopper)
+        case .zorba: .wallpaperPreset(.solidDust)
+        case .envy: .wallpaperPreset(.solidCeladon)
+        case .sky: .wallpaperPreset(.solidPacific)
+        case .wildBlueYonder: .wallpaperPreset(.solidFrost)
+        case .lavender: .wallpaperPreset(.solidLilac)
+        case .shocking: .wallpaperPreset(.solidPink)
+        case .gray: .wallpaperPreset(.solidSilver)
+        case .eden: .wallpaperPreset(.solidRainforest)
+        case .violet: .wallpaperPreset(.solidNavy)
+        case .eggplant: .wallpaperPreset(.solidEggplant)
+        case .starshipGradient: .wallpaperPreset(.gradientSunset)
+        case .woodsmokeGradient: .wallpaperPreset(.gradientNoir)
+        case .coralGradient: .wallpaperPreset(.gradientHeatmap)
+        case .ceruleanGradient: .wallpaperPreset(.gradientAqua)
+        case .roseGradient: .wallpaperPreset(.gradientIridescent)
+        case .aquamarineGradient: .wallpaperPreset(.gradientMonstera)
+        case .tropicalGradient: .wallpaperPreset(.gradientBliss)
+        case .blueGradient: .wallpaperPreset(.gradientSky)
+        case .bisqueGradient: .wallpaperPreset(.gradientPeach)
+        case .photo: .photo
         }
     }
 }

@@ -13,7 +13,7 @@ class MessageSendLogTests: SSKBaseTest {
     private var messageSendLog: MessageSendLog { SSKEnvironment.shared.messageSendLogRef }
 
     func testStoreAndRetrieveValidPayload() throws {
-        try databaseStorage.write { writeTx in
+        try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             // Create and save the message payload
             let newMessage = createOutgoingMessage(transaction: writeTx)
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
@@ -21,7 +21,7 @@ class MessageSendLogTests: SSKBaseTest {
 
             // "Send" the message to a recipient
             let serviceId = Aci.randomForTesting()
-            let deviceId = UInt32.random(in: 0..<100)
+            let deviceId = DeviceId(validating: UInt32.random(in: 1...2))!
             messageSendLog.recordPendingDelivery(
                 payloadId: payloadId,
                 recipientAci: serviceId,
@@ -45,7 +45,7 @@ class MessageSendLogTests: SSKBaseTest {
     }
 
     func testStoreAndRetrievePayloadForInvalidRecipient() throws {
-        try databaseStorage.write { writeTx in
+        try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             // Create and save the message payload
             let newMessage = createOutgoingMessage(transaction: writeTx)
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
@@ -53,7 +53,7 @@ class MessageSendLogTests: SSKBaseTest {
 
             // "Send" the message to one recipient
             let serviceId = Aci.randomForTesting()
-            let deviceId = UInt32.random(in: 0..<100)
+            let deviceId = DeviceId(validating: UInt32.random(in: 1...2))!
             messageSendLog.recordPendingDelivery(
                 payloadId: payloadId,
                 recipientAci: serviceId,
@@ -65,7 +65,7 @@ class MessageSendLogTests: SSKBaseTest {
             // Expect no results when re-fetching the payload with a different deviceId
             XCTAssertNil(messageSendLog.fetchPayload(
                 recipientAci: serviceId,
-                recipientDeviceId: deviceId+1,
+                recipientDeviceId: DeviceId(validating: deviceId.uint32Value+1)!,
                 timestamp: newMessage.timestamp,
                 tx: writeTx
             ))
@@ -81,7 +81,7 @@ class MessageSendLogTests: SSKBaseTest {
     }
 
     func testStoreAndRetrievePayloadForDeliveredRecipient() throws {
-        try databaseStorage.write { writeTx in
+        try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             // Create and save the message payload
             let newMessage = createOutgoingMessage(transaction: writeTx)
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
@@ -89,7 +89,7 @@ class MessageSendLogTests: SSKBaseTest {
 
             // "Send" the message to two devices
             let serviceId = Aci.randomForTesting()
-            for deviceId: UInt32 in [0, 1] {
+            for deviceId in [1, 2].map({ DeviceId(validating: $0)! }) {
                 messageSendLog.recordPendingDelivery(
                     payloadId: payloadId,
                     recipientAci: serviceId,
@@ -103,14 +103,14 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
                 recipientAci: serviceId,
-                recipientDeviceId: 0,
+                recipientDeviceId: DeviceId(validating: 1)!,
                 tx: writeTx
             )
 
             // Expect no results when re-fetching the payload for the first device
             XCTAssertNil(messageSendLog.fetchPayload(
                 recipientAci: serviceId,
-                recipientDeviceId: 0,
+                recipientDeviceId: DeviceId(validating: 1)!,
                 timestamp: newMessage.timestamp,
                 tx: writeTx
             ))
@@ -118,7 +118,7 @@ class MessageSendLogTests: SSKBaseTest {
             // Expect some results when re-fetching the payload for the second device
             XCTAssertNotNil(messageSendLog.fetchPayload(
                 recipientAci: serviceId,
-                recipientDeviceId: 1,
+                recipientDeviceId: DeviceId(validating: 2)!,
                 timestamp: newMessage.timestamp,
                 tx: writeTx
             ))
@@ -126,7 +126,7 @@ class MessageSendLogTests: SSKBaseTest {
     }
 
     func testStoreAndRetrieveExpiredPayload() throws {
-        try databaseStorage.write { writeTx in
+        try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             // Create and save the message payload. Outgoing message date is long ago
             let newMessage = createOutgoingMessage(date: Date(timeIntervalSince1970: 10000), transaction: writeTx)
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
@@ -134,7 +134,7 @@ class MessageSendLogTests: SSKBaseTest {
 
             // "Send" the message to a recipient
             let serviceId = Aci.randomForTesting()
-            let deviceId = UInt32.random(in: 0..<100)
+            let deviceId = DeviceId(validating: UInt32.random(in: 1...2))!
             messageSendLog.recordPendingDelivery(
                 payloadId: payloadId,
                 recipientAci: serviceId,
@@ -154,7 +154,7 @@ class MessageSendLogTests: SSKBaseTest {
     }
 
     func testFinalDeliveryRemovesPayload() throws {
-        try databaseStorage.write { writeTx in
+        try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             // Create and save the message payload
             let newMessage = createOutgoingMessage(transaction: writeTx)
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
@@ -162,7 +162,7 @@ class MessageSendLogTests: SSKBaseTest {
 
             // "Send" the message to one recipient, two devices
             let serviceId = Aci.randomForTesting()
-            for deviceId: UInt32 in [0, 1] {
+            for deviceId in [1, 2].map({ DeviceId(validating: $0)! }) {
                 messageSendLog.recordPendingDelivery(
                     payloadId: payloadId,
                     recipientAci: serviceId,
@@ -177,7 +177,7 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
                 recipientAci: serviceId,
-                recipientDeviceId: 0,
+                recipientDeviceId: DeviceId(validating: 1)!,
                 tx: writeTx
             )
 
@@ -188,7 +188,7 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
                 recipientAci: serviceId,
-                recipientDeviceId: 1,
+                recipientDeviceId: DeviceId(validating: 2)!,
                 tx: writeTx
             )
 
@@ -198,7 +198,7 @@ class MessageSendLogTests: SSKBaseTest {
     }
 
     func testReceiveDeliveryBeforeSendFinished() throws {
-        try databaseStorage.write { writeTx in
+        try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             // Create and save the message payload
             let newMessage = createOutgoingMessage(transaction: writeTx)
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
@@ -210,14 +210,14 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordPendingDelivery(
                 payloadId: payloadId,
                 recipientAci: serviceId,
-                recipientDeviceId: 0,
+                recipientDeviceId: DeviceId(validating: 1)!,
                 message: newMessage,
                 tx: writeTx
             )
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
                 recipientAci: serviceId,
-                recipientDeviceId: 0,
+                recipientDeviceId: DeviceId(validating: 1)!,
                 tx: writeTx
             )
 
@@ -225,7 +225,7 @@ class MessageSendLogTests: SSKBaseTest {
             XCTAssertTrue(isPayloadAlive(index: payloadId, transaction: writeTx))
 
             // "Send" the message to two more devices. Mark send as complete
-            for deviceId: UInt32 in [1, 2] {
+            for deviceId in [2, 3].map({ DeviceId(validating: $0)! }) {
                 messageSendLog.recordPendingDelivery(
                     payloadId: payloadId,
                     recipientAci: serviceId,
@@ -240,7 +240,7 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
                 recipientAci: serviceId,
-                recipientDeviceId: 1,
+                recipientDeviceId: DeviceId(validating: 2)!,
                 tx: writeTx
             )
 
@@ -251,7 +251,7 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
                 recipientAci: serviceId,
-                recipientDeviceId: 2,
+                recipientDeviceId: DeviceId(validating: 3)!,
                 tx: writeTx
             )
 
@@ -261,7 +261,7 @@ class MessageSendLogTests: SSKBaseTest {
     }
 
     func testPartialFailureReusesPayloadEntry() throws {
-        try databaseStorage.write { writeTx in
+        try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             // Create and save the message payload
             let newMessage = createOutgoingMessage(transaction: writeTx)
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
@@ -273,7 +273,7 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordPendingDelivery(
                 payloadId: initialPayloadId,
                 recipientAci: serviceId,
-                recipientDeviceId: 0,
+                recipientDeviceId: DeviceId(validating: 1)!,
                 message: newMessage,
                 tx: writeTx
             )
@@ -285,7 +285,7 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordPendingDelivery(
                 payloadId: initialPayloadId,
                 recipientAci: serviceId,
-                recipientDeviceId: 1,
+                recipientDeviceId: DeviceId(validating: 2)!,
                 message: newMessage,
                 tx: writeTx
             )
@@ -299,7 +299,7 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
                 recipientAci: serviceId,
-                recipientDeviceId: 0,
+                recipientDeviceId: DeviceId(validating: 1)!,
                 tx: writeTx
             )
 
@@ -310,7 +310,7 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
                 recipientAci: serviceId,
-                recipientDeviceId: 1,
+                recipientDeviceId: DeviceId(validating: 2)!,
                 tx: writeTx
             )
 
@@ -320,7 +320,7 @@ class MessageSendLogTests: SSKBaseTest {
     }
 
     func testRetryPartialFailureAfterAllInitialRecipientsAcked() throws {
-        try databaseStorage.write { writeTx in
+        try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             // Create and save the message payload
             let newMessage = createOutgoingMessage(transaction: writeTx)
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
@@ -331,14 +331,14 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordPendingDelivery(
                 payloadId: initialPayloadId,
                 recipientAci: serviceId,
-                recipientDeviceId: 0,
+                recipientDeviceId: DeviceId(validating: 1)!,
                 message: newMessage,
                 tx: writeTx
             )
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
                 recipientAci: serviceId,
-                recipientDeviceId: 0,
+                recipientDeviceId: DeviceId(validating: 1)!,
                 tx: writeTx
             )
             messageSendLog.sendComplete(message: newMessage, tx: writeTx)
@@ -351,7 +351,7 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordPendingDelivery(
                 payloadId: secondPayloadId,
                 recipientAci: serviceId,
-                recipientDeviceId: 1,
+                recipientDeviceId: DeviceId(validating: 2)!,
                 message: newMessage,
                 tx: writeTx
             )
@@ -359,7 +359,7 @@ class MessageSendLogTests: SSKBaseTest {
             messageSendLog.recordSuccessfulDelivery(
                 message: newMessage,
                 recipientAci: serviceId,
-                recipientDeviceId: 1,
+                recipientDeviceId: DeviceId(validating: 2)!,
                 tx: writeTx
             )
 
@@ -373,7 +373,7 @@ class MessageSendLogTests: SSKBaseTest {
     // Test disabled since it exercises an owsFailDebug()
     // Works correctly if assertions are disabled and the test is enabled.
     func testPlaintextMismatchFails() throws {
-        try databaseStorage.write { writeTx in
+        try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             // Create and save the message payload
             let newMessage = createOutgoingMessage(transaction: writeTx)
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
@@ -389,7 +389,7 @@ class MessageSendLogTests: SSKBaseTest {
     }
 
     func testDeleteMessageWithOnePayload() throws {
-        try databaseStorage.write { writeTx in
+        try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             // Create and save the message payload
             let newMessage = createOutgoingMessage(transaction: writeTx)
             let payloadData = CommonGenerator.sentence.data(using: .utf8)!
@@ -397,7 +397,7 @@ class MessageSendLogTests: SSKBaseTest {
 
             // "Send" the message to a recipient
             let serviceId = Aci.randomForTesting()
-            let deviceId = UInt32.random(in: 0..<100)
+            let deviceId = DeviceId(validating: UInt32.random(in: 1...2))!
             messageSendLog.recordPendingDelivery(
                 payloadId: payloadId,
                 recipientAci: serviceId,
@@ -415,7 +415,7 @@ class MessageSendLogTests: SSKBaseTest {
     }
 
     func testDeleteMessageWithManyPayloads() throws {
-        try databaseStorage.write { writeTx in
+        try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             // Create and save several message payloads
             let message1 = createOutgoingMessage(transaction: writeTx)
             let data1 = CommonGenerator.sentence.data(using: .utf8)!
@@ -430,7 +430,7 @@ class MessageSendLogTests: SSKBaseTest {
 
             // "Send" the messages to a recipient
             let serviceId = Aci.randomForTesting()
-            let deviceId = UInt32.random(in: 0..<100)
+            let deviceId = DeviceId(validating: UInt32.random(in: 1...2))!
             for index in [index1, index2, index3] {
                 messageSendLog.recordPendingDelivery(
                     payloadId: index,
@@ -453,7 +453,7 @@ class MessageSendLogTests: SSKBaseTest {
     }
 
     func testCleanupExpiredPayloads() throws {
-        let (oldId, newId) = try databaseStorage.write { writeTx in
+        let (oldId, newId) = try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             let oldMessage = createOutgoingMessage(date: Date(timeIntervalSince1970: 1000), transaction: writeTx)
             let oldData = CommonGenerator.sentence.data(using: .utf8)!
             let oldId = try XCTUnwrap(messageSendLog.recordPayload(oldData, for: oldMessage, tx: writeTx))
@@ -470,7 +470,7 @@ class MessageSendLogTests: SSKBaseTest {
 
         try messageSendLog.cleanUpExpiredEntries()
 
-        databaseStorage.read { tx in
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
             // Verify only the old message was deleted
             XCTAssertFalse(isPayloadAlive(index: oldId, transaction: tx))
             XCTAssertTrue(isPayloadAlive(index: newId, transaction: tx))
@@ -486,7 +486,7 @@ class MessageSendLogTests: SSKBaseTest {
         // incorrectly coercing to the wrong timestamp. In this case, constructing a Date from that millisecond
         // timestamp would result in a time interval of 1629210680.1399999. Reconverting back to a timestamp and
         // we get 1629210680139.
-        try databaseStorage.write { writeTx in
+        try SSKEnvironment.shared.databaseStorageRef.write { writeTx in
             let messageSendLog = MessageSendLog(
                 db: DependenciesBridge.shared.db,
                 dateProvider: { Date(timeIntervalSince1970: 1629270000) }
@@ -502,11 +502,11 @@ class MessageSendLogTests: SSKBaseTest {
             XCTAssertEqual(message.timestamp, originalTimestamp)
 
             let index = try XCTUnwrap(messageSendLog.recordPayload(data, for: message, tx: writeTx))
-            messageSendLog.recordPendingDelivery(payloadId: index, recipientAci: serviceId, recipientDeviceId: 1, message: message, tx: writeTx)
+            messageSendLog.recordPendingDelivery(payloadId: index, recipientAci: serviceId, recipientDeviceId: DeviceId(validating: 1)!, message: message, tx: writeTx)
 
             let fetchedPayload = messageSendLog.fetchPayload(
                 recipientAci: serviceId,
-                recipientDeviceId: 1,
+                recipientDeviceId: DeviceId(validating: 1)!,
                 timestamp: originalTimestamp,
                 tx: writeTx
             )
@@ -517,7 +517,7 @@ class MessageSendLogTests: SSKBaseTest {
     // MARK: - Helpers
 
     class MSLTestMessage: TSOutgoingMessage {
-        init(outgoingMessageWithBuilder outgoingMessageBuilder: TSOutgoingMessageBuilder, transaction: SDSAnyReadTransaction) {
+        init(outgoingMessageWithBuilder outgoingMessageBuilder: TSOutgoingMessageBuilder, transaction: DBReadTransaction) {
             super.init(
                 outgoingMessageWith: outgoingMessageBuilder,
                 additionalRecipients: [],
@@ -546,7 +546,7 @@ class MessageSendLogTests: SSKBaseTest {
         date: Date? = nil,
         contentHint: SealedSenderContentHint = .implicit,
         relatedMessageIds: [String] = [],
-        transaction writeTx: SDSAnyWriteTransaction
+        transaction writeTx: DBWriteTransaction
     ) -> TSOutgoingMessage {
 
         let resolvedDate = date ?? {
@@ -565,10 +565,10 @@ class MessageSendLogTests: SSKBaseTest {
         return testMessage
     }
 
-    func isPayloadAlive(index: Int64, transaction tx: SDSAnyReadTransaction) -> Bool {
+    func isPayloadAlive(index: Int64, transaction tx: DBReadTransaction) -> Bool {
         let count = try! MessageSendLog.Payload
             .filter(Column("payloadId") == index)
-            .fetchCount(tx.unwrapGrdbRead.database)
+            .fetchCount(tx.database)
         return count > 0
     }
 }

@@ -7,7 +7,7 @@ import SignalServiceKit
 
 extension StoryMessage {
 
-    func quotedBody(transaction: SDSAnyReadTransaction) -> MessageBody? {
+    func quotedBody(transaction: DBReadTransaction) -> MessageBody? {
         let caption: String?
         let captionStyles: [NSRangedValue<MessageBodyRanges.CollapsedStyle>]
         switch attachment {
@@ -24,9 +24,13 @@ extension StoryMessage {
                 return MessageBody(text: urlString, ranges: .empty)
             }
 
-        case .file, .foreignReferenceAttachment:
+        case .media:
             guard
-                let attachmentPointer = DependenciesBridge.shared.tsResourceStore.mediaAttachment(for: self, tx: transaction.asV2Read)
+                let rowId = self.id,
+                let attachmentPointer = DependenciesBridge.shared.attachmentStore.fetchFirstReference(
+                    owner: .storyMessageMedia(storyMessageRowId: rowId),
+                    tx: transaction
+                )
             else {
                 owsFailDebug("Missing attachment for story message \(timestamp)")
                 return nil

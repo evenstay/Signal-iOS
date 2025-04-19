@@ -6,7 +6,7 @@
 public import SignalServiceKit
 import SignalUI
 
-public class CLVReminderViews: Dependencies {
+public class CLVReminderViews {
 
     fileprivate let reminderViewCell = UITableViewCell()
     fileprivate let reminderStackView = UIStackView()
@@ -82,7 +82,7 @@ public class CLVReminderViews: Dependencies {
         archiveReminderView = ReminderView(
             style: .info,
             text: {
-                let shouldKeepMutedChatsArchived = databaseStorage.read { transaction in
+                let shouldKeepMutedChatsArchived = SSKEnvironment.shared.databaseStorageRef.read { transaction in
                     return SSKPreferences.shouldKeepMutedChatsArchived(transaction: transaction)
                 }
                 if shouldKeepMutedChatsArchived {
@@ -159,10 +159,10 @@ public class CLVReminderViews: Dependencies {
             isAttemptingRecovery: true,
             usernameSelectionDelegate: chatListViewController,
             context: .init(
-                databaseStorage: databaseStorage,
-                networkManager: networkManager,
+                databaseStorage: SSKEnvironment.shared.databaseStorageRef,
+                networkManager: SSKEnvironment.shared.networkManagerRef,
                 schedulers: DependenciesBridge.shared.schedulers,
-                storageServiceManager: storageServiceManager,
+                storageServiceManager: SSKEnvironment.shared.storageServiceManagerRef,
                 usernameEducationManager: DependenciesBridge.shared.usernameEducationManager,
                 localUsernameManager: DependenciesBridge.shared.localUsernameManager
             )
@@ -219,44 +219,52 @@ extension ChatListViewController {
 
     public var reminderViews: CLVReminderViews { viewState.reminderViews }
 
-    public func updateReminderViews() {
-        AssertIsOnMainThread()
-
+    public func updateArchiveReminderView() {
         archiveReminderView.isHidden = viewState.chatListMode != .archive
+    }
+
+    public func updateRegistrationReminderView() {
         let tsRegistrationState = DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction
         deregisteredView.isHidden = !tsRegistrationState.isDeregistered
+    }
+
+    public func updateOutageDetectionReminderView() {
         outageView.isHidden = !OutageDetection.shared.hasOutage
+    }
 
+    public func updateExpirationReminderView() {
         expiredView.update()
+    }
 
-        if unreadPaymentNotificationsCount == 1,
-           let firstUnreadPaymentModel = self.firstUnreadPaymentModel {
+    public func updatePaymentReminderView() {
+        if unreadPaymentNotificationsCount == 1, let firstUnreadPaymentModel = self.firstUnreadPaymentModel {
             self.paymentsReminderView.isHidden = false
 
-            databaseStorage.read { transaction in
-                self.configureUnreadPaymentsBannerSingle(paymentsReminderView,
-                                                         paymentModel: firstUnreadPaymentModel,
-                                                         transaction: transaction)
+            SSKEnvironment.shared.databaseStorageRef.read { transaction in
+                self.configureUnreadPaymentsBannerSingle(
+                    paymentsReminderView,
+                    paymentModel: firstUnreadPaymentModel,
+                    transaction: transaction
+                )
             }
         } else if unreadPaymentNotificationsCount == 0 || firstUnreadPaymentModel == nil {
             self.paymentsReminderView.isHidden = true
         } else {
             self.paymentsReminderView.isHidden = false
-            self.configureUnreadPaymentsBannerMultiple(paymentsReminderView,
-                                                       unreadCount: unreadPaymentNotificationsCount)
+            self.configureUnreadPaymentsBannerMultiple(paymentsReminderView, unreadCount: unreadPaymentNotificationsCount)
         }
+    }
 
-        databaseStorage.read { tx in
+    public func updateUsernameReminderView() {
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
             updateUsernameStateViews(tx: tx)
         }
-
-        updateShouldBeUpdatingView()
     }
 
     public func updateUnreadPaymentNotificationsCountWithSneakyTransaction() {
         AssertIsOnMainThread()
 
-        guard paymentsHelper.arePaymentsEnabled else {
+        guard SSKEnvironment.shared.paymentsHelperRef.arePaymentsEnabled else {
             var needsUpdate = false
 
             if unreadPaymentNotificationsCount > 0 {
@@ -270,13 +278,13 @@ extension ChatListViewController {
             }
 
             if needsUpdate {
-                updateReminderViews()
+                updatePaymentReminderView()
             }
 
             return
         }
 
-        let (unreadPaymentNotificationsCount, firstUnreadPaymentModel) = databaseStorage.read { transaction in
+        let (unreadPaymentNotificationsCount, firstUnreadPaymentModel) = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             return (
                 PaymentFinder.unreadCount(transaction: transaction),
                 PaymentFinder.firstUnreadPaymentModel(transaction: transaction)
@@ -286,13 +294,13 @@ extension ChatListViewController {
         self.unreadPaymentNotificationsCount = unreadPaymentNotificationsCount
         self.firstUnreadPaymentModel = firstUnreadPaymentModel
 
-        updateReminderViews()
+        updatePaymentReminderView()
     }
 
     /// Update reminder views as appropriate for the current username state.
-    private func updateUsernameStateViews(tx: SDSAnyReadTransaction) {
+    private func updateUsernameStateViews(tx: DBReadTransaction) {
         let currentUsernameState = DependenciesBridge.shared.localUsernameManager
-            .usernameState(tx: tx.asV2Read)
+            .usernameState(tx: tx)
 
         switch currentUsernameState {
         case .unset, .available:

@@ -6,12 +6,6 @@
 import Foundation
 public import GRDB
 
-@available(swift, obsoleted: 1.0)
-@objcMembers
-public class OWSDeviceObjc: NSObject {
-    public static let primaryDeviceId: UInt32 = OWSDevice.primaryDeviceId
-}
-
 public final class OWSDevice: SDSCodableModel, Decodable {
     public static let primaryDeviceId: UInt32 = 1
 
@@ -33,7 +27,7 @@ public final class OWSDevice: SDSCodableModel, Decodable {
     public let uniqueId: String
 
     public let deviceId: Int
-    public let encryptedName: String?
+    public var encryptedName: String?
     public let createdAt: Date
     public let lastSeenAt: Date
 
@@ -50,6 +44,17 @@ public final class OWSDevice: SDSCodableModel, Decodable {
         self.createdAt = createdAt
         self.lastSeenAt = lastSeenAt
     }
+
+#if DEBUG
+    public static func previewItem(id: Int) -> OWSDevice {
+        OWSDevice(
+            deviceId: id,
+            encryptedName: nil,
+            createdAt: Date().addingTimeInterval(-86_400 * TimeInterval(Int.random(in: 10...20))),
+            lastSeenAt: Date().addingTimeInterval(-86_400 * TimeInterval(Int.random(in: 0...10)))
+        )
+    }
+#endif
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -133,7 +138,7 @@ public extension OWSDevice {
     /// `true` if any devices were added or removed, and `false` otherwise.
     static func replaceAll(
         with newDevices: [OWSDevice],
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> Bool {
         let existingDevices = anyFetchAll(transaction: transaction)
 

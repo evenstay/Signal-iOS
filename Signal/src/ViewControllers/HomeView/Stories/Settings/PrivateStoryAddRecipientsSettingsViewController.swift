@@ -44,14 +44,23 @@ public class PrivateStoryAddRecipientsSettingsViewController: BaseMemberViewCont
     private func updatePressed() {
         AssertIsOnMainThread()
 
+        let uniqueId = self.thread.uniqueId
+        let newValues = self.recipientSet.orderedMembers.compactMap { $0.address?.serviceId }
         ModalActivityIndicatorViewController.presentAsInvisible(fromViewController: self) { modal in
-            Self.databaseStorage.asyncWrite { transaction in
-                self.thread.updateWithStoryViewMode(
-                    .explicit,
-                    addresses: self.thread.addresses + self.recipientSet.orderedMembers.compactMap { $0.address },
-                    updateStorageService: true,
-                    transaction: transaction
-                )
+            SSKEnvironment.shared.databaseStorageRef.asyncWrite { tx in
+                guard
+                    let storyThread = TSPrivateStoryThread.anyFetchPrivateStoryThread(uniqueId: uniqueId, transaction: tx),
+                    storyThread.storyViewMode == .explicit
+                else {
+                    // Conflict during the update; stop.
+                    return
+                }
+                let recipientFetcher = DependenciesBridge.shared.recipientFetcher
+                let recipientIds = newValues.map { recipientFetcher.fetchOrCreate(serviceId: $0, tx: tx).id! }
+                let storyRecipientManager = DependenciesBridge.shared.storyRecipientManager
+                failIfThrows {
+                    try storyRecipientManager.insertRecipientIds(recipientIds, for: storyThread, shouldUpdateStorageService: true, tx: tx)
+                }
             } completion: {
                 self.navigationController?.popViewController(animated: true) { modal.dismiss(animated: false) }
             }
@@ -71,14 +80,11 @@ extension PrivateStoryAddRecipientsSettingsViewController: MemberViewDelegate {
         updateBarButtons()
     }
 
-    public func memberViewAddRecipient(_ recipient: PickedRecipient) {
+    public func memberViewAddRecipient(_ recipient: PickedRecipient) -> Bool {
         recipientSet.append(recipient)
         updateBarButtons()
+        return true
     }
-
-    public func memberViewCanAddRecipient(_ recipient: PickedRecipient) -> Bool { true }
-
-    public func memberViewPrepareToSelectRecipient(_ recipient: PickedRecipient) -> Promise<Void> { Promise.value(()) }
 
     public func memberViewShouldShowMemberCount() -> Bool { false }
 
@@ -86,9 +92,21 @@ extension PrivateStoryAddRecipientsSettingsViewController: MemberViewDelegate {
 
     public func memberViewMemberCountForDisplay() -> Int { recipientSet.count }
 
-    public func memberViewIsPreExistingMember(_ recipient: PickedRecipient, transaction: SDSAnyReadTransaction) -> Bool {
-        guard let address = recipient.address else { return false }
-        return thread.addresses.contains(address)
+    public func memberViewIsPreExistingMember(_ recipient: PickedRecipient, transaction: DBReadTransaction) -> Bool {
+        guard let address = recipient.address else {
+            return false
+        }
+        let recipientDatabaseTable = DependenciesBridge.shared.recipientDatabaseTable
+        guard let recipient = recipientDatabaseTable.fetchRecipient(address: address, tx: transaction) else {
+            return false
+        }
+        let storyRecipientStore = DependenciesBridge.shared.storyRecipientStore
+        do {
+            return try storyRecipientStore.doesStoryThreadId(thread.sqliteRowId!, containRecipientId: recipient.id!, tx: transaction)
+        } catch {
+            Logger.warn("Couldn't check if member is already in story thread: \(error)")
+            return false
+        }
     }
 
     public func memberViewCustomIconNameForPickedMember(_ recipient: PickedRecipient) -> String? { nil }

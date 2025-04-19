@@ -79,19 +79,19 @@ extension ChatListViewController {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(showBadgeSheetIfNecessary),
-            name: ReceiptCredentialRedemptionJob.didSucceedNotification,
+            name: DonationReceiptCredentialRedemptionJob.didSucceedNotification,
             object: nil
         )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(showBadgeSheetIfNecessary),
-            name: ReceiptCredentialRedemptionJob.didFailNotification,
+            name: DonationReceiptCredentialRedemptionJob.didFailNotification,
             object: nil
         )
 
-        contactsViewHelper.addObserver(self)
+        SUIEnvironment.shared.contactsViewHelperRef.addObserver(self)
 
-        databaseStorage.appendDatabaseChangeDelegate(self)
+        DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
     }
 
     // MARK: -
@@ -115,16 +115,16 @@ extension ChatListViewController {
     private func registrationStateDidChange(_ notification: NSNotification) {
         AssertIsOnMainThread()
 
-        updateReminderViews()
-        loadIfNecessary()
+        updateRegistrationReminderView()
+        loadCoordinator.loadIfNecessary()
     }
 
     @objc
     private func outageStateDidChange(_ notification: NSNotification) {
         AssertIsOnMainThread()
 
-        updateReminderViews()
-        loadIfNecessary()
+        updateOutageDetectionReminderView()
+        loadCoordinator.loadIfNecessary()
     }
 
     @objc
@@ -138,8 +138,8 @@ extension ChatListViewController {
     private func appExpiryDidChange(_ notification: NSNotification) {
         AssertIsOnMainThread()
 
-        updateReminderViews()
-        loadIfNecessary()
+        updateExpirationReminderView()
+        loadCoordinator.loadIfNecessary()
     }
 
     @objc
@@ -176,7 +176,7 @@ extension ChatListViewController {
         let address: SignalServiceAddress? = notification.userInfo?[UserProfileNotifications.profileAddressKey] as? SignalServiceAddress
         let groupId: Data? = notification.userInfo?[UserProfileNotifications.profileGroupIdKey] as? Data
 
-        let changedThreadId: String? = databaseStorage.read { transaction in
+        let changedThreadId: String? = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             if let address = address,
                address.isValid {
                 return TSContactThread.getWithContactAddress(address, transaction: transaction)?.uniqueId
@@ -198,7 +198,7 @@ extension ChatListViewController {
 
         let address = notification.userInfo?[UserProfileNotifications.profileAddressKey] as? SignalServiceAddress
 
-        let changedThreadId: String? = databaseStorage.read { readTx in
+        let changedThreadId: String? = SSKEnvironment.shared.databaseStorageRef.read { readTx in
             if let address = address, address.isValid {
                 return TSContactThread.getWithContactAddress(address, transaction: readTx)?.uniqueId
             } else {
@@ -230,8 +230,8 @@ extension ChatListViewController {
 
     @objc
     private func localUsernameStateDidChange() {
-        updateReminderViews()
-        loadIfNecessary()
+        updateUsernameReminderView()
+        loadCoordinator.loadIfNecessary()
     }
 }
 
@@ -240,8 +240,6 @@ extension ChatListViewController {
 extension ChatListViewController: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
-        AssertIsOnMainThread()
-
         if databaseChanges.didUpdate(tableName: TSPaymentModel.table.tableName) {
             updateUnreadPaymentNotificationsCountWithSneakyTransaction()
         }
@@ -252,8 +250,6 @@ extension ChatListViewController: DatabaseChangeDelegate {
     }
 
     public func databaseChangesDidUpdateExternally() {
-        AssertIsOnMainThread()
-
         // External database modifications can't be converted into incremental updates,
         // so rebuild everything.  This is expensive and usually isn't necessary, but
         // there's no alternative.
@@ -261,8 +257,6 @@ extension ChatListViewController: DatabaseChangeDelegate {
     }
 
     public func databaseChangesDidReset() {
-        AssertIsOnMainThread()
-
         // This should only happen if we need to recover from an error in the
         // database change observation pipeline.  This should never occur,
         // but when it does we need to rebuild everything.  This is expensive,

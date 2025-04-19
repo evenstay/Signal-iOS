@@ -8,7 +8,7 @@ import SignalUI
 
 #if USE_DEBUG_UI
 
-class DebugUIPayments: DebugUIPage, Dependencies {
+class DebugUIPayments: DebugUIPage {
 
     let name = "Payments"
 
@@ -43,8 +43,8 @@ class DebugUIPayments: DebugUIPage, Dependencies {
             self?.deleteAllPaymentModels()
         })
         sectionItems.append(OWSTableItem(title: "Reconcile now") {
-            Self.databaseStorage.write { transaction in
-                Self.payments.scheduleReconciliationNow(transaction: transaction)
+            SSKEnvironment.shared.databaseStorageRef.write { transaction in
+                SUIEnvironment.shared.paymentsRef.scheduleReconciliationNow(transaction: transaction)
             }
         })
 
@@ -57,7 +57,7 @@ class DebugUIPayments: DebugUIPage, Dependencies {
         let address = contactThread.contactAddress
         let aci = address.aci!
 
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             let paymentAmounts = [
                 TSPaymentAmount(currency: .mobileCoin, picoMob: 1),
                 TSPaymentAmount(currency: .mobileCoin, picoMob: 1000),
@@ -105,7 +105,7 @@ class DebugUIPayments: DebugUIPage, Dependencies {
                                                   interactionUniqueId: nil,
                                                   mobileCoin: mobileCoin)
                 do {
-                    try Self.paymentsHelper.tryToInsertPaymentModel(paymentModel, transaction: transaction)
+                    try SSKEnvironment.shared.paymentsHelperRef.tryToInsertPaymentModel(paymentModel, transaction: transaction)
                 } catch {
                     owsFailDebug("Error: \(error)")
                 }
@@ -194,7 +194,7 @@ class DebugUIPayments: DebugUIPage, Dependencies {
         let paymentAmount = TSPaymentAmount(currency: .mobileCoin, picoMob: picoMob)
         let recipient = SendPaymentRecipientImpl.address(address: contactThread .contactAddress)
         firstly(on: DispatchQueue.global()) { () -> Promise<PreparedPayment> in
-            Self.paymentsImpl.prepareOutgoingPayment(
+            SUIEnvironment.shared.paymentsImplRef.prepareOutgoingPayment(
                 recipient: recipient,
                 paymentAmount: paymentAmount,
                 memoMessage: "Tiny: \(count)",
@@ -202,9 +202,9 @@ class DebugUIPayments: DebugUIPage, Dependencies {
                 canDefragment: false
             )
         }.then(on: DispatchQueue.global()) { (preparedPayment: PreparedPayment) in
-            Self.paymentsImpl.initiateOutgoingPayment(preparedPayment: preparedPayment)
+            SUIEnvironment.shared.paymentsImplRef.initiateOutgoingPayment(preparedPayment: preparedPayment)
         }.then(on: DispatchQueue.global()) { (paymentModel: TSPaymentModel) in
-            Self.paymentsImpl.blockOnOutgoingVerification(paymentModel: paymentModel)
+            SUIEnvironment.shared.paymentsImplRef.blockOnOutgoingVerification(paymentModel: paymentModel)
         }.done(on: DispatchQueue.global()) { _ in
             if count > 1 {
                 Self.sendTinyPayments(contactThread: contactThread, count: count - 1)
@@ -217,7 +217,7 @@ class DebugUIPayments: DebugUIPage, Dependencies {
     }
 
     private func deleteAllPaymentModels() {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             TSPaymentModel.anyRemoveAllWithInstantiation(transaction: transaction)
         }
     }

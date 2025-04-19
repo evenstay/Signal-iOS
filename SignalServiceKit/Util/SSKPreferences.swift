@@ -9,9 +9,9 @@ import GRDB
 @objc
 public class SSKPreferences: NSObject {
 
-    public static let store = SDSKeyValueStore(collection: "SSKPreferences")
+    public static let store = KeyValueStore(collection: "SSKPreferences")
 
-    private var store: SDSKeyValueStore {
+    private var store: KeyValueStore {
         return SSKPreferences.store
     }
 
@@ -20,11 +20,11 @@ public class SSKPreferences: NSObject {
     private static var areLegacyLinkPreviewsEnabledKey: String { "areLegacyLinkPreviewsEnabled" }
 
     // The following two methods are just to make sure we can store and forward in storage service updates
-    public static func areLegacyLinkPreviewsEnabled(transaction: SDSAnyReadTransaction) -> Bool {
+    public static func areLegacyLinkPreviewsEnabled(transaction: DBReadTransaction) -> Bool {
         return store.getBool(areLegacyLinkPreviewsEnabledKey, defaultValue: true, transaction: transaction)
     }
 
-    public static func setAreLegacyLinkPreviewsEnabled(_ newValue: Bool, transaction: SDSAnyWriteTransaction) {
+    public static func setAreLegacyLinkPreviewsEnabled(_ newValue: Bool, transaction: DBWriteTransaction) {
         store.setBool(newValue, key: areLegacyLinkPreviewsEnabledKey, transaction: transaction)
     }
 
@@ -33,25 +33,25 @@ public class SSKPreferences: NSObject {
     private static var areIntentDonationsEnabledKey: String { "areSharingSuggestionsEnabled" }
 
     @objc
-    public static func areIntentDonationsEnabled(transaction: SDSAnyReadTransaction) -> Bool {
+    public static func areIntentDonationsEnabled(transaction: DBReadTransaction) -> Bool {
         return store.getBool(areIntentDonationsEnabledKey, defaultValue: true, transaction: transaction)
     }
 
     @objc
-    public static func setAreIntentDonationsEnabled(_ newValue: Bool, transaction: SDSAnyWriteTransaction) {
+    public static func setAreIntentDonationsEnabled(_ newValue: Bool, transaction: DBWriteTransaction) {
         store.setBool(newValue, key: areIntentDonationsEnabledKey, transaction: transaction)
     }
 
     // MARK: -
 
     @objc
-    public static func hasSavedThread(transaction: SDSAnyReadTransaction) -> Bool {
-        return shared.hasSavedThread(transaction: transaction)
+    public static func hasSavedThread(transaction: DBReadTransaction) -> Bool {
+        return SSKEnvironment.shared.sskPreferencesRef.hasSavedThread(transaction: transaction)
     }
 
     @objc
-    public static func setHasSavedThread(_ newValue: Bool, transaction: SDSAnyWriteTransaction) {
-        shared.setHasSavedThread(newValue, transaction: transaction)
+    public static func setHasSavedThread(_ newValue: Bool, transaction: DBWriteTransaction) {
+        SSKEnvironment.shared.sskPreferencesRef.setHasSavedThread(newValue, transaction: transaction)
     }
 
     private let hasSavedThreadKey = "hasSavedThread"
@@ -59,7 +59,7 @@ public class SSKPreferences: NSObject {
     private var hasSavedThreadCache: Bool?
 
     @objc
-    public func hasSavedThread(transaction: SDSAnyReadTransaction) -> Bool {
+    public func hasSavedThread(transaction: DBReadTransaction) -> Bool {
         if let value = hasSavedThreadCache {
             return value
         }
@@ -69,7 +69,7 @@ public class SSKPreferences: NSObject {
     }
 
     @objc
-    public func setHasSavedThread(_ newValue: Bool, transaction: SDSAnyWriteTransaction) {
+    public func setHasSavedThread(_ newValue: Bool, transaction: DBWriteTransaction) {
         store.setBool(newValue, key: hasSavedThreadKey, transaction: transaction)
         hasSavedThreadCache = newValue
     }
@@ -85,39 +85,15 @@ public class SSKPreferences: NSObject {
         userDefaults.removeObject(forKey: didEverUseYdbKey)
     }
 
-    // MARK: - messageRequestInteractionIdEpoch
-
-    private static var messageRequestInteractionIdEpochKey: String { "messageRequestInteractionIdEpoch" }
-    private static var messageRequestInteractionIdEpochCached: Int?
-    public static func messageRequestInteractionIdEpoch(transaction: GRDBReadTransaction) -> Int? {
-        if let value = messageRequestInteractionIdEpochCached {
-            return value
-        }
-        let value = store.getInt(messageRequestInteractionIdEpochKey, transaction: transaction.asAnyRead)
-        messageRequestInteractionIdEpochCached = value
-        return value
-    }
-
-    public static func setMessageRequestInteractionIdEpoch(_ value: Int?, transaction: GRDBWriteTransaction) {
-        guard let value = value else {
-            store.removeValue(forKey: messageRequestInteractionIdEpochKey, transaction: transaction.asAnyWrite)
-            messageRequestInteractionIdEpochCached = nil
-            return
-        }
-
-        store.setInt(value, key: messageRequestInteractionIdEpochKey, transaction: transaction.asAnyWrite)
-        messageRequestInteractionIdEpochCached = value
-    }
-
     // MARK: - Badge Count
 
     private static let includeMutedThreadsInBadgeCount = "includeMutedThreadsInBadgeCount"
 
-    public static func includeMutedThreadsInBadgeCount(transaction: SDSAnyReadTransaction) -> Bool {
+    public static func includeMutedThreadsInBadgeCount(transaction: DBReadTransaction) -> Bool {
         return store.getBool(includeMutedThreadsInBadgeCount, defaultValue: false, transaction: transaction)
     }
 
-    public static func setIncludeMutedThreadsInBadgeCount(_ value: Bool, transaction: SDSAnyWriteTransaction) {
+    public static func setIncludeMutedThreadsInBadgeCount(_ value: Bool, transaction: DBWriteTransaction) {
         store.setBool(value, key: includeMutedThreadsInBadgeCount, transaction: transaction)
     }
 
@@ -129,7 +105,7 @@ public class SSKPreferences: NSObject {
     private static var preferContactAvatarsCached: Bool?
 
     @objc
-    public static func preferContactAvatars(transaction: SDSAnyReadTransaction) -> Bool {
+    public static func preferContactAvatars(transaction: DBReadTransaction) -> Bool {
         if let value = preferContactAvatarsCached { return value }
         let value = store.getBool(preferContactAvatarsKey, defaultValue: false, transaction: transaction)
         preferContactAvatarsCached = value
@@ -140,7 +116,7 @@ public class SSKPreferences: NSObject {
     public static func setPreferContactAvatars(
         _ value: Bool,
         updateStorageService: Bool = true,
-        transaction: SDSAnyWriteTransaction) {
+        transaction: DBWriteTransaction) {
 
         let oldValue = store.getBool(preferContactAvatarsKey, transaction: transaction)
         store.setBool(value, key: preferContactAvatarsKey, transaction: transaction)
@@ -148,9 +124,9 @@ public class SSKPreferences: NSObject {
 
         if oldValue != value {
             if updateStorageService {
-                Self.storageServiceManager.recordPendingLocalAccountUpdates()
+                SSKEnvironment.shared.storageServiceManagerRef.recordPendingLocalAccountUpdates()
             }
-            NotificationCenter.default.postNotificationNameAsync(Self.preferContactAvatarsPreferenceDidChange, object: nil)
+            NotificationCenter.default.postOnMainThread(name: Self.preferContactAvatarsPreferenceDidChange, object: nil)
         }
     }
 
@@ -207,12 +183,12 @@ public class SSKPreferences: NSObject {
     private static var shouldKeepMutedChatsArchivedKey: String { "shouldKeepMutedChatsArchived" }
 
     @objc
-    public static func shouldKeepMutedChatsArchived(transaction: SDSAnyReadTransaction) -> Bool {
+    public static func shouldKeepMutedChatsArchived(transaction: DBReadTransaction) -> Bool {
         return store.getBool(shouldKeepMutedChatsArchivedKey, defaultValue: false, transaction: transaction)
     }
 
     @objc
-    public static func setShouldKeepMutedChatsArchived(_ newValue: Bool, transaction: SDSAnyWriteTransaction) {
+    public static func setShouldKeepMutedChatsArchived(_ newValue: Bool, transaction: DBWriteTransaction) {
         store.setBool(newValue, key: shouldKeepMutedChatsArchivedKey, transaction: transaction)
     }
 }

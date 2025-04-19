@@ -12,7 +12,7 @@ import XCTest
 final class ThreadMergerTest: XCTestCase {
     private var callRecordStore: MockCallRecordStore!
     private var chatColorSettingStore: ChatColorSettingStore!
-    private var db: MockDB!
+    private var db: InMemoryDB!
     private var deletedCallRecordStore: MockDeletedCallRecordStore!
     private var disappearingMessagesConfigurationManager: ThreadMerger_MockDisappearingMessagesConfigurationManager!
     private var disappearingMessagesConfigurationStore: MockDisappearingMessagesConfigurationStore!
@@ -35,12 +35,11 @@ final class ThreadMergerTest: XCTestCase {
     private var phoneNumberThread: TSContactThread!
 
     override func setUp() {
-        let keyValueStoreFactory = InMemoryKeyValueStoreFactory()
 
         _signalServiceAddressCache = SignalServiceAddressCache()
 
         callRecordStore = MockCallRecordStore()
-        db = MockDB()
+        db = InMemoryDB()
         deletedCallRecordStore = MockDeletedCallRecordStore()
         disappearingMessagesConfigurationStore = MockDisappearingMessagesConfigurationStore()
         disappearingMessagesConfigurationManager = ThreadMerger_MockDisappearingMessagesConfigurationManager(disappearingMessagesConfigurationStore)
@@ -48,22 +47,19 @@ final class ThreadMergerTest: XCTestCase {
         interactionStore = MockInteractionStore()
         threadAssociatedDataStore = MockThreadAssociatedDataStore()
         threadAssociatedDataManager = ThreadMerger_MockThreadAssociatedDataManager(threadAssociatedDataStore)
-        threadReplyInfoStore = ThreadReplyInfoStore(keyValueStoreFactory: keyValueStoreFactory)
+        threadReplyInfoStore = ThreadReplyInfoStore()
         threadStore = MockThreadStore()
         wallpaperStore = WallpaperStore(
-            keyValueStoreFactory: keyValueStoreFactory,
-            notificationScheduler: SyncScheduler(),
             wallpaperImageStore: MockWallpaperImageStore()
         )
         chatColorSettingStore = ChatColorSettingStore(
-            keyValueStoreFactory: keyValueStoreFactory,
             wallpaperStore: wallpaperStore
         )
         threadRemover = ThreadRemoverImpl(
             chatColorSettingStore: chatColorSettingStore,
             databaseStorage: ThreadRemover_MockDatabaseStorage(),
             disappearingMessagesConfigurationStore: disappearingMessagesConfigurationStore,
-            sdsThreadRemover: ThreadRemover_MockSDSThreadRemover(),
+            lastVisibleInteractionStore: LastVisibleInteractionStore(),
             threadAssociatedDataStore: threadAssociatedDataStore,
             threadReadCache: ThreadRemover_MockThreadReadCache(),
             threadReplyInfoStore: threadReplyInfoStore,

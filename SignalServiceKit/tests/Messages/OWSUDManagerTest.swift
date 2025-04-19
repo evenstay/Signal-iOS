@@ -11,7 +11,7 @@ import LibSignalClient
 class OWSUDManagerTest: SSKBaseTest {
 
     private var udManagerImpl: OWSUDManagerImpl {
-        return SSKEnvironment.shared.udManager as! OWSUDManagerImpl
+        return SSKEnvironment.shared.udManagerRef as! OWSUDManagerImpl
     }
 
     // MARK: - Setup/Teardown
@@ -21,26 +21,17 @@ class OWSUDManagerTest: SSKBaseTest {
     override func setUp() {
         super.setUp()
 
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: localIdentifiers,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
 
-        // Configure UDManager
-        self.write { transaction in
-            self.profileManager.setProfileKeyData(
-                Aes256Key.generateRandom().keyData,
-                for: localIdentifiers.aci,
-                onlyFillInIfMissing: false,
-                shouldFetchProfile: true,
-                userProfileWriter: .tests,
-                localIdentifiers: localIdentifiers,
-                authedAccount: .implicit(),
-                tx: transaction.asV2Write
-            )
-        }
+        let profileManager = SSKEnvironment.shared.profileManagerRef as! OWSFakeProfileManager
+        profileManager.fakeUserProfiles = [
+            localIdentifiers.aciAddress: OWSUserProfile(address: .localUser, profileKey: Aes256Key.generateRandom()),
+        ]
     }
 
     // MARK: - Tests
@@ -57,15 +48,15 @@ class OWSUDManagerTest: SSKBaseTest {
 
         write { tx in
             let udAccess = udManagerImpl.udAccess(for: bobRecipientAci, tx: tx)!
-            XCTAssertEqual(.unknown, udAccess.udAccessMode)
-            XCTAssert(udAccess.isRandomKey)
+            XCTAssertEqual(.unknown, udAccess.mode)
+            XCTAssertEqual(udAccess.key.keyData, SMKUDAccessKey.zeroedKey.keyData)
         }
 
         write { tx in
             udManagerImpl.setUnidentifiedAccessMode(.unknown, for: bobRecipientAci, tx: tx)
             let udAccess = udManagerImpl.udAccess(for: bobRecipientAci, tx: tx)!
-            XCTAssertEqual(.unknown, udAccess.udAccessMode)
-            XCTAssert(udAccess.isRandomKey)
+            XCTAssertEqual(.unknown, udAccess.mode)
+            XCTAssertEqual(udAccess.key.keyData, SMKUDAccessKey.zeroedKey.keyData)
         }
 
         write { tx in
@@ -84,8 +75,8 @@ class OWSUDManagerTest: SSKBaseTest {
             // Bob should work in unrestricted mode, even if he doesn't have a profile key.
             udManagerImpl.setUnidentifiedAccessMode(.unrestricted, for: bobRecipientAci, tx: tx)
             let udAccess = udManagerImpl.udAccess(for: bobRecipientAci, tx: tx)!
-            XCTAssertEqual(.unrestricted, udAccess.udAccessMode)
-            XCTAssert(udAccess.isRandomKey)
+            XCTAssertEqual(.unrestricted, udAccess.mode)
+            XCTAssertEqual(udAccess.key.keyData, SMKUDAccessKey.zeroedKey.keyData)
         }
     }
 
@@ -102,32 +93,22 @@ class OWSUDManagerTest: SSKBaseTest {
             udManagerImpl.setUnidentifiedAccessMode(.enabled, for: localIdentifiers.aci, tx: tx)
         }
 
+        let profileManager = SSKEnvironment.shared.profileManagerRef as! OWSFakeProfileManager
+
         let bobRecipientAci = Aci.randomForTesting()
-        self.write { transaction in
-            self.profileManager.setProfileKeyData(
-                Aes256Key.generateRandom().keyData,
-                for: bobRecipientAci,
-                onlyFillInIfMissing: false,
-                shouldFetchProfile: true,
-                userProfileWriter: .tests,
-                localIdentifiers: localIdentifiers,
-                authedAccount: .implicit(),
-                tx: transaction.asV2Write
-            )
-        }
+        profileManager.fakeUserProfiles![SignalServiceAddress(bobRecipientAci)] = OWSUserProfile(address: .otherUser(SignalServiceAddress(bobRecipientAci)), profileKey: Aes256Key.generateRandom())
 
         write { tx in
             let udAccess = udManagerImpl.udAccess(for: bobRecipientAci, tx: tx)!
-            XCTAssertEqual(.unknown, udAccess.udAccessMode)
-            XCTAssertFalse(udAccess.isRandomKey)
+            XCTAssertEqual(.unknown, udAccess.mode)
+            XCTAssertNotEqual(udAccess.key.keyData, SMKUDAccessKey.zeroedKey.keyData)
         }
 
         write { tx in
             udManagerImpl.setUnidentifiedAccessMode(.unknown, for: bobRecipientAci, tx: tx)
             let udAccess = udManagerImpl.udAccess(for: bobRecipientAci, tx: tx)!
-            XCTAssertEqual(.unknown, udAccess.udAccessMode)
-            XCTAssertFalse(udAccess.isRandomKey)
-
+            XCTAssertEqual(.unknown, udAccess.mode)
+            XCTAssertNotEqual(udAccess.key.keyData, SMKUDAccessKey.zeroedKey.keyData)
         }
 
         write { tx in
@@ -139,15 +120,15 @@ class OWSUDManagerTest: SSKBaseTest {
         write { tx in
             udManagerImpl.setUnidentifiedAccessMode(.enabled, for: bobRecipientAci, tx: tx)
             let udAccess = udManagerImpl.udAccess(for: bobRecipientAci, tx: tx)!
-            XCTAssertEqual(.enabled, udAccess.udAccessMode)
-            XCTAssertFalse(udAccess.isRandomKey)
+            XCTAssertEqual(.enabled, udAccess.mode)
+            XCTAssertNotEqual(udAccess.key.keyData, SMKUDAccessKey.zeroedKey.keyData)
         }
 
         write { tx in
             udManagerImpl.setUnidentifiedAccessMode(.unrestricted, for: bobRecipientAci, tx: tx)
             let udAccess = udManagerImpl.udAccess(for: bobRecipientAci, tx: tx)!
-            XCTAssertEqual(.unrestricted, udAccess.udAccessMode)
-            XCTAssert(udAccess.isRandomKey)
+            XCTAssertEqual(.unrestricted, udAccess.mode)
+            XCTAssertEqual(udAccess.key.keyData, SMKUDAccessKey.zeroedKey.keyData)
         }
     }
 }

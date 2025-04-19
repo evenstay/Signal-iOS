@@ -5,34 +5,14 @@
 
 import Foundation
 
-@objc
-class DeviceMessage: NSObject {
-    @objc
+struct DeviceMessage {
     let type: SSKProtoEnvelopeType
-
-    @objc
-    let destinationDeviceId: UInt32
-
-    @objc
+    let destinationDeviceId: DeviceId
     let destinationRegistrationId: UInt32
-
-    @objc
-    let serializedMessage: Data
-
-    init(
-        type: SSKProtoEnvelopeType,
-        destinationDeviceId: UInt32,
-        destinationRegistrationId: UInt32,
-        serializedMessage: Data
-    ) {
-        self.type = type
-        self.destinationDeviceId = destinationDeviceId
-        self.destinationRegistrationId = destinationRegistrationId
-        self.serializedMessage = serializedMessage
-    }
+    let content: Data
 }
 
 struct SentDeviceMessage {
-    var destinationDeviceId: UInt32
+    var destinationDeviceId: DeviceId
     var destinationRegistrationId: UInt32
 }

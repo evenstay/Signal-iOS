@@ -11,6 +11,12 @@ protocol FindByUsernameDelegate: AnyObject {
     func openQRCodeScanner()
 }
 
+enum FindByUsername {
+    static func preParseUsername(_ userInput: String) -> String {
+        return userInput.starts(with: "@") ? String(userInput.dropFirst()) : userInput
+    }
+}
+
 public class FindByUsernameViewController: OWSTableViewController2 {
 
     weak var findByUsernameDelegate: FindByUsernameDelegate?
@@ -30,6 +36,11 @@ public class FindByUsernameViewController: OWSTableViewController2 {
             self?.didTapNext()
         }
     )
+
+    private var usernameValue: String {
+        let textValue = usernameTextField.text ?? ""
+        return FindByUsername.preParseUsername(textValue)
+    }
 
     public override func viewDidLoad() {
         super.viewDidLoad()
@@ -117,7 +128,7 @@ public class FindByUsernameViewController: OWSTableViewController2 {
     @objc
     private func textFieldDidChange() {
         do {
-            _ = try Usernames.HashedUsername(forUsername: usernameTextField.text ?? "")
+            _ = try Usernames.HashedUsername(forUsername: self.usernameValue)
             navigationItem.rightBarButtonItem?.isEnabled = true
         } catch {
             navigationItem.rightBarButtonItem?.isEnabled = false
@@ -126,11 +137,11 @@ public class FindByUsernameViewController: OWSTableViewController2 {
 
     @objc
     private func didTapNext() {
-        guard let username = usernameTextField.text else { return }
+        let usernameValue = self.usernameValue
         usernameTextField.resignFirstResponder()
-        databaseStorage.read { tx in
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
             UsernameQuerier().queryForUsername(
-                username: username,
+                username: usernameValue,
                 fromViewController: self,
                 tx: tx,
                 failureSheetDismissalDelegate: self,

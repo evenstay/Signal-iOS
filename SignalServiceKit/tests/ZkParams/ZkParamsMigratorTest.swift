@@ -16,29 +16,27 @@ class ZkParamsMigratorTest: XCTestCase {
 
     private var authCredentialStore: AuthCredentialStore!
     private var migrationStore: KeyValueStore!
-    private var mockDb: MockDB!
+    private var mockDb: InMemoryDB!
     private var versionedProfilesRef: MockVersionedProfiles!
     private var zkParamsMigrator: ZkParamsMigrator!
 
     override func setUp() {
         super.setUp()
 
-        let keyValueStoreFactory = InMemoryKeyValueStoreFactory()
-        authCredentialStore = AuthCredentialStore(keyValueStoreFactory: keyValueStoreFactory)
-        migrationStore = keyValueStoreFactory.keyValueStore(collection: "GroupsV2Impl.serviceStore")
-        mockDb = MockDB()
+        authCredentialStore = AuthCredentialStore()
+        migrationStore = KeyValueStore(collection: "GroupsV2Impl.serviceStore")
+        mockDb = InMemoryDB()
         versionedProfilesRef = MockVersionedProfiles()
         zkParamsMigrator = ZkParamsMigrator(
             appReadiness: AppReadinessMock(),
             authCredentialStore: authCredentialStore,
             db: mockDb,
-            keyValueStoreFactory: keyValueStoreFactory,
             profileManager: OWSFakeProfileManager(),
             tsAccountManager: MockTSAccountManager(),
             versionedProfiles: versionedProfilesRef
         )
 
-        let groupAuthCredentialStore = keyValueStoreFactory.keyValueStore(collection: "GroupsV2Impl.authCredentialStoreStore")
+        let groupAuthCredentialStore = KeyValueStore(collection: "GroupsV2Impl.authCredentialStoreStore")
         mockDb.write { tx in
             groupAuthCredentialStore.setData(Data(), key: "0", transaction: tx)
         }

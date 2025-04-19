@@ -8,7 +8,8 @@ import LibSignalClient
 
 public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
 
-    private let attachmentDownloads: TSResourceDownloadManager
+    private let attachmentDownloads: AttachmentDownloadManager
+    private let attachmentManager: AttachmentManager
     private let disappearingMessagesJob: Shims.DisappearingMessagesJob
     private let earlyMessageManager: Shims.EarlyMessageManager
     private let groupManager: Shims.GroupManager
@@ -18,11 +19,11 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
     private let paymentsHelper: Shims.PaymentsHelper
     private let signalProtocolStoreManager: SignalProtocolStoreManager
     private let tsAccountManager: TSAccountManager
-    private let tsResourceManager: TSResourceManager
     private let viewOnceMessages: Shims.ViewOnceMessages
 
     public init(
-        attachmentDownloads: TSResourceDownloadManager,
+        attachmentDownloads: AttachmentDownloadManager,
+        attachmentManager: AttachmentManager,
         disappearingMessagesJob: Shims.DisappearingMessagesJob,
         earlyMessageManager: Shims.EarlyMessageManager,
         groupManager: Shims.GroupManager,
@@ -32,10 +33,10 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
         paymentsHelper: Shims.PaymentsHelper,
         signalProtocolStoreManager: SignalProtocolStoreManager,
         tsAccountManager: TSAccountManager,
-        tsResourceManager: TSResourceManager,
         viewOnceMessages: Shims.ViewOnceMessages
     ) {
         self.attachmentDownloads = attachmentDownloads
+        self.attachmentManager = attachmentManager
         self.disappearingMessagesJob = disappearingMessagesJob
         self.earlyMessageManager = earlyMessageManager
         self.groupManager = groupManager
@@ -45,7 +46,6 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
         self.paymentsHelper = paymentsHelper
         self.signalProtocolStoreManager = signalProtocolStoreManager
         self.tsAccountManager = tsAccountManager
-        self.tsResourceManager = tsResourceManager
         self.viewOnceMessages = viewOnceMessages
     }
 
@@ -210,7 +210,7 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
             isViewOnceMessage: messageParams.isViewOnceMessage,
             isViewOnceComplete: false,
             wasRemotelyDeleted: false,
-            changeActionsProtoData: nil,
+            groupChangeProtoData: nil,
             storyAuthorAci: messageParams.storyAuthorAci,
             storyTimestamp: messageParams.storyTimestamp,
             storyReactionEmoji: nil,
@@ -238,12 +238,14 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
                     // This is probably a v2 group update.
                     Logger.warn("Ignoring message transcript for empty v2 group message.")
                 } else {
-                    fallthrough
+                    owsFailDebug("Got empty message transcript for v1 group. Who sent this?")
                 }
             case .contact:
                 Logger.warn("Ignoring message transcript for empty message.")
             }
-            return .failure(OWSAssertionError("Empty message transcript"))
+
+            struct EmptyMessageTranscriptError: Error {}
+            return .failure(EmptyMessageTranscriptError())
         }
 
         let existingFailedMessage = interactionStore.findMessage(
@@ -267,9 +269,19 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
             interactionStore.insertOrReplacePlaceholder(for: outgoingMessage, from: localIdentifiers.aciAddress, tx: tx)
 
             do {
-                try tsResourceManager.createBodyAttachmentPointers(
-                    from: messageParams.attachmentPointerProtos,
-                    message: outgoingMessage,
+                try attachmentManager.createAttachmentPointers(
+                    from: messageParams.attachmentPointerProtos.map { proto in
+                        return .init(
+                            proto: proto,
+                            owner: .messageBodyAttachment(.init(
+                                messageRowId: outgoingMessage.sqliteRowId!,
+                                receivedAtTimestamp: outgoingMessage.receivedAtTimestamp,
+                                threadRowId: threadRowId,
+                                isViewOnce: outgoingMessage.isViewOnceMessage,
+                                isPastEditRevision: outgoingMessage.isPastEditRevision()
+                            ))
+                        )
+                    },
                     tx: tx
                 )
 
@@ -277,7 +289,8 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
                     owner: .quotedReplyAttachment(.init(
                         messageRowId: outgoingMessage.sqliteRowId!,
                         receivedAtTimestamp: outgoingMessage.receivedAtTimestamp,
-                        threadRowId: threadRowId
+                        threadRowId: threadRowId,
+                        isPastEditRevision: outgoingMessage.isPastEditRevision()
                     )),
                     tx: tx
                 )
@@ -286,7 +299,8 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
                     owner: .messageLinkPreview(.init(
                         messageRowId: outgoingMessage.sqliteRowId!,
                         receivedAtTimestamp: outgoingMessage.receivedAtTimestamp,
-                        threadRowId: threadRowId
+                        threadRowId: threadRowId,
+                        isPastEditRevision: outgoingMessage.isPastEditRevision()
                     )),
                     tx: tx
                 )
@@ -297,6 +311,7 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
                             messageRowId: outgoingMessage.sqliteRowId!,
                             receivedAtTimestamp: outgoingMessage.receivedAtTimestamp,
                             threadRowId: threadRowId,
+                            isPastEditRevision: outgoingMessage.isPastEditRevision(),
                             stickerPackId: $0.info.packId,
                             stickerId: $0.info.stickerId
                         )),
@@ -307,7 +322,8 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
                     owner: .messageContactAvatar(.init(
                         messageRowId: outgoingMessage.sqliteRowId!,
                         receivedAtTimestamp: outgoingMessage.receivedAtTimestamp,
-                        threadRowId: threadRowId
+                        threadRowId: threadRowId,
+                        isPastEditRevision: outgoingMessage.isPastEditRevision()
                     )),
                     tx: tx
                 )
@@ -324,9 +340,21 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
             tx: tx
         ))
 
+        let recipientStates: [SignalServiceAddress: TSOutgoingMessageRecipientState] = {
+            switch messageParams.target {
+            case .contact(let contactThread, _) where localIdentifiers.contains(address: contactThread.contactAddress):
+                // If this is a sent transcript that went to our Note to Self,
+                // we should force it as read.
+                return [
+                    localIdentifiers.aciAddress: TSOutgoingMessageRecipientState(status: .read)
+                ]
+            case .contact, .group:
+                return transcript.recipientStates
+            }
+        }()
         interactionStore.updateRecipientsFromNonLocalDevice(
             outgoingMessage,
-            recipientStates: transcript.recipientStates,
+            recipientStates: recipientStates,
             isSentUpdate: false,
             tx: tx
         )
@@ -426,7 +454,7 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
         let messages: [TSOutgoingMessage]
         do {
             messages = try interactionStore
-                .interactions(withTimestamp: timestamp, tx: tx)
+                .fetchInteractions(timestamp: timestamp, tx: tx)
                 .compactMap { $0 as? TSOutgoingMessage }
         } catch {
             return .failure(OWSAssertionError("Error loading interactions: \(error)"))
@@ -451,7 +479,7 @@ public class SentMessageTranscriptReceiverImpl: SentMessageTranscriptReceiver {
                 continue
             }
 
-            Logger.info("Processing 'recipient update' transcript in thread: \(groupThread.uniqueId), timestamp: \(timestamp), recipientIds: \(transcript.recipientStates.keys)")
+            Logger.info("Processing 'recipient update' transcript in thread: \(groupThread.logString), timestamp: \(timestamp), recipientIds: \(transcript.recipientStates.keys)")
 
             interactionStore.updateRecipientsFromNonLocalDevice(
                 message,

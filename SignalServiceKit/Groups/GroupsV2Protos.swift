@@ -12,19 +12,8 @@ public class GroupsV2Protos {
 
     // MARK: -
 
-    private class func serverPublicParamsData() throws -> Data {
-        guard let data = Data(base64Encoded: TSConstants.serverPublicParamsBase64),
-            data.count > 0 else {
-                throw OWSAssertionError("Invalid server public params")
-        }
-
-        return data
-    }
-
-    public class func serverPublicParams() throws -> ServerPublicParams {
-        let data = try serverPublicParamsData()
-        let bytes = [UInt8](data)
-        return try ServerPublicParams(contents: bytes)
+    public class func serverPublicParams() -> ServerPublicParams {
+        return try! ServerPublicParams(contents: TSConstants.serverPublicParams)
     }
 
     // MARK: -
@@ -84,7 +73,7 @@ public class GroupsV2Protos {
         profileKeyCredential: ExpiringProfileKeyCredential,
         groupV2Params: GroupV2Params
     ) throws -> Data {
-        let serverPublicParams = try self.serverPublicParams()
+        let serverPublicParams = self.serverPublicParams()
         let profileOperations = ClientZkProfileOperations(serverPublicParams: serverPublicParams)
         let presentation = try profileOperations.createProfileKeyCredentialPresentation(
             groupSecretParams: groupV2Params.groupSecretParams,
@@ -123,7 +112,7 @@ public class GroupsV2Protos {
         groupBuilder.setTitle(groupTitleEncrypted)
 
         let hasAvatarUrl = groupModel.avatarUrlPath != nil
-        let hasAvatarData = groupModel.avatarData != nil
+        let hasAvatarData = groupModel.avatarDataState.dataIfPresent != nil
         guard hasAvatarData == hasAvatarUrl else {
             throw OWSAssertionError("hasAvatarData: (\(hasAvatarData)) != hasAvatarUrl: (\(hasAvatarUrl))")
         }
@@ -199,7 +188,7 @@ public class GroupsV2Protos {
 
     public class func validateInviteLinkState(inviteLinkPassword: Data?, groupAccess: GroupAccess) {
         let canJoinFromInviteLink = groupAccess.canJoinFromInviteLink
-        let hasInviteLinkPassword = inviteLinkPassword?.count ?? 0 > 0
+        let hasInviteLinkPassword = inviteLinkPassword?.nilIfEmpty != nil
         if canJoinFromInviteLink, !hasInviteLinkPassword {
             owsFailDebug("Invite links enabled without inviteLinkPassword.")
         } else if !canJoinFromInviteLink, hasInviteLinkPassword {
@@ -216,17 +205,30 @@ public class GroupsV2Protos {
         return builder.buildInfallibly()
     }
 
-    public class func buildGroupContextV2Proto(groupModel: TSGroupModelV2,
-                                               changeActionsProtoData: Data?) throws -> SSKProtoGroupContextV2 {
+    public class func buildGroupContextProto(
+        groupModel: TSGroupModelV2,
+        groupChangeProtoData: Data?
+    ) throws -> SSKProtoGroupContextV2 {
+        return buildGroupContextProto(
+            masterKey: try groupModel.masterKey(),
+            revision: groupModel.revision,
+            groupChangeProtoData: groupChangeProtoData
+        )
+    }
 
+    public class func buildGroupContextProto(
+        masterKey: GroupMasterKey,
+        revision: UInt32,
+        groupChangeProtoData: Data?
+    ) -> SSKProtoGroupContextV2 {
         let builder = SSKProtoGroupContextV2.builder()
-        builder.setMasterKey(try groupModel.masterKey().serialize().asData)
-        builder.setRevision(groupModel.revision)
+        builder.setMasterKey(masterKey.serialize().asData)
+        builder.setRevision(revision)
 
-        if let changeActionsProtoData = changeActionsProtoData {
-            if changeActionsProtoData.count <= GroupManager.maxEmbeddedChangeProtoLength {
-                assert(changeActionsProtoData.count > 0)
-                builder.setGroupChange(changeActionsProtoData)
+        if let groupChangeProtoData {
+            if groupChangeProtoData.count <= GroupManager.maxEmbeddedChangeProtoLength {
+                assert(groupChangeProtoData.count > 0)
+                builder.setGroupChange(groupChangeProtoData)
             } else {
                 // This isn't necessarily a bug, but it should be rare.
                 owsFailDebug("Discarding oversize group change proto.")
@@ -238,58 +240,74 @@ public class GroupsV2Protos {
 
     // MARK: -
 
-    // This method throws if verification fails.
-    public class func parseAndVerifyChangeActionsProto(_ changeProtoData: Data,
-                                                       ignoreSignature: Bool) throws -> GroupsProtoGroupChangeActions {
-        let changeProto = try GroupsProtoGroupChange(serializedData: changeProtoData)
-        guard changeProto.changeEpoch <= GroupManager.changeProtoEpoch else {
-            throw OWSAssertionError("Invalid embedded change proto epoch: \(changeProto.changeEpoch).")
-        }
-        return try parseAndVerifyChangeActionsProto(changeProto,
-                                                    ignoreSignature: ignoreSignature)
+    public enum VerificationOperation {
+        case alreadyTrusted
+        case verifySignature(groupId: Data)
     }
 
-    // This method throws if verification fails.
-    public class func parseAndVerifyChangeActionsProto(_ changeProto: GroupsProtoGroupChange,
-                                                       ignoreSignature: Bool) throws -> GroupsProtoGroupChangeActions {
+    /// This method throws if verification fails.
+    public static func parseGroupChangeProto(
+        _ changeProto: GroupsProtoGroupChange,
+        verificationOperation: VerificationOperation
+    ) throws -> GroupsProtoGroupChangeActions {
         guard let changeActionsProtoData = changeProto.actions else {
             throw OWSAssertionError("Missing changeActionsProtoData.")
         }
-        if !ignoreSignature {
-            guard let serverSignatureData = changeProto.serverSignature else {
-                throw OWSAssertionError("Missing serverSignature.")
-            }
-            let serverSignature = try NotarySignature(contents: [UInt8](serverSignatureData))
-            let serverPublicParams = try self.serverPublicParams()
-            try serverPublicParams.verifySignature(message: [UInt8](changeActionsProtoData),
-                                                   notarySignature: serverSignature)
+        if case .verifySignature = verificationOperation {
+            let serverSignature = try NotarySignature(contents: [UInt8](changeProto.serverSignature ?? Data()))
+            try self.serverPublicParams().verifySignature(message: [UInt8](changeActionsProtoData), notarySignature: serverSignature)
         }
-        let changeActionsProto = try GroupsProtoGroupChangeActions(serializedData: changeActionsProtoData)
-        return changeActionsProto
+        let result = try GroupsProtoGroupChangeActions(serializedData: changeActionsProtoData)
+        if case .verifySignature(let groupId) = verificationOperation {
+            guard result.groupID == groupId else {
+                throw OWSAssertionError("Invalid groupId.")
+            }
+        }
+        return result
     }
 
     // MARK: -
 
-    public class func parse(groupProto: GroupsProtoGroup,
-                            downloadedAvatars: GroupV2DownloadedAvatars,
-                            groupV2Params: GroupV2Params) throws -> GroupV2Snapshot {
+    class func parse(
+        groupResponseProto: GroupsProtoGroupResponse,
+        downloadedAvatars: GroupAvatarStateMap,
+        groupV2Params: GroupV2Params
+    ) throws -> GroupV2SnapshotResponse {
+        guard let groupProto = groupResponseProto.group else {
+            throw OWSAssertionError("Missing group state in response.")
+        }
+        let groupSendEndorsementsResponse = try groupResponseProto.groupSendEndorsementsResponse.map {
+            return try GroupSendEndorsementsResponse(contents: [UInt8]($0))
+        }
+        return GroupV2SnapshotResponse(
+            groupSnapshot: try parse(
+                groupProto: groupProto,
+                fetchedAlongsideChangeActionsProto: nil,
+                downloadedAvatars: downloadedAvatars,
+                groupV2Params: groupV2Params
+            ),
+            groupSendEndorsementsResponse: groupSendEndorsementsResponse
+        )
+    }
+
+    class func parse(
+        groupProto: GroupsProtoGroup,
+        fetchedAlongsideChangeActionsProto: GroupsProtoGroupChangeActions?,
+        downloadedAvatars: GroupAvatarStateMap,
+        groupV2Params: GroupV2Params
+    ) throws -> GroupV2Snapshot {
 
         let title = groupV2Params.decryptGroupName(groupProto.title) ?? ""
         let descriptionText = groupV2Params.decryptGroupDescription(groupProto.descriptionBytes)
 
-        var avatarUrlPath: String?
-        var avatarData: Data?
+        let avatarUrlPath: String?
+        let avatarDataState: TSGroupModel.AvatarDataState
         if let avatar = groupProto.avatar, !avatar.isEmpty {
             avatarUrlPath = avatar
-            do {
-                avatarData = try downloadedAvatars.avatarData(for: avatar)
-            } catch {
-                // This should only occur if the avatar is no longer available
-                // on the CDN.
-                owsFailDebug("Could not download avatar: \(error).")
-                avatarData = nil
-                avatarUrlPath = nil
-            }
+            avatarDataState = downloadedAvatars.avatarDataState(for: avatar) ?? .missing
+        } else {
+            avatarUrlPath = nil
+            avatarDataState = .missing
         }
 
         // This client can learn of profile keys from parsing group state protos.
@@ -297,6 +315,15 @@ public class GroupsV2Protos {
         var profileKeys = [Aci: Data]()
 
         var groupMembershipBuilder = GroupMembership.Builder()
+
+        /// "Add Member" change actions contain a boolean flag indicating if the
+        /// added member joined via an invite link, which is not data available
+        /// from solely a snapshot. If we fetched a change action alongisde this
+        /// snapshot, and it contains "this member joined via invite link" data,
+        /// we can use incorporate that info as we parse the snapshot.
+        let membersJoinedViaInviteLink: Set<Aci> = fetchedAlongsideChangeActionsProto.map {
+            parseMembersJoinedViaInviteLink(changeActionsProto: $0, groupV2Params: groupV2Params)
+        } ?? []
 
         for memberProto in groupProto.members {
             guard let userID = memberProto.userID else {
@@ -318,7 +345,7 @@ public class GroupsV2Protos {
             groupMembershipBuilder.addFullMember(
                 aci,
                 role: role,
-                didJoinFromInviteLink: false,
+                didJoinFromInviteLink: membersJoinedViaInviteLink.contains(aci),
                 didJoinFromAcceptedJoinRequest: false
             )
 
@@ -424,22 +451,23 @@ public class GroupsV2Protos {
         // disappearing messages should be disabled.
         let disappearingMessageToken = groupV2Params.decryptDisappearingMessagesTimer(groupProto.disappearingMessagesTimer)
 
-        let groupAccess = GroupAccess(members: GroupV2Access.access(forProtoAccess: accessControlForMembers),
-                                      attributes: GroupV2Access.access(forProtoAccess: accessControlForAttributes),
-                                      addFromInviteLink: GroupV2Access.access(forProtoAccess: accessControlForAddFromInviteLink))
+        let groupAccess = GroupAccess(
+            members: GroupV2Access.access(forProtoAccess: accessControlForMembers),
+            attributes: GroupV2Access.access(forProtoAccess: accessControlForAttributes),
+            addFromInviteLink: GroupV2Access.access(forProtoAccess: accessControlForAddFromInviteLink)
+        )
 
         validateInviteLinkState(inviteLinkPassword: inviteLinkPassword, groupAccess: groupAccess)
 
         let revision = groupProto.revision
         let groupSecretParams = groupV2Params.groupSecretParams
-        return GroupV2SnapshotImpl(
+        return GroupV2Snapshot(
             groupSecretParams: groupSecretParams,
-            groupProto: groupProto,
             revision: revision,
             title: title,
             descriptionText: descriptionText,
             avatarUrlPath: avatarUrlPath,
-            avatarData: avatarData,
+            avatarDataState: avatarDataState,
             groupMembership: groupMembership,
             groupAccess: groupAccess,
             inviteLinkPassword: inviteLinkPassword,
@@ -447,6 +475,28 @@ public class GroupsV2Protos {
             isAnnouncementsOnly: isAnnouncementsOnly,
             profileKeys: profileKeys
         )
+    }
+
+    /// Returns ACIs for all members who, in the given change actions, joined
+    /// the group via the invite link.
+    private class func parseMembersJoinedViaInviteLink(
+        changeActionsProto: GroupsProtoGroupChangeActions,
+        groupV2Params: GroupV2Params
+    ) -> Set<Aci> {
+        let acis: [Aci] = changeActionsProto.addMembers.compactMap { addMemberAction in
+            guard
+                addMemberAction.joinFromInviteLink,
+                let member = addMemberAction.added,
+                let userId = member.userID,
+                let aci = try? groupV2Params.aci(for: userId)
+            else {
+                return nil
+            }
+
+            return aci
+        }
+
+        return Set(acis)
     }
 
     // MARK: -
@@ -487,79 +537,57 @@ public class GroupsV2Protos {
 
     // MARK: -
 
+    public struct ParsedChange {
+        public var groupProto: GroupsProtoGroup?
+        public var changeActionsProto: GroupsProtoGroupChangeActions?
+
+        public init?(groupProto: GroupsProtoGroup?, changeActionsProto: GroupsProtoGroupChangeActions?) {
+            guard groupProto != nil || changeActionsProto != nil else {
+                return nil
+            }
+            self.groupProto = groupProto
+            self.changeActionsProto = changeActionsProto
+        }
+    }
+
     // We do not treat an empty response with no changes as an error.
-    public class func parseChangesFromService(groupChangesProto: GroupsProtoGroupChanges,
-                                              downloadedAvatars: GroupV2DownloadedAvatars,
-                                              groupV2Params: GroupV2Params) throws -> [GroupV2Change] {
-        var result = [GroupV2Change]()
+    public class func parseChangesFromService(groupChangesProto: GroupsProtoGroupChanges) throws -> [ParsedChange] {
+        var results = [ParsedChange]()
         for changeStateData in groupChangesProto.groupChanges {
             let changeStateProto = try GroupsProtoGroupChangesGroupChangeState(serializedData: changeStateData)
 
-            var snapshot: GroupV2Snapshot?
-            if let snapshotProto = changeStateProto.groupState {
-                snapshot = try parse(groupProto: snapshotProto,
-                                     downloadedAvatars: downloadedAvatars,
-                                     groupV2Params: groupV2Params)
-            }
+            let parsedChange = ParsedChange(
+                groupProto: changeStateProto.groupState,
+                changeActionsProto: try changeStateProto.groupChange.map {
+                    // No need to verify the signature; these are from the service.
+                    return try parseGroupChangeProto($0, verificationOperation: .alreadyTrusted)
+                }
+            )
 
-            var changeActionsProto: GroupsProtoGroupChangeActions?
-            if let changeProto = changeStateProto.groupChange {
-                // We can ignoreSignature because these protos came from the service.
-                changeActionsProto = try parseAndVerifyChangeActionsProto(changeProto, ignoreSignature: true)
-            }
-
-            guard snapshot != nil || changeActionsProto != nil else {
+            guard let parsedChange else {
                 throw OWSAssertionError("both groupState and groupChange are absent")
             }
 
-            result.append(GroupV2Change(snapshot: snapshot,
-                                        changeActionsProto: changeActionsProto,
-                                        downloadedAvatars: downloadedAvatars))
+            results.append(parsedChange)
         }
-        return result
+        return results
     }
 
     // MARK: -
 
-    public class func collectAvatarUrlPaths(groupProto: GroupsProtoGroup? = nil,
-                                            groupChangesProto: GroupsProtoGroupChanges? = nil,
-                                            changeActionsProto: GroupsProtoGroupChangeActions? = nil,
-                                            ignoreSignature: Bool,
-                                            groupV2Params: GroupV2Params) -> Promise<[String]> {
-        return DispatchQueue.global().async(.promise) { () throws -> [String] in
-            var avatarUrlPaths = [String]()
-            if let groupProto = groupProto {
-                avatarUrlPaths += self.collectAvatarUrlPaths(groupProto: groupProto)
-            }
-            if let groupChangesProto = groupChangesProto {
-                avatarUrlPaths += try self.collectAvatarUrlPaths(groupChangesProto: groupChangesProto,
-                                                                 ignoreSignature: ignoreSignature,
-                                                                 groupV2Params: groupV2Params)
-            }
-            if let changeActionsProto = changeActionsProto {
-                avatarUrlPaths += self.collectAvatarUrlPaths(changeActionsProto: changeActionsProto)
-            }
-            // Discard empty avatar urls.
-            return avatarUrlPaths.filter { !$0.isEmpty }
-        }
-    }
-
-    private class func collectAvatarUrlPaths(groupChangesProto: GroupsProtoGroupChanges, ignoreSignature: Bool,
-                                             groupV2Params: GroupV2Params) throws -> [String] {
+    public class func collectAvatarUrlPaths(
+        groupProtos: [GroupsProtoGroup] = [],
+        changeActionsProtos: [GroupsProtoGroupChangeActions] = []
+    ) -> [String] {
         var avatarUrlPaths = [String]()
-        for changeStateData in groupChangesProto.groupChanges {
-            let changeStateProto = try GroupsProtoGroupChangesGroupChangeState(serializedData: changeStateData)
-            if let groupState = changeStateProto.groupState {
-                avatarUrlPaths += collectAvatarUrlPaths(groupProto: groupState)
-            }
-
-            if let changeProto = changeStateProto.groupChange {
-                // We can ignoreSignature because these protos came from the service.
-                let changeActionsProto = try parseAndVerifyChangeActionsProto(changeProto, ignoreSignature: ignoreSignature)
-                avatarUrlPaths += self.collectAvatarUrlPaths(changeActionsProto: changeActionsProto)
-            }
+        for groupProto in groupProtos {
+            avatarUrlPaths += self.collectAvatarUrlPaths(groupProto: groupProto)
         }
-        return avatarUrlPaths
+        for changeActionsProto in changeActionsProtos {
+            avatarUrlPaths += self.collectAvatarUrlPaths(changeActionsProto: changeActionsProto)
+        }
+        // Discard empty avatar urls.
+        return avatarUrlPaths.filter { !$0.isEmpty }
     }
 
     private class func collectAvatarUrlPaths(changeActionsProto: GroupsProtoGroupChangeActions) -> [String] {

@@ -22,9 +22,9 @@ final class VoiceMessageInProgressDraft: VoiceMessageSendableDraft {
     private let audioFileUrl: URL
     private let audioActivity: AudioActivity
     private let audioSession: AudioSession
-    private let sleepManager: DeviceSleepManager
+    private let sleepManager: any DeviceSleepManager
 
-    init(thread: TSThread, audioSession: AudioSession, sleepManager: DeviceSleepManager) {
+    init(thread: TSThread, audioSession: AudioSession, sleepManager: any DeviceSleepManager) {
         self.threadUniqueId = thread.uniqueId
         self.audioFileUrl = OWSFileSystem.temporaryFileUrl(fileExtension: "m4a")
         self.audioActivity = AudioActivity(audioDescription: "Voice Message Recording", behavior: .playAndRecord)
@@ -32,17 +32,15 @@ final class VoiceMessageInProgressDraft: VoiceMessageSendableDraft {
         self.sleepManager = sleepManager
     }
 
-    private var audioRecorder: AVAudioRecorder? {
-        didSet {
-            guard oldValue !== audioRecorder else { return }
-            if let oldValue {
-                sleepManager.removeBlock(blockObject: oldValue)
-            }
-            if let audioRecorder {
-                sleepManager.addBlock(blockObject: audioRecorder)
-            }
+    deinit {
+        Task { [sleepManager, sleepBlockObject] in
+            await sleepManager.removeBlock(blockObject: sleepBlockObject)
         }
     }
+
+    private let sleepBlockObject = DeviceSleepBlockObject(blockReason: "voice message")
+
+    private var audioRecorder: AVAudioRecorder?
 
     var isRecording: Bool { audioRecorder?.isRecording ?? false }
 
@@ -73,6 +71,10 @@ final class VoiceMessageInProgressDraft: VoiceMessageSendableDraft {
             throw OWSAssertionError("Couldn't create audioRecorder: \(error)")
         }
 
+        MainActor.assumeIsolated {
+            sleepManager.addBlock(blockObject: sleepBlockObject)
+        }
+
         audioRecorder.isMeteringEnabled = true
 
         guard audioRecorder.prepareToRecord() else {
@@ -86,6 +88,10 @@ final class VoiceMessageInProgressDraft: VoiceMessageSendableDraft {
 
     func stopRecording() {
         AssertIsOnMainThread()
+
+        MainActor.assumeIsolated {
+            sleepManager.removeBlock(blockObject: sleepBlockObject)
+        }
 
         guard let audioRecorder = audioRecorder else { return }
         self.audioRecorder = nil
@@ -103,6 +109,10 @@ final class VoiceMessageInProgressDraft: VoiceMessageSendableDraft {
     func stopRecordingAsync() {
         AssertIsOnMainThread()
 
+        MainActor.assumeIsolated {
+            sleepManager.removeBlock(blockObject: sleepBlockObject)
+        }
+
         guard let audioRecorder = audioRecorder else { return }
         self.audioRecorder = nil
 
@@ -118,7 +128,7 @@ final class VoiceMessageInProgressDraft: VoiceMessageSendableDraft {
 
     private(set) var duration: TimeInterval?
 
-    func convertToDraft(transaction: SDSAnyWriteTransaction) -> VoiceMessageInterruptedDraft {
+    func convertToDraft(transaction: DBWriteTransaction) -> VoiceMessageInterruptedDraft {
         let directoryUrl = VoiceMessageInterruptedDraftStore.saveDraft(
             audioFileUrl: audioFileUrl,
             threadUniqueId: threadUniqueId,

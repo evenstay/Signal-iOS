@@ -33,18 +33,16 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
 
         SSKEnvironment.shared.setContactManagerForUnitTests(OWSContactsManager(
             appReadiness: AppReadinessMock(),
-            swiftValues: OWSContactsManagerSwiftValues(
-                usernameLookupManager: DependenciesBridge.shared.usernameLookupManager,
-                recipientDatabaseTable: DependenciesBridge.shared.recipientDatabaseTable,
-                nicknameManager: DependenciesBridge.shared.nicknameManager
-            )
+            nicknameManager: DependenciesBridge.shared.nicknameManager,
+            recipientDatabaseTable: DependenciesBridge.shared.recipientDatabaseTable,
+            usernameLookupManager: DependenciesBridge.shared.usernameLookupManager
         ))
 
         // ensure local client has necessary "registered" state
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: localIdentifiers,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
 
@@ -63,12 +61,12 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
                 phoneNumber: E164(alicePhoneNumber)!,
                 pni: alicePni,
                 aci: aliceAci,
-                tx: transaction.asV2Write
+                tx: transaction
             )
             recipientManager.markAsRegisteredAndSave(
                 self.aliceRecipient!,
                 shouldUpdateStorageService: false,
-                tx: transaction.asV2Write
+                tx: transaction
             )
 
             let bobAci = Aci.randomForTesting()
@@ -81,12 +79,12 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
                 phoneNumber: E164(bobPhoneNumber)!,
                 pni: bobPni,
                 aci: bobAci,
-                tx: transaction.asV2Write
+                tx: transaction
             )
             recipientManager.markAsRegisteredAndSave(
                 self.bobRecipient!,
                 shouldUpdateStorageService: false,
-                tx: transaction.asV2Write
+                tx: transaction
             )
 
             profileManager.fakeUserProfiles = [
@@ -363,7 +361,7 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
         var thread: TSGroupThread! = nil
         self.write { transaction in
             thread = try! GroupManager.createGroupForTests(
-                members: [self.aliceRecipient.address, self.bobRecipient.address, DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)!.aciAddress],
+                members: [self.aliceRecipient.address, self.bobRecipient.address, DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction)!.aciAddress],
                 shouldInsertInfoMessage: true,
                 name: "Lifecycle",
                 transaction: transaction
@@ -398,7 +396,7 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
         XCTAssertEqual(1, getResultSet(searchText: "DEFEAT").messageResults.count)
 
         self.write { transaction in
-            DependenciesBridge.shared.interactionDeleteManager.delete(message1, sideEffects: .default(), tx: transaction.asV2Write)
+            DependenciesBridge.shared.interactionDeleteManager.delete(message1, sideEffects: .default(), tx: transaction)
         }
 
         XCTAssertEqual(0, getResultSet(searchText: "GLORY").messageResults.count)
@@ -407,7 +405,7 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
         XCTAssertEqual(0, getResultSet(searchText: "DEFEAT").messageResults.count)
 
         self.write { transaction in
-            DependenciesBridge.shared.interactionDeleteManager.delete(message2, sideEffects: .default(), tx: transaction.asV2Write)
+            DependenciesBridge.shared.interactionDeleteManager.delete(message2, sideEffects: .default(), tx: transaction)
         }
 
         XCTAssertEqual(0, getResultSet(searchText: "GLORY").messageResults.count)
@@ -422,7 +420,7 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
         var message2: TSOutgoingMessage!
         self.write { transaction in
             let thread = try! GroupManager.createGroupForTests(
-                members: [self.aliceRecipient.address, self.bobRecipient.address, DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)!.aciAddress],
+                members: [self.aliceRecipient.address, self.bobRecipient.address, DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction)!.aciAddress],
                 shouldInsertInfoMessage: true,
                 name: "Lifecycle",
                 transaction: transaction
@@ -442,7 +440,7 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
 
         self.write { transaction in
             DependenciesBridge.shared.interactionDeleteManager
-                .delete(interactions: [message1, message2], sideEffects: .default(), tx: transaction.asV2Write)
+                .delete(interactions: [message1, message2], sideEffects: .default(), tx: transaction)
         }
 
         XCTAssertEqual(0, getResultSet(searchText: "GLORY").messageResults.count)
@@ -455,7 +453,7 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
 
         self.write { transaction in
             let thread = try! GroupManager.createGroupForTests(
-                members: [self.aliceRecipient.address, self.bobRecipient.address, DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)!.aciAddress],
+                members: [self.aliceRecipient.address, self.bobRecipient.address, DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction)!.aciAddress],
                 shouldInsertInfoMessage: true,
                 name: "Lifecycle",
                 transaction: transaction
@@ -508,7 +506,7 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
         var thread: TSGroupThread! = nil
         self.write { transaction in
             thread = try! GroupManager.createGroupForTests(
-                members: [self.aliceRecipient.address, self.bobRecipient.address, DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)!.aciAddress],
+                members: [self.aliceRecipient.address, self.bobRecipient.address, DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction)!.aciAddress],
                 shouldInsertInfoMessage: true,
                 name: "Lifecycle",
                 transaction: transaction
@@ -537,10 +535,10 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
     // MARK: - Perf
 
     func testPerf() {
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: .forUnitTests,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
 
@@ -548,10 +546,10 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
         let string2 = "kat"
         let messageCount: UInt = 100
 
-        Bench(title: "Populate Index", memorySamplerRatio: 1) { _ in
+        BenchMemory(title: "Populate Index", memorySamplerRatio: 1) { _ in
             self.write { transaction in
                 let thread = try! GroupManager.createGroupForTests(
-                    members: [self.aliceRecipient.address, self.bobRecipient.address, DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)!.aciAddress],
+                    members: [self.aliceRecipient.address, self.bobRecipient.address, DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction)!.aciAddress],
                     shouldInsertInfoMessage: true,
                     name: "Perf",
                     transaction: transaction
@@ -569,7 +567,7 @@ class GRDBFullTextSearcherTest: SignalBaseTest {
             }
         }
 
-        Bench(title: "Search", memorySamplerRatio: 1) { _ in
+        BenchMemory(title: "Search", memorySamplerRatio: 1) { _ in
             self.read { transaction in
                 let getMatchCount = { (searchText: String) -> UInt in
                     var count: UInt = 0

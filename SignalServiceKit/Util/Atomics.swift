@@ -87,8 +87,8 @@ public final class AtomicUInt: Sendable {
     }
 
     @discardableResult
-    public func decrementOrZero() -> UInt {
-        value.map { max($0, 1) - 1 }
+    public func decrement() -> UInt {
+        value.map { $0 - 1 }
     }
 
     @discardableResult
@@ -432,11 +432,11 @@ public struct Atomic<Value>: Sendable {
     }
 
     public var wrappedValue: Value {
-      get {
-          value.get()
-      }
-      nonmutating set {
-          value.set(newValue)
-      }
+        get {
+            value.get()
+        }
+        nonmutating set {
+            value.set(newValue)
+        }
     }
 }

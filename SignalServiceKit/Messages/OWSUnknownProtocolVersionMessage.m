@@ -79,10 +79,10 @@ NSUInteger const OWSUnknownProtocolVersionMessageSchemaVersion = 1;
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -116,10 +116,10 @@ NSUInteger const OWSUnknownProtocolVersionMessageSchemaVersion = 1;
                             sortId:sortId
                          timestamp:timestamp
                     uniqueThreadId:uniqueThreadId
-                     attachmentIds:attachmentIds
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+          deprecated_attachmentIds:deprecated_attachmentIds
                          editState:editState
                    expireStartedAt:expireStartedAt
                 expireTimerVersion:expireTimerVersion
@@ -159,12 +159,12 @@ NSUInteger const OWSUnknownProtocolVersionMessageSchemaVersion = 1;
 
 // --- CODE GENERATION MARKER
 
-- (NSString *)infoMessagePreviewTextWithTransaction:(SDSAnyReadTransaction *)transaction
+- (NSString *)infoMessagePreviewTextWithTransaction:(DBReadTransaction *)transaction
 {
     return [self messageTextWithTransaction:transaction];
 }
 
-- (NSString *)messageTextWithTransaction:(SDSAnyReadTransaction *)transaction
+- (NSString *)messageTextWithTransaction:(DBReadTransaction *)transaction
 {
     if (!self.sender.isValid) {
         // This was sent from a linked device.
@@ -181,7 +181,8 @@ NSUInteger const OWSUnknownProtocolVersionMessageSchemaVersion = 1;
         }
     }
 
-    NSString *senderName = [self.contactManagerObjC displayNameStringForAddress:self.sender transaction:transaction];
+    NSString *senderName = [SSKEnvironment.shared.contactManagerObjcRef displayNameStringForAddress:self.sender
+                                                                                        transaction:transaction];
 
     if (self.isProtocolVersionUnknown) {
         if (senderName.length > 0) {

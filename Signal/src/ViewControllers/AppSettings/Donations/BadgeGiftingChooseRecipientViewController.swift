@@ -7,7 +7,7 @@ import SignalServiceKit
 import SignalUI
 
 class BadgeGiftingChooseRecipientViewController: RecipientPickerContainerViewController {
-    typealias PaymentMethodsConfiguration = SubscriptionManagerImpl.DonationConfiguration.PaymentMethodsConfiguration
+    typealias PaymentMethodsConfiguration = DonationSubscriptionManager.DonationConfiguration.PaymentMethodsConfiguration
 
     private let badge: ProfileBadge
     private let price: FiatMoney
@@ -69,17 +69,24 @@ extension BadgeGiftingChooseRecipientViewController: RecipientPickerDelegate, Us
         getRecipientAddress(recipient) != nil
     }
 
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         getRecipientState recipient: PickedRecipient) -> RecipientPickerRecipientState {
-        Self.isRecipientValid(recipient) ? .canBeSelected : .unknownError
+    func recipientPicker(
+        _ recipientPickerViewController: RecipientPickerViewController,
+        selectionStyleForRecipient recipient: PickedRecipient,
+        transaction: DBReadTransaction
+    ) -> UITableViewCell.SelectionStyle {
+        return Self.isRecipientValid(recipient) ? .default : .none
     }
 
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
-                         didSelectRecipient recipient: PickedRecipient) {
+    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController, didSelectRecipient recipient: PickedRecipient) {
         guard let address = Self.getRecipientAddress(recipient) else {
-            owsFail("Recipient is missing address, but we expected one")
+            let errorMessage = OWSLocalizedString(
+                "RECIPIENT_PICKER_ERROR_USER_CANNOT_BE_SELECTED",
+                comment: "Error message indicating that a user can't be selected."
+            )
+            OWSActionSheets.showErrorAlert(message: errorMessage)
+            return
         }
-        let thread = databaseStorage.write { TSContactThread.getOrCreateThread(withContactAddress: address, transaction: $0) }
+        let thread = SSKEnvironment.shared.databaseStorageRef.write { TSContactThread.getOrCreateThread(withContactAddress: address, transaction: $0) }
         let vc = BadgeGiftingConfirmationViewController(
             badge: badge,
             price: price,
@@ -88,5 +95,4 @@ extension BadgeGiftingChooseRecipientViewController: RecipientPickerDelegate, Us
         )
         self.navigationController?.pushViewController(vc, animated: true)
     }
-
 }

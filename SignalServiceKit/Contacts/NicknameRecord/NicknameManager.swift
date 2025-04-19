@@ -39,8 +39,8 @@ public struct NicknameManagerImpl: NicknameManager {
     }
 
     private func notifyContactChanges(tx: DBWriteTransaction) {
-        tx.addAsyncCompletion(on: self.schedulers.main) {
-            NotificationCenter.default.postNotificationNameAsync(.OWSContactsManagerSignalAccountsDidChange, object: nil)
+        tx.addSyncCompletion {
+            NotificationCenter.default.postOnMainThread(name: .OWSContactsManagerSignalAccountsDidChange, object: nil)
         }
     }
 

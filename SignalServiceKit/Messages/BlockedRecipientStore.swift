@@ -6,15 +6,9 @@
 import Foundation
 import GRDB
 
-protocol BlockedRecipientStore {
-    func blockedRecipientIds(tx: any DBReadTransaction) throws -> [SignalRecipient.RowId]
-    func isBlocked(recipientId: SignalRecipient.RowId, tx: any DBReadTransaction) throws -> Bool
-    func setBlocked(_ isBlocked: Bool, recipientId: SignalRecipient.RowId, tx: any DBWriteTransaction) throws
-}
-
-class BlockedRecipientStoreImpl: BlockedRecipientStore {
-    func blockedRecipientIds(tx: any DBReadTransaction) throws -> [SignalRecipient.RowId] {
-        let db = SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database
+struct BlockedRecipientStore {
+    func blockedRecipientIds(tx: DBReadTransaction) throws -> [SignalRecipient.RowId] {
+        let db = tx.database
         do {
             return try BlockedRecipient.fetchAll(db).map(\.recipientId)
         } catch {
@@ -22,8 +16,8 @@ class BlockedRecipientStoreImpl: BlockedRecipientStore {
         }
     }
 
-    func isBlocked(recipientId: SignalRecipient.RowId, tx: any DBReadTransaction) throws -> Bool {
-        let db = SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database
+    func isBlocked(recipientId: SignalRecipient.RowId, tx: DBReadTransaction) throws -> Bool {
+        let db = tx.database
         do {
             return try BlockedRecipient.filter(key: recipientId).fetchOne(db) != nil
         } catch {
@@ -31,8 +25,8 @@ class BlockedRecipientStoreImpl: BlockedRecipientStore {
         }
     }
 
-    func setBlocked(_ isBlocked: Bool, recipientId: SignalRecipient.RowId, tx: any DBWriteTransaction) throws {
-        let db = SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite.database
+    func setBlocked(_ isBlocked: Bool, recipientId: SignalRecipient.RowId, tx: DBWriteTransaction) throws {
+        let db = tx.database
         do {
             if isBlocked {
                 try BlockedRecipient(recipientId: recipientId).insert(db)
@@ -45,9 +39,7 @@ class BlockedRecipientStoreImpl: BlockedRecipientStore {
             throw error.grdbErrorForLogging
         }
     }
-}
 
-extension BlockedRecipientStore {
     func mergeRecipientId(_ recipientId: SignalRecipient.RowId, into targetRecipientId: SignalRecipient.RowId, tx: DBWriteTransaction) {
         do {
             if try self.isBlocked(recipientId: recipientId, tx: tx) {
@@ -62,29 +54,5 @@ extension BlockedRecipientStore {
 struct BlockedRecipient: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName: String = "BlockedRecipient"
 
-    let recipientId: Int64
+    let recipientId: SignalRecipient.RowId
 }
-
-#if TESTABLE_BUILD
-
-class MockBlockedRecipientStore: BlockedRecipientStore {
-    var recipientIds = Set<SignalRecipient.RowId>()
-
-    func blockedRecipientIds(tx: any DBReadTransaction) throws -> [SignalRecipient.RowId] {
-        return recipientIds.sorted()
-    }
-
-    func isBlocked(recipientId: SignalRecipient.RowId, tx: any DBReadTransaction) throws -> Bool {
-        return recipientIds.contains(recipientId)
-    }
-
-    func setBlocked(_ isBlocked: Bool, recipientId: SignalRecipient.RowId, tx: any DBWriteTransaction) throws {
-        if isBlocked {
-            recipientIds.insert(recipientId)
-        } else {
-            recipientIds.remove(recipientId)
-        }
-    }
-}
-
-#endif

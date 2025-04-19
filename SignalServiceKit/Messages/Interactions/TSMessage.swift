@@ -16,65 +16,67 @@ public extension TSMessage {
 
     // MARK: - Attachments
 
-    func hasBodyAttachments(transaction: SDSAnyReadTransaction) -> Bool {
-        return DependenciesBridge.shared.tsResourceStore
-            .bodyAttachments(for: self, tx: transaction.asV2Read)
+    func hasBodyAttachments(transaction: DBReadTransaction) -> Bool {
+        guard let sqliteRowId else { return false }
+        return DependenciesBridge.shared.attachmentStore
+            .fetchReferences(
+                owners: [
+                    .messageOversizeText(messageRowId: sqliteRowId),
+                    .messageBodyAttachment(messageRowId: sqliteRowId)
+                ],
+                tx: transaction
+            )
             .isEmpty.negated
     }
 
-    func hasMediaAttachments(transaction: SDSAnyReadTransaction) -> Bool {
-        return DependenciesBridge.shared.tsResourceStore
-            .bodyMediaAttachments(for: self, tx: transaction.asV2Read)
-            .isEmpty.negated
+    func hasMediaAttachments(transaction: DBReadTransaction) -> Bool {
+        guard let sqliteRowId else { return false }
+        return DependenciesBridge.shared.attachmentStore
+            .fetchFirstReference(
+                owner: .messageBodyAttachment(messageRowId: sqliteRowId),
+                tx: transaction
+            ) != nil
     }
 
-    func oversizeTextAttachment(transaction: SDSAnyReadTransaction) -> TSResource? {
-        return DependenciesBridge.shared.tsResourceStore
-            .oversizeTextAttachment(for: self, tx: transaction.asV2Read)?
-            .fetch(tx: transaction)
+    func oversizeTextAttachment(transaction: DBReadTransaction) -> Attachment? {
+        guard let sqliteRowId else { return nil }
+        return DependenciesBridge.shared.attachmentStore
+            .fetchFirstReferencedAttachment(
+                for: .messageOversizeText(messageRowId: sqliteRowId),
+                tx: transaction
+            )?
+            .attachment
     }
 
-    func allAttachments(transaction: SDSAnyReadTransaction) -> [TSResource] {
-        return DependenciesBridge.shared.tsResourceStore
-            .allAttachments(for: self, tx: transaction.asV2Read)
+    func allAttachments(transaction: DBReadTransaction) -> [Attachment] {
+        guard let sqliteRowId else { return [] }
+        return DependenciesBridge.shared.attachmentStore
+            .allAttachments(forMessageWithRowId: sqliteRowId, tx: transaction)
             .fetchAll(tx: transaction)
     }
 
     /// The raw body contains placeholders for things like mentions and is not user friendly.
     /// If you want a constant string representing the body of this message, this is it.
     @objc(rawBodyWithTransaction:)
-    func rawBody(transaction: SDSAnyReadTransaction) -> String? {
-        if let oversizeText = try? self.oversizeTextAttachment(transaction: transaction)?.asResourceStream()?.decryptedLongText() {
+    func rawBody(transaction: DBReadTransaction) -> String? {
+        if let oversizeText = try? self.oversizeTextAttachment(transaction: transaction)?.asStream()?.decryptedLongText() {
             return oversizeText
         }
         return self.body?.nilIfEmpty
     }
 
-    func failedAttachments(transaction: SDSAnyReadTransaction) -> [TSResourcePointer] {
-        let attachments: [TSResource] = allAttachments(transaction: transaction)
-        let states: [AttachmentDownloadState] = [.failed]
-        return Self.onlyAttachmentPointers(attachments: attachments, withStateIn: Set(states), tx: transaction)
-    }
-
-    func failedOrPendingAttachments(transaction: SDSAnyReadTransaction) -> [TSResourcePointer] {
-        let attachments: [TSResource] = allAttachments(transaction: transaction)
+    func failedOrPendingAttachments(transaction tx: DBReadTransaction) -> [AttachmentPointer] {
+        let attachments: [Attachment] = allAttachments(transaction: tx)
         let states: [AttachmentDownloadState] = [.failed, .none]
-        return Self.onlyAttachmentPointers(attachments: attachments, withStateIn: Set(states), tx: transaction)
-    }
 
-    private static func onlyAttachmentPointers(
-        attachments: [TSResource],
-        withStateIn states: Set<AttachmentDownloadState>,
-        tx: SDSAnyReadTransaction
-    ) -> [TSResourcePointer] {
-        return attachments.compactMap { attachment -> TSResourcePointer? in
+        return attachments.compactMap { attachment -> AttachmentPointer? in
             guard
-                attachment.asResourceStream() == nil,
-                let attachmentPointer = attachment.asTransitTierPointer()
+                attachment.asStream() == nil,
+                let attachmentPointer = attachment.asAnyPointer()
             else {
                 return nil
             }
-            let downloadState = attachmentPointer.downloadState(tx: tx.asV2Read)
+            let downloadState = attachmentPointer.downloadState(tx: tx)
             guard states.contains(downloadState) else {
                 return nil
             }
@@ -85,64 +87,70 @@ public extension TSMessage {
     // MARK: Attachment Deletes
 
     @objc
-    func removeBodyMediaAttachments(tx: SDSAnyWriteTransaction) {
-        try? DependenciesBridge.shared.tsResourceManager.removeAttachments(
-            from: self,
-            with: .bodyAttachment,
-            tx: tx.asV2Write
+    func removeBodyMediaAttachments(tx: DBWriteTransaction) {
+        guard let sqliteRowId else { return }
+        try? DependenciesBridge.shared.attachmentManager.removeAllAttachments(
+            from: [.messageBodyAttachment(messageRowId: sqliteRowId)],
+            tx: tx
         )
     }
 
     @objc
-    func removeOversizeTextAttachment(tx: SDSAnyWriteTransaction) {
-        try? DependenciesBridge.shared.tsResourceManager.removeAttachments(
-            from: self,
-            with: .oversizeText,
-            tx: tx.asV2Write
+    func removeOversizeTextAttachment(tx: DBWriteTransaction) {
+        guard let sqliteRowId else { return }
+        try? DependenciesBridge.shared.attachmentManager.removeAllAttachments(
+            from: [.messageOversizeText(messageRowId: sqliteRowId)],
+            tx: tx
         )
     }
 
     @objc
-    func removeLinkPreviewAttachment(tx: SDSAnyWriteTransaction) {
-        try? DependenciesBridge.shared.tsResourceManager.removeAttachments(
-            from: self,
-            with: .linkPreview,
-            tx: tx.asV2Write
+    func removeLinkPreviewAttachment(tx: DBWriteTransaction) {
+        guard let sqliteRowId else { return }
+        try? DependenciesBridge.shared.attachmentManager.removeAllAttachments(
+            from: [.messageLinkPreview(messageRowId: sqliteRowId)],
+            tx: tx
         )
     }
 
     @objc
-    func removeStickerAttachment(tx: SDSAnyWriteTransaction) {
-        try? DependenciesBridge.shared.tsResourceManager.removeAttachments(
-            from: self,
-            with: .sticker,
-            tx: tx.asV2Write
+    func removeStickerAttachment(tx: DBWriteTransaction) {
+        guard let sqliteRowId else { return }
+        try? DependenciesBridge.shared.attachmentManager.removeAllAttachments(
+            from: [.messageSticker(messageRowId: sqliteRowId)],
+            tx: tx
         )
     }
 
     @objc
-    func removeContactShareAvatarAttachment(tx: SDSAnyWriteTransaction) {
-        try? DependenciesBridge.shared.tsResourceManager.removeAttachments(
-            from: self,
-            with: .contactAvatar,
-            tx: tx.asV2Write
+    func removeContactShareAvatarAttachment(tx: DBWriteTransaction) {
+        guard let sqliteRowId else { return }
+        try? DependenciesBridge.shared.attachmentManager.removeAllAttachments(
+            from: [.messageContactAvatar(messageRowId: sqliteRowId)],
+            tx: tx
         )
     }
 
     @objc
-    func removeAllAttachments(tx: SDSAnyWriteTransaction) {
-        try? DependenciesBridge.shared.tsResourceManager.removeAttachments(
-            from: self,
-            with: .allTypes,
-            tx: tx.asV2Write
+    func removeAllAttachments(tx: DBWriteTransaction) {
+        guard let sqliteRowId else { return }
+        try? DependenciesBridge.shared.attachmentManager.removeAllAttachments(
+            from: AttachmentReference.MessageOwnerTypeRaw.allCases.map {
+                $0.with(messageRowId: sqliteRowId)
+            },
+            tx: tx
         )
     }
 
     // MARK: - Mentions
 
     @objc
-    func insertMentionsInDatabase(tx: SDSAnyWriteTransaction) {
-        guard let bodyRanges else {
+    func insertMentionsInDatabase(tx: DBWriteTransaction) {
+        Self.insertMentionsInDatabase(message: self, tx: tx)
+    }
+
+    static func insertMentionsInDatabase(message: TSMessage, tx: DBWriteTransaction) {
+        guard let bodyRanges = message.bodyRanges else {
             return
         }
         // If we have any mentions, we need to save them to aid in querying for
@@ -151,7 +159,7 @@ public extension TSMessage {
         // message.
         let uniqueMentionedAcis = Set(bodyRanges.mentions.values)
         for mentionedAci in uniqueMentionedAcis {
-            let mention = TSMention(uniqueMessageId: uniqueId, uniqueThreadId: uniqueThreadId, aci: mentionedAci)
+            let mention = TSMention(uniqueMessageId: message.uniqueId, uniqueThreadId: message.uniqueThreadId, aci: mentionedAci)
             mention.anyInsert(transaction: tx)
         }
     }
@@ -163,29 +171,29 @@ public extension TSMessage {
     }
 
     @objc
-    func removeAllReactions(transaction: SDSAnyWriteTransaction) {
+    func removeAllReactions(transaction: DBWriteTransaction) {
         guard !CurrentAppContext().isRunningTests else { return }
-        reactionFinder.deleteAllReactions(transaction: transaction.unwrapGrdbWrite)
+        reactionFinder.deleteAllReactions(transaction: transaction)
     }
 
     @objc
-    func removeAllMentions(transaction tx: SDSAnyWriteTransaction) {
-        MentionFinder.deleteAllMentions(for: self, transaction: tx.unwrapGrdbWrite)
+    func removeAllMentions(transaction tx: DBWriteTransaction) {
+        MentionFinder.deleteAllMentions(for: self, transaction: tx)
     }
 
     @objc
-    func allReactionIds(transaction: SDSAnyReadTransaction) -> [String]? {
-        return reactionFinder.allUniqueIds(transaction: transaction.unwrapGrdbRead)
+    func allReactionIds(transaction: DBReadTransaction) -> [String]? {
+        return reactionFinder.allUniqueIds(transaction: transaction)
     }
 
     @objc
-    func markUnreadReactionsAsRead(transaction: SDSAnyWriteTransaction) {
-        let unreadReactions = reactionFinder.unreadReactions(transaction: transaction.unwrapGrdbWrite)
+    func markUnreadReactionsAsRead(transaction: DBWriteTransaction) {
+        let unreadReactions = reactionFinder.unreadReactions(transaction: transaction)
         unreadReactions.forEach { $0.markAsRead(transaction: transaction) }
     }
 
-    func reaction(for reactor: Aci, tx: SDSAnyReadTransaction) -> OWSReaction? {
-        return reactionFinder.reaction(for: reactor, tx: tx.unwrapGrdbRead)
+    func reaction(for reactor: Aci, tx: DBReadTransaction) -> OWSReaction? {
+        return reactionFinder.reaction(for: reactor, tx: tx)
     }
 
     @discardableResult
@@ -194,7 +202,7 @@ public extension TSMessage {
         emoji: String,
         sentAtTimestamp: UInt64,
         receivedAtTimestamp: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> OWSReaction? {
         return self.recordReaction(
             for: reactor,
@@ -211,7 +219,7 @@ public extension TSMessage {
         emoji: String,
         sentAtTimestamp: UInt64,
         sortOrder: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> OWSReaction? {
         guard !wasRemotelyDeleted else {
             owsFailDebug("attempted to record a reaction for a message that was deleted")
@@ -238,30 +246,30 @@ public extension TSMessage {
         // out. Everything else can be automatically read.
         if !(self is TSOutgoingMessage) { reaction.markAsRead(transaction: tx) }
 
-        databaseStorage.touch(interaction: self, shouldReindex: false, transaction: tx)
+        SSKEnvironment.shared.databaseStorageRef.touch(interaction: self, shouldReindex: false, tx: tx)
 
         return reaction
     }
 
-    func removeReaction(for reactor: Aci, tx: SDSAnyWriteTransaction) {
+    func removeReaction(for reactor: Aci, tx: DBWriteTransaction) {
         guard let reaction = reaction(for: reactor, tx: tx) else { return }
 
         reaction.anyRemove(transaction: tx)
-        databaseStorage.touch(interaction: self, shouldReindex: false, transaction: tx)
+        SSKEnvironment.shared.databaseStorageRef.touch(interaction: self, shouldReindex: false, tx: tx)
 
-        Self.notificationPresenter.cancelNotifications(reactionId: reaction.uniqueId)
+        SSKEnvironment.shared.notificationPresenterRef.cancelNotifications(reactionId: reaction.uniqueId)
     }
 
     // MARK: - Edits
 
     @objc
-    func removeEdits(transaction: SDSAnyWriteTransaction) {
+    func removeEdits(transaction: DBWriteTransaction) {
         try! processEdits(transaction: transaction) { record, message in
-            try record.delete(transaction.unwrapGrdbWrite.database)
+            try record.delete(transaction.database)
 
             if let message {
                 DependenciesBridge.shared.interactionDeleteManager
-                    .delete(message, sideEffects: .default(), tx: transaction.asV2Write)
+                    .delete(message, sideEffects: .default(), tx: transaction)
             }
         }
     }
@@ -272,12 +280,12 @@ public extension TSMessage {
     /// The processing of edit records is unbounded, but the number of edits per message
     /// is limited by both the sender and receiver.
     private func processEdits(
-        transaction: SDSAnyWriteTransaction,
+        transaction: DBWriteTransaction,
         block: ((EditRecord, TSMessage?) throws -> Void)
     ) throws {
         let editsToProcess = try DependenciesBridge.shared.editMessageStore.findEditDeleteRecords(
             for: self,
-            tx: transaction.asV2Read
+            tx: transaction
         )
         for edit in editsToProcess {
             try block(edit.record, edit.message)
@@ -298,7 +306,7 @@ public extension TSMessage {
         guard outgoingMessage.giftBadge == nil else { return false }
 
         let (elapsedTime, isInFuture) = Date.ows_millisecondTimestamp().subtractingReportingOverflow(outgoingMessage.timestamp)
-        guard isInFuture || (elapsedTime <= (kHourInMs * 24)) else { return false }
+        guard isInFuture || (elapsedTime <= UInt64.dayInMs) else { return false }
 
         return true
     }
@@ -315,7 +323,7 @@ public extension TSMessage {
         sentAtTimestamp: UInt64,
         threadUniqueId: String?,
         serverTimestamp: UInt64,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> RemoteDeleteProcessingResult {
         guard SDS.fitsInInt64(sentAtTimestamp) else {
             owsFailDebug("Unable to delete a message with invalid sentAtTimestamp: \(sentAtTimestamp)")
@@ -339,7 +347,7 @@ public extension TSMessage {
                     // leave newer revisions
                     if let latestEdit = DependenciesBridge.shared.editMessageStore.findMessage(
                         fromEdit: incomingMessageToDelete,
-                        tx: transaction.asV2Read) as? TSIncomingMessage {
+                        tx: transaction) as? TSIncomingMessage {
                         incomingMessageToDelete = latestEdit
                     } else {
                         Logger.info("Ignoring delete for missing edit target.")
@@ -359,7 +367,7 @@ public extension TSMessage {
                     return .invalidDelete
                 }
 
-                guard serverTimestamp - messageToDeleteServerTimestamp < (2 * kDayInMs) else {
+                guard serverTimestamp - messageToDeleteServerTimestamp < (2 * UInt64.dayInMs) else {
                     owsFailDebug("Ignoring message delete sent more than 48 hours after the original message")
                     return .invalidDelete
                 }
@@ -394,7 +402,7 @@ public extension TSMessage {
 
     }
 
-    private func markMessageAsRemotelyDeleted(transaction: SDSAnyWriteTransaction) {
+    private func markMessageAsRemotelyDeleted(transaction: DBWriteTransaction) {
 
         // Delete the current interaction
         updateWithRemotelyDeletedAndRemoveRenderableContent(with: transaction)
@@ -403,15 +411,15 @@ public extension TSMessage {
         try! processEdits(transaction: transaction) { record, message in
             message?.updateWithRemotelyDeletedAndRemoveRenderableContent(with: transaction)
         }
-        Self.notificationPresenter.cancelNotifications(messageIds: [self.uniqueId])
+        SSKEnvironment.shared.notificationPresenterRef.cancelNotifications(messageIds: [self.uniqueId])
     }
 
     // MARK: - Preview text
 
     @objc(previewTextForGiftBadgeWithTransaction:)
-    func previewTextForGiftBadge(transaction: SDSAnyReadTransaction) -> String {
+    func previewTextForGiftBadge(transaction: DBReadTransaction) -> String {
         if let incomingMessage = self as? TSIncomingMessage {
-            let senderShortName = contactsManager.displayName(
+            let senderShortName = SSKEnvironment.shared.contactManagerRef.displayName(
                 for: incomingMessage.authorAddress, tx: transaction
             ).resolvedValue(useShortNameIfAvailable: true)
             let format = OWSLocalizedString(
@@ -423,7 +431,7 @@ public extension TSMessage {
             let recipientShortName: String
             let recipients = outgoingMessage.recipientAddresses()
             if let recipient = recipients.first, recipients.count == 1 {
-                recipientShortName = contactsManager.displayName(
+                recipientShortName = SSKEnvironment.shared.contactManagerRef.displayName(
                     for: recipient, tx: transaction
                 ).resolvedValue(useShortNameIfAvailable: true)
             } else {
@@ -440,11 +448,11 @@ public extension TSMessage {
         }
     }
 
-    func notificationPreviewText(_ tx: SDSAnyReadTransaction) -> String {
+    func notificationPreviewText(_ tx: DBReadTransaction) -> String {
         switch previewText(tx) {
         case let .body(body, prefix, ranges):
             let hydrated = MessageBody(text: body, ranges: ranges ?? .empty)
-                .hydrating(mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: tx.asV2Read))
+                .hydrating(mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: tx))
                 .asPlaintext()
             guard let prefix else {
                 return hydrated.filterForDisplay
@@ -464,11 +472,11 @@ public extension TSMessage {
         }
     }
 
-    func conversationListPreviewText(_ tx: SDSAnyReadTransaction) -> HydratedMessageBody {
+    func conversationListPreviewText(_ tx: DBReadTransaction) -> HydratedMessageBody {
         switch previewText(tx) {
         case let .body(body, prefix, ranges):
             let hydrated = MessageBody(text: body, ranges: ranges ?? .empty)
-                .hydrating(mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: tx.asV2Read))
+                .hydrating(mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: tx))
             guard let prefix else {
                 return hydrated
             }
@@ -487,7 +495,7 @@ public extension TSMessage {
         }
     }
 
-    func conversationListSearchResultsBody(_ tx: SDSAnyReadTransaction) -> MessageBody? {
+    func conversationListSearchResultsBody(_ tx: DBReadTransaction) -> MessageBody? {
         switch previewText(tx) {
         case let .body(body, _, ranges):
             // We ignore the prefix here.
@@ -518,7 +526,7 @@ public extension TSMessage {
         case empty
     }
 
-    private func previewText(_ tx: SDSAnyReadTransaction) -> PreviewText {
+    private func previewText(_ tx: DBReadTransaction) -> PreviewText {
         if let infoMessage = self as? TSInfoMessage {
             return .infoMessage(infoMessage.infoMessagePreviewText(with: tx))
         }
@@ -544,7 +552,7 @@ public extension TSMessage {
             storyReactionEmoji.isEmpty.negated
         {
             if let storyAuthorAddress, storyAuthorAddress.isLocalAddress.negated {
-                let storyAuthorName = self.contactsManager.displayName(for: storyAuthorAddress, tx: tx)
+                let storyAuthorName = SSKEnvironment.shared.contactManagerRef.displayName(for: storyAuthorAddress, tx: tx)
                 return .storyReactionEmoji(String(
                     format: OWSLocalizedString(
                         "STORY_REACTION_REMOTE_AUTHOR_PREVIEW_FORMAT",
@@ -564,14 +572,13 @@ public extension TSMessage {
             }
         }
 
-        let mediaAttachment: ReferencedTSResource?
+        let mediaAttachment: ReferencedAttachment?
         if
-            let reference = DependenciesBridge.shared.tsResourceStore
-            .bodyMediaAttachments(for: self, tx: tx.asV2Read)
-            .first,
-            let attachment = reference.fetch(tx: tx)
+            let sqliteRowId,
+            let attachment = DependenciesBridge.shared.attachmentStore
+                .fetchFirstReferencedAttachment(for: .messageBodyAttachment(messageRowId: sqliteRowId), tx: tx)
         {
-            mediaAttachment = .init(reference: reference, attachment: attachment)
+            mediaAttachment = attachment
         } else {
             mediaAttachment = nil
         }
@@ -638,7 +645,7 @@ public extension TSMessage {
     @objc
     func touchStoryMessageIfNecessary(
         replyCountIncrement: ReplyCountIncrement,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         guard
             self.isStoryReply,
@@ -655,7 +662,7 @@ public extension TSMessage {
         if let storyMessage {
             // Note that changes are aggregated; the touch below won't double
             // up observer notifications.
-            self.databaseStorage.touch(storyMessage: storyMessage, transaction: transaction)
+            SSKEnvironment.shared.databaseStorageRef.touch(storyMessage: storyMessage, tx: transaction)
             switch replyCountIncrement {
             case .noIncrement:
                 break
@@ -670,13 +677,21 @@ public extension TSMessage {
     // MARK: - Indexing
 
     @objc
-    internal func _anyDidInsert(tx: SDSAnyWriteTransaction) {
-        FullTextSearchIndexer.insert(self, tx: tx)
+    internal func _anyDidInsert(tx: DBWriteTransaction) {
+        do {
+            try FullTextSearchIndexer.insert(self, tx: tx)
+        } catch {
+            owsFail("Error: \(error)")
+        }
     }
 
     @objc
-    internal func _anyDidUpdate(tx: SDSAnyWriteTransaction) {
-        FullTextSearchIndexer.update(self, tx: tx)
+    internal func _anyDidUpdate(tx: DBWriteTransaction) {
+        do {
+            try FullTextSearchIndexer.update(self, tx: tx)
+        } catch {
+            owsFail("Error: \(error)")
+        }
     }
 }
 
@@ -688,14 +703,18 @@ extension TSMessage {
     /// this may not return accurate results.
     public func insertedMessageHasRenderableContent(
         rowId: Int64,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> Bool {
-        var fetchedAttachments: [TSResourceReference]?
-        func fetchAttachments() -> [TSResourceReference] {
+        var fetchedAttachments: [AttachmentReference]?
+        func fetchAttachments() -> [AttachmentReference] {
             if let fetchedAttachments { return fetchedAttachments }
-            let attachments = DependenciesBridge.shared.tsResourceStore.bodyAttachments(
-                for: self,
-                tx: tx.asV2Read
+            guard let sqliteRowId else { return [] }
+            let attachments = DependenciesBridge.shared.attachmentStore.fetchReferences(
+                owners: [
+                    .messageOversizeText(messageRowId: sqliteRowId),
+                    .messageBodyAttachment(messageRowId: sqliteRowId)
+                ],
+                tx: tx
             )
             fetchedAttachments = attachments
             return attachments

@@ -48,11 +48,11 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
         loadCoordinator.clearUnreadMessagesIndicator()
         inputToolbar?.quotedReplyDraft = nil
 
-        if self.preferences.soundInForeground,
+        if SSKEnvironment.shared.preferencesRef.soundInForeground,
            let soundId = Sounds.systemSoundIDForSound(.standard(.messageSent), quiet: true) {
             AudioServicesPlaySystemSound(soundId)
         }
-        Self.typingIndicatorsImpl.didSendOutgoingMessage(inThread: thread)
+        SSKEnvironment.shared.typingIndicatorsRef.didSendOutgoingMessage(inThread: thread)
     }
 
     private func tryToSendTextMessage(_ messageBody: MessageBody, updateKeyboardState: Bool) {
@@ -104,12 +104,12 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
 
         let didAddToProfileWhitelist = ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(thread)
 
-        let editValidationError: EditSendValidationError? = Self.databaseStorage.read { transaction in
+        let editValidationError: EditSendValidationError? = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             if let editTarget = inputToolbar.editTarget {
                 return context.editManager.validateCanSendEdit(
                     targetMessageTimestamp: editTarget.timestamp,
                     thread: self.thread,
-                    tx: transaction.asV2Read
+                    tx: transaction
                 )
             }
             return nil
@@ -155,7 +155,7 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
         inputToolbar.clearTextMessage(animated: true)
 
         let thread = self.thread
-        Self.databaseStorage.asyncWrite { transaction in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { transaction in
             // Reload a fresh instance of the thread model; our models are not
             // thread-safe, so it wouldn't be safe to update the model in an
             // async write.
@@ -163,10 +163,12 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
                 owsFailDebug("Missing thread.")
                 return
             }
-            thread.update(withDraft: nil,
-                          replyInfo: nil,
-                          editTargetTimestamp: nil,
-                          transaction: transaction)
+            thread.updateWithDraft(
+                draftMessageBody: nil,
+                replyInfo: nil,
+                editTargetTimestamp: nil,
+                transaction: transaction
+            )
         }
 
         if didAddToProfileWhitelist {
@@ -275,7 +277,7 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
             let currentDraft = inputToolbar.messageBodyForSending
             let quotedReply = inputToolbar.quotedReplyDraft
             let editTarget = inputToolbar.editTarget
-            Self.databaseStorage.asyncWrite { transaction in
+            SSKEnvironment.shared.databaseStorageRef.asyncWrite { transaction in
                 // Reload a fresh instance of the thread model; our models are not
                 // thread-safe, so it wouldn't be safe to update the model in an
                 // async write.
@@ -297,25 +299,24 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
                     return
                 }
 
-                let replyInfo: ThreadReplyInfoObjC?
+                let replyInfo: ThreadReplyInfo?
                 if
                     let quotedReply,
                     let originalMessageTimestamp = quotedReply.originalMessageTimestamp,
                     let aci = quotedReply.originalMessageAuthorAddress.aci
                 {
-                    replyInfo = ThreadReplyInfoObjC(ThreadReplyInfo(
+                    replyInfo = ThreadReplyInfo(
                         timestamp: originalMessageTimestamp,
                         author: aci
-                    ))
+                    )
                 } else {
                     replyInfo = nil
                 }
-                var editTargetTimestamp: NSNumber?
-                if let timestamp = inputToolbar.editTarget?.timestamp {
-                    editTargetTimestamp = NSNumber(value: timestamp)
-                }
-                thread.update(
-                    withDraft: currentDraft,
+
+                let editTargetTimestamp: UInt64? = inputToolbar.editTarget?.timestamp
+
+                thread.updateWithDraft(
+                    draftMessageBody: currentDraft,
                     replyInfo: replyInfo,
                     editTargetTimestamp: editTargetTimestamp,
                     transaction: transaction
@@ -329,7 +330,7 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
         quotedReply: DraftQuotedReplyModel?,
         editTarget: TSOutgoingMessage?,
         thread: TSThread,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> Bool {
         let currentText = currentDraft?.text ?? ""
         let persistedText = thread.messageDraft ?? ""
@@ -351,7 +352,7 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
         }
 
         let threadReplyInfoStore = DependenciesBridge.shared.threadReplyInfoStore
-        let persistedQuotedReply = threadReplyInfoStore.fetch(for: thread.uniqueId, tx: transaction.asV2Read)
+        let persistedQuotedReply = threadReplyInfoStore.fetch(for: thread.uniqueId, tx: transaction)
         if quotedReply?.originalMessageTimestamp != persistedQuotedReply?.timestamp {
             return true
         }
@@ -487,13 +488,13 @@ extension ConversationViewController: ConversationInputToolbarDelegate {
 
         dismissKeyBoard()
 
-        if payments.isKillSwitchActive {
+        if SUIEnvironment.shared.paymentsRef.isKillSwitchActive {
             OWSActionSheets.showErrorAlert(message: OWSLocalizedString("SETTINGS_PAYMENTS_CANNOT_SEND_PAYMENTS_KILL_SWITCH",
                                                                       comment: "Error message indicating that payments cannot be sent because the feature is not currently available."))
             return
         }
 
-        if paymentsHelper.isPaymentsVersionOutdated {
+        if SSKEnvironment.shared.paymentsHelperRef.isPaymentsVersionOutdated {
             OWSActionSheets.showPaymentsOutdatedClientSheet(title: .cantSendPayment)
             return
         }
@@ -589,7 +590,7 @@ fileprivate extension ConversationViewController {
         AssertIsOnMainThread()
 
         dismissKeyBoard()
-        contactsViewHelper.checkReadAuthorization(
+        SUIEnvironment.shared.contactsViewHelperRef.checkReadAuthorization(
             purpose: .share,
             performWhenAllowed: {
                 let contactsPicker = ContactPickerViewController(allowsMultipleSelection: false, subtitleCellType: .none)
@@ -698,24 +699,28 @@ extension ConversationViewController: LocationPickerDelegate {
     public func didPickLocation(_ locationPicker: LocationPicker, location: Location) {
         AssertIsOnMainThread()
 
-        firstly(on: DispatchQueue.global()) { () -> Promise<SignalAttachment> in
-            location.prepareAttachment()
-        }.done(on: DispatchQueue.main) { [weak self] attachment in
-            // TODO: Can we move this off the main thread?
-            AssertIsOnMainThread()
+        Task { @MainActor in
+            let attachment: SignalAttachment
+            do {
+                attachment = try await location.prepareAttachment()
+            } catch {
+                owsFailDebug("Error: \(error).")
+                return
+            }
 
-            guard let self = self else { return }
+            // TODO: Can we move this off the main thread?
 
             let didAddToProfileWhitelist = ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequestAndSetDefaultTimerWithSneakyTransaction(self.thread)
 
-            ThreadUtil.enqueueMessage(body: MessageBody(text: location.messageText,
-                                                        ranges: .empty),
-                                      mediaAttachments: [ attachment ],
-                                      thread: self.thread,
-                                      persistenceCompletionHandler: {
-                                            AssertIsOnMainThread()
-                                            self.loadCoordinator.enqueueReload()
-                                      })
+            ThreadUtil.enqueueMessage(
+                body: MessageBody(text: location.messageText, ranges: .empty),
+                mediaAttachments: [attachment],
+                thread: self.thread,
+                persistenceCompletionHandler: {
+                    AssertIsOnMainThread()
+                    self.loadCoordinator.enqueueReload()
+                }
+            )
 
             self.messageWasSent()
 
@@ -724,8 +729,6 @@ extension ConversationViewController: LocationPickerDelegate {
             }
 
             NotificationCenter.default.post(name: ChatListViewController.clearSearch, object: nil)
-        }.catch(on: DispatchQueue.global()) { error in
-            owsFailDebug("Error: \(error).")
         }
     }
 }
@@ -922,7 +925,7 @@ extension ConversationViewController: SendMediaNavDataSource {
     var sendMediaNavTextInputContextIdentifier: String? { textInputContextIdentifier }
 
     var sendMediaNavRecipientNames: [String] {
-        let displayName = databaseStorage.read { tx in contactsManager.displayName(for: thread, transaction: tx) }
+        let displayName = SSKEnvironment.shared.databaseStorageRef.read { tx in SSKEnvironment.shared.contactManagerRef.displayName(for: thread, transaction: tx) }
         return [displayName]
     }
 

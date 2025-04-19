@@ -17,8 +17,6 @@ extension ThreadUtil {
         linkPreviewDraft: OWSLinkPreviewDraft? = nil,
         persistenceCompletionHandler persistenceCompletion: PersistenceCompletion? = nil
     ) {
-        AssertIsOnMainThread()
-
         let messageTimestamp = MessageTimestampGenerator.sharedInstance.generateTimestamp()
 
         let benchEventId = sendMessageBenchEventStart(messageTimestamp: messageTimestamp)
@@ -26,20 +24,20 @@ extension ThreadUtil {
             let unpreparedMessage: UnpreparedOutgoingMessage
             do {
                 let messageBody = try messageBody.map {
-                    try DependenciesBridge.shared.tsResourceContentValidator
+                    try DependenciesBridge.shared.attachmentContentValidator
                         .prepareOversizeTextIfNeeded(from: $0)
                 } ?? nil
                 let linkPreviewDataSource = try linkPreviewDraft.map {
-                    try DependenciesBridge.shared.linkPreviewManager.buildDataSource(from: $0, ownerType: .message)
+                    try DependenciesBridge.shared.linkPreviewManager.buildDataSource(from: $0)
                 }
                 let mediaAttachments = try mediaAttachments.map {
-                    try $0.forSending(ownerType: .message)
+                    try $0.forSending()
                 }
                 let quotedReplyDraft = try quotedReplyDraft.map {
                     try DependenciesBridge.shared.quotedReplyManager.prepareDraftForSending($0)
                 }
 
-                unpreparedMessage = Self.databaseStorage.read { readTransaction in
+                unpreparedMessage = SSKEnvironment.shared.databaseStorageRef.read { readTransaction in
                     UnpreparedOutgoingMessage.build(
                         thread: thread,
                         timestamp: messageTimestamp,
@@ -81,11 +79,11 @@ extension ThreadUtil {
             let unpreparedMessage: UnpreparedOutgoingMessage
             do {
                 let messageBody = try messageBody.map {
-                    try DependenciesBridge.shared.tsResourceContentValidator
+                    try DependenciesBridge.shared.attachmentContentValidator
                         .prepareOversizeTextIfNeeded(from: $0)
                 } ?? nil
                 let linkPreviewDataSource = try linkPreviewDraft.map {
-                    try DependenciesBridge.shared.linkPreviewManager.buildDataSource(from: $0, ownerType: .message)
+                    try DependenciesBridge.shared.linkPreviewManager.buildDataSource(from: $0)
                 }
 
                 unpreparedMessage = UnpreparedOutgoingMessage.buildForEdit(
@@ -136,7 +134,7 @@ extension ThreadUtil {
         persistenceCompletionHandler persistenceCompletion: PersistenceCompletion? = nil
     ) {
         assertOnQueue(Self.enqueueSendQueue)
-        Self.databaseStorage.write { writeTransaction in
+        SSKEnvironment.shared.databaseStorageRef.write { writeTransaction in
             guard let preparedMessage = try? unpreparedMessage.prepare(tx: writeTransaction) else {
                 owsFailDebug("Failed to prepare message")
                 return
@@ -147,8 +145,10 @@ extension ThreadUtil {
                 transaction: writeTransaction
             )
             if let persistenceCompletion = persistenceCompletion {
-                writeTransaction.addAsyncCompletionOnMain {
-                    persistenceCompletion()
+                writeTransaction.addSyncCompletion {
+                    Task { @MainActor in
+                        persistenceCompletion()
+                    }
                 }
             }
             _ = promise.done(on: DispatchQueue.global()) {
@@ -182,29 +182,29 @@ extension UnpreparedOutgoingMessage {
     public static func build(
         thread: TSThread,
         timestamp: UInt64? = nil,
-        messageBody: ValidatedTSMessageBody?,
+        messageBody: ValidatedMessageBody?,
         mediaAttachments: [SignalAttachment.ForSending] = [],
         quotedReplyDraft: DraftQuotedReplyModel.ForSending?,
-        linkPreviewDataSource: LinkPreviewTSResourceDataSource?,
-        transaction: SDSAnyReadTransaction
+        linkPreviewDataSource: LinkPreviewDataSource?,
+        transaction: DBReadTransaction
     ) -> UnpreparedOutgoingMessage {
 
         let truncatedBody: MessageBody?
-        let oversizeTextDataSource: OversizeTextDataSource?
+        let oversizeTextDataSource: AttachmentDataSource?
         switch messageBody {
         case .inline(let messageBody):
             truncatedBody = messageBody
             oversizeTextDataSource = nil
         case .oversize(let truncated, let fullsize):
             truncatedBody = truncated
-            oversizeTextDataSource = fullsize
+            oversizeTextDataSource = .pendingAttachment(fullsize)
         case nil:
             truncatedBody = nil
             oversizeTextDataSource = nil
         }
 
         let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-        let dmConfig = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: transaction.asV2Read)
+        let dmConfig = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: transaction)
 
         let isVoiceMessage = mediaAttachments.count == 1
             && oversizeTextDataSource == nil
@@ -251,21 +251,21 @@ extension UnpreparedOutgoingMessage {
     public static func buildForEdit(
         thread: TSThread,
         timestamp: UInt64,
-        messageBody: ValidatedTSMessageBody?,
+        messageBody: ValidatedMessageBody?,
         quotedReplyEdit: MessageEdits.Edit<Void>,
-        linkPreviewDataSource: LinkPreviewTSResourceDataSource?,
+        linkPreviewDataSource: LinkPreviewDataSource?,
         editTarget: TSOutgoingMessage
     ) -> UnpreparedOutgoingMessage {
 
         let truncatedBody: MessageBody?
-        let oversizeTextDataSource: OversizeTextDataSource?
+        let oversizeTextDataSource: AttachmentDataSource?
         switch messageBody {
         case .inline(let messageBody):
             truncatedBody = messageBody
             oversizeTextDataSource = nil
         case .oversize(let truncated, let fullsize):
             truncatedBody = truncated
-            oversizeTextDataSource = fullsize
+            oversizeTextDataSource = .pendingAttachment(fullsize)
         case nil:
             truncatedBody = nil
             oversizeTextDataSource = nil

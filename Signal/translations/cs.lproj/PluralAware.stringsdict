@@ -2,7 +2,42 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>ACCESSIBILITY_LABEL_VOICE_MEMO_%d</key>
+	<key>ACCESSIBILITY_LABEL_LONG_VOICE_MEMO_%d_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@minutes@ a %2$#@seconds@</string>
+		<key>minutes</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d minuta</string>
+			<key>few</key>
+			<string>%1$d minuty</string>
+			<key>many</key>
+			<string>%1$d minut</string>
+			<key>other</key>
+			<string>%1$d minut</string>
+		</dict>
+		<key>seconds</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%2$d sekunda</string>
+			<key>few</key>
+			<string>%2$d sekundy</string>
+			<key>many</key>
+			<string>%2$d sekund</string>
+			<key>other</key>
+			<string>%2$d sekund</string>
+		</dict>
+	</dict>
+	<key>ACCESSIBILITY_LABEL_SHORT_VOICE_MEMO_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -82,7 +117,7 @@
 			<string>Přidat nové členy</string>
 		</dict>
 	</dict>
-	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<key>CALLS_TAB_DELETE_MULTIPLE_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -92,6 +127,26 @@
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
+			<key>one</key>
+			<string>Odstranit %1$ld hovor?</string>
+			<key>few</key>
+			<string>Odstranit %1$ld hovory?</string>
+			<key>many</key>
+			<string>Odstranit %1$ld hovorů?</string>
+			<key>other</key>
+			<string>Odstranit %1$ld hovorů?</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
 			<key>one</key>
 			<string>K hovoru bude přidána %1$ld osoba.</string>
 			<key>few</key>
@@ -111,7 +166,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>one</key>
 			<string>Schválit %1$ld žádost?</string>
 			<key>few</key>
@@ -131,7 +186,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>one</key>
 			<string>K hovoru nebude přidána %1$ld osoba.</string>
 			<key>few</key>
@@ -151,7 +206,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>one</key>
 			<string>Zamítnout %1$ld žádost?</string>
 			<key>few</key>
@@ -171,15 +226,35 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>+%1$ld žádost</string>
+			<key>few</key>
+			<string>+%1$ld žádosti</string>
+			<key>many</key>
+			<string>+%1$ld žádostí</string>
+			<key>other</key>
+			<string>+%1$ld žádostí</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_MULTI_SUCCESS</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>+%1$ld Request</string>
+			<string>%1$ld záznam o hovoru odstraněn.</string>
 			<key>few</key>
-			<string>+%1$ld Requests</string>
+			<string>%1$ld záznamy o hovoru odstraněny.</string>
 			<key>many</key>
-			<string>+%1$ld Requests</string>
+			<string>%1$ld záznamů o hovoru odstraněno.</string>
 			<key>other</key>
-			<string>+%1$ld Requests</string>
+			<string>%1$ld záznamů o hovoru odstraněno.</string>
 		</dict>
 	</dict>
 	<key>CALL_LINK_REQUEST_HEADER_COUNT_%d</key>
@@ -655,6 +730,26 @@
 			<string>%2$@, %3$@ a %1$d dalších se účastní tohoto hovoru</string>
 			<key>other</key>
 			<string>%2$@, %3$@ a %1$d dalších se účastní tohoto hovoru</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_MEMBER_LIST_UNKNOWN_MEMBERS_ROW_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>+ %1$ld další</string>
+			<key>few</key>
+			<string>+ %1$ld další</string>
+			<key>many</key>
+			<string>+ %1$ld dalších</string>
+			<key>other</key>
+			<string>+ %1$ld dalších</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_NOTIFICATION_MANY_JOINED_%d</key>
@@ -1775,6 +1870,46 @@
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; zobrazení</string>
 			<key>other</key>
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; zobrazení</string>
+		</dict>
+	</dict>
+	<key>THREAD_DETAILS_MORE_MUTUAL_GROUP_%3$ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>Member of %1$@, %2$@, and %3$ld additional group</string>
+			<key>few</key>
+			<string>Member of %1$@, %2$@, and %3$ld additional groups</string>
+			<key>many</key>
+			<string>Member of %1$@, %2$@, and %3$ld additional groups</string>
+			<key>other</key>
+			<string>Member of %1$@, %2$@, and %3$ld additional groups</string>
+		</dict>
+	</dict>
+	<key>THREAD_DETAILS_OTHER_MEMBERS_COUNT_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld other</string>
+			<key>few</key>
+			<string>%1$ld others</string>
+			<key>many</key>
+			<string>%1$ld others</string>
+			<key>other</key>
+			<string>%1$ld others</string>
 		</dict>
 	</dict>
 	<key>USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE_%d</key>

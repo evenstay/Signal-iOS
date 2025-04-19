@@ -9,29 +9,59 @@ import Foundation
 /// Doesn't load the preview's _image_, just the attachment database object.
 public struct PreloadedTextAttachment: Equatable {
     public let textAttachment: TextAttachment
-    public let linkPreviewAttachment: TSResource?
+    public let linkPreviewAttachment: ReferencedAttachment?
+    public let isFailedImageAttachmentDownload: Bool
 
-    private init(textAttachment: TextAttachment, linkPreviewAttachment: TSResource?) {
+    private init(
+        textAttachment: TextAttachment,
+        linkPreviewAttachment: ReferencedAttachment?,
+        isFailedImageAttachmentDownload: Bool
+    ) {
         self.textAttachment = textAttachment
         self.linkPreviewAttachment = linkPreviewAttachment
+        self.isFailedImageAttachmentDownload = isFailedImageAttachmentDownload
     }
 
     public static func from(
         _ textAttachment: TextAttachment,
         storyMessage: StoryMessage,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> Self {
-        let linkPreviewAttachment: TSResource? = DependenciesBridge.shared.tsResourceStore
-            .linkPreviewAttachment(
-                for: storyMessage,
-                tx: tx.asV2Read
-            )?
-            .fetch(tx: tx)
-        return .init(textAttachment: textAttachment, linkPreviewAttachment: linkPreviewAttachment)
+        let linkPreviewAttachment: ReferencedAttachment? = storyMessage.id.map { rowId in
+            DependenciesBridge.shared.attachmentStore
+                .fetchFirstReferencedAttachment(
+                    for: .storyMessageLinkPreview(storyMessageRowId: rowId),
+                    tx: tx
+                )
+        } ?? nil
+        let isFailedImageAttachmentDownload: Bool
+        if linkPreviewAttachment?.attachment.asStream() == nil {
+            switch linkPreviewAttachment?.attachment.asAnyPointer()?.downloadState(tx: tx) ?? .none {
+            case .none, .enqueuedOrDownloading:
+                isFailedImageAttachmentDownload = false
+            case .failed:
+                isFailedImageAttachmentDownload = true
+            }
+        } else {
+            isFailedImageAttachmentDownload = false
+        }
+        return .init(
+            textAttachment: textAttachment,
+            linkPreviewAttachment: linkPreviewAttachment,
+            isFailedImageAttachmentDownload: isFailedImageAttachmentDownload
+        )
     }
 
     public static func == (lhs: PreloadedTextAttachment, rhs: PreloadedTextAttachment) -> Bool {
-        return lhs.textAttachment == rhs.textAttachment
-            && lhs.linkPreviewAttachment?.resourceId == rhs.linkPreviewAttachment?.resourceId
+        var linkPreviewAttachmentsMatch = (lhs.linkPreviewAttachment == nil) == (rhs.linkPreviewAttachment == nil)
+        if
+            let lhsAttachment = lhs.linkPreviewAttachment,
+            let rhsAttachment = rhs.linkPreviewAttachment
+        {
+            linkPreviewAttachmentsMatch =
+                lhsAttachment.attachment.id == rhsAttachment.attachment.id
+                && lhsAttachment.reference.hasSameOwner(as: rhsAttachment.reference)
+        }
+        return lhs.textAttachment == rhs.textAttachment && linkPreviewAttachmentsMatch
     }
 }

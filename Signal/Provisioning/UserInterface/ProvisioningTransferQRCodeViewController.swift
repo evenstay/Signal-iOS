@@ -6,98 +6,68 @@
 import MultipeerConnectivity
 import SignalServiceKit
 import SignalUI
+import SwiftUI
 
-public class ProvisioningTransferQRCodeViewController: ProvisioningBaseViewController {
+class ProvisioningTransferQRCodeViewController: ProvisioningBaseViewController {
+    private let provisioningTransferQRCodeViewModel: ProvisioningTransferQRCodeView.Model
 
-    private let qrCodeView = QRCodeView()
+    override init(provisioningController: ProvisioningController) {
+        provisioningTransferQRCodeViewModel = ProvisioningTransferQRCodeView.Model(url: nil)
 
-    override public func loadView() {
-        view = UIView()
+        super.init(provisioningController: provisioningController)
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        view.backgroundColor = .Signal.background
+
         view.addSubview(primaryView)
         primaryView.autoPinEdgesToSuperviewEdges()
 
-        view.backgroundColor = Theme.backgroundColor
+        let qrCodeHostingViewContainer = HostingContainer(wrappedView: ProvisioningTransferQRCodeView(
+            model: provisioningTransferQRCodeViewModel,
+            onGetHelpTapped: { [weak self] in self?.didTapHelp() },
+            onCancelTapped: { [weak self] in self?.didTapCancel() }
+        ))
 
-        let titleLabel = self.createTitleLabel(
-            text: OWSLocalizedString("DEVICE_TRANSFER_QRCODE_TITLE",
-                                    comment: "The title for the device transfer qr code view")
-        )
-        primaryView.addSubview(titleLabel)
-        titleLabel.accessibilityIdentifier = "onboarding.transferQRCode.titleLabel"
-        titleLabel.setContentHuggingHigh()
-
-        let explanationLabel = self.createExplanationLabel(
-            explanationText: OWSLocalizedString("DEVICE_TRANSFER_QRCODE_EXPLANATION",
-                                               comment: "The explanation for the device transfer qr code view")
-        )
-        explanationLabel.accessibilityIdentifier = "onboarding.transferQRCode.bodyLabel"
-        explanationLabel.setContentHuggingHigh()
-
-        qrCodeView.setContentHuggingVerticalLow()
-
-        let explanationLabel2 = self.createExplanationLabel(
-            explanationText: OWSLocalizedString("DEVICE_TRANSFER_QRCODE_EXPLANATION2",
-            comment: "The second explanation for the device transfer qr code view")
-        )
-        explanationLabel2.setContentHuggingHigh()
-
-        let helpButton = self.linkButton(
-            title: OWSLocalizedString(
-                "DEVICE_TRANSFER_QRCODE_NOT_SEEING",
-                comment: "A prompt to provide further explanation if the user is not seeing the transfer on both devices."
-            ),
-            selector: #selector(didTapHelp)
-        )
-        helpButton.button.titleLabel?.textAlignment = .center
-        helpButton.button.titleLabel?.numberOfLines = 0
-        helpButton.button.titleLabel?.lineBreakMode = .byWordWrapping
-
-        let cancelButton = self.linkButton(title: CommonStrings.cancelButton, selector: #selector(didTapCancel))
-
-        let stackView = UIStackView(arrangedSubviews: [
-            titleLabel,
-            explanationLabel,
-            qrCodeView,
-            explanationLabel2,
-            UIView.vStretchingSpacer(),
-            helpButton,
-            cancelButton
-        ])
-        stackView.axis = .vertical
-        stackView.alignment = .fill
-        stackView.spacing = 12
-        primaryView.addSubview(stackView)
-        stackView.autoPinEdgesToSuperviewMargins()
+        addChild(qrCodeHostingViewContainer)
+        primaryView.addSubview(qrCodeHostingViewContainer.view)
+        qrCodeHostingViewContainer.view.autoPinEdgesToSuperviewMargins()
+        qrCodeHostingViewContainer.didMove(toParent: self)
     }
 
-    override public func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
+    // MARK: -
 
-        deviceTransferService.addObserver(self)
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
 
-        do {
-            let url = try deviceTransferService.startAcceptingTransfersFromOldDevices(
-                mode: .linked // TODO: .primary
-            )
+        AppEnvironment.shared.deviceTransferServiceRef.addObserver(self)
 
-            qrCodeView.setQR(url: url)
-        } catch {
-            owsFailDebug("error \(error)")
+        Task { @MainActor in
+            do {
+                let url = try AppEnvironment.shared.deviceTransferServiceRef.startAcceptingTransfersFromOldDevices(
+                    mode: .linked // TODO: .primary
+                )
+
+                provisioningTransferQRCodeViewModel.qrCodeViewModel.qrCodeURL = url
+            } catch {
+                owsFailDebug("error \(error)")
+            }
         }
     }
 
-    public override func viewWillDisappear(_ animated: Bool) {
+    override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
 
-        deviceTransferService.removeObserver(self)
-        deviceTransferService.stopAcceptingTransfersFromOldDevices()
+        AppEnvironment.shared.deviceTransferServiceRef.removeObserver(self)
+        AppEnvironment.shared.deviceTransferServiceRef.stopAcceptingTransfersFromOldDevices()
     }
 
     // MARK: - Events
 
     weak var permissionActionSheetController: ActionSheetController?
 
-    @objc
     private func didTapHelp() {
         let turnOnView = TurnOnPermissionView(
             title: OWSLocalizedString(
@@ -147,12 +117,10 @@ public class ProvisioningTransferQRCodeViewController: ProvisioningBaseViewContr
         presentActionSheet(actionSheetController)
     }
 
-    @objc
     private func didTapCancel() {
-        Logger.info("")
-
         guard let navigationController = navigationController else {
-            return owsFailDebug("unexpectedly missing nav controller")
+            owsFailDebug("Unexpectedly missing nav controller!")
+            return
         }
 
         provisioningController.pushTransferChoiceView(onto: navigationController)
@@ -165,8 +133,8 @@ public class ProvisioningTransferQRCodeViewController: ProvisioningBaseViewContr
         permissionActionSheetController?.dismiss(animated: true)
         permissionActionSheetController = nil
 
-        ContactSupportAlert.presentStep2(
-            emailSupportFilter: "Signal iOS Transfer",
+        ContactSupportActionSheet.present(
+            emailFilter: .deviceTransfer,
             fromViewController: self
         )
     }
@@ -193,4 +161,112 @@ extension ProvisioningTransferQRCodeViewController: DeviceTransferServiceObserve
     func deviceTransferServiceDidRequestAppRelaunch() {
         owsFail("Relaunch not supported for provisioning; only on the receiving device during transfer")
     }
+}
+
+// MARK: -
+
+private struct ProvisioningTransferQRCodeView: View {
+    class Model: ObservableObject {
+        let qrCodeViewModel: QRCodeViewRepresentable.Model
+
+        init(url: URL?) {
+            qrCodeViewModel = QRCodeViewRepresentable.Model(qrCodeURL: url)
+        }
+    }
+
+    @ObservedObject
+    private var model: Model
+
+    private let onGetHelpTapped: () -> Void
+    private let onCancelTapped: () -> Void
+
+    init(
+        model: Model,
+        onGetHelpTapped: @escaping () -> Void,
+        onCancelTapped: @escaping () -> Void
+    ) {
+        self.model = model
+        self.onGetHelpTapped = onGetHelpTapped
+        self.onCancelTapped = onCancelTapped
+    }
+
+    var body: some View {
+        GeometryReader { overallGeometry in
+            VStack(spacing: 12) {
+                Text(OWSLocalizedString(
+                    "DEVICE_TRANSFER_QRCODE_TITLE",
+                    comment: "The title for the device transfer qr code view"
+                ))
+                .font(.title)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.Signal.label)
+
+                Text(OWSLocalizedString(
+                    "DEVICE_TRANSFER_QRCODE_EXPLANATION",
+                    comment: "The explanation for the device transfer qr code view"
+                ))
+                .font(.body)
+                .foregroundStyle(Color.Signal.secondaryLabel)
+
+                Spacer()
+                    .frame(height: overallGeometry.size.height * 0.05)
+
+                GeometryReader { qrCodeGeometry in
+                    ZStack {
+                        Color(UIColor.ows_gray02)
+                            .cornerRadius(24)
+
+                        QRCodeViewRepresentable(
+                            model: model.qrCodeViewModel,
+                            qrCodeStylingMode: .brandedWithoutLogo
+                        )
+                        .padding(qrCodeGeometry.size.height * 0.1)
+                    }
+                }
+                .aspectRatio(1, contentMode: .fit)
+
+                Spacer()
+                    .frame(height: overallGeometry.size.height * (overallGeometry.size.isLandscape ? 0.05 : 0.1))
+
+                Button(OWSLocalizedString(
+                    "DEVICE_TRANSFER_QRCODE_NOT_SEEING",
+                    comment: "A prompt to provide further explanation if the user is not seeing the transfer on both devices."
+                )) {
+                    onGetHelpTapped()
+                }
+                .font(.subheadline)
+                .foregroundStyle(Color.Signal.accent)
+
+                Button(CommonStrings.cancelButton) {
+                    onCancelTapped()
+                }
+                .font(.subheadline)
+                .foregroundStyle(Color.Signal.accent)
+            }
+            .multilineTextAlignment(.center)
+        }
+    }
+}
+
+// MARK: -
+
+private struct PreviewView: View {
+    let url: URL?
+
+    var body: some View {
+        ProvisioningTransferQRCodeView(
+            model: ProvisioningTransferQRCodeView.Model(url: url),
+            onGetHelpTapped: {},
+            onCancelTapped: {}
+        )
+        .padding(112)
+    }
+}
+
+#Preview("Loaded") {
+    PreviewView(url: URL(string: "https://signal.org")!)
+}
+
+#Preview("Loading") {
+    PreviewView(url: nil)
 }

@@ -11,8 +11,6 @@ public import SignalUI
 
 extension ConversationViewController: CVComponentDelegate {
 
-    public var componentDelegate: CVComponentDelegate { self }
-
     public var isConversationPreview: Bool { false }
 
     public var wallpaperBlurProvider: WallpaperBlurProvider? { backgroundContainer }
@@ -127,6 +125,84 @@ extension ConversationViewController: CVComponentDelegate {
 
     // MARK: -
 
+    public func willBecomeVisibleWithFailedOrPendingDownloads(_ message: TSMessage) {
+        AssertIsOnMainThread()
+
+        if viewState.manuallyCanceledDownloadsMessageIds.contains(message.uniqueId) {
+            // Don't auto-enqueue download if the user has previously manually
+            // cancelled downloads for this message.
+            return
+        }
+
+        /// If any of the failed or pending downloads were enqueued by a Backup
+        /// restore, immediately attempt to download those attachments.
+        Task {
+            let attachmentDownloadManager = DependenciesBridge.shared.attachmentDownloadManager
+            let attachmentStore = DependenciesBridge.shared.attachmentStore
+            let backupAttachmentDownloadStore = DependenciesBridge.shared.backupAttachmentDownloadStore
+            let db = DependenciesBridge.shared.db
+
+            guard let messageRowId = message.sqliteRowId else {
+                owsFailDebug("Cannot increase priority for uninserted message!")
+                return
+            }
+
+            let messageHasAnyEnqueuedBackupDownloads = try db.read { tx throws in
+                let referencedAttachments = attachmentStore
+                    .fetchAllReferencedAttachments(owningMessageRowId: messageRowId, tx: tx)
+
+                return try referencedAttachments.map { $0.attachment.id }.contains { attachmentRowId in
+                    try backupAttachmentDownloadStore.hasEnqueuedDownload(
+                        attachmentRowId: attachmentRowId,
+                        tx: tx
+                    )
+                }
+            }
+
+            if messageHasAnyEnqueuedBackupDownloads {
+                await db.awaitableWrite { tx in
+                    attachmentDownloadManager.enqueueDownloadOfAttachmentsForMessage(
+                        message,
+                        priority: .default,
+                        tx: tx
+                    )
+                }
+            }
+        }
+    }
+
+    public func didTapFailedOrPendingDownloads(_ message: TSMessage) {
+        AssertIsOnMainThread()
+
+        let db = DependenciesBridge.shared.db
+        let attachmentDownloadManager = DependenciesBridge.shared.attachmentDownloadManager
+        db.write { tx in
+            attachmentDownloadManager.enqueueDownloadOfAttachmentsForMessage(
+                message,
+                priority: .userInitiated,
+                tx: tx
+            )
+        }
+    }
+
+    public func didCancelDownload(_ message: TSMessage, attachmentId: Attachment.IDType) {
+        AssertIsOnMainThread()
+
+        // Record that the user manually canceled download for this message.
+        viewState.manuallyCanceledDownloadsMessageIds.insert(message.uniqueId)
+
+        let db = DependenciesBridge.shared.db
+        let attachmentDownloadManager = DependenciesBridge.shared.attachmentDownloadManager
+        db.write { tx in
+            attachmentDownloadManager.cancelDownload(
+                for: attachmentId,
+                tx: tx
+            )
+        }
+    }
+
+    // MARK: -
+
     public func didTapReplyToItem(_ itemViewModel: CVItemViewModelImpl) {
         AssertIsOnMainThread()
 
@@ -212,24 +288,87 @@ extension ConversationViewController: CVComponentDelegate {
 
         let sheet = EditHistoryTableSheetViewController(
             message: message,
+            threadViewModel: self.threadViewModel,
             spoilerState: viewState.spoilerState,
             editManager: self.context.editManager,
-            database: databaseStorage
+            database: SSKEnvironment.shared.databaseStorageRef,
+            databaseChangeObserver: DependenciesBridge.shared.databaseChangeObserver
         )
         sheet.delegate = self
         self.present(sheet, animated: true)
     }
 
-    public func didTapFailedOrPendingDownloads(_ message: TSMessage) {
-        AssertIsOnMainThread()
+    public func didTapUndownloadableMedia() {
+        let toast = ToastController(text: OWSLocalizedString(
+            "UNAVAILABLE_MEDIA_TAP_TOAST",
+            comment: "Toast shown when tapping older media that can no longer be downloaded"
+        ))
+        let inset = (self.inputToolbar?.height ?? 0) + 16
+        toast.presentToastView(from: .bottom, of: self.view, inset: inset)
+    }
 
-        databaseStorage.write { tx in
-            DependenciesBridge.shared.tsResourceDownloadManager.enqueueDownloadOfAttachmentsForMessage(
-                message,
-                priority: .userInitiated,
-                tx: tx.asV2Write
+    public func didTapUndownloadableGenericFile() {
+        let actionSheet = ActionSheetController(
+            title: OWSLocalizedString(
+                "FILE_UNAVAILABLE_SHEET_TITLE",
+                comment: "Title for sheet shown when tapping a document/file that has expired and is unavailable for download"
+            ),
+            message: OWSLocalizedString(
+                "FILE_UNAVAILABLE_SHEET_MESSAGE",
+                comment: "Message for sheet shown when tapping a document/file that has expired and is unavailable for download"
             )
-        }
+        )
+        actionSheet.addAction(.okay)
+        actionSheet.isCancelable = true
+        (conversationSplitViewController ?? self).present(actionSheet, animated: true)
+    }
+
+    public func didTapUndownloadableOversizeText() {
+        let actionSheet = ActionSheetController(
+            title: OWSLocalizedString(
+                "OVERSIZE_TEXT_UNAVAILABLE_SHEET_TITLE",
+                comment: "Title for sheet shown when tapping oversized text that has expired and is unavailable for download"
+            ),
+            message: OWSLocalizedString(
+                "OVERSIZE_TEXT_UNAVAILABLE_SHEET_MESSAGE",
+                comment: "Message for sheet shown when tapping oversized text that has expired and is unavailable for download"
+            )
+        )
+        actionSheet.addAction(.okay)
+        actionSheet.isCancelable = true
+        (conversationSplitViewController ?? self).present(actionSheet, animated: true)
+    }
+
+    public func didTapUndownloadableAudio() {
+        let actionSheet = ActionSheetController(
+            title: OWSLocalizedString(
+                "AUDIO_UNAVAILABLE_SHEET_TITLE",
+                comment: "Title for sheet shown when tapping a voice message that has expired and is unavailable for download"
+            ),
+            message: OWSLocalizedString(
+                "AUDIO_UNAVAILABLE_SHEET_MESSAGE",
+                comment: "Message for sheet shown when tapping a voice message that has expired and is unavailable for download"
+            )
+        )
+        actionSheet.addAction(.okay)
+        actionSheet.isCancelable = true
+        (conversationSplitViewController ?? self).present(actionSheet, animated: true)
+    }
+
+    public func didTapUndownloadableSticker() {
+        let actionSheet = ActionSheetController(
+            title: OWSLocalizedString(
+                "STICKER_UNAVAILABLE_SHEET_TITLE",
+                comment: "Title for sheet shown when tapping a sticker that has expired and is unavailable for download"
+            ),
+            message: OWSLocalizedString(
+                "STICKER_UNAVAILABLE_SHEET_MESSAGE",
+                comment: "Message for sheet shown when tapping a sticker that has expired and is unavailable for download"
+            )
+        )
+        actionSheet.addAction(.okay)
+        actionSheet.isCancelable = true
+        (conversationSplitViewController ?? self).present(actionSheet, animated: true)
     }
 
     public func didTapBrokenVideo() {
@@ -242,7 +381,7 @@ extension ConversationViewController: CVComponentDelegate {
 
     public func didTapBodyMedia(
         itemViewModel: CVItemViewModelImpl,
-        attachmentStream: ReferencedTSResourceStream,
+        attachmentStream: ReferencedAttachmentStream,
         imageView: UIView
     ) {
         AssertIsOnMainThread()
@@ -263,13 +402,15 @@ extension ConversationViewController: CVComponentDelegate {
     public func didTapGenericAttachment(_ attachment: CVComponentGenericAttachment) -> CVAttachmentTapAction {
         AssertIsOnMainThread()
 
-        if let previewController = attachment.createQLPreviewController() {
-            self.present(previewController, animated: true, completion: nil)
-            return .handledByDelegate
-        } else if PKAddPassesViewController.canAddPasses(),
-                  let pkPass = attachment.representedPKPass(),
-                  let addPassesVC = PKAddPassesViewController(pass: pkPass) {
+        if
+            PKAddPassesViewController.canAddPasses(),
+            let pkPass = attachment.representedPKPass(),
+            let addPassesVC = PKAddPassesViewController(pass: pkPass)
+        {
             self.present(addPassesVC, animated: true, completion: nil)
+            return .handledByDelegate
+        } else if let previewController = attachment.createQLPreviewController() {
+            self.present(previewController, animated: true, completion: nil)
             return .handledByDelegate
         } else {
             return .default
@@ -287,7 +428,7 @@ extension ConversationViewController: CVComponentDelegate {
             else {
                 return
             }
-            guard let quotedStory = databaseStorage.read(
+            guard let quotedStory = SSKEnvironment.shared.databaseStorageRef.read(
                 block: { StoryFinder.story(timestamp: timestamp, author: quotedStoryAuthorAci, transaction: $0) }
             ) else { return }
 
@@ -435,7 +576,7 @@ extension ConversationViewController: CVComponentDelegate {
     }
 
     public func didTapUsernameLink(usernameLink: Usernames.UsernameLink) {
-        databaseStorage.read { tx in
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
             UsernameQuerier().queryForUsernameLink(
                 link: usernameLink,
                 fromViewController: self,
@@ -509,8 +650,8 @@ extension ConversationViewController: CVComponentDelegate {
             }
             // Reload the address from disk if we lack an ACI.
             let recipientDatabaseTable = DependenciesBridge.shared.recipientDatabaseTable
-            return databaseStorage.read { tx in
-                return recipientDatabaseTable.fetchRecipient(phoneNumber: phoneNumber, transaction: tx.asV2Read)?.aci
+            return SSKEnvironment.shared.databaseStorageRef.read { tx in
+                return recipientDatabaseTable.fetchRecipient(phoneNumber: phoneNumber, transaction: tx)?.aci
             }
         }()
 
@@ -532,7 +673,7 @@ extension ConversationViewController: CVComponentDelegate {
         headerImageView.autoSetDimension(.width, toSize: 200)
         headerImageView.autoSetDimension(.height, toSize: 110)
 
-        let displayName = databaseStorage.read { tx in contactsManager.displayName(for: address, tx: tx).resolvedValue() }
+        let displayName = SSKEnvironment.shared.databaseStorageRef.read { tx in SSKEnvironment.shared.contactManagerRef.displayName(for: address, tx: tx).resolvedValue() }
         let messageFormat = OWSLocalizedString("UNVERIFIED_SAFETY_NUMBER_CHANGE_DESCRIPTION_FORMAT",
                                               comment: "Description for the unverified safety number change. Embeds {name of contact with identity change}")
 
@@ -555,8 +696,8 @@ extension ConversationViewController: CVComponentDelegate {
     public func didTapInvalidIdentityKeyErrorMessage(_ message: TSInvalidIdentityKeyErrorMessage) {
         AssertIsOnMainThread()
 
-        let keyOwner = databaseStorage.read { tx in
-            return contactsManager.displayName(for: message.theirSignalAddress(), tx: tx).resolvedValue()
+        let keyOwner = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            return SSKEnvironment.shared.contactManagerRef.displayName(for: message.theirSignalAddress(), tx: tx).resolvedValue()
         }
         let titleFormat = OWSLocalizedString("SAFETY_NUMBERS_ACTIONSHEET_TITLE", comment: "Action sheet heading")
         let titleText = String(format: titleFormat, keyOwner)
@@ -599,8 +740,8 @@ extension ConversationViewController: CVComponentDelegate {
     public func didTapCorruptedMessage(_ message: TSErrorMessage) {
         AssertIsOnMainThread()
 
-        let threadName = databaseStorage.read { transaction in
-            Self.contactsManager.displayName(for: self.thread, transaction: transaction)
+        let threadName = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            SSKEnvironment.shared.contactManagerRef.displayName(for: self.thread, transaction: transaction)
         }
         let alertMessage = String(format: OWSLocalizedString("CORRUPTED_SESSION_DESCRIPTION",
                                                             comment: "ActionSheet title"),
@@ -620,8 +761,8 @@ extension ConversationViewController: CVComponentDelegate {
                 return
             }
 
-            Self.databaseStorage.asyncWrite { transaction in
-                Self.smJobQueues.sessionResetJobQueue.add(contactThread: contactThread, transaction: transaction)
+            SSKEnvironment.shared.databaseStorageRef.asyncWrite { transaction in
+                SSKEnvironment.shared.smJobQueuesRef.sessionResetJobQueue.add(contactThread: contactThread, transaction: transaction)
             }
         })
 
@@ -642,37 +783,43 @@ extension ConversationViewController: CVComponentDelegate {
         headerImageView.autoSetDimension(.width, toSize: 200)
         headerImageView.autoSetDimension(.height, toSize: 110)
 
-        ContactSupportAlert.presentAlert(title: OWSLocalizedString("SESSION_REFRESH_ALERT_TITLE",
-                                                                  comment: "Title for the session refresh alert"),
-                                         message: OWSLocalizedString("SESSION_REFRESH_ALERT_MESSAGE",
-                                                                    comment: "Description for the session refresh alert"),
-                                         emailSupportFilter: "Signal iOS Session Refresh",
-                                         fromViewController: self,
-                                         additionalActions: [
-                                            ActionSheetAction(title: CommonStrings.okayButton,
-                                                              accessibilityIdentifier: "okay",
-                                                              style: .default,
-                                                              handler: nil)
-                                         ],
-                                         customHeader: headerView,
-                                         showCancel: false)
+        let sessionRefreshedActionSheet = ActionSheetController(
+            title: OWSLocalizedString(
+                "SESSION_REFRESH_ALERT_TITLE",
+                comment: "Title for the session refresh alert"
+            ),
+            message: OWSLocalizedString(
+                "SESSION_REFRESH_ALERT_MESSAGE",
+                comment: "Description for the session refresh alert"
+            )
+        )
+        sessionRefreshedActionSheet.addAction(ActionSheetAction(title: CommonStrings.contactSupport) { _ in
+            ContactSupportActionSheet.present(
+                emailFilter: .custom("Signal iOS Session Refresh"),
+                fromViewController: self
+            )
+        })
+        sessionRefreshedActionSheet.addAction(OWSActionSheets.okayAction)
+        sessionRefreshedActionSheet.customHeader = headerView
+
+        presentActionSheet(sessionRefreshedActionSheet)
     }
 
     // See: resendGroupUpdate
     public func didTapResendGroupUpdateForErrorMessage(_ message: TSErrorMessage) {
         AssertIsOnMainThread()
 
-        guard let groupThread = self.thread as? TSGroupThread else {
+        guard let groupId = try? (self.thread as? TSGroupThread)?.groupIdentifier else {
             owsFailDebug("Invalid thread.")
             return
         }
         Task {
-            await GroupManager.sendGroupUpdateMessage(thread: groupThread)
+            await GroupManager.sendGroupUpdateMessage(groupId: groupId)
             Logger.info("Group updated, removing group creation error.")
 
-            await Self.databaseStorage.awaitableWrite { tx in
+            await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
                 DependenciesBridge.shared.interactionDeleteManager
-                    .delete(message, sideEffects: .default(), tx: tx.asV2Write)
+                    .delete(message, sideEffects: .default(), tx: tx)
             }
         }
     }
@@ -694,8 +841,8 @@ extension ConversationViewController: CVComponentDelegate {
             return
         }
 
-        let displayName = databaseStorage.read { tx in
-            return contactsManager.displayName(for: contactThread.contactAddress, tx: tx).resolvedValue()
+        let displayName = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            return SSKEnvironment.shared.contactManagerRef.displayName(for: contactThread.contactAddress, tx: tx).resolvedValue()
         }
 
         let alert = ActionSheetController(title: CallStrings.callBackAlertTitle,
@@ -728,7 +875,7 @@ extension ConversationViewController: CVComponentDelegate {
             return
         }
         let address = contactThread.contactAddress
-        let displayName = databaseStorage.read { tx in contactsManager.displayName(for: address, tx: tx).resolvedValue() }
+        let displayName = SSKEnvironment.shared.databaseStorageRef.read { tx in SSKEnvironment.shared.contactManagerRef.displayName(for: address, tx: tx).resolvedValue() }
 
         let alert = ActionSheetController(
             title: String(
@@ -752,9 +899,9 @@ extension ConversationViewController: CVComponentDelegate {
                 accessibilityIdentifier: "block_contact",
                 style: .destructive
             ) { [weak self] _ in
-                guard let self = self else { return }
-                self.databaseStorage.write { tx in
-                    self.blockingManager.addBlockedAddress(
+                guard self != nil else { return }
+                SSKEnvironment.shared.databaseStorageRef.write { tx in
+                    SSKEnvironment.shared.blockingManagerRef.addBlockedAddress(
                         address,
                         blockMode: .localShouldLeaveGroups,
                         transaction: tx
@@ -777,10 +924,10 @@ extension ConversationViewController: CVComponentDelegate {
 
     public func didTapPendingOutgoingMessage(_ message: TSOutgoingMessage) {
         AssertIsOnMainThread()
-        if spamChallengeResolver.isPausingMessages {
+        if SSKEnvironment.shared.spamChallengeResolverRef.isPausingMessages {
             SpamCaptchaViewController.presentActionSheet(from: self)
         } else {
-            spamChallengeResolver.retryPausedMessagesIfReady()
+            SSKEnvironment.shared.spamChallengeResolverRef.retryPausedMessagesIfReady()
         }
 
     }
@@ -789,7 +936,7 @@ extension ConversationViewController: CVComponentDelegate {
         AssertIsOnMainThread()
 
         let promptBuilder = ResendMessagePromptBuilder(
-            databaseStorage: databaseStorage,
+            databaseStorage: SSKEnvironment.shared.databaseStorageRef,
             messageSenderJobQueue: SSKEnvironment.shared.messageSenderJobQueueRef
         )
         dismissKeyBoard()
@@ -831,6 +978,11 @@ extension ConversationViewController: CVComponentDelegate {
         )
         let navigationController = OWSNavigationController(rootViewController: vc)
         self.presentFormSheet(navigationController, animated: true)
+    }
+
+    public func didTapNameEducation(type: SafetyTipsType) {
+        AssertIsOnMainThread()
+        present(NameEducationSheet(type: type), animated: true)
     }
 
     public func didTapShowConversationSettings() {
@@ -878,7 +1030,7 @@ extension ConversationViewController: CVComponentDelegate {
                     updateBlock: {
                         // If the user in question has canceled their request,
                         // this call will still block them.
-                        return try await GroupManager.acceptOrDenyMemberRequestsV2(
+                        try await GroupManager.acceptOrDenyMemberRequestsV2(
                             groupModel: groupModel,
                             aci: requesterAci,
                             shouldAccept: false
@@ -901,20 +1053,20 @@ extension ConversationViewController: CVComponentDelegate {
     }
 
     public func didTapUpdateSystemContact(_ address: SignalServiceAddress, newNameComponents: PersonNameComponents) {
-        contactsViewHelper.presentSystemContactsFlow(
+        SUIEnvironment.shared.contactsViewHelperRef.presentSystemContactsFlow(
             CreateOrEditContactFlow(address: address, nameComponents: newNameComponents),
             from: self
         )
     }
 
     public func didTapPhoneNumberChange(aci: Aci, phoneNumberOld: String, phoneNumberNew: String) {
-        contactsViewHelper.checkEditAuthorization(
+        SUIEnvironment.shared.contactsViewHelperRef.checkEditAuthorization(
             performWhenAllowed: {
                 let existingContact: CNContact? = {
-                    guard let cnContactId = self.contactsManager.cnContactId(for: phoneNumberOld) else {
+                    guard let cnContactId = SSKEnvironment.shared.contactManagerRef.cnContactId(for: phoneNumberOld) else {
                         return nil
                     }
-                    return self.contactsManager.cnContact(withId: cnContactId)
+                    return SSKEnvironment.shared.contactManagerRef.cnContact(withId: cnContactId)
                 }()
                 guard let existingContact else {
                     owsFailDebug("Missing existing contact for phone number change.")
@@ -922,7 +1074,7 @@ extension ConversationViewController: CVComponentDelegate {
                 }
 
                 let address = SignalServiceAddress(serviceId: aci, phoneNumber: phoneNumberNew)
-                self.contactsViewHelper.presentSystemContactsFlow(
+                SUIEnvironment.shared.contactsViewHelperRef.presentSystemContactsFlow(
                     CreateOrEditContactFlow(address: address, contact: existingContact),
                     from: self
                 )
@@ -1013,8 +1165,8 @@ extension ConversationViewController: CVComponentDelegate {
                 comment: "Shown after tapping a 'Learn More' button when multiple conversations for the same person have been merged into one. The first parameter is a phone number (eg +1 650-555-0100) and the second parameter is a name (eg John)."
             )
             let formattedPhoneNumber = PhoneNumber.bestEffortLocalizedPhoneNumber(e164: phoneNumber)
-            let shortDisplayName = databaseStorage.read { tx in
-                return contactsManager.displayName(for: contactAddress, tx: tx).resolvedValue(useShortNameIfAvailable: true)
+            let shortDisplayName = SSKEnvironment.shared.databaseStorageRef.read { tx in
+                return SSKEnvironment.shared.contactManagerRef.displayName(for: contactAddress, tx: tx).resolvedValue(useShortNameIfAvailable: true)
             }
             return String(format: formatString, formattedPhoneNumber, shortDisplayName)
         }()
@@ -1130,5 +1282,9 @@ extension ConversationViewController: CVComponentDelegate {
         inputToolbar?.clearDesiredKeyboard()
         dismissKeyBoard()
         presentActionSheet(alert)
+    }
+
+    public func didTapJoinCallLinkCall(callLink: CallLink) {
+        GroupCallViewController.presentLobby(for: callLink)
     }
 }

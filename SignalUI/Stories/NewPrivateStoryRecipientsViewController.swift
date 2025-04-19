@@ -80,14 +80,11 @@ extension NewPrivateStoryRecipientsViewController: MemberViewDelegate {
         updateBarButtons()
     }
 
-    public func memberViewAddRecipient(_ recipient: PickedRecipient) {
+    public func memberViewAddRecipient(_ recipient: PickedRecipient) -> Bool {
         recipientSet.append(recipient)
         updateBarButtons()
+        return true
     }
-
-    public func memberViewCanAddRecipient(_ recipient: PickedRecipient) -> Bool { true }
-
-    public func memberViewPrepareToSelectRecipient(_ recipient: PickedRecipient) -> Promise<Void> { Promise.value(()) }
 
     public func memberViewShouldShowMemberCount() -> Bool { false }
 
@@ -95,7 +92,7 @@ extension NewPrivateStoryRecipientsViewController: MemberViewDelegate {
 
     public func memberViewMemberCountForDisplay() -> Int { recipientSet.count }
 
-    public func memberViewIsPreExistingMember(_ recipient: PickedRecipient, transaction: SDSAnyReadTransaction) -> Bool { false }
+    public func memberViewIsPreExistingMember(_ recipient: PickedRecipient, transaction: DBReadTransaction) -> Bool { false }
 
     public func memberViewCustomIconNameForPickedMember(_ recipient: PickedRecipient) -> String? { nil }
 

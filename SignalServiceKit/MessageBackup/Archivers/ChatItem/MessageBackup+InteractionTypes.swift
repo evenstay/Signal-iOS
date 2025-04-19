@@ -6,15 +6,17 @@
 extension MessageBackup {
     public struct InteractionUniqueId: MessageBackupLoggableId, Hashable {
         let value: String
+        let timestamp: UInt64
 
         public init(interaction: TSInteraction) {
             self.value = interaction.uniqueId
+            self.timestamp = interaction.timestamp
         }
 
         // MARK: MessageBackupLoggableId
 
         public var typeLogString: String { "TSInteraction" }
-        public var idLogString: String { value }
+        public var idLogString: String { "\(value):\(timestamp)" }
     }
 }
 
@@ -48,7 +50,7 @@ extension MessageBackup {
         let expireStartDate: UInt64?
         let expiresInMs: UInt64?
         let isSealedSender: Bool
-        let chatItemType: ChatItemType
+        private(set) var chatItemType: ChatItemType
 
         /// - SeeAlso: ``TSMessage/isSmsMessageRestoredFromBackup``
         let isSmsPreviouslyRestoredFromBackup: Bool
@@ -60,9 +62,152 @@ extension MessageBackup {
         mutating func addPastRevision(_ pastRevision: InteractionArchiveDetails) {
             pastRevisions.append(pastRevision)
         }
+
+        // MARK: -
+
+        /// Returns whether the `chatItemType` of the latest or any prior
+        /// revision passes the given predicate.
+        func anyRevisionContainsChatItemType(where predicate: (ChatItemType) -> Bool) -> Bool {
+            let allChatItemTypes = [chatItemType] + pastRevisions.map(\.chatItemType)
+            return allChatItemTypes.contains(where: predicate)
+        }
+
+        /// Runs the given `block` on the `chatItemType` of the latest and any
+        /// prior revisions, replacing each with the result of the `block`.
+        mutating func mutateChatItemTypes(block: (ChatItemType) -> ChatItemType) {
+            chatItemType = block(chatItemType)
+            pastRevisions = pastRevisions.map { _pastRevision in
+                var pastRevision = _pastRevision
+                pastRevision.chatItemType = block(_pastRevision.chatItemType)
+                return pastRevision
+            }
+        }
+
+        // MARK: - Construction
+
+        public enum AuthorAddress {
+            case localUser
+            case contact(MessageBackup.ContactAddress)
+        }
+
+        private init(
+            author: RecipientId,
+            directionalDetails: DirectionalDetails,
+            dateCreated: UInt64,
+            expireStartDate: UInt64?,
+            expiresInMs: UInt64?,
+            isSealedSender: Bool,
+            chatItemType: ChatItemType,
+            isSmsPreviouslyRestoredFromBackup: Bool,
+            pastRevisions: [InteractionArchiveDetails]
+        ) {
+            self.author = author
+            self.directionalDetails = directionalDetails
+            self.dateCreated = dateCreated
+            self.expireStartDate = expireStartDate
+            self.expiresInMs = expiresInMs
+            self.isSealedSender = isSealedSender
+            self.chatItemType = chatItemType
+            self.isSmsPreviouslyRestoredFromBackup = isSmsPreviouslyRestoredFromBackup
+            self.pastRevisions = pastRevisions
+        }
+
+        static func validateAndBuild(
+            interactionUniqueId: InteractionUniqueId,
+            author: AuthorAddress,
+            directionalDetails: DirectionalDetails,
+            dateCreated: UInt64,
+            expireStartDate: UInt64?,
+            expiresInMs: UInt64?,
+            isSealedSender: Bool,
+            chatItemType: ChatItemType,
+            isSmsPreviouslyRestoredFromBackup: Bool,
+            pastRevisions: [InteractionArchiveDetails] = [],
+            threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
+            context: MessageBackup.RecipientArchivingContext
+        ) -> MessageBackup.ArchiveInteractionResult<Self> {
+            var authorRecipientId: RecipientId
+            var author = author
+            switch author {
+            case .localUser:
+                authorRecipientId = context.localRecipientId
+            case .contact(let contactAddress):
+                guard let recipientId = context[.contact(contactAddress)] else {
+                    return .messageFailure([.archiveFrameError(
+                        .referencedRecipientIdMissing(.contact(contactAddress)),
+                        interactionUniqueId
+                    )])
+                }
+                authorRecipientId = recipientId
+                if authorRecipientId == context.localRecipientId {
+                    author = .localUser
+                }
+            }
+
+            var partialErrors = [MessageBackup.ArchiveFrameError<MessageBackup.InteractionUniqueId>]()
+            for timestamp in [dateCreated, expireStartDate, expiresInMs] {
+                switch MessageBackup.Timestamps.validateTimestamp(timestamp).bubbleUp(Self.self, partialErrors: &partialErrors) {
+                case .continue:
+                    break
+                case .bubbleUpError(let error):
+                    return error
+                }
+            }
+
+            switch (threadInfo, author) {
+            case (.groupThread, _), (.contactThread, .localUser):
+                break
+            case (.contactThread(let threadContactAddress), .contact(_)):
+                let threadRecipientId = threadContactAddress.map { context[.contact($0)] } ?? nil
+
+                // If this message is in a contact thread, the author must either
+                // be the local user or that contact.
+                if let threadRecipientId, threadRecipientId != authorRecipientId {
+                    // There's a mismatch; the author of the message
+                    // isn't in the 1:1 chat. This can happen if...
+                    // * some chat pre- introduction of ACIs where
+                    //   the contact later changed number. The author
+                    //   on the message would be e164-only with the old
+                    //   number, not matching the thread.
+                    // * some chat that existed pre- introduction of ACIs
+                    //   received a message after ACIs existed and
+                    //   _hallucinated_ an ACI that it then wrote into
+                    //   the message's authorUUID column.
+                    //
+                    // In any case, we recover from this by swizzling
+                    // the author on export to the chat-level author,
+                    // which is more trustworthy.
+                    authorRecipientId = threadRecipientId
+                    // Add a partial error so we log these.
+                    partialErrors.append(.archiveFrameError(
+                        .messageFromOtherRecipientInContactThread,
+                        interactionUniqueId
+                    ))
+                }
+            }
+
+            let details = InteractionArchiveDetails(
+                author: authorRecipientId,
+                directionalDetails: directionalDetails,
+                dateCreated: dateCreated,
+                expireStartDate: expireStartDate,
+                expiresInMs: expiresInMs,
+                isSealedSender: isSealedSender,
+                chatItemType: chatItemType,
+                isSmsPreviouslyRestoredFromBackup: isSmsPreviouslyRestoredFromBackup,
+                pastRevisions: pastRevisions
+            )
+            if partialErrors.isEmpty {
+                return .success(details)
+            } else {
+                return .partialFailure(details, partialErrors)
+            }
+        }
     }
 
-    enum SkippableChatUpdate {
+    // MARK: -
+
+    enum SkippableInteraction {
         enum SkippableGroupUpdate {
             /// This is a group update from back when we kept raw strings on
             /// disk, instead of metadata required to construct the string. We
@@ -155,6 +300,16 @@ extension MessageBackup {
 
         /// This is a message that is expiring soon, so we don't back it up at all.
         case soonToExpireMessage
+
+        /// This message has a timestamp that exceeds the maximum allowed timestamp in backups.
+        /// No legitimate message should have timestamps this size, so any message we see is the
+        /// result of either intentional or unintentional fuzzing, and we just drop it.
+        case timestampTooLarge
+
+        /// We previously had a bug that made it possible to reply to your
+        /// own stories; these replies would go into the Note To Self thread.
+        /// We just drop these on export as they're meant to be impossible.
+        case directStoryReplyInNoteToSelf
     }
 
     enum ArchiveInteractionResult<Component> {
@@ -163,7 +318,7 @@ extension MessageBackup {
         // MARK: Skips
 
         /// We intentionally skip archiving some chat-update interactions.
-        case skippableChatUpdate(SkippableChatUpdate)
+        case skippableInteraction(SkippableInteraction)
 
         // MARK: Errors
 
@@ -179,6 +334,9 @@ extension MessageBackup {
 
     enum RestoreInteractionResult<Component> {
         case success(Component)
+        /// There was an unrecognized enum (or oneOf) for which we skip restoring this frame
+        /// but we should proceed restoring other frames.
+        case unrecognizedEnum(UnrecognizedEnumError)
         /// Some portion of the interaction failed to restore, but we can still restore the rest of it.
         /// e.g. a reaction failed to parse, so we just drop that reaction.
         case partialRestore(Component, [RestoreFrameError<ChatItemId>])
@@ -240,8 +398,8 @@ extension MessageBackup.ArchiveInteractionResult {
             return .continue(value)
 
         // These types are just bubbled up as-is
-        case .skippableChatUpdate(let skippableChatUpdate):
-            return .bubbleUpError(.skippableChatUpdate(skippableChatUpdate))
+        case .skippableInteraction(let skippableInteraction):
+            return .bubbleUpError(.skippableInteraction(skippableInteraction))
         case .completeFailure(let error):
             return .bubbleUpError(.completeFailure(error))
 
@@ -255,9 +413,14 @@ extension MessageBackup.ArchiveInteractionResult {
 
 extension MessageBackup.RestoreInteractionResult {
 
-    /// Returns nil for ``RestoreInteractionResult.messageFailure``, otherwise
-    /// returns the restored component. Regardless, accumulates any errors so that the caller
-    /// can return the passed in ``partialErrors`` array in the final result.
+    enum BubbleUp<ComponentType, ErrorComponentType> {
+        case `continue`(ComponentType)
+        case bubbleUpError(MessageBackup.RestoreInteractionResult<ErrorComponentType>)
+    }
+
+    /// Make it easier to "bubble up" an error case of ``RestoreInteractionResult`` thrown deeper in the call stack.
+    /// Basically, collapses all the cases that should just be bubbled up to the caller (error cases) into an easily returnable case,
+    /// ditto for the success or partial success cases, and handles updating partialErrors along the way.
     ///
     /// Concretely, turns this:
     ///
@@ -267,28 +430,38 @@ extension MessageBackup.RestoreInteractionResult {
     /// case .partialRestore(let value, let errors):
     ///   myVar = value
     ///   partialErrors.append(contentsOf: errors)
-    /// case messageFailure(let errors)
-    ///   partialErrors.append(contentsOf: errors)
-    ///   return .messageFailure(partialErrors)
+    /// case someFailureCase(let someErrorOrErrors)
+    ///   let coalescedErrorOrErrors = partialErrors.coalesceSomehow(with: someErrorOrErrors)
+    ///   // Just bubble up the error after coalescing
+    ///   return .someFailureCase(coalescedErrorOrErrors)
+    /// // ...
+    /// // The same for every other error case that should be bubbled up
+    /// // ...
     /// }
     ///
     /// Into this:
     ///
-    /// guard let myVar = someResult.unwrap(&partialErrors) else {
-    ///   return .messageFailure(partialErrors)
+    /// switch someResult.bubbleUp(&partialErrors) {
+    /// case .success(let value):
+    ///   myVar = value
+    /// case .bubbleUpError(let error):
+    ///   return error
     /// }
-    func unwrap(
+    func bubbleUp<ErrorComponentType>(
+        _ errorComponentType: ErrorComponentType.Type = Component.self,
         partialErrors: inout [MessageBackup.RestoreFrameError<MessageBackup.ChatItemId>]
-    ) -> Component? {
+    ) -> BubbleUp<Component, ErrorComponentType> {
         switch self {
         case .success(let component):
-            return component
+            return .continue(component)
+        case .unrecognizedEnum(let error):
+            return .bubbleUpError(.unrecognizedEnum(error))
         case .partialRestore(let component, let errors):
             partialErrors.append(contentsOf: errors)
-            return component
+            return .continue(component)
         case .messageFailure(let errors):
             partialErrors.append(contentsOf: errors)
-            return nil
+            return .bubbleUpError(.messageFailure(partialErrors))
         }
     }
 }
@@ -303,6 +476,8 @@ extension MessageBackup.RestoreInteractionResult where Component == Void {
         switch (self, other) {
         case (.success, .success):
             return .success(())
+        case (.unrecognizedEnum(let error), _), (_, .unrecognizedEnum(let error)):
+            return .unrecognizedEnum(error)
         case let (.messageFailure(lhs), .messageFailure(rhs)):
             return .messageFailure(lhs + rhs)
         case let (.partialRestore(_, lhs), .partialRestore(_, rhs)):
@@ -319,27 +494,6 @@ extension MessageBackup.RestoreInteractionResult where Component == Void {
             let (.partialRestore(_, errors), .success),
             let (.success, .partialRestore(_, errors)):
             return .partialRestore((), errors)
-        }
-    }
-}
-
-extension MessageBackup.RestoreInteractionResult where Component == Void {
-
-    /// Returns false for ``RestoreInteractionResult.messageFailure``, otherwise
-    /// returns true. Regardless, accumulates any errors so that the caller
-    /// can return the passed in ``partialErrors`` array in the final result.
-    func unwrap(
-        partialErrors: inout [MessageBackup.RestoreFrameError<MessageBackup.ChatItemId>]
-    ) -> Bool {
-        switch self {
-        case .success:
-            return true
-        case .partialRestore(_, let errors):
-            partialErrors.append(contentsOf: errors)
-            return true
-        case .messageFailure(let errors):
-            partialErrors.append(contentsOf: errors)
-            return false
         }
     }
 }

@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-
 #if TESTABLE_BUILD
+
+import Foundation
+public import LibSignalClient
 
 open class MessageBackupManagerMock: MessageBackupManager {
     public func downloadEncryptedBackup(
@@ -33,7 +34,14 @@ open class MessageBackupManagerMock: MessageBackupManager {
         )
     }
 
-    public func exportEncryptedBackup(localIdentifiers: LocalIdentifiers) async throws -> Upload.EncryptedBackupUploadMetadata {
+    public func exportEncryptedBackup(
+        localIdentifiers: LocalIdentifiers,
+        backupKey: BackupKey,
+        backupPurpose: MessageBackupPurpose,
+        progress: OWSProgressSink?
+    ) async throws -> Upload.EncryptedBackupUploadMetadata {
+        let source = await progress?.addSource(withLabel: "", unitCount: 1)
+        source?.incrementCompletedUnitCount(by: 1)
         return Upload.EncryptedBackupUploadMetadata(
             fileUrl: URL(string: "file://")!,
             digest: Data(),
@@ -42,13 +50,42 @@ open class MessageBackupManagerMock: MessageBackupManager {
         )
     }
 
-    public func exportPlaintextBackup(localIdentifiers: LocalIdentifiers) async throws -> URL {
+    public func exportPlaintextBackupForTests(
+        localIdentifiers: LocalIdentifiers,
+        progress: OWSProgressSink?
+    ) async throws -> URL {
+        let source = await progress?.addSource(withLabel: "", unitCount: 1)
+        source?.incrementCompletedUnitCount(by: 1)
         return URL(string: "file://")!
     }
 
-    public func importEncryptedBackup(fileUrl: URL, localIdentifiers: LocalIdentifiers) async throws {}
-    public func importPlaintextBackup(fileUrl: URL, localIdentifiers: LocalIdentifiers) async throws {}
-    public func validateEncryptedBackup(fileUrl: URL, localIdentifiers: LocalIdentifiers) async throws {}
+    public func hasRestoredFromBackup(tx: DBReadTransaction) -> Bool {
+        false
+    }
+
+    public func importEncryptedBackup(
+        fileUrl: URL,
+        localIdentifiers: LocalIdentifiers,
+        backupKey: BackupKey,
+        progress: OWSProgressSink?
+    ) async throws {
+        let source = await progress?.addSource(withLabel: "", unitCount: 1)
+        source?.incrementCompletedUnitCount(by: 1)
+    }
+    public func importPlaintextBackup(
+        fileUrl: URL,
+        localIdentifiers: LocalIdentifiers,
+        progress: OWSProgressSink?
+    ) async throws {
+        let source = await progress?.addSource(withLabel: "", unitCount: 1)
+        source?.incrementCompletedUnitCount(by: 1)
+    }
+    public func validateEncryptedBackup(
+        fileUrl: URL,
+        localIdentifiers: LocalIdentifiers,
+        backupKey: BackupKey,
+        backupPurpose: MessageBackupPurpose
+    ) async throws {}
 }
 
 #endif

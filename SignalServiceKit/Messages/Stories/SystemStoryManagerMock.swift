@@ -5,8 +5,7 @@
 
 import Foundation
 
-@objc
-public class SystemStoryManagerMock: NSObject, SystemStoryManagerProtocol {
+public class SystemStoryManagerMock: SystemStoryManagerProtocol {
 
     /// In tests, set some other handler to this to return different results when the system under test calls enqueueOnboardingStoryDownload
     public lazy var downloadOnboardingStoryHandler: () -> Promise<Void> = {
@@ -28,39 +27,39 @@ public class SystemStoryManagerMock: NSObject, SystemStoryManagerProtocol {
 
     public var isOnboardingStoryRead: Bool = false
 
-    public func isOnboardingStoryRead(transaction: SDSAnyReadTransaction) -> Bool {
+    public func isOnboardingStoryRead(transaction: DBReadTransaction) -> Bool {
         return isOnboardingStoryRead
     }
 
     public var isOnboardingStoryViewed: Bool = false
 
-    public func isOnboardingStoryViewed(transaction: SDSAnyReadTransaction) -> Bool {
+    public func isOnboardingStoryViewed(transaction: DBReadTransaction) -> Bool {
         return isOnboardingStoryViewed
     }
 
-    public func setHasReadOnboardingStory(transaction: SDSAnyWriteTransaction, updateStorageService: Bool) {
+    public func setHasReadOnboardingStory(transaction: DBWriteTransaction, updateStorageService: Bool) {
         return
     }
 
-    public func setHasViewedOnboardingStory(source: OnboardingStoryViewSource, transaction: SDSAnyWriteTransaction) {
+    public func setHasViewedOnboardingStory(source: OnboardingStoryViewSource, transaction: DBWriteTransaction) {
         return
     }
 
     public var isOnboardingOverlayViewed: Bool = false
-    public func isOnboardingOverlayViewed(transaction: SDSAnyReadTransaction) -> Bool {
+    public func isOnboardingOverlayViewed(transaction: DBReadTransaction) -> Bool {
         return isOnboardingOverlayViewed
     }
 
-    public func setOnboardingOverlayViewed(value: Bool, transaction: SDSAnyWriteTransaction) {
+    public func setOnboardingOverlayViewed(value: Bool, transaction: DBWriteTransaction) {
         return
     }
 
     public var isGroupStoryEducationSheetViewed: Bool = false
-    public func isGroupStoryEducationSheetViewed(tx: SDSAnyReadTransaction) -> Bool {
+    public func isGroupStoryEducationSheetViewed(tx: DBReadTransaction) -> Bool {
         return isGroupStoryEducationSheetViewed
     }
 
-    public func setGroupStoryEducationSheetViewed(tx: SDSAnyWriteTransaction) {
+    public func setGroupStoryEducationSheetViewed(tx: DBWriteTransaction) {
         isGroupStoryEducationSheetViewed = true
     }
 
@@ -74,11 +73,11 @@ public class SystemStoryManagerMock: NSObject, SystemStoryManagerProtocol {
 
     public var areSystemStoriesHidden: Bool = false
 
-    public func areSystemStoriesHidden(transaction: SDSAnyReadTransaction) -> Bool {
+    public func areSystemStoriesHidden(transaction: DBReadTransaction) -> Bool {
         return areSystemStoriesHidden
     }
 
-    public func setSystemStoriesHidden(_ hidden: Bool, transaction: SDSAnyWriteTransaction) {
+    public func setSystemStoriesHidden(_ hidden: Bool, transaction: DBWriteTransaction) {
         fatalError("Unimplemented for tests")
     }
 }
@@ -109,9 +108,9 @@ public class OnboardingStoryManagerFilesystemMock: OnboardingStoryManagerFilesys
 public class OnboardingStoryManagerStoryMessageFactoryMock: OnboardingStoryManagerStoryMessageFactory {
 
     public override class func createFromSystemAuthor(
-        attachmentSource: TSResourceDataSource,
+        attachmentSource: AttachmentDataSource,
         timestamp: UInt64,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) throws -> StoryMessage {
         return try StoryMessage.createAndInsert(
             timestamp: timestamp,
@@ -126,7 +125,7 @@ public class OnboardingStoryManagerStoryMessageFactoryMock: OnboardingStoryManag
                 )
             ),
             replyCount: 0,
-            attachmentBuilder: .withoutFinalizer(.foreignReferenceAttachment),
+            attachmentBuilder: .withoutFinalizer(.media),
             mediaCaption: nil,
             shouldLoop: false,
             transaction: transaction
@@ -136,7 +135,7 @@ public class OnboardingStoryManagerStoryMessageFactoryMock: OnboardingStoryManag
     public override class func validateAttachmentContents(
         dataSource: any DataSource,
         mimeType: String
-    ) throws -> TSResourceDataSource {
+    ) throws -> AttachmentDataSource {
         struct FakePendingAttachment: PendingAttachment {
             let blurHash: String? = nil
             let sha256ContentHash: Data = Data()
@@ -146,15 +145,24 @@ public class OnboardingStoryManagerStoryMessageFactoryMock: OnboardingStoryManag
             let encryptionKey: Data = Data()
             let digestSHA256Ciphertext: Data = Data()
             let localRelativeFilePath: String = ""
-            let renderingFlag: AttachmentReference.RenderingFlag = .default
+            var renderingFlag: AttachmentReference.RenderingFlag = .default
             let sourceFilename: String?
             let validatedContentType: Attachment.ContentType = .file
             let orphanRecordId: OrphanedAttachmentRecord.IDType = 1
+
+            mutating func removeBorderlessRenderingFlagIfPresent() {
+                switch renderingFlag {
+                case .borderless:
+                    renderingFlag = .default
+                default:
+                    return
+                }
+            }
         }
 
         return AttachmentDataSource.pendingAttachment(FakePendingAttachment(
             mimeType: mimeType,
             sourceFilename: dataSource.sourceFilename
-        )).tsDataSource
+        ))
     }
 }

@@ -25,7 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
                           additionalRecipients:(NSArray<SignalServiceAddress *> *)additionalRecipients
                             explicitRecipients:(NSArray<AciObjC *> *)explicitRecipients
                              skippedRecipients:(NSArray<SignalServiceAddress *> *)skippedRecipients
-                                   transaction:(SDSAnyReadTransaction *)transaction NS_UNAVAILABLE;
+                                   transaction:(DBReadTransaction *)transaction NS_UNAVAILABLE;
 
 - (instancetype)initWithGrdbId:(int64_t)grdbId
                           uniqueId:(NSString *)uniqueId
@@ -33,10 +33,10 @@ NS_ASSUME_NONNULL_BEGIN
                             sortId:(uint64_t)sortId
                          timestamp:(uint64_t)timestamp
                     uniqueThreadId:(NSString *)uniqueThreadId
-                     attachmentIds:(NSArray<NSString *> *)attachmentIds
                               body:(nullable NSString *)body
                         bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                       contactShare:(nullable OWSContact *)contactShare
+          deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                          editState:(TSEditState)editState
                    expireStartedAt:(uint64_t)expireStartedAt
                 expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -72,7 +72,7 @@ NS_ASSUME_NONNULL_BEGIN
                                                        amount:(nullable NSString *)amount
                                                           fee:(nullable NSString *)fee
                                                          note:(nullable NSString *)note
-                                                  transaction:(SDSAnyReadTransaction *)transaction
+                                                  transaction:(DBReadTransaction *)transaction
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)initOutgoingArchivedPaymentMessageWithBuilder:(TSOutgoingMessageBuilder *)messageBuilder
@@ -96,10 +96,10 @@ NS_ASSUME_NONNULL_BEGIN
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -130,7 +130,7 @@ NS_ASSUME_NONNULL_BEGIN
               storedMessageState:(TSOutgoingMessageState)storedMessageState
             wasNotCreatedLocally:(BOOL)wasNotCreatedLocally
              archivedPaymentInfo:(TSArchivedPaymentInfo *)archivedPaymentInfo
-NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp:sortId:timestamp:uniqueThreadId:attachmentIds:body:bodyRanges:contactShare:editState:expireStartedAt:expireTimerVersion:expiresAt:expiresInSeconds:giftBadge:isGroupStoryReply:isSmsMessageRestoredFromBackup:isViewOnceComplete:isViewOnceMessage:linkPreview:messageSticker:quotedMessage:storedShouldStartExpireTimer:storyAuthorUuidString:storyReactionEmoji:storyTimestamp:wasRemotelyDeleted:customMessage:groupMetaMessage:hasLegacyMessageState:hasSyncedTranscript:isVoiceMessage:legacyMessageState:legacyWasDelivered:mostRecentFailureText:recipientAddressStates:storedMessageState:wasNotCreatedLocally:archivedPaymentInfo:));
+NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp:sortId:timestamp:uniqueThreadId:body:bodyRanges:contactShare:deprecated_attachmentIds:editState:expireStartedAt:expireTimerVersion:expiresAt:expiresInSeconds:giftBadge:isGroupStoryReply:isSmsMessageRestoredFromBackup:isViewOnceComplete:isViewOnceMessage:linkPreview:messageSticker:quotedMessage:storedShouldStartExpireTimer:storyAuthorUuidString:storyReactionEmoji:storyTimestamp:wasRemotelyDeleted:customMessage:groupMetaMessage:hasLegacyMessageState:hasSyncedTranscript:isVoiceMessage:legacyMessageState:legacyWasDelivered:mostRecentFailureText:recipientAddressStates:storedMessageState:wasNotCreatedLocally:archivedPaymentInfo:));
 
 // clang-format on
 

@@ -272,8 +272,7 @@ extension TSThread {
             let mutedUntilTimestampObsolete: UInt64 = record.mutedUntilTimestamp
             let shouldThreadBeVisible: Bool = record.shouldThreadBeVisible
             let storyViewMode: TSThreadStoryViewMode = TSThreadStoryViewMode(rawValue: record.storyViewMode) ?? .default
-            let addressesSerialized: Data? = record.addresses
-            let addresses: [SignalServiceAddress] = try SDSDeserialization.unarchive(addressesSerialized, name: "addresses")
+            let addresses: Data? = SDSDeserialization.optionalData(record.addresses, name: "addresses")
             let allowsReplies: Bool = try SDSDeserialization.required(record.allowsReplies, name: "allowsReplies")
             let name: String = try SDSDeserialization.required(record.name, name: "name")
 
@@ -370,8 +369,8 @@ extension TSThread: SDSModel {
         }
     }
 
-    public func asRecord() throws -> SDSRecord {
-        try serializer.asRecord()
+    public func asRecord() -> SDSRecord {
+        serializer.asRecord()
     }
 
     public var sdsTableName: String {
@@ -388,12 +387,12 @@ extension TSThread: SDSModel {
 extension TSThread: DeepCopyable {
 
     public func deepCopy() throws -> AnyObject {
-        // Any subclass can be cast to it's superclass,
-        // so the order of this switch statement matters.
-        // We need to do a "depth first" search by type.
         guard let id = self.grdbId?.int64Value else {
             throw OWSAssertionError("Model missing grdbId.")
         }
+
+        // Any subclass can be cast to its superclass, so the order of these if
+        // statements matters. We need to do a "depth first" search by type.
 
         if let modelToCopy = self as? TSPrivateStoryThread {
             assert(type(of: modelToCopy) == TSPrivateStoryThread.self)
@@ -409,13 +408,6 @@ extension TSThread: DeepCopyable {
             let lastVisibleSortIdOnScreenPercentageObsolete: Double = modelToCopy.lastVisibleSortIdOnScreenPercentageObsolete
             let mentionNotificationMode: TSThreadMentionNotificationMode = modelToCopy.mentionNotificationMode
             let messageDraft: String? = modelToCopy.messageDraft
-            // NOTE: If this generates build errors, you made need to
-            // modify DeepCopy.swift to support this type.
-            //
-            // That might mean:
-            //
-            // * Implement DeepCopyable for this type (e.g. a model).
-            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
             let messageDraftBodyRanges: MessageBodyRanges?
             if let messageDraftBodyRangesForCopy = modelToCopy.messageDraftBodyRanges {
                messageDraftBodyRanges = try DeepCopies.deepCopy(messageDraftBodyRangesForCopy)
@@ -426,9 +418,7 @@ extension TSThread: DeepCopyable {
             let mutedUntilTimestampObsolete: UInt64 = modelToCopy.mutedUntilTimestampObsolete
             let shouldThreadBeVisible: Bool = modelToCopy.shouldThreadBeVisible
             let storyViewMode: TSThreadStoryViewMode = modelToCopy.storyViewMode
-            // NOTE: If this generates build errors, you made need to
-            // implement DeepCopyable for this type in DeepCopy.swift.
-            let addresses: [SignalServiceAddress] = try DeepCopies.deepCopy(modelToCopy.addresses)
+            let addresses: Data? = modelToCopy.addresses
             let allowsReplies: Bool = modelToCopy.allowsReplies
             let name: String = modelToCopy.name
 
@@ -469,13 +459,6 @@ extension TSThread: DeepCopyable {
             let lastVisibleSortIdOnScreenPercentageObsolete: Double = modelToCopy.lastVisibleSortIdOnScreenPercentageObsolete
             let mentionNotificationMode: TSThreadMentionNotificationMode = modelToCopy.mentionNotificationMode
             let messageDraft: String? = modelToCopy.messageDraft
-            // NOTE: If this generates build errors, you made need to
-            // modify DeepCopy.swift to support this type.
-            //
-            // That might mean:
-            //
-            // * Implement DeepCopyable for this type (e.g. a model).
-            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
             let messageDraftBodyRanges: MessageBodyRanges?
             if let messageDraftBodyRangesForCopy = modelToCopy.messageDraftBodyRanges {
                messageDraftBodyRanges = try DeepCopies.deepCopy(messageDraftBodyRangesForCopy)
@@ -486,8 +469,6 @@ extension TSThread: DeepCopyable {
             let mutedUntilTimestampObsolete: UInt64 = modelToCopy.mutedUntilTimestampObsolete
             let shouldThreadBeVisible: Bool = modelToCopy.shouldThreadBeVisible
             let storyViewMode: TSThreadStoryViewMode = modelToCopy.storyViewMode
-            // NOTE: If this generates build errors, you made need to
-            // implement DeepCopyable for this type in DeepCopy.swift.
             let groupModel: TSGroupModel = try DeepCopies.deepCopy(modelToCopy.groupModel)
 
             return TSGroupThread(grdbId: id,
@@ -525,13 +506,6 @@ extension TSThread: DeepCopyable {
             let lastVisibleSortIdOnScreenPercentageObsolete: Double = modelToCopy.lastVisibleSortIdOnScreenPercentageObsolete
             let mentionNotificationMode: TSThreadMentionNotificationMode = modelToCopy.mentionNotificationMode
             let messageDraft: String? = modelToCopy.messageDraft
-            // NOTE: If this generates build errors, you made need to
-            // modify DeepCopy.swift to support this type.
-            //
-            // That might mean:
-            //
-            // * Implement DeepCopyable for this type (e.g. a model).
-            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
             let messageDraftBodyRanges: MessageBodyRanges?
             if let messageDraftBodyRangesForCopy = modelToCopy.messageDraftBodyRanges {
                messageDraftBodyRanges = try DeepCopies.deepCopy(messageDraftBodyRangesForCopy)
@@ -584,13 +558,6 @@ extension TSThread: DeepCopyable {
             let lastVisibleSortIdOnScreenPercentageObsolete: Double = modelToCopy.lastVisibleSortIdOnScreenPercentageObsolete
             let mentionNotificationMode: TSThreadMentionNotificationMode = modelToCopy.mentionNotificationMode
             let messageDraft: String? = modelToCopy.messageDraft
-            // NOTE: If this generates build errors, you made need to
-            // modify DeepCopy.swift to support this type.
-            //
-            // That might mean:
-            //
-            // * Implement DeepCopyable for this type (e.g. a model).
-            // * Modify DeepCopies.deepCopy() to support this type (e.g. a collection).
             let messageDraftBodyRanges: MessageBodyRanges?
             if let messageDraftBodyRangesForCopy = modelToCopy.messageDraftBodyRanges {
                messageDraftBodyRanges = try DeepCopies.deepCopy(messageDraftBodyRangesForCopy)
@@ -698,7 +665,7 @@ extension TSThreadSerializer {
 
 @objc
 public extension TSThread {
-    func anyInsert(transaction: SDSAnyWriteTransaction) {
+    func anyInsert(transaction: DBWriteTransaction) {
         sdsSave(saveMode: .insert, transaction: transaction)
     }
 
@@ -710,7 +677,7 @@ public extension TSThread {
     //
     // For performance, when possible, you should explicitly specify whether
     // you are inserting or updating rather than calling this method.
-    func anyUpsert(transaction: SDSAnyWriteTransaction) {
+    func anyUpsert(transaction: DBWriteTransaction) {
         let isInserting: Bool
         if TSThread.anyFetch(uniqueId: uniqueId, transaction: transaction) != nil {
             isInserting = false
@@ -744,7 +711,7 @@ public extension TSThread {
     //
     // This isn't a perfect arrangement, but in practice this will prevent
     // data loss and will resolve all known issues.
-    func anyUpdate(transaction: SDSAnyWriteTransaction, block: (TSThread) -> Void) {
+    func anyUpdate(transaction: DBWriteTransaction, block: (TSThread) -> Void) {
 
         block(self)
 
@@ -772,23 +739,8 @@ public extension TSThread {
     // There are cases when this doesn't make sense, e.g. when  we know we've
     // just loaded the model in the same transaction. In those cases it is
     // safe and faster to do a "overwriting" update
-    func anyOverwritingUpdate(transaction: SDSAnyWriteTransaction) {
+    func anyOverwritingUpdate(transaction: DBWriteTransaction) {
         sdsSave(saveMode: .update, transaction: transaction)
-    }
-
-    func anyReload(transaction: SDSAnyReadTransaction) {
-        anyReload(transaction: transaction, ignoreMissing: false)
-    }
-
-    func anyReload(transaction: SDSAnyReadTransaction, ignoreMissing: Bool) {
-        guard let latestVersion = type(of: self).anyFetch(uniqueId: uniqueId, transaction: transaction) else {
-            if !ignoreMissing {
-                owsFailDebug("`latest` was unexpectedly nil")
-            }
-            return
-        }
-
-        setValuesForKeys(latestVersion.dictionaryValue)
     }
 }
 
@@ -796,10 +748,10 @@ public extension TSThread {
 
 @objc
 public class TSThreadCursor: NSObject, SDSCursor {
-    private let transaction: GRDBReadTransaction
+    private let transaction: DBReadTransaction
     private let cursor: RecordCursor<ThreadRecord>?
 
-    init(transaction: GRDBReadTransaction, cursor: RecordCursor<ThreadRecord>?) {
+    init(transaction: DBReadTransaction, cursor: RecordCursor<ThreadRecord>?) {
         self.transaction = transaction
         self.cursor = cursor
     }
@@ -812,7 +764,7 @@ public class TSThreadCursor: NSObject, SDSCursor {
             return nil
         }
         let value = try TSThread.fromRecord(record)
-        Self.modelReadCaches.threadReadCache.didReadThread(value, transaction: transaction.asAnyRead)
+        SSKEnvironment.shared.modelReadCachesRef.threadReadCache.didReadThread(value, transaction: transaction)
         return value
     }
 
@@ -832,7 +784,8 @@ public class TSThreadCursor: NSObject, SDSCursor {
 
 @objc
 public extension TSThread {
-    class func grdbFetchCursor(transaction: GRDBReadTransaction) -> TSThreadCursor {
+    @nonobjc
+    class func grdbFetchCursor(transaction: DBReadTransaction) -> TSThreadCursor {
         let database = transaction.database
         do {
             let cursor = try ThreadRecord.fetchCursor(database)
@@ -849,7 +802,7 @@ public extension TSThread {
 
     // Fetches a single model by "unique id".
     class func anyFetch(uniqueId: String,
-                        transaction: SDSAnyReadTransaction) -> TSThread? {
+                        transaction: DBReadTransaction) -> TSThread? {
         assert(!uniqueId.isEmpty)
 
         return anyFetch(uniqueId: uniqueId, transaction: transaction, ignoreCache: false)
@@ -857,26 +810,23 @@ public extension TSThread {
 
     // Fetches a single model by "unique id".
     class func anyFetch(uniqueId: String,
-                        transaction: SDSAnyReadTransaction,
+                        transaction: DBReadTransaction,
                         ignoreCache: Bool) -> TSThread? {
         assert(!uniqueId.isEmpty)
 
         if !ignoreCache,
-            let cachedCopy = Self.modelReadCaches.threadReadCache.getThread(uniqueId: uniqueId, transaction: transaction) {
+            let cachedCopy = SSKEnvironment.shared.modelReadCachesRef.threadReadCache.getThread(uniqueId: uniqueId, transaction: transaction) {
             return cachedCopy
         }
 
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let sql = "SELECT * FROM \(ThreadRecord.databaseTableName) WHERE \(threadColumn: .uniqueId) = ?"
-            return grdbFetchOne(sql: sql, arguments: [uniqueId], transaction: grdbTransaction)
-        }
+        let sql = "SELECT * FROM \(ThreadRecord.databaseTableName) WHERE \(threadColumn: .uniqueId) = ?"
+        return grdbFetchOne(sql: sql, arguments: [uniqueId], transaction: transaction)
     }
 
     // Traverses all records.
     // Records are not visited in any particular order.
     class func anyEnumerate(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         block: (TSThread, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
         anyEnumerate(transaction: transaction, batched: false, block: block)
@@ -885,7 +835,7 @@ public extension TSThread {
     // Traverses all records.
     // Records are not visited in any particular order.
     class func anyEnumerate(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batched: Bool = false,
         block: (TSThread, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
@@ -898,32 +848,29 @@ public extension TSThread {
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
     class func anyEnumerate(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batchSize: UInt,
         block: (TSThread, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let cursor = TSThread.grdbFetchCursor(transaction: grdbTransaction)
-            Batching.loop(batchSize: batchSize,
-                          loopBlock: { stop in
-                                do {
-                                    guard let value = try cursor.next() else {
-                                        stop.pointee = true
-                                        return
-                                    }
-                                    block(value, stop)
-                                } catch let error {
-                                    owsFailDebug("Couldn't fetch model: \(error)")
+        let cursor = TSThread.grdbFetchCursor(transaction: transaction)
+        Batching.loop(batchSize: batchSize,
+                        loopBlock: { stop in
+                            do {
+                                guard let value = try cursor.next() else {
+                                    stop.pointee = true
+                                    return
                                 }
-                              })
-        }
+                                block(value, stop)
+                            } catch let error {
+                                owsFailDebug("Couldn't fetch model: \(error)")
+                            }
+                            })
     }
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
     class func anyEnumerateUniqueIds(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
         anyEnumerateUniqueIds(transaction: transaction, batched: false, block: block)
@@ -932,7 +879,7 @@ public extension TSThread {
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
     class func anyEnumerateUniqueIds(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batched: Bool = false,
         block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
@@ -945,24 +892,21 @@ public extension TSThread {
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
     class func anyEnumerateUniqueIds(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batchSize: UInt,
         block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            grdbEnumerateUniqueIds(transaction: grdbTransaction,
-                                   sql: """
-                    SELECT \(threadColumn: .uniqueId)
-                    FROM \(ThreadRecord.databaseTableName)
-                """,
-                batchSize: batchSize,
-                block: block)
-        }
+        grdbEnumerateUniqueIds(transaction: transaction,
+                                sql: """
+                SELECT \(threadColumn: .uniqueId)
+                FROM \(ThreadRecord.databaseTableName)
+            """,
+            batchSize: batchSize,
+            block: block)
     }
 
     // Does not order the results.
-    class func anyFetchAll(transaction: SDSAnyReadTransaction) -> [TSThread] {
+    class func anyFetchAll(transaction: DBReadTransaction) -> [TSThread] {
         var result = [TSThread]()
         anyEnumerate(transaction: transaction) { (model, _) in
             result.append(model)
@@ -971,7 +915,7 @@ public extension TSThread {
     }
 
     // Does not order the results.
-    class func anyAllUniqueIds(transaction: SDSAnyReadTransaction) -> [String] {
+    class func anyAllUniqueIds(transaction: DBReadTransaction) -> [String] {
         var result = [String]()
         anyEnumerateUniqueIds(transaction: transaction) { (uniqueId, _) in
             result.append(uniqueId)
@@ -979,32 +923,26 @@ public extension TSThread {
         return result
     }
 
-    class func anyCount(transaction: SDSAnyReadTransaction) -> UInt {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            return ThreadRecord.ows_fetchCount(grdbTransaction.database)
-        }
+    class func anyCount(transaction: DBReadTransaction) -> UInt {
+        return ThreadRecord.ows_fetchCount(transaction.database)
     }
 
     class func anyExists(
         uniqueId: String,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> Bool {
         assert(!uniqueId.isEmpty)
 
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let sql = "SELECT EXISTS ( SELECT 1 FROM \(ThreadRecord.databaseTableName) WHERE \(threadColumn: .uniqueId) = ? )"
-            let arguments: StatementArguments = [uniqueId]
-            do {
-                return try Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
-            } catch {
-                DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
-                    userDefaults: CurrentAppContext().appUserDefaults(),
-                    error: error
-                )
-                owsFail("Missing instance.")
-            }
+        let sql = "SELECT EXISTS ( SELECT 1 FROM \(ThreadRecord.databaseTableName) WHERE \(threadColumn: .uniqueId) = ? )"
+        let arguments: StatementArguments = [uniqueId]
+        do {
+            return try Bool.fetchOne(transaction.database, sql: sql, arguments: arguments) ?? false
+        } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
+            owsFail("Missing instance.")
         }
     }
 }
@@ -1014,7 +952,7 @@ public extension TSThread {
 public extension TSThread {
     class func grdbFetchCursor(sql: String,
                                arguments: StatementArguments = StatementArguments(),
-                               transaction: GRDBReadTransaction) -> TSThreadCursor {
+                               transaction: DBReadTransaction) -> TSThreadCursor {
         do {
             let sqlRequest = SQLRequest<Void>(sql: sql, arguments: arguments, cached: true)
             let cursor = try ThreadRecord.fetchCursor(transaction.database, sqlRequest)
@@ -1031,7 +969,7 @@ public extension TSThread {
 
     class func grdbFetchOne(sql: String,
                             arguments: StatementArguments = StatementArguments(),
-                            transaction: GRDBReadTransaction) -> TSThread? {
+                            transaction: DBReadTransaction) -> TSThread? {
         assert(!sql.isEmpty)
 
         do {
@@ -1041,7 +979,7 @@ public extension TSThread {
             }
 
             let value = try TSThread.fromRecord(record)
-            Self.modelReadCaches.threadReadCache.didReadThread(value, transaction: transaction.asAnyRead)
+            SSKEnvironment.shared.modelReadCachesRef.threadReadCache.didReadThread(value, transaction: transaction)
             return value
         } catch {
             owsFailDebug("error: \(error)")
@@ -1063,7 +1001,7 @@ class TSThreadSerializer: SDSSerializer {
 
     // MARK: - Record
 
-    func asRecord() throws -> SDSRecord {
+    func asRecord() -> SDSRecord {
         let id: Int64? = model.grdbId?.int64Value
 
         let recordType: SDSRecordType = .thread
@@ -1097,20 +1035,3 @@ class TSThreadSerializer: SDSSerializer {
         return ThreadRecord(delegate: model, id: id, recordType: recordType, uniqueId: uniqueId, conversationColorName: conversationColorName, creationDate: creationDate, isArchived: isArchived, lastInteractionRowId: lastInteractionRowId, messageDraft: messageDraft, mutedUntilDate: mutedUntilDate, shouldThreadBeVisible: shouldThreadBeVisible, contactPhoneNumber: contactPhoneNumber, contactUUID: contactUUID, groupModel: groupModel, hasDismissedOffers: hasDismissedOffers, isMarkedUnread: isMarkedUnread, lastVisibleSortIdOnScreenPercentage: lastVisibleSortIdOnScreenPercentage, lastVisibleSortId: lastVisibleSortId, messageDraftBodyRanges: messageDraftBodyRanges, mentionNotificationMode: mentionNotificationMode, mutedUntilTimestamp: mutedUntilTimestamp, allowsReplies: allowsReplies, lastSentStoryTimestamp: lastSentStoryTimestamp, name: name, addresses: addresses, storyViewMode: storyViewMode, editTargetTimestamp: editTargetTimestamp)
     }
 }
-
-// MARK: - Deep Copy
-
-#if TESTABLE_BUILD
-@objc
-public extension TSThread {
-    // We're not using this method at the moment,
-    // but we might use it for validation of
-    // other deep copy methods.
-    func deepCopyUsingRecord() throws -> TSThread {
-        guard let record = try asRecord() as? ThreadRecord else {
-            throw OWSAssertionError("Could not convert to record.")
-        }
-        return try TSThread.fromRecord(record)
-    }
-}
-#endif

@@ -25,9 +25,9 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
         return helper.nameTextField
     }
 
-    private lazy var disappearingMessagesConfiguration = databaseStorage.read { tx in
+    private lazy var disappearingMessagesConfiguration = SSKEnvironment.shared.databaseStorageRef.read { tx in
         let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-        return dmConfigurationStore.fetchOrBuildDefault(for: .universal, tx: tx.asV2Read)
+        return dmConfigurationStore.fetchOrBuildDefault(for: .universal, tx: tx)
     }
 
     init(newGroupState: NewGroupState) {
@@ -103,7 +103,7 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
 
         let nameAndAvatarSection = OWSTableSection()
 
-        let members = databaseStorage.read { transaction in
+        let members = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             BaseGroupMemberViewController.sortedMemberAddresses(recipientSet: self.recipientSet, tx: transaction)
         }
 
@@ -182,7 +182,7 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
 
                         cell.selectionStyle = .none
 
-                        Self.databaseStorage.read { transaction in
+                        SSKEnvironment.shared.databaseStorageRef.read { transaction in
                             let configuration = ContactCellConfiguration(address: address, localUserDisplayMode: .asUser)
                             cell.configure(configuration: configuration, transaction: transaction)
                         }
@@ -284,9 +284,11 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
 
         func navigateToNewGroup(completion: (() -> Void)?) {
             _ = self.presentingViewController?.dismiss(animated: true) {
-                SignalApp.shared.presentConversationForThread(groupThread,
-                                                              action: hasAnyRemoteMembers ? .none : .newGroupActionSheet,
-                                                              animated: false)
+                SignalApp.shared.presentConversationForThread(
+                    threadUniqueId: groupThread.uniqueId,
+                    action: hasAnyRemoteMembers ? .none : .newGroupActionSheet,
+                    animated: false
+                )
                 completion?()
             }
         }
@@ -307,8 +309,8 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
                                              comment: "Message for an alert indicating that some members were invited to a group.")
         } else {
             alertTitle = String.localizedStringWithFormat(alertTitleFormat, 1)
-            let inviteeName = databaseStorage.read { tx in
-                return contactsManager.displayName(for: firstPendingMember, tx: tx).resolvedValue()
+            let inviteeName = SSKEnvironment.shared.databaseStorageRef.read { tx in
+                return SSKEnvironment.shared.contactManagerRef.displayName(for: firstPendingMember, tx: tx).resolvedValue()
             }
             let alertMessageFormat = OWSLocalizedString("GROUP_INVITES_SENT_ALERT_MESSAGE_1_FORMAT",
                                                      comment: "Format for the message for an alert indicating that a member was invited to a group. Embeds: {{ the name of the member. }}")

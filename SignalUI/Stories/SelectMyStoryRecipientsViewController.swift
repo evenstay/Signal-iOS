@@ -10,21 +10,43 @@ public class SelectMyStoryRecipientsViewController: BaseMemberViewController {
     let thread: TSPrivateStoryThread
     let mode: TSThreadStoryViewMode
     var recipientSet: OrderedSet<PickedRecipient>
-    let originalRecipientSet: OrderedSet<PickedRecipient>
+    let originalRecipientSet: Set<PickedRecipient>
 
-    public override var hasUnsavedChanges: Bool { originalRecipientSet != recipientSet }
+    public override var hasUnsavedChanges: Bool { originalRecipientSet != recipientSet.unorderedMembers }
 
     let completionBlock: () -> Void
 
-    public init(thread: TSPrivateStoryThread, mode: TSThreadStoryViewMode, completionBlock: @escaping () -> Void) {
+    public static func load(
+        for thread: TSPrivateStoryThread,
+        mode: TSThreadStoryViewMode,
+        tx: DBReadTransaction,
+        completionBlock: @escaping () -> Void
+    ) -> SelectMyStoryRecipientsViewController {
+        let storyRecipientManager = DependenciesBridge.shared.storyRecipientManager
+        return SelectMyStoryRecipientsViewController(
+            thread: thread,
+            recipientAddresses: failIfThrows {
+                try storyRecipientManager.fetchRecipients(forStoryThread: thread, tx: tx)
+            }.map { $0.address },
+            mode: mode,
+            completionBlock: completionBlock
+        )
+    }
+
+    private init(
+        thread: TSPrivateStoryThread,
+        recipientAddresses: [SignalServiceAddress],
+        mode: TSThreadStoryViewMode,
+        completionBlock: @escaping () -> Void
+    ) {
         self.thread = thread
         self.mode = mode
         if thread.storyViewMode == mode {
-            self.recipientSet = OrderedSet(thread.addresses.map { .for(address: $0) })
+            self.recipientSet = OrderedSet(recipientAddresses.map { .for(address: $0) })
         } else {
             self.recipientSet = OrderedSet()
         }
-        self.originalRecipientSet = self.recipientSet
+        self.originalRecipientSet = self.recipientSet.unorderedMembers
         self.completionBlock = completionBlock
         super.init()
 
@@ -53,26 +75,28 @@ public class SelectMyStoryRecipientsViewController: BaseMemberViewController {
             if recipientSet.isEmpty {
                 title = OWSLocalizedString(
                     "STORY_SELECT_ALLOWED_CONNECTIONS_VIEW_TITLE",
-                    comment: "The title for the 'select connections for story' view.")
-
+                    comment: "The title for the 'select connections for story' view."
+                )
             } else {
                 let format = OWSLocalizedString(
                     "STORY_SELECT_ALLOWED_CONNECTIONS_VIEW_TITLE_%d",
                     tableName: "PluralAware",
-                    comment: "The title for the 'select connections for story' view if already some connections are selected. Embeds {{number}} of connections.")
+                    comment: "The title for the 'select connections for story' view if already some connections are selected. Embeds {{number}} of connections."
+                )
                 title = String.localizedStringWithFormat(format, recipientSet.count)
             }
         case .blockList:
             if recipientSet.isEmpty {
                 title = OWSLocalizedString(
                     "STORY_SELECT_EXCLUDED_CONNECTIONS_VIEW_TITLE",
-                    comment: "The title for the 'select excluded connections for story' view.")
-
+                    comment: "The title for the 'select excluded connections for story' view."
+                )
             } else {
                 let format = OWSLocalizedString(
                     "STORY_SELECT_EXCLUDED_CONNECTIONS_VIEW_TITLE_%d",
                     tableName: "PluralAware",
-                    comment: "The title for the 'select excluded connections for story' view if already some connections are selected. Embeds {{number}} of excluded connections.")
+                    comment: "The title for the 'select excluded connections for story' view if already some connections are selected. Embeds {{number}} of excluded connections."
+                )
                 title = String.localizedStringWithFormat(format, recipientSet.count)
             }
         case .default, .disabled:
@@ -85,10 +109,14 @@ public class SelectMyStoryRecipientsViewController: BaseMemberViewController {
     private func savePressed() {
         AssertIsOnMainThread()
 
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
+            let recipientFetcher = DependenciesBridge.shared.recipientFetcher
+            let recipientIds = self.recipientSet.orderedMembers.lazy.compactMap { $0.address?.serviceId }.map {
+                return recipientFetcher.fetchOrCreate(serviceId: $0, tx: transaction).id!
+            }
             self.thread.updateWithStoryViewMode(
                 self.mode,
-                addresses: self.recipientSet.orderedMembers.compactMap { $0.address },
+                storyRecipientIds: .setTo(Array(recipientIds)),
                 updateStorageService: true,
                 transaction: transaction
             )
@@ -112,14 +140,11 @@ extension SelectMyStoryRecipientsViewController: MemberViewDelegate {
         updateBarButtons()
     }
 
-    public func memberViewAddRecipient(_ recipient: PickedRecipient) {
+    public func memberViewAddRecipient(_ recipient: PickedRecipient) -> Bool {
         recipientSet.append(recipient)
         updateBarButtons()
+        return true
     }
-
-    public func memberViewCanAddRecipient(_ recipient: PickedRecipient) -> Bool { true }
-
-    public func memberViewPrepareToSelectRecipient(_ recipient: PickedRecipient) -> Promise<Void> { Promise.value(()) }
 
     public func memberViewShouldShowMemberCount() -> Bool { false }
 
@@ -127,7 +152,7 @@ extension SelectMyStoryRecipientsViewController: MemberViewDelegate {
 
     public func memberViewMemberCountForDisplay() -> Int { recipientSet.count }
 
-    public func memberViewIsPreExistingMember(_ recipient: PickedRecipient, transaction: SDSAnyReadTransaction) -> Bool { false }
+    public func memberViewIsPreExistingMember(_ recipient: PickedRecipient, transaction: DBReadTransaction) -> Bool { false }
 
     public func memberViewCustomIconNameForPickedMember(_ recipient: PickedRecipient) -> String? {
         mode == .blockList ? "x-circle-fill" : nil

@@ -16,6 +16,7 @@ enum LaunchPreflightError {
     case databaseCorruptedAndMightBeRecoverable
     case databaseUnrecoverablyCorrupted
     case lastAppLaunchCrashed
+    case incrementalTSAttachmentMigrationFailed
     case lowStorageSpaceAvailable
     case possibleReadCorruptionCrashed
 
@@ -31,6 +32,8 @@ enum LaunchPreflightError {
             return "LaunchFailure_DatabaseUnrecoverablyCorrupted"
         case .lastAppLaunchCrashed:
             return "LaunchFailure_LastAppLaunchCrashed"
+        case .incrementalTSAttachmentMigrationFailed:
+            return "LaunchFailure_incrementalTSAttachmentMigrationFailed"
         case .lowStorageSpaceAvailable:
             return "LaunchFailure_NoDiskSpaceAvailable"
         case .possibleReadCorruptionCrashed:
@@ -47,7 +50,7 @@ private func uncaughtExceptionHandler(_ exception: NSException) {
         Logger.error("userInfo: \(String(describing: exception.userInfo))")
     } else {
         let reason = exception.reason ?? ""
-        let reasonData = reason.data(using: .utf8) ?? Data()
+        let reasonData = Data(reason.utf8)
         let reasonHash = Data(SHA256.hash(data: reasonData)).base64EncodedString()
 
         var truncatedReason = reason.prefix(20)
@@ -93,13 +96,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         // When opening the app from a notification,
         // AppDelegate.didReceiveLocalNotification will always
         // be called _before_ we become active.
-        clearAllNotificationsAndRestoreBadgeCount()
+        clearAppropriateNotificationsAndRestoreBadgeCount()
 
         // On every activation, clear old temp directories.
         ClearOldTemporaryDirectories()
 
         // Ensure that all windows have the correct frame.
-        WindowManager.shared.updateWindowFrames()
+        AppEnvironment.shared.windowManagerRef.updateWindowFrames()
     }
 
     private let flushQueue = DispatchQueue(label: "org.signal.flush", qos: .utility)
@@ -113,7 +116,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
         Logger.warn("")
 
-        clearAllNotificationsAndRestoreBadgeCount()
+        clearAppropriateNotificationsAndRestoreBadgeCount()
 
         let backgroundTask = OWSBackgroundTask(label: #function)
         flushQueue.async {
@@ -154,7 +157,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // This should be the first thing we do.
         let mainAppContext = MainAppContext()
-        SetCurrentAppContext(mainAppContext)
+        SetCurrentAppContext(mainAppContext, isRunningTests: false)
 
         let debugLogger = DebugLogger.shared
         debugLogger.enableTTYLoggingIfNeeded()
@@ -166,24 +169,25 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             return true
         }
 
-        debugLogger.setUpFileLoggingIfNeeded(appContext: mainAppContext, canLaunchInBackground: true)
-        debugLogger.wipeLogsIfDisabled(appContext: mainAppContext)
+        debugLogger.enableFileLogging(appContext: mainAppContext, canLaunchInBackground: true)
         DebugLogger.configureSwiftLogging()
         if DebugFlags.audibleErrorLogging {
             debugLogger.enableErrorReporting()
         }
 
-        Logger.warn("Synchronous launch started")
-        defer { Logger.info("Synchronous launch finished") }
+        Logger.warn("Launching…")
+        defer { Logger.info("Launched.") }
 
         BenchEventStart(title: "Presenting HomeView", eventId: "AppStart", logInProduction: true)
         appReadiness.runNowOrWhenUIDidBecomeReadySync { BenchEventComplete(eventId: "AppStart") }
 
         MessageFetchBGRefreshTask.register(appReadiness: appReadiness)
 
+        let deviceSleepManager = DeviceSleepManagerImpl()
         let keychainStorage = KeychainStorageImpl(isUsingProductionService: TSConstants.isUsingProductionService)
         let deviceTransferService = DeviceTransferService(
             appReadiness: appReadiness,
+            deviceSleepManager: deviceSleepManager,
             keychainStorage: keychainStorage
         )
 
@@ -212,16 +216,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             )
         } catch KeychainError.notAllowed where application.applicationState == .background {
             notifyThatPhoneMustBeUnlocked()
-        } catch let error as DatabaseError where error.resultCode == .SQLITE_CORRUPT {
+        } catch {
             // It's so corrupt that we can't even try to repair it.
             didAppLaunchFail = true
-            Logger.error("Couldn't launch with corrupt database")
+            Logger.error("Couldn't launch with broken database: \(error.grdbErrorForLogging)")
             let viewController = terminalErrorViewController()
             _ = initializeWindow(mainAppContext: mainAppContext, rootViewController: viewController)
             presentDatabaseUnrecoverablyCorruptedError(from: viewController, action: .submitDebugLogsAndCrash)
             return true
-        } catch {
-            owsFail("Couldn't load database: \(error.grdbErrorForLogging)")
         }
 
         // This must happen in appDidFinishLaunching or earlier to ensure we don't
@@ -243,19 +245,21 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         // Set up and register incremental migration for TSAttachment -> v2 Attachment.
         // TODO: remove this (and the incremental migrator itself) once we make this
         // migration a launch-blocking GRDB migration.
-        let incrementalMessageTSAttachmentMigrationStore = IncrementalTSAttachmentMigrationStore()
-        let incrementalMessageTSAttachmentMigrator = IncrementalMessageTSAttachmentMigratorImpl(
-            appReadiness: appReadiness,
-            databaseStorage: databaseStorage,
+        let incrementalMessageTSAttachmentMigrationStore = IncrementalTSAttachmentMigrationStore(
+            userDefaults: mainAppContext.appUserDefaults()
+        )
+        let incrementalMessageTSAttachmentMigratorFactory = IncrementalMessageTSAttachmentMigratorFactoryImpl(
             store: incrementalMessageTSAttachmentMigrationStore
         )
 
         let launchContext = LaunchContext(
             appContext: mainAppContext,
             databaseStorage: databaseStorage,
+            deviceSleepManager: deviceSleepManager,
             keychainStorage: keychainStorage,
             launchStartedAt: launchStartedAt,
-            incrementalMessageTSAttachmentMigrator: incrementalMessageTSAttachmentMigrator
+            incrementalMessageTSAttachmentMigrationStore: incrementalMessageTSAttachmentMigrationStore,
+            incrementalMessageTSAttachmentMigratorFactory: incrementalMessageTSAttachmentMigratorFactory
         )
 
         // We need to do this _after_ we set up logging, when the keychain is unlocked,
@@ -263,6 +267,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         let preflightError = checkIfAllowedToLaunch(
             mainAppContext: mainAppContext,
             appVersion: appVersion,
+            incrementalTSAttachmentMigrationStore: incrementalMessageTSAttachmentMigrationStore,
             didDeviceTransferRestoreSucceed: didDeviceTransferRestoreSucceed
         )
 
@@ -289,40 +294,63 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         // We _must_ register BGProcessingTask handlers synchronously in didFinishLaunching.
         // https://developer.apple.com/documentation/backgroundtasks/bgtaskscheduler/register(fortaskwithidentifier:using:launchhandler:)
         // WARNING: Apple docs say we can only have 10 BGProcessingTasks registered.
-        IncrementalMessageTSAttachmentMigrationRunner.registerBGProcessingTask(
+        let attachmentMigrationRunner = IncrementalMessageTSAttachmentMigrationRunner(
+            appContext: mainAppContext,
+            db: databaseStorage,
             store: incrementalMessageTSAttachmentMigrationStore,
-            migrator: Task { incrementalMessageTSAttachmentMigrator },
-            db: databaseStorage
+            migrator: { DependenciesBridge.shared.incrementalMessageTSAttachmentMigrator }
         )
+        attachmentMigrationRunner.registerBGProcessingTask(appReadiness: appReadiness)
+
         let attachmentBackfillStore = AttachmentValidationBackfillStore()
-        AttachmentValidationBackfillRunner.registerBGProcessingTask(
+        let attachmentValidationRunner = AttachmentValidationBackfillRunner(
+            db: databaseStorage,
             store: attachmentBackfillStore,
-            migrator: Task {
-                await withCheckedContinuation { continuation in
-                    appReadiness.runNowOrWhenMainAppDidBecomeReadyAsync {
-                        continuation.resume(with: .success(
-                            DependenciesBridge.shared.attachmentValidationBackfillMigrator
-                        ))
-                    }
-                }
-            },
-            db: databaseStorage
+            migrator: { DependenciesBridge.shared.attachmentValidationBackfillMigrator }
         )
+        attachmentValidationRunner.registerBGProcessingTask(appReadiness: appReadiness)
+
+        let databaseMigratorRunner = LazyDatabaseMigratorRunner(
+            databaseStorage: databaseStorage,
+            remoteConfigManager: { SSKEnvironment.shared.remoteConfigManagerRef },
+            tsAccountManager: { DependenciesBridge.shared.tsAccountManager }
+        )
+        databaseMigratorRunner.registerBGProcessingTask(appReadiness: appReadiness)
 
         appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
-            IncrementalMessageTSAttachmentMigrationRunner.scheduleBGProcessingTaskIfNeeded(
-                store: incrementalMessageTSAttachmentMigrationStore,
-                db: databaseStorage
-            )
-            AttachmentValidationBackfillRunner.scheduleBGProcessingTaskIfNeeded(
-                store: attachmentBackfillStore,
-                db: databaseStorage
-            )
+            if SSKEnvironment.shared.remoteConfigManagerRef.currentConfig().shouldRunTSAttachmentMigrationInBGProcessingTask {
+                attachmentMigrationRunner.scheduleBGProcessingTaskIfNeeded()
+            }
+            attachmentValidationRunner.scheduleBGProcessingTaskIfNeeded()
+        }
+
+        appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
+            Task {
+                databaseMigratorRunner.scheduleBGProcessingTaskIfNeeded()
+
+                #if targetEnvironment(simulator)
+                // The simulator won't run BGProcessingTasks, but we still want to run
+                // these migrations for simulators. So, if they're needed, run them.
+                //
+                // In production, users might interrupt these migrations, and that might
+                // mean they `run()` multiple times (even after they've all finished). To
+                // add coverage for these rare scenarios, run them redundantly, sometimes.
+                //
+                // Lastly, these are one-off migrations, and most test devices will run
+                // them immediately and never again, so running them redundantly will help
+                // provide coverage for otherwise dead code.
+                if databaseMigratorRunner.shouldLaunchBGProcessingTask() || databaseMigratorRunner.simulatePriorCancellation() {
+                    try await databaseMigratorRunner.run()
+                }
+                #endif
+            }
         }
 
         // Show LoadingViewController until the database migrations are complete.
-        let window = initializeWindow(mainAppContext: mainAppContext, rootViewController: LoadingViewController())
-        self.launchApp(in: window, launchContext: launchContext)
+        let loadingViewController = LoadingViewController()
+
+        let window = initializeWindow(mainAppContext: mainAppContext, rootViewController: loadingViewController)
+        self.launchApp(in: window, launchContext: launchContext, loadingViewController: loadingViewController)
         return true
     }
 
@@ -340,26 +368,23 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     private struct LaunchContext {
         var appContext: MainAppContext
         var databaseStorage: SDSDatabaseStorage
+        var deviceSleepManager: DeviceSleepManagerImpl
         var keychainStorage: any KeychainStorage
         var launchStartedAt: CFTimeInterval
-        var incrementalMessageTSAttachmentMigrator: IncrementalMessageTSAttachmentMigrator
+        var incrementalMessageTSAttachmentMigrationStore: IncrementalTSAttachmentMigrationStore
+        var incrementalMessageTSAttachmentMigratorFactory: IncrementalMessageTSAttachmentMigratorFactory
     }
 
     private func launchApp(
         in window: UIWindow,
-        launchContext: LaunchContext
+        launchContext: LaunchContext,
+        loadingViewController: LoadingViewController
     ) {
-        assert(window.rootViewController is LoadingViewController)
+        assert(window.rootViewController == loadingViewController)
         configureGlobalUI(in: window)
-        setUpMainAppEnvironment(
-            launchContext: launchContext
-        ).done(on: DispatchQueue.main) { (finalContinuation, sleepBlockObject) in
-            self.didLoadDatabase(
-                finalContinuation: finalContinuation,
-                launchContext: launchContext,
-                sleepBlockObject: sleepBlockObject,
-                window: window
-            )
+        Task {
+            let (finalContinuation, sleepBlockObject) = await setUpMainAppEnvironment(launchContext: launchContext, loadingViewController: loadingViewController)
+            self.didLoadDatabase(finalContinuation: finalContinuation, launchContext: launchContext, sleepBlockObject: sleepBlockObject, window: window)
         }
     }
 
@@ -369,13 +394,16 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         Theme.setupSignalAppearance()
 
         screenLockUI.setupWithRootWindow(window)
-        WindowManager.shared.setupWithRootWindow(window, screenBlockingWindow: screenLockUI.screenBlockingWindow)
+        AppEnvironment.shared.windowManagerRef.setupWithRootWindow(window, screenBlockingWindow: screenLockUI.screenBlockingWindow)
         screenLockUI.startObserving()
     }
 
-    private func setUpMainAppEnvironment(launchContext: LaunchContext) -> Guarantee<(AppSetup.FinalContinuation, NSObject)> {
-        let sleepBlockObject = NSObject()
-        DeviceSleepManager.shared.addBlock(blockObject: sleepBlockObject)
+    private func setUpMainAppEnvironment(
+        launchContext: LaunchContext,
+        loadingViewController: LoadingViewController?
+    ) async -> (AppSetup.FinalContinuation, DeviceSleepBlockObject) {
+        let sleepBlockObject = DeviceSleepBlockObject(blockReason: "app launch")
+        launchContext.deviceSleepManager.addBlock(blockObject: sleepBlockObject)
 
         let _currentCall = AtomicValue<SignalCall?>(nil, lock: .init())
         let currentCall = CurrentCall(rawValue: _currentCall)
@@ -384,12 +412,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             appContext: launchContext.appContext,
             appReadiness: appReadiness,
             databaseStorage: launchContext.databaseStorage,
+            deviceSleepManager: launchContext.deviceSleepManager,
             paymentsEvents: PaymentsEventsMainApp(),
             mobileCoinHelper: MobileCoinHelperSDK(),
             callMessageHandler: WebRTCCallMessageHandler(),
             currentCallProvider: currentCall,
             notificationPresenter: NotificationPresenterImpl(),
-            incrementalTSAttachmentMigrator: launchContext.incrementalMessageTSAttachmentMigrator
+            incrementalMessageTSAttachmentMigratorFactory: launchContext.incrementalMessageTSAttachmentMigratorFactory,
+            messageBackupErrorPresenterFactory: MessageBackupErrorPresenterFactoryInternal()
         )
         setupNSEInteroperation()
         SUIEnvironment.shared.setUp(
@@ -404,28 +434,58 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                 authCredentialManager: databaseContinuation.authCredentialManager,
                 callLinkPublicParams: databaseContinuation.callLinkPublicParams,
                 callLinkStore: DependenciesBridge.shared.callLinkStore,
+                callRecordDeleteManager: DependenciesBridge.shared.callRecordDeleteManager,
+                callRecordStore: DependenciesBridge.shared.callRecordStore,
                 db: DependenciesBridge.shared.db,
+                deviceSleepManager: launchContext.deviceSleepManager,
                 mutableCurrentCall: _currentCall,
-                networkManager: NSObject.networkManager,
+                networkManager: SSKEnvironment.shared.networkManagerRef,
                 tsAccountManager: DependenciesBridge.shared.tsAccountManager
             )
         )
-        let result = databaseContinuation.prepareDatabase()
-        return result.map(on: SyncScheduler()) { ($0, sleepBlockObject) }
-    }
-
-    private func checkSomeDiskSpaceAvailable() -> Bool {
-        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent(UUID().uuidString)
-            .path
-        let succeededCreatingDir = OWSFileSystem.ensureDirectoryExists(tempDir)
-
-        // Best effort at deleting temp dir, which shouldn't ever fail
-        if succeededCreatingDir && !OWSFileSystem.deleteFile(tempDir) {
-            owsFailDebug("Failed to delete temp dir used for checking disk space!")
+        let continuation = await databaseContinuation.prepareDatabase()
+        continuation.runLaunchTasksIfNeededAndReloadCaches()
+        guard FeatureFlags.runTSAttachmentMigrationBlockingOnLaunch else {
+            return (continuation, sleepBlockObject)
         }
 
-        return succeededCreatingDir
+        let progressSink = OWSProgress.createSink { [weak loadingViewController] progress in
+            Task {
+                loadingViewController?.updateProgress(progress)
+            }
+        }
+        let migrateTask = Task {
+            _ = await continuation.dependenciesBridge.incrementalMessageTSAttachmentMigrator
+                .runInMainAppUntilFinished(ignorePastFailures: false, progress: progressSink)
+        }
+        Task {
+            loadingViewController?.setCancellableTask(migrateTask)
+        }
+        await migrateTask.value
+        return (continuation, sleepBlockObject)
+    }
+
+    private func checkEnoughDiskSpaceAvailable() -> Bool {
+        guard let freeSpaceInBytes = try? OWSFileSystem.freeSpaceInBytes(
+            forPath: SDSDatabaseStorage.grdbDatabaseFileUrl
+        ) else {
+            owsFailDebug("Failed to get free space: falling back to trying to create a temp dir.")
+
+            let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let succeededCreatingDir = OWSFileSystem.ensureDirectoryExists(tempDir)
+
+            // Best effort at deleting temp dir, which shouldn't ever fail
+            if succeededCreatingDir && !OWSFileSystem.deleteFile(tempDir) {
+                owsFailDebug("Failed to delete temp dir used for checking disk space!")
+            }
+
+            return succeededCreatingDir
+        }
+
+        // Require 100MB free in order to launch.
+        return freeSpaceInBytes >= 100_000_000
     }
 
     private func setupNSEInteroperation() {
@@ -447,7 +507,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             DarwinNotificationCenter.postNotification(name: .mainAppHandledNotification)
 
             appReadiness.runNowOrWhenAppDidBecomeReadySync {
-                _ = self.messageFetcherJob.run()
+                _ = SSKEnvironment.shared.messageFetcherJobRef.run()
             }
         }
     }
@@ -455,7 +515,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     private func didLoadDatabase(
         finalContinuation: AppSetup.FinalContinuation,
         launchContext: LaunchContext,
-        sleepBlockObject: NSObject,
+        sleepBlockObject: DeviceSleepBlockObject,
         window: UIWindow
     ) {
         AssertIsOnMainThread()
@@ -467,12 +527,12 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         let regLoader = RegistrationCoordinatorLoaderImpl(dependencies: .from(self))
 
         // Before we mark ready, block message processing on any pending change numbers.
-        let hasPendingChangeNumber = databaseStorage.read { transaction in
-            regLoader.hasPendingChangeNumber(transaction: transaction.asV2Read)
+        let hasPendingChangeNumber = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            regLoader.hasPendingChangeNumber(transaction: transaction)
         }
         if hasPendingChangeNumber {
             // The registration loader will clear the suspension later on.
-            messagePipelineSupervisor.suspendMessageProcessingWithoutHandle(for: .pendingChangeNumber)
+            SSKEnvironment.shared.messagePipelineSupervisorRef.suspendMessageProcessingWithoutHandle(for: .pendingChangeNumber)
         }
 
         let launchInterface = buildLaunchInterface(regLoader: regLoader)
@@ -485,7 +545,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             hasInProgressRegistration = false
         }
 
-        switch finalContinuation.finish(willResumeInProgressRegistration: hasInProgressRegistration) {
+        switch finalContinuation.setUpLocalIdentifiers(willResumeInProgressRegistration: hasInProgressRegistration) {
         case .corruptRegistrationState:
             let viewController = terminalErrorViewController()
             window.rootViewController = viewController
@@ -507,14 +567,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             Task { @MainActor in
                 defer { backgroundTask.end() }
                 if !hasInProgressRegistration {
-                    await LaunchJobs.run(databaseStorage: databaseStorage)
+                    await LaunchJobs.run(databaseStorage: SSKEnvironment.shared.databaseStorageRef)
                 }
                 DispatchQueue.main.async {
                     self.setAppIsReady(
                         launchInterface: launchInterface,
                         launchContext: launchContext
                     )
-                    DeviceSleepManager.shared.removeBlock(blockObject: sleepBlockObject)
+                    finalContinuation.dependenciesBridge.deviceSleepManager?.removeBlock(blockObject: sleepBlockObject)
                 }
             }
         }
@@ -525,15 +585,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         launchInterface: LaunchInterface,
         launchContext: LaunchContext
     ) {
-        Logger.info("")
         owsPrecondition(!appReadiness.isAppReady)
         owsPrecondition(!CurrentAppContext().isRunningTests)
 
         let appContext = launchContext.appContext
-
-        if DebugFlags.internalLogging {
-            DispatchQueue.global().async { SDSKeyValueStore.logCollectionStatistics() }
-        }
 
         SignalApp.shared.performInitialSetup(appReadiness: appReadiness)
 
@@ -551,8 +606,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             Task.detached(priority: .low) {
                 await FullTextSearchOptimizer(
                     appContext: appContext,
-                    db: DependenciesBridge.shared.db,
-                    keyValueStoreFactory: DependenciesBridge.shared.keyValueStoreFactory
+                    db: DependenciesBridge.shared.db
                 ).run()
             }
         }
@@ -563,8 +617,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                     appContext: appContext,
                     authorMergeHelper: DependenciesBridge.shared.authorMergeHelper,
                     db: DependenciesBridge.shared.db,
-                    dbFromTx: { tx in SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database },
-                    modelReadCaches: AuthorMergeHelperBuilder.Wrappers.ModelReadCaches(ModelReadCaches.shared),
+                    modelReadCaches: AuthorMergeHelperBuilder.Wrappers.ModelReadCaches(SSKEnvironment.shared.modelReadCachesRef),
                     recipientDatabaseTable: DependenciesBridge.shared.recipientDatabaseTable
                 ).buildTableIfNeeded()
             }
@@ -579,14 +632,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         // old linked devices respect the setting before they upgrade.
         appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
             let db = DependenciesBridge.shared.db
-            guard db.read(block: self.udManager.phoneNumberSharingMode(tx:)) == nil else {
+            guard db.read(block: SSKEnvironment.shared.udManagerRef.phoneNumberSharingMode(tx:)) == nil else {
                 return
             }
             db.write { tx in
-                guard self.udManager.phoneNumberSharingMode(tx: tx) == nil else {
+                guard SSKEnvironment.shared.udManagerRef.phoneNumberSharingMode(tx: tx) == nil else {
                     return
                 }
-                self.udManager.setPhoneNumberSharingMode(
+                SSKEnvironment.shared.udManagerRef.setPhoneNumberSharingMode(
                     .nobody,
                     updateStorageServiceAndProfile: true,
                     tx: SDSDB.shimOnlyBridge(tx)
@@ -614,8 +667,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
             Task {
                 try? await RemoteMegaphoneFetcher(
-                    databaseStorage: NSObject.databaseStorage,
-                    signalService: NSObject.signalService
+                    databaseStorage: SSKEnvironment.shared.databaseStorageRef,
+                    signalService: SSKEnvironment.shared.signalServiceRef
                 ).syncRemoteMegaphonesIfNecessary()
             }
         }
@@ -634,9 +687,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                 callLinkStateUpdater: AppEnvironment.shared.callService.callLinkStateUpdater,
                 db: DependenciesBridge.shared.db
             )
-            fetchJobRunner.observeDatabase(NSObject.databaseStorage)
+            fetchJobRunner.observeDatabase(DependenciesBridge.shared.databaseChangeObserver)
             fetchJobRunner.setMightHavePendingFetchAndFetch()
             AppEnvironment.shared.ownedObjects.append(fetchJobRunner)
+        }
+
+        appReadiness.runNowOrWhenMainAppDidBecomeReadyAsync {
+            ViewOnceMessages.startExpiringWhenNecessary()
         }
 
         // Note that this does much more than set a flag; it will also run all deferred blocks.
@@ -646,11 +703,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
         let tsAccountManager = DependenciesBridge.shared.tsAccountManager
         let recipientDatabaseTable = DependenciesBridge.shared.recipientDatabaseTable
-        let tsRegistrationState: TSRegistrationState = databaseStorage.read { tx in
-            let registrationState = tsAccountManager.registrationState(tx: tx.asV2Read)
-            if registrationState.isRegistered, let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx.asV2Read) {
-                let deviceId = tsAccountManager.storedDeviceId(tx: tx.asV2Read)
-                let localRecipient = recipientDatabaseTable.fetchRecipient(serviceId: localIdentifiers.aci, transaction: tx.asV2Read)
+        let tsRegistrationState: TSRegistrationState = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            let registrationState = tsAccountManager.registrationState(tx: tx)
+            if registrationState.isRegistered, let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) {
+                let deviceId = tsAccountManager.storedDeviceId(tx: tx)
+                let localRecipient = recipientDatabaseTable.fetchRecipient(serviceId: localIdentifiers.aci, transaction: tx)
                 let deviceCount = localRecipient?.deviceIds.count ?? 0
                 let linkedDeviceMessage = deviceCount > 1 ? "\(deviceCount) devices including the primary" : "no linked devices"
                 Logger.info("localAci: \(localIdentifiers.aci), deviceId: \(deviceId) (\(linkedDeviceMessage))")
@@ -668,17 +725,17 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                 SyncPushTokensJob.run(mode: .rotateIfEligible)
             }).map {
                 // If the method returns a closure, run it after message processing.
-                _ = messageProcessor.waitForFetchingAndProcessing().done($0)
+                _ = SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing().done($0)
             }
         }
 
         if tsRegistrationState.isRegistered {
-            Task { [profileManager] in
+            Task {
                 do {
-                    _ = try await profileManager.fetchLocalUsersProfile(
-                        authedAccount: .implicit()
-                    ).awaitable()
-                    try await profileManager.downloadAndDecryptLocalUserAvatarIfNeeded(
+                    _ = try await SSKEnvironment.shared.profileManagerRef.fetchLocalUsersProfile(authedAccount: .implicit())
+                    // Don't remove this -- fetching the local user's profile is special-cased
+                    // and won't download the avatar via the normal mechanism.
+                    try await SSKEnvironment.shared.profileManagerRef.downloadAndDecryptLocalUserAvatarIfNeeded(
                         authedAccount: .implicit()
                     )
                 } catch {
@@ -700,20 +757,6 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             name: .registrationStateDidChange,
             object: nil
         )
-
-        if !preferences.hasGeneratedThumbnails {
-            databaseStorage.asyncRead(
-                block: { transaction in
-                    // TODO: remove this one TSAttachment is killed.
-                    TSAttachment.anyEnumerate(transaction: transaction, batched: true) { (_, _) in
-                        // no-op. It's sufficient to initWithCoder: each object.
-                    }
-                },
-                completion: {
-                    self.preferences.setHasGeneratedThumbnails(true)
-                }
-            )
-        }
 
         checkDatabaseIntegrityIfNecessary(isRegistered: tsRegistrationState.isRegistered)
 
@@ -750,7 +793,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         let application: UIApplication = .shared
         let userNotificationCenter: UNUserNotificationCenter = .current()
 
-        userNotificationCenter.removeAllPendingNotificationRequests()
+        NotificationPresenterImpl.clearAllNotificationsExceptNewLinkedDevices()
         application.applicationIconBadgeNumber = 0
 
         userNotificationCenter.add(notificationRequest)
@@ -768,10 +811,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         let (
             tsRegistrationState,
             lastMode
-        ) = databaseStorage.read { tx in
+        ) = SSKEnvironment.shared.databaseStorageRef.read { tx in
             return (
-                DependenciesBridge.shared.tsAccountManager.registrationState(tx: tx.asV2Read),
-                regLoader.restoreLastMode(transaction: tx.asV2Read)
+                DependenciesBridge.shared.tsAccountManager.registrationState(tx: tx),
+                regLoader.restoreLastMode(transaction: tx)
             )
         }
 
@@ -841,9 +884,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     private func checkIfAllowedToLaunch(
         mainAppContext: MainAppContext,
         appVersion: AppVersion,
+        incrementalTSAttachmentMigrationStore: IncrementalTSAttachmentMigrationStore,
         didDeviceTransferRestoreSucceed: Bool
     ) -> LaunchPreflightError? {
-        guard checkSomeDiskSpaceAvailable() else {
+        guard checkEnoughDiskSpaceAvailable() else {
             return .lowStorageSpaceAvailable
         }
 
@@ -884,6 +928,19 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                 return .possibleReadCorruptionCrashed
             }
             return .lastAppLaunchCrashed
+        }
+
+        if incrementalTSAttachmentMigrationStore.shouldReportFailureInUI() {
+            if let (logString, wasLoggedBefore) = incrementalTSAttachmentMigrationStore.consumeLastBGProcessingTaskError() {
+                if wasLoggedBefore {
+                    Logger.error("Previously failed TSAttachment migration in some BGProcessingTask: \(logString)")
+                } else {
+                    Logger.error("Failed TSAttachment migration in last BGProcessingTask: \(logString)")
+                }
+            } else if let checkpointString = incrementalTSAttachmentMigrationStore.getLastCheckpoint() {
+                Logger.error("Previously failed TSAttachment migration, last checkpoint: \(checkpointString)")
+            }
+            return .incrementalTSAttachmentMigrationFailed
         }
 
         return nil
@@ -939,7 +996,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             )
             actions = [.submitDebugLogsAndCrash]
 
-        case .lastAppLaunchCrashed:
+        case .lastAppLaunchCrashed, .incrementalTSAttachmentMigrationFailed:
             title = OWSLocalizedString(
                 "APP_LAUNCH_FAILURE_LAST_LAUNCH_CRASHED_TITLE",
                 comment: "Error indicating that the app crashed during the previous launch."
@@ -981,14 +1038,15 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window: UIWindow
     ) {
         var launchContext = launchContext
-        let recoveryViewController = DatabaseRecoveryViewController<(AppSetup.FinalContinuation, NSObject)>(
+        let recoveryViewController = DatabaseRecoveryViewController<(AppSetup.FinalContinuation, DeviceSleepBlockObject)>(
             appReadiness: appReadiness,
             corruptDatabaseStorage: launchContext.databaseStorage,
+            deviceSleepManager: launchContext.deviceSleepManager,
             keychainStorage: launchContext.keychainStorage,
             setupSskEnvironment: { databaseStorage in
-                firstly(on: DispatchQueue.main) {
+                return Task {
                     launchContext.databaseStorage = databaseStorage
-                    return self.setUpMainAppEnvironment(launchContext: launchContext)
+                    return await self.setUpMainAppEnvironment(launchContext: launchContext, loadingViewController: nil)
                 }
             },
             launchApp: { (finalContinuation, sleepBlockObject) in
@@ -1075,8 +1133,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         func ignoreErrorAndLaunchApp(in window: UIWindow, launchContext: LaunchContext) {
             // Pretend we didn't fail!
             self.didAppLaunchFail = false
-            window.rootViewController = LoadingViewController()
-            self.launchApp(in: window, launchContext: launchContext)
+            launchContext.incrementalMessageTSAttachmentMigrationStore.didReportFailureInUI()
+            let loadingViewController = LoadingViewController()
+            window.rootViewController = loadingViewController
+            self.launchApp(
+                in: window,
+                launchContext: launchContext,
+                loadingViewController: loadingViewController
+            )
         }
 
         for action in actions {
@@ -1150,7 +1214,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         AssertIsOnMainThread()
 
         defer {
-            Logger.info("Synchronous handleActivation finished")
+            Logger.info("Activated.")
         }
 
         let tsRegistrationState: TSRegistrationState = DependenciesBridge.shared.db.read { tx in
@@ -1169,11 +1233,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
             // Clean up any messages that expired since last launch and continue
             // cleaning in the background.
-            self.disappearingMessagesJob.startIfNecessary()
+            SSKEnvironment.shared.disappearingMessagesJobRef.startIfNecessary()
 
             if !tsRegistrationState.isRegistered {
                 // Unregistered user should have no unread messages. e.g. if you delete your account.
-                NSObject.notificationPresenter.clearAllNotifications()
+                SSKEnvironment.shared.notificationPresenterRef.clearAllNotifications()
             }
         }
 
@@ -1182,11 +1246,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             // At this point, potentially lengthy DB locking migrations could be running.
             // Avoid blocking app launch by putting all further possible DB access in async block
             DispatchQueue.main.async {
-                AppEnvironment.shared.contactsManagerImpl.fetchSystemContactsOnceIfAlreadyAuthorized()
+                SSKEnvironment.shared.contactManagerImplRef.fetchSystemContactsOnceIfAlreadyAuthorized()
 
                 // TODO: Should we run this immediately even if we would like to process
                 // already decrypted envelopes handed to us by the NSE?
-                _ = self.messageFetcherJob.run()
+                _ = SSKEnvironment.shared.messageFetcherJobRef.run()
 
                 if !UIApplication.shared.isRegisteredForRemoteNotifications {
                     Logger.info("Retrying to register for remote notifications since user hasn't registered yet.")
@@ -1234,7 +1298,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         }
 
         Logger.info("")
-        pushRegistrationManager.didReceiveVanillaPushToken(deviceToken)
+        AppEnvironment.shared.pushRegistrationManagerRef.didReceiveVanillaPushToken(deviceToken)
     }
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
@@ -1246,9 +1310,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
         Logger.warn("")
         #if DEBUG
-        pushRegistrationManager.didReceiveVanillaPushToken(Data(count: 32))
+        AppEnvironment.shared.pushRegistrationManagerRef.didReceiveVanillaPushToken(Data(count: 32))
         #else
-        pushRegistrationManager.didFailToReceiveVanillaPushToken(error: error)
+        AppEnvironment.shared.pushRegistrationManagerRef.didFailToReceiveVanillaPushToken(error: error)
         #endif
     }
 
@@ -1265,7 +1329,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Mark down that the APNS token is working because we got a push.
         appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
-            self.databaseStorage.asyncWrite { tx in
+            SSKEnvironment.shared.databaseStorageRef.asyncWrite { tx in
                 APNSRotationStore.didReceiveAPNSPush(transaction: tx)
             }
         }
@@ -1299,7 +1363,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                     Logger.info("Ignoring remote notification; user is not registered.")
                     return
                 }
-                _ = self.messageFetcherJob.run()
+                _ = SSKEnvironment.shared.messageFetcherJobRef.run()
                 // If the main app gets woken to process messages in the background, check
                 // for any pending NSE requests to fulfill.
                 _ = SSKEnvironment.shared.syncManagerRef.syncAllContactsIfFullSyncRequested()
@@ -1309,24 +1373,24 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     private func handleSilentPushContent(_ remoteNotification: [AnyHashable: Any]) -> HandleSilentPushContentResult {
         if let spamChallengeToken = remoteNotification["rateLimitChallenge"] as? String {
-            spamChallengeResolver.handleIncomingPushChallengeToken(spamChallengeToken)
+            SSKEnvironment.shared.spamChallengeResolverRef.handleIncomingPushChallengeToken(spamChallengeToken)
             return .handled
         }
 
         if let preAuthChallengeToken = remoteNotification["challenge"] as? String {
-            pushRegistrationManager.didReceiveVanillaPreAuthChallengeToken(preAuthChallengeToken)
+            AppEnvironment.shared.pushRegistrationManagerRef.didReceiveVanillaPreAuthChallengeToken(preAuthChallengeToken)
             return .handled
         }
 
         return .notHandled
     }
 
-    private func clearAllNotificationsAndRestoreBadgeCount() {
+    private func clearAppropriateNotificationsAndRestoreBadgeCount() {
         AssertIsOnMainThread()
 
         appReadiness.runNowOrWhenAppDidBecomeReadySync {
             let oldBadgeValue = UIApplication.shared.applicationIconBadgeNumber
-            NSObject.notificationPresenter.clearAllNotifications()
+            SSKEnvironment.shared.notificationPresenterRef.clearAllNotificationsExceptNewLinkedDevices()
             UIApplication.shared.applicationIconBadgeNumber = oldBadgeValue
         }
     }
@@ -1373,7 +1437,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                     Logger.warn("Ignoring user activity; not registered.")
                     return
                 }
-                SignalApp.shared.presentConversationAndScrollToFirstUnreadMessage(forThreadId: threadUniqueId, animated: false)
+                SignalApp.shared.presentConversationAndScrollToFirstUnreadMessage(
+                    threadUniqueId: threadUniqueId,
+                    animated: false
+                )
             }
             return true
         case "INStartVideoCallIntent":
@@ -1472,11 +1539,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         let isRegistered = tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered
         if isRegistered {
             appReadiness.runNowOrWhenAppDidBecomeReadySync {
-                self.databaseStorage.write { transaction in
-                    let localAddress = tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aciAddress
+                SSKEnvironment.shared.databaseStorageRef.write { transaction in
+                    let localAddress = tsAccountManager.localIdentifiers(tx: transaction)?.aciAddress
                     Logger.info("localAddress: \(String(describing: localAddress))")
 
-                    ExperienceUpgradeFinder.markAllCompleteForNewUser(transaction: transaction.unwrapGrdbWrite)
+                    ExperienceUpgradeFinder.markAllCompleteForNewUser(transaction: transaction)
                 }
             }
             DependenciesBridge.shared.attachmentDownloadManager.beginDownloadingIfNecessary()
@@ -1559,7 +1626,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         appReadiness.runNowOrWhenUIDidBecomeReadySync {
             let urlOpener = UrlOpener(
                 appReadiness: appReadiness,
-                databaseStorage: self.databaseStorage,
+                databaseStorage: SSKEnvironment.shared.databaseStorageRef,
                 tsAccountManager: DependenciesBridge.shared.tsAccountManager
             )
 
@@ -1576,8 +1643,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         guard isRegistered, FeatureFlags.periodicallyCheckDatabaseIntegrity else { return }
 
         let appReadiness: AppReadiness = self.appReadiness
-        DispatchQueue.sharedUtility.async { [databaseStorage] in
-            switch GRDBDatabaseStorageAdapter.checkIntegrity(databaseStorage: databaseStorage) {
+        DispatchQueue.sharedUtility.async {
+            switch GRDBDatabaseStorageAdapter.checkIntegrity(databaseStorage: SSKEnvironment.shared.databaseStorageRef) {
             case .ok: break
             case .notOk:
                 appReadiness.runNowOrWhenUIDidBecomeReadySync {
@@ -1604,11 +1671,13 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     ) {
         let appReadiness: AppReadinessSetter = self.appReadiness
         appReadiness.runNowOrWhenAppDidBecomeReadySync {
-            NotificationActionHandler.handleNotificationResponse(
-                response,
-                appReadiness: appReadiness,
-                completionHandler: completionHandler
-            )
+            Task { @MainActor in
+                await NotificationActionHandler.handleNotificationResponse(
+                    response,
+                    appReadiness: appReadiness
+                )
+                completionHandler()
+            }
         }
     }
 }

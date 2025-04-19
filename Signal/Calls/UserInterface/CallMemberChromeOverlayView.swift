@@ -159,18 +159,18 @@ class CallMemberChromeOverlayView: UIView, CallMemberComposableView {
             case .groupThread(let groupThreadCall) = call.mode,
             deviceState.demuxId != groupThreadCall.ringRtcCall.localDeviceState.demuxId,
             groupThreadCall.raisedHands.contains(deviceState.demuxId),
-            !WindowManager.shared.isCallInPip
+            !AppEnvironment.shared.windowManagerRef.isCallInPip
         else {
             raisedHandView.isHidden = true
             return
         }
 
-        raisedHandView.name = databaseStorage.read { tx in
-            let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)
+        raisedHandView.name = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx)
             if deviceState.aci == localIdentifiers?.aci {
                 return CommonStrings.you
             } else {
-                return contactsManager.displayName(for: deviceState.address, tx: tx).resolvedValue(useShortNameIfAvailable: true)
+                return SSKEnvironment.shared.contactManagerRef.displayName(for: deviceState.address, tx: tx).resolvedValue(useShortNameIfAvailable: true)
             }
         }
 

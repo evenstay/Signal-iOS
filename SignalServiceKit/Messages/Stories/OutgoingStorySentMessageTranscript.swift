@@ -18,19 +18,19 @@ public class OutgoingStorySentMessageTranscript: OWSOutgoingSyncMessage {
     @objc
     private var isRecipientUpdate: NSNumber!
 
-    public init(localThread: TSThread, timestamp: UInt64, recipientStates: [ServiceId: StoryRecipientState], transaction: SDSAnyReadTransaction) {
+    public init(localThread: TSContactThread, timestamp: UInt64, recipientStates: [ServiceId: StoryRecipientState], transaction: DBReadTransaction) {
         // We need to store the encoded data rather than just the uniqueId
         // of the story message as the story message will have been deleted
         // by the time we're sending this transcript.
         self.storyEncodedRecipientStates = Self.encodeRecipientStates(recipientStates)
         self.isRecipientUpdate = NSNumber(value: true)
-        super.init(timestamp: timestamp, thread: localThread, transaction: transaction)
+        super.init(timestamp: timestamp, localThread: localThread, transaction: transaction)
     }
 
-    public init(localThread: TSThread, storyMessage: StoryMessage, transaction: SDSAnyReadTransaction) {
+    public init(localThread: TSContactThread, storyMessage: StoryMessage, transaction: DBReadTransaction) {
         self.storyMessageUniqueId = storyMessage.uniqueId
         self.isRecipientUpdate = NSNumber(value: false)
-        super.init(timestamp: storyMessage.timestamp, thread: localThread, transaction: transaction)
+        super.init(timestamp: storyMessage.timestamp, localThread: localThread, transaction: transaction)
     }
 
     private static func encodeRecipientStates(_ recipientStates: [ServiceId: StoryRecipientState]) -> Data? {
@@ -48,12 +48,12 @@ public class OutgoingStorySentMessageTranscript: OWSOutgoingSyncMessage {
 
     public override var isUrgent: Bool { false }
 
-    private func storyMessage(transaction: SDSAnyReadTransaction) -> StoryMessage? {
+    private func storyMessage(transaction: DBReadTransaction) -> StoryMessage? {
         guard let storyMessageUniqueId = storyMessageUniqueId else { return nil }
         return StoryMessage.anyFetch(uniqueId: storyMessageUniqueId, transaction: transaction)
     }
 
-    public override func syncMessageBuilder(transaction: SDSAnyReadTransaction) -> SSKProtoSyncMessageBuilder? {
+    public override func syncMessageBuilder(transaction: DBReadTransaction) -> SSKProtoSyncMessageBuilder? {
         let sentBuilder = SSKProtoSyncMessageSent.builder()
         sentBuilder.setTimestamp(timestamp)
         sentBuilder.setIsRecipientUpdate(isRecipientUpdate.boolValue)
@@ -102,31 +102,28 @@ public class OutgoingStorySentMessageTranscript: OWSOutgoingSyncMessage {
         }
     }
 
-    private func storyMessageProto(for storyMessage: StoryMessage, transaction: SDSAnyReadTransaction) -> SSKProtoStoryMessage? {
+    private func storyMessageProto(for storyMessage: StoryMessage, transaction: DBReadTransaction) -> SSKProtoStoryMessage? {
         let builder = SSKProtoStoryMessage.builder()
 
         switch storyMessage.attachment {
-        case .file, .foreignReferenceAttachment:
+        case .media:
             guard
-                let attachmentReference = DependenciesBridge.shared.tsResourceStore.mediaAttachment(
-                    for: storyMessage,
-                    tx: transaction.asV2Read
+                let storyMessageRowId = storyMessage.id,
+                let attachment = DependenciesBridge.shared.attachmentStore.fetchFirstReferencedAttachment(
+                    for: .storyMessageMedia(storyMessageRowId: storyMessageRowId),
+                    tx: transaction
                 ),
-                let attachment = attachmentReference.fetch(tx: transaction),
-                let pointer = attachment.asTransitTierPointer()
+                let pointer = attachment.attachment.asTransitTierPointer()
             else {
                 owsFailDebug("Missing attachment for outgoing story message")
                 return nil
             }
-            guard let attachmentProto = DependenciesBridge.shared.tsResourceManager.buildProtoForSending(
-                from: attachmentReference,
+            let attachmentProto = DependenciesBridge.shared.attachmentManager.buildProtoForSending(
+                from: attachment.reference,
                 pointer: pointer
-            ) else {
-                owsFailDebug("Missing attachment for outgoing story message")
-                return nil
-            }
+            )
             builder.setFileAttachment(attachmentProto)
-            if let storyMediaCaption = attachmentReference.storyMediaCaption {
+            if let storyMediaCaption = attachment.reference.storyMediaCaption {
                 builder.setBodyRanges(storyMediaCaption.toProtoBodyRanges())
             }
         case .text(let attachment):
@@ -147,7 +144,7 @@ public class OutgoingStorySentMessageTranscript: OWSOutgoingSyncMessage {
             if let groupId = storyMessage.groupId,
                let groupThread = TSGroupThread.fetch(groupId: groupId, transaction: transaction),
                let groupModel = groupThread.groupModel as? TSGroupModelV2 {
-                builder.setGroup(try groupsV2.buildGroupContextV2Proto(groupModel: groupModel, changeActionsProtoData: nil))
+                builder.setGroup(try GroupsV2Protos.buildGroupContextProto(groupModel: groupModel, groupChangeProtoData: nil))
             }
 
             return try builder.build()

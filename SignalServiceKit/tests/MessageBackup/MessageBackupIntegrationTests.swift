@@ -55,6 +55,8 @@ class MessageBackupIntegrationTests: XCTestCase {
 
         case accountData
 
+        case adHocCall
+
         case chat
 
         case chatItem
@@ -62,6 +64,8 @@ class MessageBackupIntegrationTests: XCTestCase {
         case chatItemExpirationTimerUpdate
         case chatItemGiftBadge
         case chatItemGroupCall
+        case chatItemGroupChangeChatUpdate
+        case chatItemGroupChangeChatMultipleUpdate
         case chatItemIndividualCall
         case chatItemLearnedProfile
         case chatItemPaymentNotification
@@ -70,6 +74,7 @@ class MessageBackupIntegrationTests: XCTestCase {
         case chatItemSessionSwitchover
         case chatItemSimpleUpdates
         case chatItemStandardMessageFormatted
+        case chatItemStandardMessageLinkPreview
         case chatItemStandardMessageLongText
         case chatItemStandardMessageSms
         case chatItemStandardMessageSpecialAttachments
@@ -79,8 +84,11 @@ class MessageBackupIntegrationTests: XCTestCase {
         case chatItemStandardMessageWithQuote
         case chatItemStickerMessage
         case chatItemThreadMerge
+        case chatItemViewOnceMessage
+        case chatItemDirectStoryReply
 
         case recipient
+        case recipientCallLink
         case recipientContact
         case recipientDistributionList
         case recipientGroup
@@ -127,6 +135,8 @@ class MessageBackupIntegrationTests: XCTestCase {
                     return binprotoName.contains("standard_frames")
                 case .accountData:
                     return binprotoName.contains("account_data_")
+                case .adHocCall:
+                    return binprotoName.contains("ad_hoc_call_")
                 case .chat:
                     return binprotoName.contains("chat_")
                 case .chatItem:
@@ -139,6 +149,10 @@ class MessageBackupIntegrationTests: XCTestCase {
                     return binprotoName.contains("chat_item_gift_badge_")
                 case .chatItemGroupCall:
                     return binprotoName.contains("chat_item_group_call_update_")
+                case .chatItemGroupChangeChatUpdate:
+                    return binprotoName.contains("chat_item_group_change_chat_update_")
+                case .chatItemGroupChangeChatMultipleUpdate:
+                    return binprotoName.contains("chat_item_group_change_chat_multiple_update_")
                 case .chatItemIndividualCall:
                     return binprotoName.contains("chat_item_individual_call_update_")
                 case .chatItemLearnedProfile:
@@ -155,6 +169,8 @@ class MessageBackupIntegrationTests: XCTestCase {
                     return binprotoName.contains("chat_item_simple_updates_")
                 case .chatItemStandardMessageFormatted:
                     return binprotoName.contains("chat_item_standard_message_formatted_")
+                case .chatItemStandardMessageLinkPreview:
+                    return binprotoName.contains("chat_item_standard_message_with_link_preview_")
                 case .chatItemStandardMessageLongText:
                     return binprotoName.contains("chat_item_standard_message_long_text_")
                 case .chatItemStandardMessageSms:
@@ -173,8 +189,14 @@ class MessageBackupIntegrationTests: XCTestCase {
                     return binprotoName.contains("chat_item_sticker_message_")
                 case .chatItemThreadMerge:
                     return binprotoName.contains("chat_item_thread_merge_")
+                case .chatItemViewOnceMessage:
+                    return binprotoName.contains("chat_item_view_once_")
+                case .chatItemDirectStoryReply:
+                    return binprotoName.contains("chat_item_direct_story_reply_")
                 case .recipient:
                     return binprotoName.contains("recipient_")
+                case .recipientCallLink:
+                    return binprotoName.contains("recipient_call_link_")
                 case .recipientContact:
                     return binprotoName.contains("recipient_contacts_")
                 case .recipientDistributionList:
@@ -197,6 +219,16 @@ class MessageBackupIntegrationTests: XCTestCase {
                 .lastPathComponent
                 .filenameWithoutExtension
 
+            /// Separate the `Logger` and `XCTFail` steps. We want the test to
+            /// fail, but `XCTFail` is slow to get its output into the console,
+            /// so we'll log the interesting failure message separately so it's
+            /// sequential with whatever else is being logged (such as the next
+            /// test starting).
+            func logFailure(_ message: String) {
+                Logger.error(message)
+                XCTFail(filename)
+            }
+
             do {
                 Logger.info("""
 
@@ -204,14 +236,13 @@ class MessageBackupIntegrationTests: XCTestCase {
                 [TestCase] Running test case: \(filename)
 
                 """)
-                Logger.flush()
 
                 try await runRoundTripTest(
                     testCaseFileUrl: binprotoFileUrl,
                     failureLogOutput: preferredFailureLogOutput
                 )
             } catch TestError.failure(let message) {
-                XCTFail("""
+                logFailure("""
 
                 ------------
 
@@ -222,7 +253,7 @@ class MessageBackupIntegrationTests: XCTestCase {
                 ------------
                 """)
             } catch let error {
-                XCTFail("""
+                logFailure("""
 
                 ------------
 
@@ -234,6 +265,9 @@ class MessageBackupIntegrationTests: XCTestCase {
                 """)
             }
         }
+
+        /// Ensure we write all log output before the test finishes.
+        Logger.flush()
     }
 
     // MARK: -
@@ -252,18 +286,11 @@ class MessageBackupIntegrationTests: XCTestCase {
     /// by LibSignal. They should be equivalent; any disparity indicates that
     /// some data was dropped or modified as part of the import/export process,
     /// which should be idempotent.
+    @MainActor
     private func runRoundTripTest(
         testCaseFileUrl: URL,
         failureLogOutput: LibSignalComparisonFailureLogOutput
     ) async throws {
-        /// A backup doesn't contain our own local identifiers. Rather, those
-        /// are determined as part of registration for a backup import, and are
-        /// already-known for a backup export.
-        ///
-        /// Consequently, we can use any local identifiers for our test
-        /// purposes without worrying about the contents of each test case's
-        /// backup file.
-        let localIdentifiers: LocalIdentifiers = .forUnitTests
 
         /// Backup files hardcode timestamps, some of which are interpreted
         /// relative to "now". For example, "deleted" story distribution lists
@@ -276,17 +303,43 @@ class MessageBackupIntegrationTests: XCTestCase {
         /// to "anchor" them with an unchanging timestamp. To that end, we'll
         /// extract the `backupTimeMs` field from the Backup header, and use
         /// that as our "now" during import.
-        let backupTimeMs = try readBackupTimeMs(testCaseFileUrl: testCaseFileUrl)
+        let backupTimeMs = try await readBackupTimeMs(testCaseFileUrl: testCaseFileUrl)
 
+        let oldContext = CurrentAppContext()
         await initializeApp(dateProvider: { Date(millisecondsSince1970: backupTimeMs) })
+        let result = await Result {
+            try await self._runRoundTripTest(
+                testCaseFileUrl: testCaseFileUrl,
+                backupTimeMs: backupTimeMs,
+                failureLogOutput: failureLogOutput
+            )
+        }
+        await deinitializeApp(oldContext: oldContext)
+        try result.get()
+    }
+
+    private func _runRoundTripTest(
+        testCaseFileUrl: URL,
+        backupTimeMs: UInt64,
+        failureLogOutput: LibSignalComparisonFailureLogOutput
+    ) async throws {
+        /// A backup doesn't contain our own local identifiers. Rather, those
+        /// are determined as part of registration for a backup import, and are
+        /// already-known for a backup export.
+        ///
+        /// Consequently, we can use any local identifiers for our test
+        /// purposes without worrying about the contents of each test case's
+        /// backup file.
+        let localIdentifiers: LocalIdentifiers = .forUnitTests
 
         try await deps.messageBackupManager.importPlaintextBackup(
             fileUrl: testCaseFileUrl,
-            localIdentifiers: localIdentifiers
+            localIdentifiers: localIdentifiers,
+            progress: nil
         )
 
         let exportedBackupUrl = try await deps.messageBackupManager
-            .exportPlaintextBackup(localIdentifiers: localIdentifiers)
+            .exportPlaintextBackupForTests(localIdentifiers: localIdentifiers, progress: nil)
 
         try compareViaLibsignal(
             sharedTestCaseBackupUrl: testCaseFileUrl,
@@ -357,12 +410,13 @@ class MessageBackupIntegrationTests: XCTestCase {
 
     /// Read the `backupTimeMs` field from the header of the Backup file at the
     /// given local URL.
-    private func readBackupTimeMs(testCaseFileUrl: URL) throws -> UInt64 {
-        let plaintextStreamProvider = MessageBackupPlaintextProtoStreamProviderImpl()
+    private func readBackupTimeMs(testCaseFileUrl: URL) async throws -> UInt64 {
+        let plaintextStreamProvider = MessageBackupPlaintextProtoStreamProvider()
 
         let stream: MessageBackupProtoInputStream
         switch plaintextStreamProvider.openPlaintextInputFileStream(
-            fileUrl: testCaseFileUrl
+            fileUrl: testCaseFileUrl,
+            frameRestoreProgress: nil
         ) {
         case .success(let _stream, _):
             stream = _stream
@@ -380,6 +434,8 @@ class MessageBackupIntegrationTests: XCTestCase {
             backupInfo = _backupInfo
         case .invalidByteLengthDelimiter:
             throw TestError.failure("Invalid byte length delimiter!")
+        case .emptyFinalFrame:
+            throw TestError.failure("Invalid empty header frame!")
         case .protoDeserializationError(let error):
             throw TestError.failure("Proto deserialization error: \(error)!")
         }
@@ -391,43 +447,28 @@ class MessageBackupIntegrationTests: XCTestCase {
 
     @MainActor
     private func initializeApp(dateProvider: DateProvider?) async {
-        let testAppContext = TestAppContext()
-        SetCurrentAppContext(testAppContext)
         let appReadiness = AppReadinessMock()
-
-        /// Note that ``SDSDatabaseStorage/grdbDatabaseFileUrl``, through a few
-        /// layers of abstraction, uses the "current app context" to decide
-        /// where to put the database,
-        ///
-        /// For a ``TestAppContext`` as configured above, this will be a
-        /// subdirectory of our temp directory unique to the instantiation of
-        /// the app context.
-        let databaseStorage = try! SDSDatabaseStorage(
-            appReadiness: appReadiness,
-            databaseFileUrl: SDSDatabaseStorage.grdbDatabaseFileUrl,
-            keychainStorage: MockKeychainStorage()
-        )
 
         /// We use crashy versions of dependencies that should never be called
         /// during backups, and no-op implementations of payments because those
         /// are bound to the SignalUI target.
-        _ = await AppSetup().start(
-            appContext: testAppContext,
+        await MockSSKEnvironment.activate(
             appReadiness: appReadiness,
-            databaseStorage: databaseStorage,
-            paymentsEvents: PaymentsEventsNoop(),
-            mobileCoinHelper: MobileCoinHelperMock(),
             callMessageHandler: CrashyMocks.MockCallMessageHandler(),
             currentCallProvider: CrashyMocks.MockCurrentCallThreadProvider(),
             notificationPresenter: CrashyMocks.MockNotificationPresenter(),
-            incrementalTSAttachmentMigrator: NoOpIncrementalMessageTSAttachmentMigrator(),
+            incrementalMessageTSAttachmentMigratorFactory: NoOpIncrementalMessageTSAttachmentMigratorFactory(),
             testDependencies: AppSetup.TestDependencies(
                 backupAttachmentDownloadManager: BackupAttachmentDownloadManagerMock(),
                 dateProvider: dateProvider,
-                networkManager: CrashyMocks.MockNetworkManager(libsignalNet: nil),
+                networkManager: CrashyMocks.MockNetworkManager(appReadiness: appReadiness, libsignalNet: nil),
                 webSocketFactory: CrashyMocks.MockWebSocketFactory()
             )
-        ).prepareDatabase().awaitable()
+        )
+    }
+
+    private func deinitializeApp(oldContext: any AppContext) async {
+        await MockSSKEnvironment.deactivateAsync(oldContext: oldContext)
     }
 }
 
@@ -468,7 +509,8 @@ private func failTest<T>(
 /// should never be invoked during Backup import or export.
 private enum CrashyMocks {
     final class MockNetworkManager: NetworkManager {
-        override func makePromise(request: TSRequest, canUseWebSocket: Bool = false) -> Promise<any HTTPResponse> { failTest(Self.self) }
+        override func asyncRequest(_ request: TSRequest, canUseWebSocket: Bool = true) async throws -> any HTTPResponse { failTest(Self.self) }
+        override func makePromise(request: TSRequest, canUseWebSocket: Bool = true) -> Promise<any HTTPResponse> { failTest(Self.self) }
     }
 
     final class MockWebSocketFactory: WebSocketFactory {
@@ -477,32 +519,41 @@ private enum CrashyMocks {
     }
 
     final class MockCallMessageHandler: CallMessageHandler {
-        func receivedEnvelope(_ envelope: SSKProtoEnvelope, callEnvelope: CallEnvelopeType, from caller: (aci: Aci, deviceId: UInt32), plaintextData: Data, wasReceivedByUD: Bool, sentAtTimestamp: UInt64, serverReceivedTimestamp: UInt64, serverDeliveryTimestamp: UInt64, tx: SDSAnyWriteTransaction) { failTest(Self.self) }
-        func receivedGroupCallUpdateMessage(_ updateMessage: SSKProtoDataMessageGroupCallUpdate, for thread: TSGroupThread, serverReceivedTimestamp: UInt64) async { failTest(Self.self) }
+        func receivedEnvelope(_ envelope: SSKProtoEnvelope, callEnvelope: CallEnvelopeType, from caller: (aci: Aci, deviceId: DeviceId), toLocalIdentity localIdentity: OWSIdentity, plaintextData: Data, wasReceivedByUD: Bool, sentAtTimestamp: UInt64, serverReceivedTimestamp: UInt64, serverDeliveryTimestamp: UInt64, tx: DBWriteTransaction) { failTest(Self.self) }
+        func receivedGroupCallUpdateMessage(_ updateMessage: SSKProtoDataMessageGroupCallUpdate, forGroupId groupId: GroupIdentifier, serverReceivedTimestamp: UInt64) async { failTest(Self.self) }
     }
 
     final class MockCurrentCallThreadProvider: CurrentCallProvider {
         var hasCurrentCall: Bool { failTest(Self.self) }
-        var currentGroupCallThread: TSGroupThread? { failTest(Self.self) }
+        var currentGroupThreadCallGroupId: GroupIdentifier? { failTest(Self.self) }
     }
 
     final class MockNotificationPresenter: NotificationPresenter {
-        func notifyUser(forIncomingMessage: TSIncomingMessage, thread: TSThread, transaction: SDSAnyReadTransaction) { failTest(Self.self) }
-        func notifyUser(forIncomingMessage: TSIncomingMessage, editTarget: TSIncomingMessage, thread: TSThread, transaction: SDSAnyReadTransaction) { failTest(Self.self) }
-        func notifyUser(forReaction: OWSReaction, onOutgoingMessage: TSOutgoingMessage, thread: TSThread, transaction: SDSAnyReadTransaction) { failTest(Self.self) }
-        func notifyUser(forErrorMessage: TSErrorMessage, thread: TSThread, transaction: SDSAnyWriteTransaction) { failTest(Self.self) }
-        func notifyUser(forTSMessage: TSMessage, thread: TSThread, wantsSound: Bool, transaction: SDSAnyWriteTransaction) { failTest(Self.self) }
-        func notifyUser(forPreviewableInteraction: any TSInteraction & OWSPreviewText, thread: TSThread, wantsSound: Bool, transaction: SDSAnyWriteTransaction) { failTest(Self.self) }
+        func registerNotificationSettings() async { failTest(Self.self) }
+        func notifyUser(forIncomingMessage: TSIncomingMessage, thread: TSThread, transaction: DBWriteTransaction) { failTest(Self.self) }
+        func notifyUser(forIncomingMessage: TSIncomingMessage, editTarget: TSIncomingMessage, thread: TSThread, transaction: DBWriteTransaction) { failTest(Self.self) }
+        func notifyUser(forReaction: OWSReaction, onOutgoingMessage: TSOutgoingMessage, thread: TSThread, transaction: DBWriteTransaction) { failTest(Self.self) }
+        func notifyUser(forErrorMessage: TSErrorMessage, thread: TSThread, transaction: DBWriteTransaction) { failTest(Self.self) }
+        func notifyUser(forTSMessage: TSMessage, thread: TSThread, wantsSound: Bool, transaction: DBWriteTransaction) { failTest(Self.self) }
+        func notifyUser(forPreviewableInteraction: any TSInteraction & OWSPreviewText, thread: TSThread, wantsSound: Bool, transaction: DBWriteTransaction) { failTest(Self.self) }
         func notifyTestPopulation(ofErrorMessage errorString: String) { failTest(Self.self) }
-        func notifyUser(forFailedStorySend: StoryMessage, to: TSThread, transaction: SDSAnyWriteTransaction) { failTest(Self.self) }
+        func notifyUser(forFailedStorySend: StoryMessage, to: TSThread, transaction: DBWriteTransaction) { failTest(Self.self) }
+        func notifyUserOfFailedSend(inThread thread: TSThread) { failTest(Self.self) }
+        func notifyUserOfMissedCall(notificationInfo: CallNotificationInfo, offerMediaType: TSRecentCallOfferType, sentAt timestamp: Date, tx: DBReadTransaction) { failTest(Self.self) }
+        func notifyUserOfMissedCallBecauseOfNewIdentity(notificationInfo: CallNotificationInfo, tx: DBWriteTransaction) { failTest(Self.self) }
+        func notifyUserOfMissedCallBecauseOfNoLongerVerifiedIdentity(notificationInfo: CallNotificationInfo, tx: DBWriteTransaction) { failTest(Self.self) }
+        func notifyForGroupCallSafetyNumberChange(callTitle: String, threadUniqueId: String?, roomId: Data?, presentAtJoin: Bool) { failTest(Self.self) }
+        func scheduleNotifyForNewLinkedDevice(deviceLinkTimestamp: Date) { failTest(Self.self) }
         func notifyUserToRelaunchAfterTransfer(completion: @escaping () -> Void) { failTest(Self.self) }
-        func notifyUserOfDeregistration(transaction: SDSAnyWriteTransaction) { failTest(Self.self) }
+        func notifyUserOfDeregistration(tx: DBWriteTransaction) { failTest(Self.self) }
         func clearAllNotifications() { failTest(Self.self) }
+        func clearAllNotificationsExceptNewLinkedDevices() { failTest(Self.self) }
+        static func clearAllNotificationsExceptNewLinkedDevices() { failTest(Self.self) }
+        func clearDeliveredNewLinkedDevicesNotifications() { failTest(Self.self) }
         func cancelNotifications(threadId: String) { failTest(Self.self) }
         func cancelNotifications(messageIds: [String]) { failTest(Self.self) }
         func cancelNotifications(reactionId: String) { failTest(Self.self) }
         func cancelNotificationsForMissedCalls(threadUniqueId: String) { failTest(Self.self) }
         func cancelNotifications(for storyMessage: StoryMessage) { failTest(Self.self) }
-        func notifyUserOfDeregistration(tx: any DBWriteTransaction) { failTest(Self.self) }
     }
 }

@@ -77,7 +77,7 @@ public struct CVItemViewState: Equatable {
 
 // MARK: -
 
-struct CVItemModelBuilder: CVItemBuilding, Dependencies {
+struct CVItemModelBuilder: CVItemBuilding {
 
     let itemBuildingContext: CVItemBuildingContext
     let messageLoader: MessageLoader
@@ -179,7 +179,7 @@ struct CVItemModelBuilder: CVItemBuilding, Dependencies {
                                            threadAssociatedData: ThreadAssociatedData,
                                            threadViewModel: ThreadViewModel,
                                            itemBuildingContext: CVItemBuildingContext,
-                                           transaction: SDSAnyReadTransaction) -> CVItemModel? {
+                                           transaction: DBReadTransaction) -> CVItemModel? {
         AssertIsOnMainThread()
 
         let viewStateSnapshot = itemBuildingContext.viewStateSnapshot
@@ -217,7 +217,7 @@ struct CVItemModelBuilder: CVItemBuilding, Dependencies {
                                                viewStateSnapshot: CVViewStateSnapshot,
                                                groupNameColors: GroupNameColors,
                                                displayNameCache: DisplayNameCache,
-                                               transaction: SDSAnyReadTransaction) {
+                                               transaction: DBReadTransaction) {
         let itemViewState = item.itemViewState
         itemViewState.shouldShowSenderAvatar = false
         itemViewState.shouldHideFooter = false
@@ -227,30 +227,27 @@ struct CVItemModelBuilder: CVItemBuilding, Dependencies {
         let interaction = item.interaction
         let timestampText = DateUtil.formatTimestampShort(interaction.timestamp)
 
-        let hasTapForMore: Bool = {
-            guard let bodyText = item.componentState.bodyText,
-                  let displayableText = bodyText.displayableText else {
-                return false
-            }
-            guard displayableText.isTextTruncated else {
-                return false
-            }
-            let interactionId = item.interaction.uniqueId
-            let isTruncatedTextVisible = viewStateSnapshot.textExpansion.isTextExpanded(interactionId: interactionId)
-            return !isTruncatedTextVisible
-        }()
+        let tapForMoreState: CVComponentFooter.TapForMoreState
+        switch item.componentState.bodyText {
+        case .bodyText(_, let hasTapForMore):
+            tapForMoreState = hasTapForMore ? .tapForMore : .none
+        case .oversizeTextUndownloadable:
+            tapForMoreState = .undownloadableLongText
+        default:
+            tapForMoreState = .none
+        }
 
         if let paymentMessage = interaction as? OWSPaymentMessage {
             itemViewState.footerState = CVComponentFooter.buildPaymentState(
                 interaction: interaction,
                 paymentNotification: paymentMessage.paymentNotification,
-                hasTapForMore: hasTapForMore,
+                tapForMoreState: tapForMoreState,
                 transaction: transaction
             )
         } else {
             itemViewState.footerState = CVComponentFooter.buildState(
                 interaction: interaction,
-                hasTapForMore: hasTapForMore,
+                tapForMoreState: tapForMoreState,
                 transaction: transaction
             )
         }
@@ -269,7 +266,6 @@ struct CVItemModelBuilder: CVItemBuilding, Dependencies {
                 interaction: interaction,
                 bodyText: bodyText,
                 viewStateSnapshot: viewStateSnapshot,
-                hasTapForMore: hasTapForMore,
                 hasPendingMessageRequest: threadViewModel.hasPendingMessageRequest
             )
         }
@@ -287,7 +283,7 @@ struct CVItemModelBuilder: CVItemBuilding, Dependencies {
                 // Don't cluster message if the earlier message has a reaction.
                 return false
             }
-            let maxClusterTimeDifferenceMs = UInt64(kMinuteInMs) * 3
+            let maxClusterTimeDifferenceMs = UInt64.minuteInMs * 3
             let elapsedMs = rightTime - leftTime
             return elapsedMs < maxClusterTimeDifferenceMs
         }
@@ -326,7 +322,7 @@ struct CVItemModelBuilder: CVItemBuilding, Dependencies {
                     outgoingMessage.messageState != .pending &&
                     outgoingMessage.editState == .none &&
                     !isDisappearingMessage &&
-                    !hasTapForMore
+                    !tapForMoreState.shouldShowFooter
                 )
             } else {
                 itemViewState.isLastInCluster = true
@@ -361,7 +357,7 @@ struct CVItemModelBuilder: CVItemBuilding, Dependencies {
                 itemViewState.shouldHideFooter = (timestampText == nextTimestampText &&
                                                     !isDisappearingMessage &&
                                                     incomingMessage.editState == .none &&
-                                                    !hasTapForMore)
+                                                    !tapForMoreState.shouldShowFooter)
             } else {
                 itemViewState.isLastInCluster = true
             }
@@ -478,30 +474,28 @@ struct CVItemModelBuilder: CVItemBuilding, Dependencies {
 
         if
             let nextMessage = nextItem?.interaction as? TSMessage,
-            let attachmentRef = DependenciesBridge.shared.tsResourceStore
-                .bodyMediaAttachments(for: nextMessage, tx: transaction.asV2Read).first,
-            let attachment = attachmentRef.fetch(tx: transaction),
-            (attachment.asResourceStream()?.cachedContentType)?.isAudio
-                ?? MimeTypeUtil.isSupportedAudioMimeType(attachment.mimeType)
+            let rowId = nextMessage.sqliteRowId,
+            let attachment = DependenciesBridge.shared.attachmentStore
+                .fetchFirstReferencedAttachment(for: .messageBodyAttachment(messageRowId: rowId), tx: transaction),
+            attachment.attachment.asStream()?.contentType.isAudio
+                ?? MimeTypeUtil.isSupportedAudioMimeType(attachment.attachment.mimeType)
         {
 
-            if let stream = attachment.asResourceStream() {
+            if let stream = attachment.asReferencedStream {
                 itemViewState.nextAudioAttachment = AudioAttachment(
-                    attachmentStream: .init(reference: attachmentRef, attachmentStream: stream),
+                    attachmentStream: stream,
                     owningMessage: nextMessage,
                     metadata: nil,
                     receivedAtDate: nextMessage.receivedAtDate
                 )
-            } else if let pointer = attachment.asTransitTierPointer() {
+            } else if let pointer = attachment.asReferencedAnyPointer {
                 itemViewState.nextAudioAttachment = AudioAttachment(
-                    attachmentPointer: .init(reference: attachmentRef, attachmentPointer: pointer),
+                    attachmentPointer: pointer,
                     owningMessage: nextMessage,
                     metadata: nil,
                     receivedAtDate: nextMessage.receivedAtDate,
-                    transitTierDownloadState: pointer.downloadState(tx: transaction.asV2Read)
+                    downloadState: pointer.attachmentPointer.downloadState(tx: transaction)
                 )
-            } else {
-                owsFailDebug("Invalid attachment!")
             }
         }
     }
@@ -622,10 +616,20 @@ struct CVItemModelBuilder: CVItemBuilding, Dependencies {
         }
 
         // Hide "call" buttons if there is an active call in another thread.
+        func isCurrentGroupCallForCurrentThread() -> Bool {
+            guard
+                let currentGroupThreadCallGroupId = viewStateSnapshot.currentGroupThreadCallGroupId,
+                let groupThread = thread as? TSGroupThread
+            else {
+                return false
+            }
+            return currentGroupThreadCallGroupId.serialize().asData == groupThread.groupId
+        }
+
         if
             item.interactionType == .call,
             viewStateSnapshot.hasActiveCall,
-            viewStateSnapshot.currentGroupCallThreadUniqueId != thread.uniqueId
+            !isCurrentGroupCallForCurrentThread()
         {
             item.itemViewState.shouldCollapseSystemMessageAction = true
         }
@@ -714,7 +718,7 @@ private extension MessageLoader {
         !canLoadOlder
     }
 
-    func shouldShowDefaultDisappearingMessageTimer(thread: TSThread, transaction: SDSAnyReadTransaction) -> Bool {
+    func shouldShowDefaultDisappearingMessageTimer(thread: TSThread, transaction: DBReadTransaction) -> Bool {
         guard let contactThread = thread as? TSContactThread else {
             // Group threads get their initial disappearing message timer during
             // group creation.
@@ -779,25 +783,25 @@ private class ItemBuilder {
 
 // MARK: -
 
-class DisplayNameCache: Dependencies {
+class DisplayNameCache {
     private var displayNameCache = [ServiceId: DisplayName]()
 
-    private func _displayName(for address: SignalServiceAddress, tx: SDSAnyReadTransaction) -> DisplayName {
+    private func _displayName(for address: SignalServiceAddress, tx: DBReadTransaction) -> DisplayName {
         if let serviceId = address.serviceId, let displayName = displayNameCache[serviceId] {
             return displayName
         }
-        let displayName = contactsManager.displayName(for: address, tx: tx)
+        let displayName = SSKEnvironment.shared.contactManagerRef.displayName(for: address, tx: tx)
         if let serviceId = address.serviceId {
             displayNameCache[serviceId] = displayName
         }
         return displayName
     }
 
-    func shortDisplayName(address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> String {
+    func shortDisplayName(address: SignalServiceAddress, transaction: DBReadTransaction) -> String {
         return _displayName(for: address, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
     }
 
-    func displayName(address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> String {
+    func displayName(address: SignalServiceAddress, transaction: DBReadTransaction) -> String {
         return _displayName(for: address, tx: transaction).resolvedValue(useShortNameIfAvailable: false)
     }
 }

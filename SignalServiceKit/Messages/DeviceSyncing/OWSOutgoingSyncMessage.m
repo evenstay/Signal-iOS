@@ -4,7 +4,6 @@
 //
 
 #import "OWSOutgoingSyncMessage.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -16,9 +15,9 @@ NS_ASSUME_NONNULL_BEGIN
     return [super initWithCoder:coder];
 }
 
-- (instancetype)initWithThread:(TSThread *)thread transaction:(SDSAnyReadTransaction *)transaction
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread transaction:(DBReadTransaction *)transaction
 {
-    TSOutgoingMessageBuilder *messageBuilder = [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:thread];
+    TSOutgoingMessageBuilder *messageBuilder = [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:localThread];
     self = [super initOutgoingMessageWithBuilder:messageBuilder
                             additionalRecipients:@[]
                               explicitRecipients:@[]
@@ -33,10 +32,10 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 - (instancetype)initWithTimestamp:(uint64_t)timestamp
-                           thread:(TSThread *)thread
-                      transaction:(SDSAnyReadTransaction *)transaction
+                      localThread:(TSContactThread *)localThread
+                      transaction:(DBReadTransaction *)transaction
 {
-    TSOutgoingMessageBuilder *messageBuilder = [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:thread];
+    TSOutgoingMessageBuilder *messageBuilder = [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:localThread];
     messageBuilder.timestamp = timestamp;
     self = [super initOutgoingMessageWithBuilder:messageBuilder
                             additionalRecipients:@[]
@@ -62,7 +61,7 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 // This method should not be overridden, since we want to add random padding to *every* sync message
-- (nullable SSKProtoSyncMessage *)buildSyncMessageWithTransaction:(SDSAnyReadTransaction *)transaction
+- (nullable SSKProtoSyncMessage *)buildSyncMessageWithTransaction:(DBReadTransaction *)transaction
 {
     SSKProtoSyncMessageBuilder *_Nullable builder = [self syncMessageBuilderWithTransaction:transaction];
     if (!builder) {
@@ -80,7 +79,7 @@ NS_ASSUME_NONNULL_BEGIN
     return proto;
 }
 
-- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(SDSAnyReadTransaction *)transaction
+- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(DBReadTransaction *)transaction
 {
     OWSAbstractMethod();
 
@@ -88,7 +87,7 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 - (nullable SSKProtoContentBuilder *)contentBuilderWithThread:(TSThread *)thread
-                                                  transaction:(SDSAnyReadTransaction *)transaction
+                                                  transaction:(DBReadTransaction *)transaction
 {
     SSKProtoSyncMessage *_Nullable syncMessage = [self buildSyncMessageWithTransaction:transaction];
     if (!syncMessage) {

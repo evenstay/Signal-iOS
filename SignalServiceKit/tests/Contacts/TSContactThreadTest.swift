@@ -14,10 +14,10 @@ class TSContactThreadTest: SSKBaseTest {
 
     override func setUp() {
         super.setUp()
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: .forUnitTests,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
     }
@@ -30,8 +30,8 @@ class TSContactThreadTest: SSKBaseTest {
         let contactThread = self.contactThread()
 
         let identityManager = DependenciesBridge.shared.identityManager
-        databaseStorage.write { tx in
-            identityManager.saveIdentityKey(Data(count: 32), for: contactThread.contactAddress.serviceId!, tx: tx.asV2Write)
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
+            identityManager.saveIdentityKey(Data(count: 32), for: contactThread.contactAddress.serviceId!, tx: tx)
         }
 
         XCTAssert(contactThread.hasSafetyNumbers())

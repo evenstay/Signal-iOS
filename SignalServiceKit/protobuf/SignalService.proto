@@ -17,11 +17,11 @@ message Envelope {
   enum Type {
     UNKNOWN = 0;
     CIPHERTEXT = 1;
-    KEY_EXCHANGE = 2;
+    reserved 2; // formerly KEY_EXCHANGE
     PREKEY_BUNDLE = 3;
     RECEIPT = 5;
     UNIDENTIFIED_SENDER = 6;
-    SENDERKEY_MESSAGE = 7;
+    reserved 7; // formerly SENDERKEY_MESSAGE
     PLAINTEXT_CONTENT = 8;
   }
 
@@ -551,8 +551,10 @@ message SyncMessage {
   }
 
   message Keys {
-    optional bytes storageService = 1;
+    reserved /* storageService */ 1;
     optional bytes master = 2;
+    optional string accountEntropyPool = 3;
+    optional bytes mediaRootBackupKey = 4;
   }
 
   message MessageRequestResponse {
@@ -716,6 +718,11 @@ message SyncMessage {
     repeated AttachmentDelete attachmentDeletes = 4;
   }
 
+  message DeviceNameChange {
+    reserved /*name*/ 1;
+    optional uint32 deviceId = 2;
+  }
+
   optional Sent sent = 1;
   optional Contacts contacts = 2;
   reserved /*groups*/ 3;
@@ -738,6 +745,7 @@ message SyncMessage {
   optional CallLinkUpdate callLinkUpdate = 20;
   optional CallLogEvent callLogEvent = 21;
   optional DeleteForMe deleteForMe = 22;
+  optional DeviceNameChange deviceNameChange = 23;
 }
 
 message AttachmentPointer {

@@ -92,7 +92,7 @@ class MemberRequestView: UIStackView {
 
         actionSheet.addAction(ActionSheetAction(title: CommonStrings.yesButton,
                                                 style: .destructive) { [weak self] _ in
-                                                    self?.cancelMemberRequest()
+                                                    self?.cancelRequestToJoin()
         })
         actionSheet.addAction(ActionSheetAction(title: CommonStrings.noButton,
                                                 style: .destructive) { _ in
@@ -102,7 +102,7 @@ class MemberRequestView: UIStackView {
         fromViewController.presentActionSheet(actionSheet)
     }
 
-    func cancelMemberRequest() {
+    func cancelRequestToJoin() {
         guard let fromViewController = fromViewController,
               let groupThread = thread as? TSGroupThread,
               let groupModelV2 = groupThread.groupModel as? TSGroupModelV2
@@ -113,9 +113,9 @@ class MemberRequestView: UIStackView {
 
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: fromViewController,
-            updateDescription: self.logTag,
+            updateDescription: "[\(type(of: self))]",
             updateBlock: {
-                return try await GroupManager.cancelMemberRequestsV2(groupModel: groupModelV2)
+                try await GroupManager.cancelRequestToJoin(groupModel: groupModelV2)
             },
             completion: nil
         )

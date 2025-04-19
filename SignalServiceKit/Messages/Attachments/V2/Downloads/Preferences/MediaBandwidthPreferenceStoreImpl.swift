@@ -12,11 +12,10 @@ public class MediaBandwidthPreferenceStoreImpl: MediaBandwidthPreferenceStore {
     private let schedulers: Schedulers
 
     public init(
-        keyValueStoreFactory: KeyValueStoreFactory,
         reachabilityManager: SSKReachabilityManager,
         schedulers: Schedulers
     ) {
-        self.kvStore = keyValueStoreFactory.keyValueStore(collection: "MediaBandwidthPreferences")
+        self.kvStore = KeyValueStore(collection: "MediaBandwidthPreferences")
         self.reachabilityManager = reachabilityManager
         self.schedulers = schedulers
     }
@@ -81,9 +80,9 @@ public class MediaBandwidthPreferenceStoreImpl: MediaBandwidthPreferenceStore {
             transaction: tx
         )
 
-        tx.addAsyncCompletion(on: schedulers.global()) {
-            NotificationCenter.default.postNotificationNameAsync(
-                MediaBandwidthPreferences.mediaBandwidthPreferencesDidChange,
+        tx.addSyncCompletion {
+            NotificationCenter.default.postOnMainThread(
+                name: MediaBandwidthPreferences.mediaBandwidthPreferencesDidChange,
                 object: nil
             )
         }
@@ -93,9 +92,9 @@ public class MediaBandwidthPreferenceStoreImpl: MediaBandwidthPreferenceStore {
         for mediaDownloadType in MediaBandwidthPreferences.MediaType.allCases {
             kvStore.removeValue(forKey: mediaDownloadType.rawValue, transaction: tx)
         }
-        tx.addAsyncCompletion(on: schedulers.global()) {
-            NotificationCenter.default.postNotificationNameAsync(
-                MediaBandwidthPreferences.mediaBandwidthPreferencesDidChange,
+        tx.addSyncCompletion {
+            NotificationCenter.default.postOnMainThread(
+                name: MediaBandwidthPreferences.mediaBandwidthPreferencesDidChange,
                 object: nil
             )
         }

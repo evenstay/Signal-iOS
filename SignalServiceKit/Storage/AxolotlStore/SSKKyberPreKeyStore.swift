@@ -9,13 +9,13 @@ public protocol SignalKyberPreKeyStore: LibSignalClient.KyberPreKeyStore {
     func generateLastResortKyberPreKey(
         signedBy keyPair: ECKeyPair,
         tx: DBWriteTransaction
-    ) throws -> SignalServiceKit.KyberPreKeyRecord
+    ) -> SignalServiceKit.KyberPreKeyRecord
 
     /// Keys returned by this method should not be stored in the local
     /// KyberPreKeyStore since there is no guarantee the key ID is unique.
     func generateLastResortKyberPreKeyForLinkedDevice(
         signedBy keyPair: ECKeyPair
-    ) throws -> SignalServiceKit.KyberPreKeyRecord
+    ) -> SignalServiceKit.KyberPreKeyRecord
 
     func storeLastResortPreKeyFromLinkedDevice(
         record: KyberPreKeyRecord,
@@ -26,7 +26,7 @@ public protocol SignalKyberPreKeyStore: LibSignalClient.KyberPreKeyStore {
         count: Int,
         signedBy keyPair: ECKeyPair,
         tx: DBWriteTransaction
-    ) throws -> [SignalServiceKit.KyberPreKeyRecord]
+    ) -> [SignalServiceKit.KyberPreKeyRecord]
 
     func storeLastResortPreKey(
         record: SignalServiceKit.KyberPreKeyRecord,
@@ -59,9 +59,7 @@ public protocol SignalKyberPreKeyStore: LibSignalClient.KyberPreKeyStore {
         tx: DBReadTransaction
     ) -> Date?
 
-#if TESTABLE_BUILD
     func removeAll(tx: DBWriteTransaction)
-#endif
 }
 
 public struct KyberPreKeyRecord: Codable {
@@ -113,26 +111,6 @@ public struct KyberPreKeyRecord: Codable {
     }
 }
 
-extension KyberPreKeyRecord: Equatable {
-    public static func == (lhs: KyberPreKeyRecord, rhs: KyberPreKeyRecord) -> Bool {
-        return (
-            lhs.id == rhs.id
-            && lhs.isLastResort == rhs.isLastResort
-            && lhs.generatedAt == rhs.generatedAt
-            && lhs.signature == rhs.signature
-        )
-    }
-}
-
-extension KyberPreKeyRecord: Hashable {
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-        hasher.combine(isLastResort)
-        hasher.combine(generatedAt)
-        hasher.combine(signature)
-    }
-}
-
 public class SSKKyberPreKeyStore: SignalKyberPreKeyStore {
 
     internal enum Constants {
@@ -150,8 +128,7 @@ public class SSKKyberPreKeyStore: SignalKyberPreKeyStore {
 
         static let lastKeyRotationDate = "lastKeyRotationDate"
 
-        static let oneTimeKeyExpirationInterval = kDayInterval * 90
-        static let lastResortKeyExpirationInterval = kDayInterval * 30
+        static let oneTimeKeyExpirationInterval: TimeInterval = .day * 90
     }
 
     let identity: OWSIdentity
@@ -163,22 +140,24 @@ public class SSKKyberPreKeyStore: SignalKyberPreKeyStore {
     private let metadataStore: KeyValueStore
 
     private let dateProvider: DateProvider
+    private let remoteConfigProvider: any RemoteConfigProvider
 
     public init(
         for identity: OWSIdentity,
-        keyValueStoreFactory: KeyValueStoreFactory,
-        dateProvider: @escaping DateProvider
+        dateProvider: @escaping DateProvider,
+        remoteConfigProvider: any RemoteConfigProvider
     ) {
         self.identity = identity
         self.dateProvider = dateProvider
+        self.remoteConfigProvider = remoteConfigProvider
 
         switch identity {
         case .aci:
-            self.keyStore = keyValueStoreFactory.keyValueStore(collection: Constants.ACI.keyStoreCollection)
-            self.metadataStore = keyValueStoreFactory.keyValueStore(collection: Constants.ACI.metadataStoreCollection)
+            self.keyStore = KeyValueStore(collection: Constants.ACI.keyStoreCollection)
+            self.metadataStore = KeyValueStore(collection: Constants.ACI.metadataStoreCollection)
         case .pni:
-            self.keyStore = keyValueStoreFactory.keyValueStore(collection: Constants.PNI.keyStoreCollection)
-            self.metadataStore = keyValueStoreFactory.keyValueStore(collection: Constants.PNI.metadataStoreCollection)
+            self.keyStore = KeyValueStore(collection: Constants.PNI.keyStoreCollection)
+            self.metadataStore = KeyValueStore(collection: Constants.PNI.metadataStoreCollection)
         }
     }
 
@@ -193,7 +172,7 @@ public class SSKKyberPreKeyStore: SignalKyberPreKeyStore {
         id: UInt32,
         signedBy identityKeyPair: ECKeyPair,
         isLastResort: Bool
-    ) throws -> KyberPreKeyRecord {
+    ) -> KyberPreKeyRecord {
         let keyPair = KEMKeyPair.generate()
         let signature = Data(identityKeyPair.keyPair.privateKey.generateSignature(message: Data(keyPair.publicKey.serialize())))
 
@@ -214,10 +193,10 @@ public class SSKKyberPreKeyStore: SignalKyberPreKeyStore {
         count: Int,
         signedBy keyPair: ECKeyPair,
         tx: DBWriteTransaction
-    ) throws -> [KyberPreKeyRecord] {
+    ) -> [KyberPreKeyRecord] {
         var nextKeyId = nextKyberPreKeyId(minimumCapacity: UInt32(count), tx: tx)
-        let records = try (0..<count).map { _ in
-            let record = try generateKyberPreKeyRecord(
+        let records = (0..<count).map { _ in
+            let record = generateKyberPreKeyRecord(
                 id: nextKeyId,
                 signedBy: keyPair,
                 isLastResort: false
@@ -234,9 +213,9 @@ public class SSKKyberPreKeyStore: SignalKyberPreKeyStore {
     public func generateLastResortKyberPreKey(
         signedBy keyPair: ECKeyPair,
         tx: DBWriteTransaction
-    ) throws -> SignalServiceKit.KyberPreKeyRecord {
+    ) -> SignalServiceKit.KyberPreKeyRecord {
         let keyId = nextKyberPreKeyId(tx: tx)
-        let record = try generateKyberPreKeyRecord(
+        let record = generateKyberPreKeyRecord(
             id: keyId,
             signedBy: keyPair,
             isLastResort: true
@@ -247,8 +226,8 @@ public class SSKKyberPreKeyStore: SignalKyberPreKeyStore {
 
     public func generateLastResortKyberPreKeyForLinkedDevice(
         signedBy keyPair: ECKeyPair
-    ) throws -> SignalServiceKit.KyberPreKeyRecord {
-        return try generateKyberPreKeyRecord(
+    ) -> SignalServiceKit.KyberPreKeyRecord {
+        return generateKyberPreKeyRecord(
             id: PreKeyId.random(),
             signedBy: keyPair,
             isLastResort: true
@@ -289,12 +268,10 @@ public class SSKKyberPreKeyStore: SignalKyberPreKeyStore {
         }
     }
 
-#if TESTABLE_BUILD
     public func removeAll(tx: DBWriteTransaction) {
         self.keyStore.removeAll(transaction: tx)
         self.metadataStore.removeAll(transaction: tx)
     }
-#endif
 }
 
 extension SSKKyberPreKeyStore {
@@ -313,7 +290,7 @@ extension SSKKyberPreKeyStore: LibSignalClient.KyberPreKeyStore {
     ) throws -> LibSignalClient.KyberPreKeyRecord {
         guard let preKey = self.loadKyberPreKey(
             id: id,
-            tx: context.asTransaction.asV2Read
+            tx: context.asTransaction
         ) else {
             throw Error.noKyberPreKeyWithId(id)
         }
@@ -340,11 +317,11 @@ extension SSKKyberPreKeyStore: LibSignalClient.KyberPreKeyStore {
             generatedAt: Date(millisecondsSince1970: record.timestamp),
             isLastResort: false
         )
-        try self.storeKyberPreKey(record: record, tx: context.asTransaction.asV2Write)
+        try self.storeKyberPreKey(record: record, tx: context.asTransaction)
     }
 
     public func markKyberPreKeyUsed(id: UInt32, context: StoreContext) throws {
-        try self.markKyberPreKeyUsed(id: id, tx: context.asTransaction.asV2Write)
+        try self.markKyberPreKeyUsed(id: id, tx: context.asTransaction)
     }
 
     public func setLastSuccessfulRotationDate(_ date: Date, tx: DBWriteTransaction) {
@@ -379,7 +356,7 @@ extension SSKKyberPreKeyStore: LibSignalClient.KyberPreKeyStore {
     ) throws {
         // get a list of keys
         // don't touch what we just uploaded
-        // remove all others older than 30 days
+        // remove all others older than N days
 
         let recordsToRemove: [KyberPreKeyRecord] = try self.keyStore
             .allCodableValues(transaction: tx)
@@ -387,7 +364,7 @@ extension SSKKyberPreKeyStore: LibSignalClient.KyberPreKeyStore {
                 guard record.isLastResort else { return false }
                 guard record.id != justUploadedLastResortPreKey.id else { return false }
                 let keyAge = dateProvider().timeIntervalSince(record.generatedAt)
-                return keyAge >= Constants.lastResortKeyExpirationInterval
+                return keyAge >= remoteConfigProvider.currentConfig().messageQueueTime
             }
 
         let keysToRemove = recordsToRemove.map { key(for: $0.id) }

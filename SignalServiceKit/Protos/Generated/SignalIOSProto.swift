@@ -52,24 +52,24 @@ public class SignalIOSProtoDeviceName: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try IOSProtos_DeviceName(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: IOSProtos_DeviceName) throws {
         guard proto.hasEphemeralPublic else {
-            throw SignalIOSProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: ephemeralPublic")
+            throw SignalIOSProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: ephemeralPublic")
         }
         let ephemeralPublic = proto.ephemeralPublic
 
         guard proto.hasSyntheticIv else {
-            throw SignalIOSProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: syntheticIv")
+            throw SignalIOSProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: syntheticIv")
         }
         let syntheticIv = proto.syntheticIv
 
         guard proto.hasCiphertext else {
-            throw SignalIOSProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: ciphertext")
+            throw SignalIOSProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: ciphertext")
         }
         let ciphertext = proto.ciphertext
 

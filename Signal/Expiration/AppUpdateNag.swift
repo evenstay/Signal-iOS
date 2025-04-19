@@ -49,8 +49,6 @@ class AppUpdateNag {
     }
 
     private static func fetchLatestVersion(lookupURL: URL) async throws -> AppStoreRecord {
-        Logger.debug("lookupURL:\(lookupURL)")
-
         let (data, _) = try await URLSession(configuration: .ephemeral).data(from: lookupURL)
         let decoder = JSONDecoder()
         let resultSet = try decoder.decode(AppStoreLookupResultSet.self, from: data)
@@ -68,7 +66,7 @@ class AppUpdateNag {
 
     // MARK: - KV Store
 
-    private let keyValueStore = SDSKeyValueStore(collection: "TSStorageManagerAppUpgradeNagCollection")
+    private let keyValueStore = KeyValueStore(collection: "TSStorageManagerAppUpgradeNagCollection")
 
     // MARK: - Bundle accessors
 
@@ -100,15 +98,13 @@ class AppUpdateNag {
             return
         }
 
-        let intervalBeforeNag = 21 * kDayInterval
-        guard Date() > Date.init(timeInterval: intervalBeforeNag, since: firstHeardOfNewVersionDate) else {
+        guard Date() > Date.init(timeInterval: 21 * .day, since: firstHeardOfNewVersionDate) else {
             Logger.info("firstHeardOfNewVersionDate: \(firstHeardOfNewVersionDate) not nagging for new release yet.")
             return
         }
 
         if let lastNagDate = self.lastNagDate {
-            let intervalBetweenNags = 14 * kDayInterval
-            guard Date() > Date.init(timeInterval: intervalBetweenNags, since: lastNagDate) else {
+            guard Date() > Date.init(timeInterval: 14 * .day, since: lastNagDate) else {
                 Logger.info("lastNagDate: \(lastNagDate) not nagging again so soon.")
                 return
             }

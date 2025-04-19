@@ -475,8 +475,8 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
         let otherUserName: String
         switch recipient {
         case .address(let recipientAddress):
-            otherUserName = databaseStorage.read { transaction in
-                self.contactsManager.displayName(for: recipientAddress, tx: transaction).resolvedValue()
+            otherUserName = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+                SSKEnvironment.shared.contactManagerRef.displayName(for: recipientAddress, tx: transaction).resolvedValue()
             }
         case .publicAddress(let recipientPublicAddress):
             otherUserName = PaymentsImpl.formatAsBase58(publicAddress: recipientPublicAddress)
@@ -492,7 +492,7 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
             case let paymentsError as PaymentsError:
                 switch paymentsError {
                 case .insufficientFunds:
-                    if let paymentBalance = self.paymentsSwift.currentPaymentBalance {
+                    if let paymentBalance = SUIEnvironment.shared.paymentsSwiftRef.currentPaymentBalance {
                         let formattedBalance = PaymentsFormat.format(paymentAmount: paymentBalance.amount,
                                                                      isShortForm: false)
                         let format = OWSLocalizedString("PAYMENTS_NEW_PAYMENT_ERROR_INSUFFICIENT_FUNDS_FORMAT",
@@ -572,7 +572,7 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
         let promise: Promise<PreparedPayment> = firstly(on: DispatchQueue.global()) { () -> Promise<PreparedPayment> in
             // NOTE: We should not pre-prepare a payment if defragmentation
             // is required.
-            Self.paymentsSwift.prepareOutgoingPayment(
+            SUIEnvironment.shared.paymentsSwiftRef.prepareOutgoingPayment(
                 recipient: paymentInfo.recipient,
                 paymentAmount: paymentInfo.paymentAmount,
                 memoMessage: paymentInfo.memoMessage,
@@ -603,7 +603,7 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
         ModalActivityIndicatorViewController.presentAsInvisible(fromViewController: self) { [weak self] modalActivityIndicator in
             guard let self = self else { return }
 
-            Self.owsPaymentsLock.tryToUnlockPromise().then(on: DispatchQueue.main) { (authOutcome: OWSPaymentsLock.LocalAuthOutcome) -> Promise<PreparedPayment> in
+            SSKEnvironment.shared.owsPaymentsLockRef.tryToUnlockPromise().then(on: DispatchQueue.main) { (authOutcome: OWSPaymentsLock.LocalAuthOutcome) -> Promise<PreparedPayment> in
                 switch authOutcome {
                 case .failure(let error):
                     throw PaymentsUIError.paymentsLockFailed(reason: "local authentication failed with error: \(error)")
@@ -627,7 +627,7 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
                         // NOTE: We will always follow this code path if defragmentation
                         // is required.
                         Logger.info("Defragmentation required.")
-                        return Self.paymentsSwift.prepareOutgoingPayment(
+                        return SUIEnvironment.shared.paymentsSwiftRef.prepareOutgoingPayment(
                             recipient: paymentInfo.recipient,
                             paymentAmount: paymentInfo.paymentAmount,
                             memoMessage: paymentInfo.memoMessage,
@@ -640,12 +640,12 @@ public class SendPaymentCompletionActionSheet: ActionSheetController {
                     }
                 }
             }.then(on: DispatchQueue.global()) { (preparedPayment: PreparedPayment) in
-                Self.paymentsSwift.initiateOutgoingPayment(preparedPayment: preparedPayment)
+                SUIEnvironment.shared.paymentsSwiftRef.initiateOutgoingPayment(preparedPayment: preparedPayment)
             }.then { (paymentModel: TSPaymentModel) -> Promise<Void> in
                 // Try to wait (with a timeout) for submission and verification to complete.
-                let blockInterval: TimeInterval = kSecondInterval * 60
+                let blockInterval: TimeInterval = .minute
                 return firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
-                    Self.paymentsSwift.blockOnOutgoingVerification(paymentModel: paymentModel).asVoid()
+                    SUIEnvironment.shared.paymentsSwiftRef.blockOnOutgoingVerification(paymentModel: paymentModel).asVoid()
                 }.timeout(seconds: blockInterval, description: "Payments Verify Submission") {
                     PaymentsError.outgoingVerificationTakingTooLong
                 }.recover(on: DispatchQueue.global()) { (error: Error) -> Guarantee<()> in

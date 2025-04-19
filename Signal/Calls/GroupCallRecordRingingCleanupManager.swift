@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import SignalRingRTC
 import SignalServiceKit
 
@@ -34,7 +35,7 @@ class GroupCallRecordRingingCleanupManager {
 
     private let callRecordStore: CallRecordStore
     private let callRecordQuerier: CallRecordQuerier
-    private let db: DB
+    private let db: any DB
     private let interactionStore: InteractionStore
     private let groupCallPeekClient: GroupCallPeekClient
     private let notificationPresenter: Shims.NotificationPresenter
@@ -43,10 +44,10 @@ class GroupCallRecordRingingCleanupManager {
     init(
         callRecordStore: CallRecordStore,
         callRecordQuerier: CallRecordQuerier,
-        db: DB,
+        db: any DB,
         interactionStore: InteractionStore,
         groupCallPeekClient: GroupCallPeekClient,
-        notificationPresenter: Shims.NotificationPresenter,
+        notificationPresenter: NotificationPresenter,
         threadStore: ThreadStore
     ) {
         self.callRecordStore = callRecordStore
@@ -54,22 +55,8 @@ class GroupCallRecordRingingCleanupManager {
         self.db = db
         self.interactionStore = interactionStore
         self.groupCallPeekClient = groupCallPeekClient
-        self.notificationPresenter = notificationPresenter
+        self.notificationPresenter = Wrappers.NotificationPresenter(notificationPresenter: notificationPresenter)
         self.threadStore = threadStore
-    }
-
-    static func fromGlobals() -> GroupCallRecordRingingCleanupManager {
-        return GroupCallRecordRingingCleanupManager(
-            callRecordStore: DependenciesBridge.shared.callRecordStore,
-            callRecordQuerier: DependenciesBridge.shared.callRecordQuerier,
-            db: DependenciesBridge.shared.db,
-            interactionStore: DependenciesBridge.shared.interactionStore,
-            groupCallPeekClient: SSKEnvironment.shared.groupCallManagerRef.groupCallPeekClient,
-            notificationPresenter: Wrappers.NotificationPresenter(
-                notificationPresenter: SSKEnvironment.shared.notificationPresenterRef
-            ),
-            threadStore: DependenciesBridge.shared.threadStore
-        )
     }
 
     func cleanupRingingCalls(tx: DBWriteTransaction) {
@@ -102,25 +89,28 @@ class GroupCallRecordRingingCleanupManager {
 
         /// A little chunky – group by the group thread row ID, then map those
         /// groupings to load the group thread for each row ID.
-        let callRecordsByGroupThread: [(TSGroupThread, [CallRecord])] = Dictionary(
+        let callRecordsByGroupId: [(GroupIdentifier, [CallRecord])] = Dictionary(
             grouping: callRecordsToPeek,
             by: { $0.conversationId }
-        ).compactMap { (conversationId, callRecords) -> (TSGroupThread, [CallRecord])? in
+        ).compactMap { (conversationId, callRecords) -> (GroupIdentifier, [CallRecord])? in
             switch conversationId {
             case .thread(let threadRowId):
-                guard let groupThread = threadStore.fetchThread(
-                    rowId: threadRowId, tx: tx
-                ) as? TSGroupThread else { return nil }
-                return (groupThread, callRecords)
+                guard
+                    let groupThread = threadStore.fetchThread(rowId: threadRowId, tx: tx) as? TSGroupThread,
+                    let groupId = try? groupThread.groupIdentifier
+                else {
+                    return nil
+                }
+                return (groupId, callRecords)
             case .callLink(_):
                 return nil
             }
         }
 
-        for (groupThread, callRecords) in callRecordsByGroupThread {
+        for (groupId, callRecords) in callRecordsByGroupId {
             Task {
                 try await peekGroupAndNotifyIfNecessary(
-                    groupThread: groupThread,
+                    groupId: groupId,
                     callRecords: callRecords
                 )
             }
@@ -132,34 +122,32 @@ class GroupCallRecordRingingCleanupManager {
     /// matches one of the records for the group (i.e., the call that created
     /// the ringing record is still ongoing), posts a notification.
     private func peekGroupAndNotifyIfNecessary(
-        groupThread: TSGroupThread,
+        groupId: GroupIdentifier,
         callRecords: [CallRecord]
     ) async throws {
-        let peekInfo = try await self.groupCallPeekClient.fetchPeekInfo(
-            groupThread: groupThread
-        )
-
-        let interactionRowIdsMatchingCurrentCall = callRecords.compactMap { callRecord -> Int64? in
-            switch callRecord.interactionReference {
-            case .thread(let threadRowId, let interactionRowId):
-                owsPrecondition(threadRowId == groupThread.sqliteRowId!)
-                guard callRecord.callId == peekInfo.eraId.map({ callIdFromEra($0) }) else {
-                    return nil
-                }
-                return interactionRowId
-            case .none:
-                owsFail("Must pass callRecords for groupThread.")
-            }
-        }
-
-        owsAssertDebug(interactionRowIdsMatchingCurrentCall.count <= 1)
+        let peekInfo = try await self.groupCallPeekClient.fetchPeekInfo(groupId: groupId)
+        let callId = peekInfo.eraId.map({ callIdFromEra($0) })
 
         await self.db.awaitableWrite { tx in
             // Reload the group thread, since it may have changed.
-            guard let groupThread = self.threadStore.fetchGroupThread(
-                uniqueId: groupThread.uniqueId,
-                tx: tx
-            ) else { owsFail("Where did the thread go?") }
+            guard let groupThread = self.threadStore.fetchGroupThread(groupId: groupId, tx: tx) else {
+                owsFail("Where did the thread go?")
+            }
+
+            let interactionRowIdsMatchingCurrentCall = callRecords.compactMap { callRecord -> Int64? in
+                switch callRecord.interactionReference {
+                case .thread(let threadRowId, let interactionRowId):
+                    owsPrecondition(threadRowId == groupThread.sqliteRowId!)
+                    guard callRecord.callId == callId else {
+                        return nil
+                    }
+                    return interactionRowId
+                case .none:
+                    owsFail("Must pass callRecords for groupThread.")
+                }
+            }
+
+            owsAssertDebug(interactionRowIdsMatchingCurrentCall.count <= 1)
 
             for interactionRowId in interactionRowIdsMatchingCurrentCall {
                 let interaction = self.interactionStore.fetchInteraction(rowId: interactionRowId, tx: tx)
@@ -177,9 +165,9 @@ class GroupCallRecordRingingCleanupManager {
     }
 }
 
-// MARK: - Mocks
+// MARK: - Shims
 
-extension GroupCallRecordRingingCleanupManager {
+private extension GroupCallRecordRingingCleanupManager {
     enum Shims {
         typealias NotificationPresenter = GroupCallRecordRingingCleanupManager_NotificationPresenter_Shim
     }
@@ -189,7 +177,7 @@ extension GroupCallRecordRingingCleanupManager {
     }
 }
 
-protocol GroupCallRecordRingingCleanupManager_NotificationPresenter_Shim {
+private protocol GroupCallRecordRingingCleanupManager_NotificationPresenter_Shim {
     func notifyUserGroupCallStarted(
         groupCallInteraction: OWSGroupCallMessage,
         groupThread: TSGroupThread,
@@ -197,7 +185,7 @@ protocol GroupCallRecordRingingCleanupManager_NotificationPresenter_Shim {
     )
 }
 
-class GroupCallRecordRingingCleanupManager_NotificationPresenter_Wrapper: GroupCallRecordRingingCleanupManager_NotificationPresenter_Shim {
+private class GroupCallRecordRingingCleanupManager_NotificationPresenter_Wrapper: GroupCallRecordRingingCleanupManager_NotificationPresenter_Shim {
     private let notificationPresenter: any NotificationPresenter
 
     init(notificationPresenter: any NotificationPresenter) {

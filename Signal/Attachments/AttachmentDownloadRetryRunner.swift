@@ -30,7 +30,7 @@ public class AttachmentDownloadRetryRunner {
     public static let shared = AttachmentDownloadRetryRunner(
         attachmentDownloadManager: DependenciesBridge.shared.attachmentDownloadManager,
         attachmentDownloadStore: DependenciesBridge.shared.attachmentDownloadStore,
-        db: SDSDatabaseStorage.shared
+        db: SSKEnvironment.shared.databaseStorageRef
     )
 
     public func beginObserving() {
@@ -86,7 +86,7 @@ public class AttachmentDownloadRetryRunner {
                 defer { self.isRunning = false }
 
                 let nextTimestamp = db.read { tx in
-                    return try? self.attachmentDownloadStore.nextRetryTimestamp(tx: tx.asV2Read)
+                    return try? self.attachmentDownloadStore.nextRetryTimestamp(tx: tx)
                 }
                 guard let nextTimestamp else {
                     return
@@ -97,7 +97,7 @@ public class AttachmentDownloadRetryRunner {
                 }
 
                 await db.awaitableWrite { tx in
-                    try? self.attachmentDownloadStore.updateRetryableDownloads(tx: tx.asV2Write)
+                    try? self.attachmentDownloadStore.updateRetryableDownloads(tx: tx)
                 }
                 // Kick the tires to start any downloads.
                 attachmentDownloadManager.beginDownloadingIfNecessary()

@@ -18,8 +18,8 @@ extension TSContactThread {
     }
 
     @objc
-    public static func getOrCreateLocalThread(transaction: SDSAnyWriteTransaction) -> TSContactThread? {
-        guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aciAddress else {
+    public static func getOrCreateLocalThread(transaction: DBWriteTransaction) -> TSContactThread? {
+        guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction)?.aciAddress else {
             owsFailDebug("Missing localAddress.")
             return nil
         }
@@ -30,8 +30,8 @@ extension TSContactThread {
     public static func getOrCreateLocalThreadWithSneakyTransaction() -> TSContactThread? {
         assert(!Thread.isMainThread)
 
-        let thread: TSContactThread? = databaseStorage.read { tx in
-            guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aciAddress else {
+        let thread: TSContactThread? = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx)?.aciAddress else {
                 owsFailDebug("Missing localAddress.")
                 return nil
             }
@@ -41,7 +41,7 @@ extension TSContactThread {
             return thread
         }
 
-        return databaseStorage.write { transaction in
+        return SSKEnvironment.shared.databaseStorageRef.write { transaction in
             return getOrCreateLocalThread(transaction: transaction)
         }
     }

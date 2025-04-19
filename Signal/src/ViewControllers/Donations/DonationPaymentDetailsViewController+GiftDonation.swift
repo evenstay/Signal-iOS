@@ -20,9 +20,9 @@ extension DonationPaymentDetailsViewController {
         DonationViewsUtil.wrapPromiseInProgressView(
             from: self,
             promise: firstly(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Void> in
-                try self.databaseStorage.read { transaction in
+                try SSKEnvironment.shared.databaseStorageRef.read { transaction in
                     try DonationViewsUtil.Gifts.throwIfAlreadySendingGift(
-                        to: thread,
+                        threadId: thread.uniqueId,
                         transaction: transaction
                     )
                 }
@@ -60,8 +60,8 @@ extension DonationPaymentDetailsViewController {
                     preparedPayment: preparedPayment,
                     thread: thread,
                     messageText: messageText,
-                    databaseStorage: self.databaseStorage,
-                    blockingManager: self.blockingManager
+                    databaseStorage: SSKEnvironment.shared.databaseStorageRef,
+                    blockingManager: SSKEnvironment.shared.blockingManagerRef
                 )
             }
         ).done(on: DispatchQueue.main) { [weak self] in

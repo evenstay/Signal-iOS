@@ -8,9 +8,10 @@ import SignalServiceKit
 import SignalUI
 public import UIKit
 
-struct ConversationHeaderBuilder: Dependencies {
+@MainActor
+struct ConversationHeaderBuilder {
     weak var delegate: ConversationHeaderDelegate!
-    let transaction: SDSAnyReadTransaction
+    let transaction: DBReadTransaction
     let sizeClass: ConversationAvatarView.Configuration.SizeClass
     let options: Options
 
@@ -63,7 +64,7 @@ struct ConversationHeaderBuilder: Dependencies {
         // Make sure the view is loaded before we open a transaction,
         // because it can end up creating a transaction within.
         _ = delegate.view
-        return databaseStorage.read { transaction in
+        return SSKEnvironment.shared.databaseStorageRef.read { transaction in
             self.buildHeaderForGroup(
                 groupThread: groupThread,
                 sizeClass: sizeClass,
@@ -79,7 +80,7 @@ struct ConversationHeaderBuilder: Dependencies {
         sizeClass: ConversationAvatarView.Configuration.SizeClass,
         options: Options,
         delegate: ConversationHeaderDelegate,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> UIView {
         var builder = ConversationHeaderBuilder(
             delegate: delegate,
@@ -130,7 +131,7 @@ struct ConversationHeaderBuilder: Dependencies {
         // Make sure the view is loaded before we open a transaction,
         // because it can end up creating a transaction within.
         _ = delegate.view
-        return databaseStorage.read { transaction in
+        return SSKEnvironment.shared.databaseStorageRef.read { transaction in
             self.buildHeaderForContact(
                 contactThread: contactThread,
                 sizeClass: sizeClass,
@@ -146,7 +147,7 @@ struct ConversationHeaderBuilder: Dependencies {
         sizeClass: ConversationAvatarView.Configuration.SizeClass,
         options: Options,
         delegate: ConversationHeaderDelegate,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> UIView {
         var builder = ConversationHeaderBuilder(
             delegate: delegate,
@@ -155,11 +156,8 @@ struct ConversationHeaderBuilder: Dependencies {
             transaction: transaction
         )
 
-        if !contactThread.contactAddress.isLocalAddress,
-           let bioText = profileManagerImpl.profileBioForDisplay(
-            for: contactThread.contactAddress,
-            transaction: transaction
-           ) {
+        let address = contactThread.contactAddress
+        if !address.isLocalAddress, let bioText = SSKEnvironment.shared.profileManagerRef.userProfile(for: address, tx: transaction)?.bioForDisplay {
             let label = builder.addSubtitleLabel(text: bioText)
             label.numberOfLines = 0
             label.lineBreakMode = .byWordWrapping
@@ -169,10 +167,10 @@ struct ConversationHeaderBuilder: Dependencies {
         let recipientAddress = contactThread.contactAddress
 
         let identityManager = DependenciesBridge.shared.identityManager
-        let isVerified = identityManager.verificationState(for: recipientAddress, tx: transaction.asV2Read) == .verified
+        let isVerified = identityManager.verificationState(for: recipientAddress, tx: transaction) == .verified
         if isVerified {
             let subtitle = NSMutableAttributedString()
-            subtitle.appendTemplatedImage(named: "check-extra-small", font: .dynamicTypeSubheadlineClamped)
+            subtitle.append(SignalSymbol.safetyNumber.attributedString(for: .subheadline, clamped: true))
             subtitle.append(" ")
             subtitle.append(SafetyNumberStrings.verified)
             builder.addSubtitleLabel(attributedText: subtitle)
@@ -186,7 +184,7 @@ struct ConversationHeaderBuilder: Dependencies {
     init(delegate: ConversationHeaderDelegate,
          sizeClass: ConversationAvatarView.Configuration.SizeClass,
          options: Options,
-         transaction: SDSAnyReadTransaction) {
+         transaction: DBReadTransaction) {
 
         self.delegate = delegate
         self.sizeClass = sizeClass
@@ -196,7 +194,7 @@ struct ConversationHeaderBuilder: Dependencies {
         addFirstSubviews(transaction: transaction)
     }
 
-    mutating func addFirstSubviews(transaction: SDSAnyReadTransaction) {
+    mutating func addFirstSubviews(transaction: DBReadTransaction) {
         let avatarView = buildAvatarView(transaction: transaction)
 
         let avatarWrapper = UIView.container()
@@ -220,7 +218,11 @@ struct ConversationHeaderBuilder: Dependencies {
                     ),
                 action: { [weak delegate] in
                     guard let delegate = delegate else { return }
-                    SignalApp.shared.presentConversationForThread(delegate.thread, action: .compose, animated: true)
+                    SignalApp.shared.presentConversationForThread(
+                        threadUniqueId: delegate.thread.uniqueId,
+                        action: .compose,
+                        animated: true
+                    )
                 }
             ))
         }
@@ -233,7 +235,7 @@ struct ConversationHeaderBuilder: Dependencies {
                 switch currentCall?.mode {
                 case nil: return false
                 case .individual(let call): return call.thread.uniqueId == delegate.thread.uniqueId
-                case .groupThread(let call): return call.groupThread.uniqueId == delegate.thread.uniqueId
+                case .groupThread(let call): return call.groupId.serialize().asData == (delegate.thread as? TSGroupThread)?.groupId
                 case .callLink: return false
                 }
             }()
@@ -385,7 +387,7 @@ struct ConversationHeaderBuilder: Dependencies {
         hasSubtitleLabel = true
     }
 
-    func buildAvatarView(transaction: SDSAnyReadTransaction) -> UIView {
+    func buildAvatarView(transaction: DBReadTransaction) -> UIView {
         let avatarView = ConversationAvatarView(
             sizeClass: sizeClass,
             localUserDisplayMode: options.contains(.renderLocalUserAsNoteToSelf) ? .noteToSelf : .asUser)
@@ -426,7 +428,7 @@ struct ConversationHeaderBuilder: Dependencies {
         isNoteToSelf: Bool,
         isSystemContact: Bool,
         canTap: Bool,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> NSAttributedString {
         let font = UIFont.dynamicTypeFont(ofStandardSize: 26, weight: .semibold)
 
@@ -457,11 +459,11 @@ struct ConversationHeaderBuilder: Dependencies {
         }
 
         if canTap {
-            let chevron = SignalSymbol.chevronTrailing.attributedString(
+            let chevron = SignalSymbol.chevronTrailing(for: threadName).attributedString(
                 dynamicTypeBaseSize: 24,
                 weight: .bold,
                 leadingCharacter: .nonBreakingSpace,
-                attributes: [.foregroundColor: Theme.snippetColor]
+                attributes: [.foregroundColor: UIColor.Signal.secondaryLabel]
             )
             attributedString.append(chevron)
         }
@@ -525,13 +527,14 @@ struct ConversationHeaderBuilder: Dependencies {
 
 // MARK: -
 
-protocol ConversationHeaderDelegate: UIViewController, Dependencies, ConversationAvatarViewDelegate {
+@MainActor
+protocol ConversationHeaderDelegate: UIViewController, ConversationAvatarViewDelegate {
     var tableViewController: OWSTableViewController2 { get }
 
     var thread: TSThread { get }
     var threadViewModel: ThreadViewModel { get }
 
-    func threadName(renderLocalUserAsNoteToSelf: Bool, transaction: SDSAnyReadTransaction) -> String
+    func threadName(renderLocalUserAsNoteToSelf: Bool, transaction: DBReadTransaction) -> String
 
     var avatarView: ConversationAvatarView? { get set }
 
@@ -556,17 +559,17 @@ protocol ConversationHeaderDelegate: UIViewController, Dependencies, Conversatio
 // MARK: -
 
 extension ConversationHeaderDelegate {
-    func threadName(renderLocalUserAsNoteToSelf: Bool, transaction: SDSAnyReadTransaction) -> String {
+    func threadName(renderLocalUserAsNoteToSelf: Bool, transaction: DBReadTransaction) -> String {
         var threadName: String
         if thread.isNoteToSelf, !renderLocalUserAsNoteToSelf {
-            threadName = profileManager.localFullName ?? ""
+            let profileManager = SSKEnvironment.shared.profileManagerRef
+            threadName = profileManager.localUserProfile(tx: transaction)?.filteredFullName ?? ""
         } else {
-            threadName = contactsManager.displayName(for: thread, transaction: transaction)
+            threadName = SSKEnvironment.shared.contactManagerRef.displayName(for: thread, transaction: transaction)
         }
 
         if let contactThread = thread as? TSContactThread {
-            if let phoneNumber = contactThread.contactAddress.phoneNumber,
-               phoneNumber == threadName {
+            if let phoneNumber = contactThread.contactAddress.phoneNumber, phoneNumber == threadName {
                 threadName = PhoneNumber.bestEffortFormatPartialUserSpecifiedTextToLookLikeAPhoneNumber(phoneNumber)
             }
         }
@@ -574,12 +577,12 @@ extension ConversationHeaderDelegate {
         return threadName
     }
 
-    func threadAttributedString(renderLocalUserAsNoteToSelf: Bool, tx: SDSAnyReadTransaction) -> NSAttributedString {
+    func threadAttributedString(renderLocalUserAsNoteToSelf: Bool, tx: DBReadTransaction) -> NSAttributedString {
         let threadName = threadName(renderLocalUserAsNoteToSelf: renderLocalUserAsNoteToSelf, transaction: tx)
 
         let isSystemContact =
         if let contactThread = self.thread as? TSContactThread {
-            contactsManager.fetchSignalAccount(
+            SSKEnvironment.shared.contactManagerRef.fetchSignalAccount(
                 for: contactThread.contactAddress,
                 transaction: tx
             ) != nil
@@ -602,13 +605,22 @@ extension ConversationHeaderDelegate {
             return
         }
         let callTarget: CallTarget
-        switch thread {
-        case let contactThread as TSContactThread:
+        if let contactThread = thread as? TSContactThread {
             callTarget = .individual(contactThread)
-        case let groupThread as TSGroupThread where withVideo:
-            callTarget = .groupThread(groupThread)
-        default:
-            owsFailDebug("Tried to start an audio only group call")
+        } else if let groupThread = thread as? TSGroupThread {
+            if withVideo {
+                if let groupId = try? groupThread.groupIdentifier {
+                    callTarget = .groupThread(groupId)
+                } else {
+                    owsFailDebug("Tried to start a group call with an invalid groupId")
+                    return
+                }
+            } else {
+                owsFailDebug("Tried to start an audio only group call")
+                return
+            }
+        } else {
+            owsFailDebug("Tried to start an invalid call")
             return
         }
 
@@ -622,7 +634,7 @@ extension ConversationHeaderDelegate {
         let callService = AppEnvironment.shared.callService!
         if let currentCall = callService.callServiceState.currentCall {
             if currentCall.mode.matches(callTarget) {
-                WindowManager.shared.returnToCallView()
+                AppEnvironment.shared.windowManagerRef.returnToCallView()
             } else {
                 owsFailDebug("Tried to start call while call was ongoing")
             }

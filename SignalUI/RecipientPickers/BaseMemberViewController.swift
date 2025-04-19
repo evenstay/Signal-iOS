@@ -20,11 +20,7 @@ public protocol MemberViewDelegate: AnyObject {
 
     func memberViewRemoveRecipient(_ recipient: PickedRecipient)
 
-    func memberViewAddRecipient(_ recipient: PickedRecipient)
-
-    func memberViewCanAddRecipient(_ recipient: PickedRecipient) -> Bool
-
-    func memberViewPrepareToSelectRecipient(_ recipient: PickedRecipient) -> Promise<Void>
+    func memberViewAddRecipient(_ recipient: PickedRecipient) -> Bool
 
     func memberViewShouldShowMemberCount() -> Bool
 
@@ -33,7 +29,7 @@ public protocol MemberViewDelegate: AnyObject {
     func memberViewMemberCountForDisplay() -> Int
 
     func memberViewIsPreExistingMember(_ recipient: PickedRecipient,
-                                       transaction: SDSAnyReadTransaction) -> Bool
+                                       transaction: DBReadTransaction) -> Bool
 
     func memberViewCustomIconNameForPickedMember(_ recipient: PickedRecipient) -> String?
 
@@ -160,9 +156,7 @@ open class BaseMemberViewController: RecipientPickerContainerViewController {
             return
         }
 
-        guard memberViewDelegate.memberViewCanAddRecipient(recipient) else { return }
-
-        memberViewDelegate.memberViewAddRecipient(recipient)
+        guard memberViewDelegate.memberViewAddRecipient(recipient) else { return }
         recipientPicker.pickedRecipients = recipientSet.orderedMembers
         recipientPicker.clearSearchText()
         updateMemberBar()
@@ -172,14 +166,14 @@ open class BaseMemberViewController: RecipientPickerContainerViewController {
     }
 
     private func updateMemberBar() {
-        memberBar.setMembers(databaseStorage.read { tx in
+        memberBar.setMembers(SSKEnvironment.shared.databaseStorageRef.read { tx in
             let members = self.recipientSet.orderedMembers.compactMap { (pickedRecipient) -> (PickedRecipient, SignalServiceAddress)? in
                 guard let address = pickedRecipient.address else {
                     return nil
                 }
                 return (pickedRecipient, address)
             }
-            let displayNames = contactsManager.displayNames(for: members.map { (_, address) in address }, tx: tx)
+            let displayNames = SSKEnvironment.shared.contactManagerRef.displayNames(for: members.map { (_, address) in address }, tx: tx)
             return zip(members, displayNames).map { (member, displayName) in
                 return NewMember(
                     recipient: member.0,
@@ -192,9 +186,9 @@ open class BaseMemberViewController: RecipientPickerContainerViewController {
 
     public class func sortedMemberAddresses(
         recipientSet: OrderedSet<PickedRecipient>,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> [SignalServiceAddress] {
-        return contactsManager.sortSignalServiceAddresses(
+        return SSKEnvironment.shared.contactManagerRef.sortSignalServiceAddresses(
             recipientSet.orderedMembers.compactMap { $0.address },
             transaction: tx
         )
@@ -260,21 +254,17 @@ extension BaseMemberViewController: RecipientPickerDelegate {
 
     public func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
-        getRecipientState recipient: PickedRecipient
-    ) -> RecipientPickerRecipientState {
+        selectionStyleForRecipient recipient: PickedRecipient,
+        transaction: DBReadTransaction
+    ) -> UITableViewCell.SelectionStyle {
         guard let memberViewDelegate = memberViewDelegate else {
             owsFailDebug("Missing memberViewDelegate.")
-            return .unknownError
+            return .default
         }
-        return Self.databaseStorage.read { transaction -> RecipientPickerRecipientState in
-            if memberViewDelegate.memberViewIsPreExistingMember(
-                recipient,
-                transaction: transaction
-            ) {
-                return .duplicateGroupMember
-            }
-            return .canBeSelected
+        guard memberViewDelegate.memberViewIsPreExistingMember(recipient, transaction: transaction) else {
+            return .default
         }
+        return .none
     }
 
     public func recipientPicker(
@@ -294,16 +284,20 @@ extension BaseMemberViewController: RecipientPickerDelegate {
             return
         }
 
-        let (isPreExistingMember, isBlocked) = databaseStorage.read { tx -> (Bool, Bool) in
+        let (isPreExistingMember, isBlocked) = SSKEnvironment.shared.databaseStorageRef.read { tx -> (Bool, Bool) in
             let isPreexisting = memberViewDelegate.memberViewIsPreExistingMember(
                 recipient,
                 transaction: tx)
-            let isBlocked = blockingManager.isAddressBlocked(address, transaction: tx)
+            let isBlocked = SSKEnvironment.shared.blockingManagerRef.isAddressBlocked(address, transaction: tx)
             return (isPreexisting, isBlocked)
         }
 
         guard !isPreExistingMember else {
-            owsFailDebug("Can't re-add pre-existing member.")
+            let errorMessage = OWSLocalizedString(
+                "GROUPS_ERROR_MEMBER_ALREADY_IN_GROUP",
+                comment: "Error message indicating that a member can't be added to a group because they are already in the group."
+            )
+            OWSActionSheets.showErrorAlert(message: errorMessage)
             return
         }
         guard let navigationController = navigationController else {
@@ -362,21 +356,8 @@ extension BaseMemberViewController: RecipientPickerDelegate {
 
     public func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
-        prepareToSelectRecipient recipient: PickedRecipient
-    ) -> Promise<Void> {
-
-        guard let memberViewDelegate = memberViewDelegate else {
-            owsFailDebug("Missing delegate.")
-            return Promise.value(())
-        }
-
-        return memberViewDelegate.memberViewPrepareToSelectRecipient(recipient)
-    }
-
-    public func recipientPicker(
-        _ recipientPickerViewController: RecipientPickerViewController,
         accessoryViewForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> ContactCellAccessoryView? {
         guard let address = recipient.address else {
             owsFailDebug("Missing address.")
@@ -412,7 +393,7 @@ extension BaseMemberViewController: RecipientPickerDelegate {
     public func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         attributedSubtitleForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> NSAttributedString? {
         guard let address = recipient.address else {
             owsFailDebug("Recipient missing address.")
@@ -421,8 +402,7 @@ extension BaseMemberViewController: RecipientPickerDelegate {
         guard !address.isLocalAddress else {
             return nil
         }
-        guard let bioForDisplay = Self.profileManagerImpl.profileBioForDisplay(for: address,
-                                                                               transaction: transaction) else {
+        guard let bioForDisplay = SSKEnvironment.shared.profileManagerRef.userProfile(for: address, tx: transaction)?.bioForDisplay else {
             return nil
         }
         return NSAttributedString(string: bioForDisplay)

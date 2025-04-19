@@ -9,14 +9,8 @@ public import LibSignalClient
 @objc
 public class ViewOnceMessages: NSObject {
 
-    public init(appReadiness: AppReadiness) {
+    private override init() {
         super.init()
-
-        if CurrentAppContext().isMainApp {
-            appReadiness.runNowOrWhenAppDidBecomeReadySync {
-                Self.appDidBecomeReady()
-            }
-        }
     }
 
     // MARK: - Events
@@ -25,38 +19,43 @@ public class ViewOnceMessages: NSObject {
         return NSDate.ows_millisecondTimeStamp()
     }
 
-    private class func appDidBecomeReady() {
-        AssertIsOnMainThread()
-
-        DispatchQueue.global().async {
-            self.checkForAutoCompletion()
-        }
-    }
-
     // "Check for auto-completion", e.g. complete messages whether or
     // not they have been read after N days.  Also complete outgoing
     // sent messages. We need to repeat this check periodically while
     // the app is running.
-    private class func checkForAutoCompletion() {
+    public static func startExpiringWhenNecessary() {
         // Find all view-once messages which are not yet complete.
         // Complete messages if necessary.
-        databaseStorage.write { (transaction) in
-            let messages = ViewOnceMessageFinder()
-                .allMessagesWithViewOnceMessage(transaction: transaction)
-            for message in messages {
-                completeIfNecessary(message: message, transaction: transaction)
-            }
-        }
+        Task {
+            while true {
+                let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+                while true {
+                    var afterRowId: Int64?
+                    await databaseStorage.awaitableWrite { tx in
+                        let messages: [TSMessage]
+                        (messages, afterRowId) = ViewOnceMessageFinder().fetchSomeIncompleteViewOnceMessages(after: afterRowId, limit: 100, tx: tx)
+                        if !messages.isEmpty {
+                            Logger.info("Checking \(messages.count) view once message(s) for auto-expiration.")
+                        }
+                        for message in messages {
+                            completeIfNecessary(message: message, transaction: tx)
+                        }
+                    }
+                    if afterRowId == nil {
+                        break
+                    }
+                }
 
-        // We need to "check for auto-completion" once per day.
-        DispatchQueue.global().asyncAfter(wallDeadline: .now() + kDayInterval) {
-            self.checkForAutoCompletion()
+                // We need to "check for auto-completion" once per day.
+                try await Task.sleep(nanoseconds: TimeInterval.day.clampedNanoseconds)
+                Logger.info("Checking for auto-expired view once messages again because it's been a day.")
+            }
         }
     }
 
     @objc
     public class func completeIfNecessary(message: TSMessage,
-                                          transaction: SDSAnyWriteTransaction) {
+                                          transaction: DBWriteTransaction) {
 
         guard message.isViewOnceMessage,
             !message.isViewOnceComplete else {
@@ -97,16 +96,16 @@ public class ViewOnceMessages: NSObject {
         return true
     }
 
-    // We auto-complete messages after 30 days, even if the user hasn't seen them.
+    // We auto-complete messages after N days, even if the user hasn't seen them.
     private class func shouldMessageAutoComplete(_ message: TSMessage) -> Bool {
-        let autoCompleteDeadlineMs = min(message.timestamp, message.receivedAtTimestamp) + 30 * kDayInMs
+        let autoCompleteDeadlineMs = min(message.timestamp, message.receivedAtTimestamp) + RemoteConfig.current.messageQueueTimeMs
         return nowMs() >= autoCompleteDeadlineMs
     }
 
     @objc
     public class func markAsComplete(message: TSMessage,
                                      sendSyncMessages: Bool,
-                                     transaction: SDSAnyWriteTransaction) {
+                                     transaction: DBWriteTransaction) {
         guard message.isViewOnceMessage else {
             owsFailDebug("Not a view-once message.")
             return
@@ -124,10 +123,8 @@ public class ViewOnceMessages: NSObject {
 
     // MARK: - Sync Messages
 
-    private class func sendSyncMessage(forMessage message: TSMessage,
-                                       transaction: SDSAnyWriteTransaction) {
-        guard let senderAddress = senderAddress(forMessage: message) else {
-            owsFailDebug("Could not send sync message; no local number.")
+    private class func sendSyncMessage(forMessage message: TSMessage, transaction: DBWriteTransaction) {
+        guard let senderAci = senderAci(forMessage: message, tx: transaction) else {
             return
         }
         guard let thread = TSContactThread.getOrCreateLocalThread(transaction: transaction) else {
@@ -137,8 +134,8 @@ public class ViewOnceMessages: NSObject {
         let readTimestamp: UInt64 = nowMs()
 
         let syncMessage = OWSViewOnceMessageReadSyncMessage(
-            thread: thread,
-            senderAddress: senderAddress,
+            localThread: thread,
+            senderAci: AciObjC(senderAci),
             message: message,
             readTimestamp: readTimestamp,
             transaction: transaction
@@ -172,7 +169,7 @@ public class ViewOnceMessages: NSObject {
     public class func processIncomingSyncMessage(
         _ message: SSKProtoSyncMessageViewOnceOpen,
         envelope: SSKProtoEnvelope,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> ViewOnceSyncMessageProcessingResult {
         guard let messageSender = Aci.parseFrom(aciString: message.senderAci) else {
             owsFailDebug("Invalid messageSender.")
@@ -184,44 +181,38 @@ public class ViewOnceMessages: NSObject {
             return .invalidSyncMessage
         }
 
-        let filter = { (interaction: TSInteraction) -> Bool in
-            guard interaction.timestamp == messageIdTimestamp else {
-                owsFailDebug("Timestamps don't match: \(interaction.timestamp) != \(messageIdTimestamp)")
-                return false
-            }
+        let filter = { (interaction: TSInteraction) -> TSMessage? in
             guard let message = interaction as? TSMessage else {
-                return false
+                return nil
             }
-            guard let senderAddress = senderAddress(forMessage: message) else {
-                owsFailDebug("Could not process sync message; no local number.")
-                return false
+            guard let senderAci = senderAci(forMessage: message, tx: transaction) else {
+                return nil
             }
-            guard senderAddress.serviceId == messageSender else {
-                return false
+            guard senderAci == messageSender else {
+                return nil
             }
             guard message.isViewOnceMessage else {
-                return false
+                return nil
             }
-            return true
+            return message
         }
-        let interactions: [TSInteraction]
+        let messages: [TSMessage]
         do {
-            interactions = try InteractionFinder.interactions(withTimestamp: messageIdTimestamp, filter: filter, transaction: transaction)
+            messages = try InteractionFinder.fetchInteractions(
+                timestamp: messageIdTimestamp,
+                transaction: transaction
+            ).compactMap(filter)
         } catch {
             owsFailDebug("Couldn't find interactions: \(error)")
             return .invalidSyncMessage
         }
-        guard interactions.count > 0 else {
+        guard messages.count > 0 else {
             return .associatedMessageMissing(senderAci: messageSender, associatedMessageTimestamp: messageIdTimestamp)
         }
-        if interactions.count > 1 {
+        if messages.count > 1 {
             owsFailDebug("More than one message from the same sender with the same timestamp found.")
         }
-        for interaction in interactions {
-            guard let message = interaction as? TSMessage else {
-                owsFailDebug("Invalid interaction: \(type(of: interaction))")
-                continue
-            }
+        for message in messages {
             // Mark as complete.
             markAsComplete(message: message,
                            sendSyncMessages: false,
@@ -230,18 +221,18 @@ public class ViewOnceMessages: NSObject {
         return .success
     }
 
-    private class func senderAddress(forMessage message: TSMessage) -> SignalServiceAddress? {
-
+    private static func senderAci(forMessage message: TSMessage, tx: DBReadTransaction) -> Aci? {
         if let incomingMessage = message as? TSIncomingMessage {
-            return incomingMessage.authorAddress
+            return incomingMessage.authorAddress.aci
         } else if message is TSOutgoingMessage {
-            guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress else {
+            let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+            guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) else {
                 owsFailDebug("Could not process sync message; no local number.")
                 return nil
             }
             // We also need to send and receive "per-message expiration read" sync
             // messages for outgoing messages, unlike normal read receipts.
-            return localAddress
+            return localIdentifiers.aci
         } else {
             owsFailDebug("Unexpected message type.")
             return nil
@@ -252,47 +243,48 @@ public class ViewOnceMessages: NSObject {
 // MARK: -
 
 private class ViewOnceMessageFinder {
-    public func allMessagesWithViewOnceMessage(transaction: SDSAnyReadTransaction) -> [TSMessage] {
-        var result: [TSMessage] = []
-        self.enumerateAllIncompleteViewOnceMessages(transaction: transaction) { message in
-            result.append(message)
+    func fetchSomeIncompleteViewOnceMessages(after rowId: Int64?, limit: Int, tx: DBReadTransaction) -> ([TSMessage], mightHaveMoreAfter: Int64?) {
+        var results: [TSMessage] = []
+
+        let cursor: TSInteractionCursor
+        if let rowId {
+            cursor = TSInteraction.grdbFetchCursor(
+                sql: """
+                SELECT *
+                FROM \(InteractionRecord.databaseTableName)
+                \(DEBUG_INDEXED_BY("Interaction_incompleteViewOnce_partial", or: "index_interactions_on_view_once"))
+                WHERE \(interactionColumn: .isViewOnceMessage) = 1
+                AND \(interactionColumn: .isViewOnceComplete) = 0
+                AND \(interactionColumn: .id) > ?
+                ORDER BY \(interactionColumn: .id)
+                """,
+                arguments: [rowId],
+                transaction: tx
+            )
+        } else {
+            cursor = TSInteraction.grdbFetchCursor(
+                sql: """
+                SELECT *
+                FROM \(InteractionRecord.databaseTableName)
+                \(DEBUG_INDEXED_BY("Interaction_incompleteViewOnce_partial", or: "index_interactions_on_view_once"))
+                WHERE \(interactionColumn: .isViewOnceMessage) = 1
+                AND \(interactionColumn: .isViewOnceComplete) = 0
+                ORDER BY \(interactionColumn: .id)
+                """,
+                transaction: tx
+            )
         }
-        return result
-    }
 
-    private func enumerateAllIncompleteViewOnceMessages(
-        transaction: SDSAnyReadTransaction,
-        block: (TSMessage) -> Void
-    ) {
-        let sql = """
-            SELECT *
-            FROM \(InteractionRecord.databaseTableName)
-            WHERE \(interactionColumn: .isViewOnceMessage) IS NOT NULL
-            AND \(interactionColumn: .isViewOnceMessage) == TRUE
-            AND \(interactionColumn: .isViewOnceComplete) IS NOT NULL
-            AND \(interactionColumn: .isViewOnceComplete) == FALSE
-        """
-        let cursor = TSInteraction.grdbFetchCursor(
-            sql: sql,
-            transaction: transaction.unwrapGrdbRead
-        )
-
-        // GRDB TODO make cursor.next fail hard to remove this `try!`
         while let next = try! cursor.next() {
             guard let message = next as? TSMessage else {
                 owsFailDebug("expecting message but found: \(next)")
-                return
+                continue
             }
-
-            guard
-                message.isViewOnceMessage,
-                !message.isViewOnceComplete
-            else {
-                owsFailDebug("expecting incomplete view-once message but found: \(message)")
-                return
+            results.append(message)
+            if results.count >= limit {
+                return (results, mightHaveMoreAfter: message.sqliteRowId!)
             }
-
-            block(message)
         }
+        return (results, mightHaveMoreAfter: nil)
     }
 }

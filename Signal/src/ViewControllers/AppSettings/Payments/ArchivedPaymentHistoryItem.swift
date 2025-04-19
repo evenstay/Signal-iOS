@@ -5,6 +5,7 @@
 
 import Foundation
 public import SignalServiceKit
+import SignalUI
 
 public struct ArchivedPaymentHistoryItem: PaymentsHistoryItem {
 
@@ -59,7 +60,7 @@ public struct ArchivedPaymentHistoryItem: PaymentsHistoryItem {
     }
 
     public var paymentAmount: TSPaymentAmount? {
-        return NSObject.paymentsImpl.unmaskReceiptAmount(
+        return SUIEnvironment.shared.paymentsImplRef.unmaskReceiptAmount(
             data: archivedPayment.receipt
         )?.tsPaymentAmount
     }
@@ -126,11 +127,11 @@ public struct ArchivedPaymentHistoryItem: PaymentsHistoryItem {
     }
 
     /// Read status is only tracked on TSPaymentModels, so there's not really anything to do here.
-    public func markAsRead(tx: SignalServiceKit.SDSAnyWriteTransaction) { }
+    public func markAsRead(tx: SignalServiceKit.DBWriteTransaction) { }
 
     /// Reload is used on payment details to track updates to the TSPaymentModel.
     /// Since ArchivedPayments aren't updated, reloading here isn't necessary.
-    public func reload(tx: SignalServiceKit.SDSAnyReadTransaction) -> Self? {
+    public func reload(tx: SignalServiceKit.DBReadTransaction) -> Self? {
         return self
     }
 }

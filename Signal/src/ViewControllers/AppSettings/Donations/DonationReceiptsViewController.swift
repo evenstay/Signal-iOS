@@ -29,7 +29,7 @@ class DonationReceiptsViewController: OWSTableViewController2 {
         title = OWSLocalizedString("DONATION_RECEIPTS", comment: "Title of view where you can see all of your donation receipts, or button to take you there")
         defaultSeparatorInsetLeading = Self.cellHInnerMargin + 24 + OWSTableItem.iconSpacing
 
-        donationReceipts = Self.databaseStorage.read { DonationReceiptFinder.fetchAllInReverseDateOrder(transaction: $0) }
+        donationReceipts = SSKEnvironment.shared.databaseStorageRef.read { DonationReceiptFinder.fetchAllInReverseDateOrder(transaction: $0) }
 
         updateTableContents()
     }
@@ -60,7 +60,7 @@ class DonationReceiptsViewController: OWSTableViewController2 {
 
             let profileBadgeImage = profileBadgeLookup.getImage(donationReceipt: donationReceipt, preferDarkTheme: Theme.isDarkThemeEnabled)
             let formattedDate = dateFormatter.string(from: donationReceipt.timestamp)
-            let formattedAmount = DonationUtilities.format(money: donationReceipt.amount)
+            let formattedAmount = CurrencyFormatter.format(money: donationReceipt.amount)
 
             let tableItem = OWSTableItem(
                 customCellBlock: { [weak self] in

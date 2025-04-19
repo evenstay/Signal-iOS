@@ -64,7 +64,7 @@ public class QuotedMessageView: ManualStackViewWithLayer {
         displayableQuotedText: DisplayableText?,
         conversationStyle: ConversationStyle,
         isOutgoing: Bool,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> State {
         return State(
             quotedReplyModel: quotedReplyModel,
@@ -72,7 +72,7 @@ public class QuotedMessageView: ManualStackViewWithLayer {
             conversationStyle: conversationStyle,
             isOutgoing: isOutgoing,
             isForPreview: false,
-            quotedAuthorName: contactsManager.displayName(
+            quotedAuthorName: SSKEnvironment.shared.contactManagerRef.displayName(
                 for: quotedReplyModel.originalMessageAuthorAddress,
                 tx: transaction
             ).resolvedValue()
@@ -82,7 +82,7 @@ public class QuotedMessageView: ManualStackViewWithLayer {
     static func stateForPreview(
         quotedReplyModel: QuotedReplyModel,
         conversationStyle: ConversationStyle,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> State {
         var displayableQuotedText: DisplayableText?
         if let body = quotedReplyModel.originalMessageBody, !body.text.isEmpty {
@@ -98,7 +98,7 @@ public class QuotedMessageView: ManualStackViewWithLayer {
             conversationStyle: conversationStyle,
             isOutgoing: true,
             isForPreview: true,
-            quotedAuthorName: contactsManager.displayName(
+            quotedAuthorName: SSKEnvironment.shared.contactManagerRef.displayName(
                 for: quotedReplyModel.originalMessageAuthorAddress,
                 tx: transaction
             ).resolvedValue()
@@ -210,7 +210,7 @@ public class QuotedMessageView: ManualStackViewWithLayer {
         }
 
         var isAudioAttachment: Bool {
-            switch quotedReplyModel.originalContent.attachmentCachedContentType {
+            switch quotedReplyModel.originalContent.attachmentContentType {
             case .file, .invalid, .image, .video, .animatedImage:
                 return false
             case .audio:
@@ -225,7 +225,7 @@ public class QuotedMessageView: ManualStackViewWithLayer {
         }
 
         var isVideoAttachment: Bool {
-            switch quotedReplyModel.originalContent.attachmentCachedContentType {
+            switch quotedReplyModel.originalContent.attachmentContentType {
             case .file, .invalid, .image, .audio, .animatedImage:
                 return false
             case .video:
@@ -592,7 +592,7 @@ public class QuotedMessageView: ManualStackViewWithLayer {
                         wrapper.addSubviewToCenterOnSuperviewWithDesiredSize(contentImageView)
                     }
                     return wrapper
-                } else if attachment.attachment.asResourceStream() == nil, attachment.attachment.asTransitTierPointer() != nil {
+                } else if attachment.attachment.asStream() == nil, attachment.attachment.asAnyPointer() != nil {
                     let wrapper = ManualLayoutViewWithLayer(name: "thumbnailDownloadFailedWrapper")
                     wrapper.backgroundColor = configurator.highlightColor
 

@@ -154,8 +154,8 @@ extension StickerPack: SDSModel {
         }
     }
 
-    public func asRecord() throws -> SDSRecord {
-        try serializer.asRecord()
+    public func asRecord() -> SDSRecord {
+        serializer.asRecord()
     }
 
     public var sdsTableName: String {
@@ -172,28 +172,22 @@ extension StickerPack: SDSModel {
 extension StickerPack: DeepCopyable {
 
     public func deepCopy() throws -> AnyObject {
-        // Any subclass can be cast to it's superclass,
-        // so the order of this switch statement matters.
-        // We need to do a "depth first" search by type.
         guard let id = self.grdbId?.int64Value else {
             throw OWSAssertionError("Model missing grdbId.")
         }
+
+        // Any subclass can be cast to its superclass, so the order of these if
+        // statements matters. We need to do a "depth first" search by type.
 
         do {
             let modelToCopy = self
             assert(type(of: modelToCopy) == StickerPack.self)
             let uniqueId: String = modelToCopy.uniqueId
             let author: String? = modelToCopy.author
-            // NOTE: If this generates build errors, you made need to
-            // implement DeepCopyable for this type in DeepCopy.swift.
             let cover: StickerPackItem = try DeepCopies.deepCopy(modelToCopy.cover)
             let dateCreated: Date = modelToCopy.dateCreated
-            // NOTE: If this generates build errors, you made need to
-            // implement DeepCopyable for this type in DeepCopy.swift.
             let info: StickerPackInfo = try DeepCopies.deepCopy(modelToCopy.info)
             let isInstalled: Bool = modelToCopy.isInstalled
-            // NOTE: If this generates build errors, you made need to
-            // implement DeepCopyable for this type in DeepCopy.swift.
             let items: [StickerPackItem] = try DeepCopies.deepCopy(modelToCopy.items)
             let title: String? = modelToCopy.title
 
@@ -252,7 +246,7 @@ extension StickerPackSerializer {
 
 @objc
 public extension StickerPack {
-    func anyInsert(transaction: SDSAnyWriteTransaction) {
+    func anyInsert(transaction: DBWriteTransaction) {
         sdsSave(saveMode: .insert, transaction: transaction)
     }
 
@@ -264,7 +258,7 @@ public extension StickerPack {
     //
     // For performance, when possible, you should explicitly specify whether
     // you are inserting or updating rather than calling this method.
-    func anyUpsert(transaction: SDSAnyWriteTransaction) {
+    func anyUpsert(transaction: DBWriteTransaction) {
         let isInserting: Bool
         if StickerPack.anyFetch(uniqueId: uniqueId, transaction: transaction) != nil {
             isInserting = false
@@ -298,7 +292,7 @@ public extension StickerPack {
     //
     // This isn't a perfect arrangement, but in practice this will prevent
     // data loss and will resolve all known issues.
-    func anyUpdate(transaction: SDSAnyWriteTransaction, block: (StickerPack) -> Void) {
+    func anyUpdate(transaction: DBWriteTransaction, block: (StickerPack) -> Void) {
 
         block(self)
 
@@ -326,27 +320,12 @@ public extension StickerPack {
     // There are cases when this doesn't make sense, e.g. when  we know we've
     // just loaded the model in the same transaction. In those cases it is
     // safe and faster to do a "overwriting" update
-    func anyOverwritingUpdate(transaction: SDSAnyWriteTransaction) {
+    func anyOverwritingUpdate(transaction: DBWriteTransaction) {
         sdsSave(saveMode: .update, transaction: transaction)
     }
 
-    func anyRemove(transaction: SDSAnyWriteTransaction) {
+    func anyRemove(transaction: DBWriteTransaction) {
         sdsRemove(transaction: transaction)
-    }
-
-    func anyReload(transaction: SDSAnyReadTransaction) {
-        anyReload(transaction: transaction, ignoreMissing: false)
-    }
-
-    func anyReload(transaction: SDSAnyReadTransaction, ignoreMissing: Bool) {
-        guard let latestVersion = type(of: self).anyFetch(uniqueId: uniqueId, transaction: transaction) else {
-            if !ignoreMissing {
-                owsFailDebug("`latest` was unexpectedly nil")
-            }
-            return
-        }
-
-        setValuesForKeys(latestVersion.dictionaryValue)
     }
 }
 
@@ -354,10 +333,10 @@ public extension StickerPack {
 
 @objc
 public class StickerPackCursor: NSObject, SDSCursor {
-    private let transaction: GRDBReadTransaction
+    private let transaction: DBReadTransaction
     private let cursor: RecordCursor<StickerPackRecord>?
 
-    init(transaction: GRDBReadTransaction, cursor: RecordCursor<StickerPackRecord>?) {
+    init(transaction: DBReadTransaction, cursor: RecordCursor<StickerPackRecord>?) {
         self.transaction = transaction
         self.cursor = cursor
     }
@@ -388,7 +367,8 @@ public class StickerPackCursor: NSObject, SDSCursor {
 
 @objc
 public extension StickerPack {
-    class func grdbFetchCursor(transaction: GRDBReadTransaction) -> StickerPackCursor {
+    @nonobjc
+    class func grdbFetchCursor(transaction: DBReadTransaction) -> StickerPackCursor {
         let database = transaction.database
         do {
             let cursor = try StickerPackRecord.fetchCursor(database)
@@ -405,20 +385,17 @@ public extension StickerPack {
 
     // Fetches a single model by "unique id".
     class func anyFetch(uniqueId: String,
-                        transaction: SDSAnyReadTransaction) -> StickerPack? {
+                        transaction: DBReadTransaction) -> StickerPack? {
         assert(!uniqueId.isEmpty)
 
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let sql = "SELECT * FROM \(StickerPackRecord.databaseTableName) WHERE \(stickerPackColumn: .uniqueId) = ?"
-            return grdbFetchOne(sql: sql, arguments: [uniqueId], transaction: grdbTransaction)
-        }
+        let sql = "SELECT * FROM \(StickerPackRecord.databaseTableName) WHERE \(stickerPackColumn: .uniqueId) = ?"
+        return grdbFetchOne(sql: sql, arguments: [uniqueId], transaction: transaction)
     }
 
     // Traverses all records.
     // Records are not visited in any particular order.
     class func anyEnumerate(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         block: (StickerPack, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
         anyEnumerate(transaction: transaction, batched: false, block: block)
@@ -427,7 +404,7 @@ public extension StickerPack {
     // Traverses all records.
     // Records are not visited in any particular order.
     class func anyEnumerate(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batched: Bool = false,
         block: (StickerPack, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
@@ -440,32 +417,29 @@ public extension StickerPack {
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
     class func anyEnumerate(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batchSize: UInt,
         block: (StickerPack, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let cursor = StickerPack.grdbFetchCursor(transaction: grdbTransaction)
-            Batching.loop(batchSize: batchSize,
-                          loopBlock: { stop in
-                                do {
-                                    guard let value = try cursor.next() else {
-                                        stop.pointee = true
-                                        return
-                                    }
-                                    block(value, stop)
-                                } catch let error {
-                                    owsFailDebug("Couldn't fetch model: \(error)")
+        let cursor = StickerPack.grdbFetchCursor(transaction: transaction)
+        Batching.loop(batchSize: batchSize,
+                        loopBlock: { stop in
+                            do {
+                                guard let value = try cursor.next() else {
+                                    stop.pointee = true
+                                    return
                                 }
-                              })
-        }
+                                block(value, stop)
+                            } catch let error {
+                                owsFailDebug("Couldn't fetch model: \(error)")
+                            }
+                            })
     }
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
     class func anyEnumerateUniqueIds(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
         anyEnumerateUniqueIds(transaction: transaction, batched: false, block: block)
@@ -474,7 +448,7 @@ public extension StickerPack {
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
     class func anyEnumerateUniqueIds(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batched: Bool = false,
         block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
@@ -487,24 +461,21 @@ public extension StickerPack {
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
     class func anyEnumerateUniqueIds(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batchSize: UInt,
         block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            grdbEnumerateUniqueIds(transaction: grdbTransaction,
-                                   sql: """
-                    SELECT \(stickerPackColumn: .uniqueId)
-                    FROM \(StickerPackRecord.databaseTableName)
-                """,
-                batchSize: batchSize,
-                block: block)
-        }
+        grdbEnumerateUniqueIds(transaction: transaction,
+                                sql: """
+                SELECT \(stickerPackColumn: .uniqueId)
+                FROM \(StickerPackRecord.databaseTableName)
+            """,
+            batchSize: batchSize,
+            block: block)
     }
 
     // Does not order the results.
-    class func anyFetchAll(transaction: SDSAnyReadTransaction) -> [StickerPack] {
+    class func anyFetchAll(transaction: DBReadTransaction) -> [StickerPack] {
         var result = [StickerPack]()
         anyEnumerate(transaction: transaction) { (model, _) in
             result.append(model)
@@ -513,7 +484,7 @@ public extension StickerPack {
     }
 
     // Does not order the results.
-    class func anyAllUniqueIds(transaction: SDSAnyReadTransaction) -> [String] {
+    class func anyAllUniqueIds(transaction: DBReadTransaction) -> [String] {
         var result = [String]()
         anyEnumerateUniqueIds(transaction: transaction) { (uniqueId, _) in
             result.append(uniqueId)
@@ -521,14 +492,11 @@ public extension StickerPack {
         return result
     }
 
-    class func anyCount(transaction: SDSAnyReadTransaction) -> UInt {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            return StickerPackRecord.ows_fetchCount(grdbTransaction.database)
-        }
+    class func anyCount(transaction: DBReadTransaction) -> UInt {
+        return StickerPackRecord.ows_fetchCount(transaction.database)
     }
 
-    class func anyRemoveAllWithInstantiation(transaction: SDSAnyWriteTransaction) {
+    class func anyRemoveAllWithInstantiation(transaction: DBWriteTransaction) {
         // To avoid mutationDuringEnumerationException, we need to remove the
         // instances outside the enumeration.
         let uniqueIds = anyAllUniqueIds(transaction: transaction)
@@ -546,23 +514,20 @@ public extension StickerPack {
 
     class func anyExists(
         uniqueId: String,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> Bool {
         assert(!uniqueId.isEmpty)
 
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let sql = "SELECT EXISTS ( SELECT 1 FROM \(StickerPackRecord.databaseTableName) WHERE \(stickerPackColumn: .uniqueId) = ? )"
-            let arguments: StatementArguments = [uniqueId]
-            do {
-                return try Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
-            } catch {
-                DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
-                    userDefaults: CurrentAppContext().appUserDefaults(),
-                    error: error
-                )
-                owsFail("Missing instance.")
-            }
+        let sql = "SELECT EXISTS ( SELECT 1 FROM \(StickerPackRecord.databaseTableName) WHERE \(stickerPackColumn: .uniqueId) = ? )"
+        let arguments: StatementArguments = [uniqueId]
+        do {
+            return try Bool.fetchOne(transaction.database, sql: sql, arguments: arguments) ?? false
+        } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
+            owsFail("Missing instance.")
         }
     }
 }
@@ -572,7 +537,7 @@ public extension StickerPack {
 public extension StickerPack {
     class func grdbFetchCursor(sql: String,
                                arguments: StatementArguments = StatementArguments(),
-                               transaction: GRDBReadTransaction) -> StickerPackCursor {
+                               transaction: DBReadTransaction) -> StickerPackCursor {
         do {
             let sqlRequest = SQLRequest<Void>(sql: sql, arguments: arguments, cached: true)
             let cursor = try StickerPackRecord.fetchCursor(transaction.database, sqlRequest)
@@ -589,7 +554,7 @@ public extension StickerPack {
 
     class func grdbFetchOne(sql: String,
                             arguments: StatementArguments = StatementArguments(),
-                            transaction: GRDBReadTransaction) -> StickerPack? {
+                            transaction: DBReadTransaction) -> StickerPack? {
         assert(!sql.isEmpty)
 
         do {
@@ -619,7 +584,7 @@ class StickerPackSerializer: SDSSerializer {
 
     // MARK: - Record
 
-    func asRecord() throws -> SDSRecord {
+    func asRecord() -> SDSRecord {
         let id: Int64? = model.grdbId?.int64Value
 
         let recordType: SDSRecordType = .stickerPack
@@ -637,20 +602,3 @@ class StickerPackSerializer: SDSSerializer {
         return StickerPackRecord(delegate: model, id: id, recordType: recordType, uniqueId: uniqueId, author: author, cover: cover, dateCreated: dateCreated, info: info, isInstalled: isInstalled, items: items, title: title)
     }
 }
-
-// MARK: - Deep Copy
-
-#if TESTABLE_BUILD
-@objc
-public extension StickerPack {
-    // We're not using this method at the moment,
-    // but we might use it for validation of
-    // other deep copy methods.
-    func deepCopyUsingRecord() throws -> StickerPack {
-        guard let record = try asRecord() as? StickerPackRecord else {
-            throw OWSAssertionError("Could not convert to record.")
-        }
-        return try StickerPack.fromRecord(record)
-    }
-}
-#endif

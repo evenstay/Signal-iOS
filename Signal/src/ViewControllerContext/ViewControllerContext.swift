@@ -16,11 +16,12 @@ public import SignalServiceKit
 ///   explicitly on initialization, encapsulated for easy testing.
 public class ViewControllerContext {
 
-    public let db: DB
+    public let db: any DB
 
     public let editManager: EditManager
 
     public let svr: SecureValueRecovery
+    public let accountKeyStore: AccountKeyStore
     public let schedulers: Schedulers
 
     public let usernameApiClient: UsernameApiClient
@@ -29,19 +30,24 @@ public class ViewControllerContext {
     public let usernameLookupManager: UsernameLookupManager
     public let localUsernameManager: LocalUsernameManager
 
+    public let provisioningManager: ProvisioningManager
+
     public init(
-        db: DB,
+        db: any DB,
         editManager: EditManager,
+        accountKeyStore: AccountKeyStore,
         svr: SecureValueRecovery,
         schedulers: Schedulers,
         usernameApiClient: UsernameApiClient,
         usernameEducationManager: UsernameEducationManager,
         usernameLinkManager: UsernameLinkManager,
         usernameLookupManager: UsernameLookupManager,
-        localUsernameManager: LocalUsernameManager
+        localUsernameManager: LocalUsernameManager,
+        provisioningManager: ProvisioningManager
     ) {
         self.db = db
         self.editManager = editManager
+        self.accountKeyStore = accountKeyStore
         self.svr = svr
         self.schedulers = schedulers
         self.usernameApiClient = usernameApiClient
@@ -49,6 +55,7 @@ public class ViewControllerContext {
         self.usernameLinkManager = usernameLinkManager
         self.usernameLookupManager = usernameLookupManager
         self.localUsernameManager = localUsernameManager
+        self.provisioningManager = provisioningManager
     }
 
     /// Eventually, this shared instance should not exist. (And DependenciesBridge should not exist, either).
@@ -63,13 +70,15 @@ public class ViewControllerContext {
         return ViewControllerContext(
             db: bridge.db,
             editManager: bridge.editManager,
+            accountKeyStore: bridge.accountKeyStore,
             svr: bridge.svr,
             schedulers: bridge.schedulers,
             usernameApiClient: bridge.usernameApiClient,
             usernameEducationManager: bridge.usernameEducationManager,
             usernameLinkManager: bridge.usernameLinkManager,
             usernameLookupManager: bridge.usernameLookupManager,
-            localUsernameManager: bridge.localUsernameManager
+            localUsernameManager: bridge.localUsernameManager,
+            provisioningManager: AppEnvironment.shared.provisioningManager
         )
     }()
 }

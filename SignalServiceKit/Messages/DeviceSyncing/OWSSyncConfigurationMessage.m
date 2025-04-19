@@ -14,19 +14,21 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL showUnidentifiedDeliveryIndicators;
 @property (nonatomic, readonly) BOOL showTypingIndicators;
 @property (nonatomic, readonly) BOOL sendLinkPreviews;
+@property (nonatomic, readonly) uint32_t provisioningVersion;
 
 @end
 
 @implementation OWSSyncConfigurationMessage
 
-- (instancetype)initWithThread:(TSThread *)thread
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
                    readReceiptsEnabled:(BOOL)areReadReceiptsEnabled
     showUnidentifiedDeliveryIndicators:(BOOL)showUnidentifiedDeliveryIndicators
                   showTypingIndicators:(BOOL)showTypingIndicators
                       sendLinkPreviews:(BOOL)sendLinkPreviews
-                           transaction:(SDSAnyReadTransaction *)transaction
+                   provisioningVersion:(uint32_t)provisioningVersion
+                           transaction:(DBReadTransaction *)transaction
 {
-    self = [super initWithThread:thread transaction:transaction];
+    self = [super initWithLocalThread:localThread transaction:transaction];
     if (!self) {
         return nil;
     }
@@ -35,6 +37,7 @@ NS_ASSUME_NONNULL_BEGIN
     _showUnidentifiedDeliveryIndicators = showUnidentifiedDeliveryIndicators;
     _showTypingIndicators = showTypingIndicators;
     _sendLinkPreviews = sendLinkPreviews;
+    _provisioningVersion = provisioningVersion;
 
     return self;
 }
@@ -44,14 +47,14 @@ NS_ASSUME_NONNULL_BEGIN
     return [super initWithCoder:coder];
 }
 
-- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(SDSAnyReadTransaction *)transaction
+- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(DBReadTransaction *)transaction
 {
     SSKProtoSyncMessageConfigurationBuilder *configurationBuilder = [SSKProtoSyncMessageConfiguration builder];
     configurationBuilder.readReceipts = self.areReadReceiptsEnabled;
     configurationBuilder.unidentifiedDeliveryIndicators = self.showUnidentifiedDeliveryIndicators;
     configurationBuilder.typingIndicators = self.showTypingIndicators;
     configurationBuilder.linkPreviews = self.sendLinkPreviews;
-    configurationBuilder.provisioningVersion = OWSDeviceProvisionerConstant.provisioningVersion;
+    configurationBuilder.provisioningVersion = self.provisioningVersion;
 
     SSKProtoSyncMessageBuilder *builder = [SSKProtoSyncMessage builder];
     builder.configuration = [configurationBuilder buildInfallibly];

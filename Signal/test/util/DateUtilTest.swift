@@ -4,8 +4,27 @@
 //
 
 import XCTest
+import Testing
 
 import SignalServiceKit
+
+@Test func testDateComparison() {
+    let firstDate = Date()
+    let sameDate = Date(timeIntervalSinceReferenceDate: firstDate.timeIntervalSinceReferenceDate)
+    let laterDate = Date(timeIntervalSinceReferenceDate: firstDate.timeIntervalSinceReferenceDate + 1)
+
+    #expect(firstDate.timeIntervalSinceReferenceDate == sameDate.timeIntervalSinceReferenceDate)
+    #expect(firstDate.timeIntervalSinceReferenceDate != laterDate.timeIntervalSinceReferenceDate)
+    #expect(firstDate == sameDate)
+    #expect(firstDate != laterDate)
+    #expect(firstDate.timeIntervalSinceReferenceDate < laterDate.timeIntervalSinceReferenceDate)
+    #expect(!(firstDate < sameDate))
+    #expect(firstDate < laterDate)
+    #expect(!(laterDate < firstDate))
+    #expect(!(firstDate > sameDate))
+    #expect(!(firstDate > laterDate))
+    #expect(laterDate > firstDate)
+}
 
 class DateUtilTest: XCTestCase {
     func buildDate(year: Int = 0,
@@ -27,24 +46,6 @@ class DateUtilTest: XCTestCase {
         return calendar.date(from: dateComponents)!
     }
 
-    func testDateComparison() {
-        let firstDate = Date()
-        let sameDate = Date(timeIntervalSinceReferenceDate: firstDate.timeIntervalSinceReferenceDate)
-        let laterDate = Date(timeIntervalSinceReferenceDate: firstDate.timeIntervalSinceReferenceDate + 1)
-
-        XCTAssertEqual(firstDate.timeIntervalSinceReferenceDate, sameDate.timeIntervalSinceReferenceDate)
-        XCTAssertNotEqual(firstDate.timeIntervalSinceReferenceDate, laterDate.timeIntervalSinceReferenceDate)
-        XCTAssertEqual(firstDate, sameDate)
-        XCTAssertNotEqual(firstDate, laterDate)
-        XCTAssertTrue(firstDate.timeIntervalSinceReferenceDate < laterDate.timeIntervalSinceReferenceDate)
-        XCTAssertFalse(firstDate.isBefore(sameDate))
-        XCTAssertTrue(firstDate.isBefore(laterDate))
-        XCTAssertFalse(laterDate.isBefore(firstDate))
-        XCTAssertFalse(firstDate.isAfter(sameDate))
-        XCTAssertFalse(firstDate.isAfter(laterDate))
-        XCTAssertTrue(laterDate.isAfter(firstDate))
-    }
-
     func testDateComparators() {
         // Use a specific reference date to make this test deterministic,
         // and to avoid failing around midnight, new year's, etc.
@@ -61,34 +62,34 @@ class DateUtilTest: XCTestCase {
         Logger.info("now: \(formatter.string(from: now))")
 
         let oneSecondAgo =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - kSecondInterval)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - .second)
         let oneMinuteAgo =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - kMinuteInterval)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - .minute)
         let oneDayAgo =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - kDayInterval)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - .day)
         let threeDaysAgo =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - kDayInterval * 3)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - .day * 3)
         let tenDaysAgo =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - kDayInterval * 10)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - .day * 10)
         let oneYearAgo =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - kYearInterval)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - .year)
         let twoYearsAgo =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - kYearInterval * 2)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate - .year * 2)
 
         let oneSecondAhead =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + kSecondInterval)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + .second)
         let oneMinuteAhead =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + kMinuteInterval)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + .minute)
         let oneDayAhead =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + kDayInterval)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + .day)
         let threeDaysAhead =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + kDayInterval * 3)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + .day * 3)
         let tenDaysAhead =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + kDayInterval * 10)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + .day * 10)
         let oneYearAhead =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + kYearInterval)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + .year)
         let twoYearsAhead =
-            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + kYearInterval * 2)
+            Date(timeIntervalSinceReferenceDate: now.timeIntervalSinceReferenceDate + .year * 2)
 
         Logger.info("oneSecondAgo: \(formatter.string(from: oneSecondAgo))")
 

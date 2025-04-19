@@ -35,7 +35,7 @@ private final class DebugLogFileManager: DDLogFileManagerDefault {
                 // retrieving last modification date didn't throw but didn't return NSDate type
                 continue
             }
-            if lastModified.isAfter(cutoffDate) {
+            if lastModified > cutoffDate {
                 // Still within the window.
                 continue
             }
@@ -51,13 +51,9 @@ private final class DebugLogFileManager: DDLogFileManagerDefault {
 
         // Use this opportunity to delete old log files from extensions as well.
         // Compute an approximate "N days ago", ignoring calendars and dayling savings changes.
-        let cutoffDate = Date(timeIntervalSinceNow: -kDayInterval * Double(maximumNumberOfLogFiles))
+        let cutoffDate = Date(timeIntervalSinceNow: -.day * Double(maximumNumberOfLogFiles))
 
         for logsDirPath in DebugLogger.allLogsDirPaths {
-            guard logsDirPath != logsDirectory else {
-                // Managed directly by the base class.
-                continue
-            }
             Self.deleteLogFiles(inDirectory: logsDirPath, olderThanDate: cutoffDate)
         }
     }
@@ -130,27 +126,13 @@ public final class DebugLogger {
         return logPathSet
     }
 
-    private let errorLogger: DDLogger = ErrorLogger(logFileManager: DDLogFileManagerDefault(logsDirectory: errorLogsDir.path))
     public func enableErrorReporting() {
+        let errorLogger = ErrorLogger(logFileManager: DDLogFileManagerDefault(logsDirectory: Self.errorLogsDir.path))
+        errorLogger.logFormatter = ScrubbingLogFormatter()
         DDLog.add(errorLogger, with: .error)
     }
 
     // MARK: Enable/Disable
-
-    public func setUpFileLoggingIfNeeded(appContext: AppContext, canLaunchInBackground: Bool) {
-        let oldValue = fileLogger != nil
-        let newValue = Preferences.isLoggingEnabled
-
-        if newValue == oldValue {
-            return
-        }
-
-        if newValue {
-            enableFileLogging(appContext: appContext, canLaunchInBackground: canLaunchInBackground)
-        } else {
-            disableFileLogging()
-        }
-    }
 
     public func enableFileLogging(appContext: AppContext, canLaunchInBackground: Bool) {
         let logsDirPath = appContext.debugLogsDirPath
@@ -164,9 +146,13 @@ public final class DebugLogger {
         // file size). Keep extra log files in internal builds.
         logFileManager.maximumNumberOfLogFiles = DebugFlags.extraDebugLogs ? 32 : 3
 
+        // Don't limit the total size on disk explicitly. Rely on "max file size" *
+        // "max number of files" to limit the space we consume.
+        logFileManager.logFilesDiskQuota = 0
+
         let fileLogger = DDFileLogger(logFileManager: logFileManager)
-        fileLogger.rollingFrequency = kDayInterval
-        fileLogger.maximumFileSize = 3 * 1024 * 1024
+        fileLogger.rollingFrequency = .day
+        fileLogger.maximumFileSize = 12_000_000
         fileLogger.logFormatter = ScrubbingLogFormatter()
 
         self.fileLogger = fileLogger
@@ -208,7 +194,22 @@ public final class DebugLogger {
     }
 
     public static func registerRingRTC() {
-        RingRTCLoggerImpl().setUpRingRTCLogging(maxLogLevel: { () -> RingRTCLogLevel in
+        let maxLogLevel: RingRTCLogLevel
+        #if DEBUG
+        if
+            let overrideLogLevelString = ProcessInfo().environment["RINGRTC_MAX_LOG_LEVEL"],
+            let overrideLogLevelRaw = UInt8(overrideLogLevelString),
+            let overrideLogLevel = RingRTCLogLevel(rawValue: overrideLogLevelRaw)
+        {
+            maxLogLevel = overrideLogLevel
+        } else {
+            maxLogLevel = .trace
+        }
+        #else
+        maxLogLevel = .trace
+        #endif
+
+        RingRTCLoggerImpl(maxLogLevel: maxLogLevel).setUpRingRTCLogging(maxLogLevel: min(maxLogLevel, { () -> RingRTCLogLevel in
             if ShouldLogVerbose() {
                 return .trace
             }
@@ -222,7 +223,7 @@ public final class DebugLogger {
                 return .warn
             }
             return .error
-        }())
+        }()))
     }
 }
 
@@ -267,7 +268,16 @@ private extension RingRTCLogLevel {
 }
 
 final class RingRTCLoggerImpl: RingRTCLogger {
+    private nonisolated let maxLogLevel: RingRTCLogLevel
+
+    init(maxLogLevel: RingRTCLogLevel) {
+        self.maxLogLevel = maxLogLevel
+    }
+
     func log(level: RingRTCLogLevel, file: String, function: String, line: UInt32, message: String) {
+        guard level <= maxLogLevel else {
+            return
+        }
         Logger.log(
             message,
             flag: level.logFlag,

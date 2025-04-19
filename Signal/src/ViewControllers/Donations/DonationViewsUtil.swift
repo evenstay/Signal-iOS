@@ -22,7 +22,7 @@ public class ProfileBadgeLookup {
         self.init(boostBadge: nil, giftBadge: nil, subscriptionLevels: [])
     }
 
-    public init(boostBadge: ProfileBadge?, giftBadge: ProfileBadge?, subscriptionLevels: [SubscriptionLevel]) {
+    public init(boostBadge: ProfileBadge?, giftBadge: ProfileBadge?, subscriptionLevels: [DonationSubscriptionLevel]) {
         self.boostBadge = boostBadge
         self.giftBadge = giftBadge
 
@@ -46,13 +46,22 @@ public class ProfileBadgeLookup {
         return preferDarkTheme ? assets.dark16 : assets.light16
     }
 
-    public func attemptToPopulateBadgeAssets(populateAssetsOnBadge: (ProfileBadge) -> Promise<Void>) -> Guarantee<Void> {
+    public func attemptToPopulateBadgeAssets(populateAssetsOnBadge: @escaping (ProfileBadge) async throws -> Void) async -> Void {
         var badgesToLoad = Array(badgesBySubscriptionLevel.values)
         if let boostBadge = boostBadge { badgesToLoad.append(boostBadge) }
         if let giftBadge = giftBadge { badgesToLoad.append(giftBadge) }
 
-        let promises = badgesToLoad.map { populateAssetsOnBadge($0) }
-        return Promise.when(fulfilled: promises).recover { _ in Guarantee.value(()) }
+        await withTaskGroup(of: Void.self) { group in
+            for badge in badgesToLoad {
+                group.addTask {
+                    do {
+                        try await populateAssetsOnBadge(badge)
+                    } catch {}
+                }
+            }
+
+            await group.waitForAll()
+        }
     }
 }
 
@@ -147,7 +156,7 @@ public class GiftBadgeCellView: UIStackView {
 
         let secondLineLabel = UILabel()
         secondLineLabel.text = {
-            let formattedPrice = DonationUtilities.format(money: price)
+            let formattedPrice = CurrencyFormatter.format(money: price)
 
             let formattedDuration: String = {
                 guard let duration = badge.duration else {
@@ -215,25 +224,30 @@ public final class DonationViewsUtil {
     /// donation.
     public static func completeMonthlyDonations(
         subscriberId: Data,
-        paymentType: SubscriptionManagerImpl.RecurringSubscriptionPaymentType,
-        newSubscriptionLevel: SubscriptionLevel,
-        priorSubscriptionLevel: SubscriptionLevel?,
+        paymentType: DonationSubscriptionManager.RecurringSubscriptionPaymentType,
+        newSubscriptionLevel: DonationSubscriptionLevel,
+        priorSubscriptionLevel: DonationSubscriptionLevel?,
         currencyCode: Currency.Code,
         databaseStorage: SDSDatabaseStorage
-    ) -> Promise<Void> {
+    ) async throws {
         let pendingStore = DependenciesBridge.shared.externalPendingIDEALDonationStore
-        return firstly(on: DispatchQueue.sharedUserInitiated) {
-            DonationViewsUtil.finalizeAndRedeemSubscription(
+        var rethrowError: Error?
+        do {
+            try await DonationViewsUtil.finalizeAndRedeemSubscription(
                 subscriberId: subscriberId,
                 paymentType: paymentType,
                 newSubscriptionLevel: newSubscriptionLevel,
                 priorSubscriptionLevel: priorSubscriptionLevel,
                 currencyCode: currencyCode
             )
-        }.ensure {
-            databaseStorage.write { tx in
-                pendingStore.clearPendingSubscription(tx: tx.asV2Write)
-            }
+        } catch {
+            rethrowError = error
+        }
+        await databaseStorage.awaitableWrite { tx in
+            pendingStore.clearPendingSubscription(tx: tx)
+        }
+        if let rethrowError {
+            throw rethrowError
         }
     }
 
@@ -244,19 +258,23 @@ public final class DonationViewsUtil {
         amount: FiatMoney,
         paymentMethod: DonationPaymentMethod,
         databaseStorage: SDSDatabaseStorage
-    ) -> Promise<Void> {
+    ) async throws {
         let pendingStore = DependenciesBridge.shared.externalPendingIDEALDonationStore
-        return firstly(on: DispatchQueue.sharedUserInitiated) {
-            DonationViewsUtil.createAndRedeemOneTimeDonation(
+        var rethrowError: Error?
+        do {
+            try await DonationViewsUtil.createAndRedeemOneTimeDonation(
                 paymentIntentId: paymentIntentId,
                 amount: amount,
                 paymentMethod: paymentMethod
             )
+        } catch {
+            rethrowError = error
         }
-        .ensure {
-            databaseStorage.write { tx in
-                pendingStore.clearPendingOneTimeDonation(tx: tx.asV2Write)
-            }
+        await databaseStorage.awaitableWrite { tx in
+            pendingStore.clearPendingOneTimeDonation(tx: tx)
+        }
+        if let rethrowError {
+            throw rethrowError
         }
     }
 
@@ -264,69 +282,77 @@ public final class DonationViewsUtil {
         paymentIntentId: String,
         amount: FiatMoney,
         paymentMethod: DonationPaymentMethod
-    ) -> Promise<Void> {
-        let redemptionJob = SubscriptionManagerImpl.requestAndRedeemReceipt(
-            boostPaymentIntentId: paymentIntentId,
-            amount: amount,
-            paymentProcessor: .stripe,
-            paymentMethod: paymentMethod
-        )
-        return DonationViewsUtil.waitForRedemptionJob(redemptionJob, paymentMethod: paymentMethod)
+    ) async throws {
+        let redemptionPromise = Promise.wrapAsync {
+            try await DonationSubscriptionManager.requestAndRedeemReceipt(
+                boostPaymentIntentId: paymentIntentId,
+                amount: amount,
+                paymentProcessor: .stripe,
+                paymentMethod: paymentMethod
+            )
+        }
+
+        return try await DonationViewsUtil.waitForRedemptionJob(redemptionPromise, paymentMethod: paymentMethod).awaitable()
     }
 
     public static func finalizeAndRedeemSubscription(
         subscriberId: Data,
-        paymentType: SubscriptionManagerImpl.RecurringSubscriptionPaymentType,
-        newSubscriptionLevel: SubscriptionLevel,
-        priorSubscriptionLevel: SubscriptionLevel?,
+        paymentType: DonationSubscriptionManager.RecurringSubscriptionPaymentType,
+        newSubscriptionLevel: DonationSubscriptionLevel,
+        priorSubscriptionLevel: DonationSubscriptionLevel?,
         currencyCode: Currency.Code
-    ) -> Promise<Void> {
-        firstly(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Subscription> in
-            Logger.info("[Donations] Finalizing new subscription")
+    ) async throws {
+        Logger.info("[Donations] Finalizing new subscription")
 
-            return SubscriptionManagerImpl.finalizeNewSubscription(
-                forSubscriberId: subscriberId,
-                paymentType: paymentType,
-                subscription: newSubscriptionLevel,
-                currencyCode: currencyCode
-            )
-        }.then(on: DispatchQueue.sharedUserInitiated) { _ in
-            Logger.info("[Donations] Redeeming monthly receipts")
+        _ = try await DonationSubscriptionManager.finalizeNewSubscription(
+            forSubscriberId: subscriberId,
+            paymentType: paymentType,
+            subscription: newSubscriptionLevel,
+            currencyCode: currencyCode
+        )
 
-            let redemptionJob = SubscriptionManagerImpl.requestAndRedeemReceipt(
+        Logger.info("[Donations] Redeeming monthly receipts")
+
+        let redemptionPromise = Promise.wrapAsync {
+            try await DonationSubscriptionManager.requestAndRedeemReceipt(
                 subscriberId: subscriberId,
                 subscriptionLevel: newSubscriptionLevel.level,
                 priorSubscriptionLevel: priorSubscriptionLevel?.level,
                 paymentProcessor: paymentType.paymentProcessor,
                 paymentMethod: paymentType.paymentMethod,
-                isNewSubscription: true,
-                shouldSuppressPaymentAlreadyRedeemed: false
+                isNewSubscription: true
             )
-            return DonationViewsUtil.waitForRedemptionJob(redemptionJob, paymentMethod: paymentType.paymentMethod)
         }
+
+        return try await DonationViewsUtil.waitForRedemptionJob(redemptionPromise, paymentMethod: paymentType.paymentMethod).awaitable()
     }
 
-    public static func loadSubscriptionLevels(badgeStore: BadgeStore) -> Promise<[SubscriptionLevel]> {
-        firstly { () -> Promise<SubscriptionManagerImpl.DonationConfiguration> in
-            SubscriptionManagerImpl.fetchDonationConfiguration()
-        }.map { donationConfiguration -> [SubscriptionLevel] in
-            donationConfiguration.subscription.levels
-        }.then { (fetchedSubscriptions: [SubscriptionLevel]) -> Promise<[SubscriptionLevel]> in
-            let badgeUpdatePromises = fetchedSubscriptions.map { badgeStore.populateAssetsOnBadge($0.badge) }
-            return Promise.when(fulfilled: badgeUpdatePromises).map { fetchedSubscriptions }
+    public static func loadSubscriptionLevels(donationConfiguration: DonationSubscriptionManager.DonationConfiguration, badgeStore: BadgeStore) async throws -> [DonationSubscriptionLevel] {
+        let levels = donationConfiguration.subscription.levels
+        try await withThrowingTaskGroup(of: Void.self) { taskGroup in
+            for level in levels {
+                taskGroup.addTask {
+                    try await badgeStore.populateAssetsOnBadge(level.badge)
+                }
+            }
+            try await taskGroup.waitForAll()
         }
+        return levels
     }
 
-    public static func loadCurrentSubscription(subscriberID: Data?) -> Promise<Subscription?> {
-        if let subscriberID = subscriberID {
-            return SubscriptionManagerImpl.getCurrentSubscriptionStatus(for: subscriberID)
+    public static func loadCurrentSubscription(subscriberID: Data?) async throws -> Subscription? {
+        let networkManager = SSKEnvironment.shared.networkManagerRef
+
+        if let subscriberID {
+            return try await SubscriptionFetcher(networkManager: networkManager)
+                .fetch(subscriberID: subscriberID)
         } else {
-            return Promise.value(nil)
+            return nil
         }
     }
 
-    public static func subscriptionLevelForSubscription(subscriptionLevels: [SubscriptionLevel],
-                                                        subscription: Subscription) -> SubscriptionLevel? {
+    public static func subscriptionLevelForSubscription(subscriptionLevels: [DonationSubscriptionLevel],
+                                                        subscription: Subscription) -> DonationSubscriptionLevel? {
         subscriptionLevels.first { $0.level == subscription.level }
     }
 
@@ -353,60 +379,56 @@ public final class DonationViewsUtil {
     static func completeIDEALDonation(
         donationType: Stripe.IDEALCallbackType,
         databaseStorage: SDSDatabaseStorage
-    ) -> Promise<Void> {
+    ) async throws {
         let paymentStore = DependenciesBridge.shared.externalPendingIDEALDonationStore
         switch donationType {
         case let .monthly(success, clientSecret, intentId):
             guard let monthlyDonation = databaseStorage.read(block: { tx in
-                paymentStore.getPendingSubscription(tx: tx.asV2Read)
+                paymentStore.getPendingSubscription(tx: tx)
             }) else {
                 Logger.error("[Donations] Could not find iDEAL subscription to complete")
-                return Promise.init(error: OWSUnretryableError())
+                throw OWSUnretryableError()
             }
             guard
                 clientSecret == monthlyDonation.clientSecret,
                 intentId == monthlyDonation.setupIntentId
             else {
                 owsFailDebug("[Donations] Pending iDEAL subscription details do not match")
-                return Promise.init(error: OWSUnretryableError())
+                throw OWSUnretryableError()
             }
             guard success else {
-                return Promise.init(error: OWSUnretryableError())
+                throw OWSUnretryableError()
             }
 
-            return firstly(on: DispatchQueue.global()) {
-                DonationViewsUtil.completeMonthlyDonations(
-                    subscriberId: monthlyDonation.subscriberId,
-                    paymentType: .ideal(setupIntentId: monthlyDonation.setupIntentId),
-                    newSubscriptionLevel: monthlyDonation.newSubscriptionLevel,
-                    priorSubscriptionLevel: monthlyDonation.oldSubscriptionLevel,
-                    currencyCode: monthlyDonation.amount.currencyCode,
-                    databaseStorage: databaseStorage
-                )
-            }
+            return try await DonationViewsUtil.completeMonthlyDonations(
+                subscriberId: monthlyDonation.subscriberId,
+                paymentType: .ideal(setupIntentId: monthlyDonation.setupIntentId),
+                newSubscriptionLevel: monthlyDonation.newSubscriptionLevel,
+                priorSubscriptionLevel: monthlyDonation.oldSubscriptionLevel,
+                currencyCode: monthlyDonation.amount.currencyCode,
+                databaseStorage: databaseStorage
+            )
         case let .oneTime(success, intentId):
             guard let oneTimePayment = databaseStorage.read(block: { tx in
-                paymentStore.getPendingOneTimeDonation(tx: tx.asV2Read)
+                paymentStore.getPendingOneTimeDonation(tx: tx)
             }) else {
                 Logger.error("[Donations] Could not find iDEAL payment to complete")
-                return Promise.init(error: OWSUnretryableError())
+                throw OWSUnretryableError()
             }
             guard intentId == oneTimePayment.paymentIntentId else {
                 owsFailDebug("[Donations] Could not find iDEAL subscription to complete")
-                return Promise.init(error: OWSUnretryableError())
+                throw OWSUnretryableError()
             }
             guard success else {
-                return Promise.init(error: OWSUnretryableError())
+                throw OWSUnretryableError()
             }
 
-            return firstly(on: DispatchQueue.global()) {
-                DonationViewsUtil.completeOneTimeDonation(
-                    paymentIntentId: oneTimePayment.paymentIntentId,
-                    amount: oneTimePayment.amount,
-                    paymentMethod: .ideal,
-                    databaseStorage: databaseStorage
-                )
-            }
+            return try await DonationViewsUtil.completeOneTimeDonation(
+                paymentIntentId: oneTimePayment.paymentIntentId,
+                amount: oneTimePayment.amount,
+                paymentMethod: .ideal,
+                databaseStorage: databaseStorage
+            )
         }
     }
 
@@ -471,12 +493,12 @@ public final class DonationViewsUtil {
             switch paymentMethod {
             case .ideal:
                 let idealDonationStore = DependenciesBridge.shared.externalPendingIDEALDonationStore
-                viewController.databaseStorage.write { tx in
+                SSKEnvironment.shared.databaseStorageRef.write { tx in
                     switch donateMode {
                     case .oneTime:
-                        idealDonationStore.clearPendingOneTimeDonation(tx: tx.asV2Write)
+                        idealDonationStore.clearPendingOneTimeDonation(tx: tx)
                     case .monthly:
-                        idealDonationStore.clearPendingSubscription(tx: tx.asV2Write)
+                        idealDonationStore.clearPendingSubscription(tx: tx)
                     }
                 }
             case .applePay, .creditOrDebitCard, .paypal, .sepa, .none:
@@ -553,15 +575,15 @@ public final class DonationViewsUtil {
         from viewController: UIViewController,
         donateMode: DonateViewController.DonateMode
     ) {
-        let receiptCredentialRequestError = SDSDatabaseStorage.shared.read { tx -> ReceiptCredentialRequestError? in
-            let resultStore = DependenciesBridge.shared.receiptCredentialResultStore
+        let receiptCredentialRequestError = SSKEnvironment.shared.databaseStorageRef.read { tx -> DonationReceiptCredentialRequestError? in
+            let resultStore = DependenciesBridge.shared.donationReceiptCredentialResultStore
 
             switch donateMode {
             case .oneTime:
-                return resultStore.getRequestError(errorMode: .oneTimeBoost, tx: tx.asV2Read)
+                return resultStore.getRequestError(errorMode: .oneTimeBoost, tx: tx)
             case .monthly:
                 // All subscriptions from this controller are being initiated.
-                return resultStore.getRequestError(errorMode: .recurringSubscriptionInitiation, tx: tx.asV2Read)
+                return resultStore.getRequestError(errorMode: .recurringSubscriptionInitiation, tx: tx)
             }
         }
 

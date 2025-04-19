@@ -42,14 +42,14 @@ public class FingerprintProtoLogicalFingerprint: NSObject, Codable, NSSecureCodi
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try FingerprintProtos_LogicalFingerprint(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: FingerprintProtos_LogicalFingerprint) throws {
         guard proto.hasIdentityData else {
-            throw FingerprintProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: identityData")
+            throw FingerprintProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: identityData")
         }
         let identityData = proto.identityData
 
@@ -209,24 +209,24 @@ public class FingerprintProtoLogicalFingerprints: NSObject, Codable, NSSecureCod
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try FingerprintProtos_LogicalFingerprints(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: FingerprintProtos_LogicalFingerprints) throws {
         guard proto.hasVersion else {
-            throw FingerprintProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: version")
+            throw FingerprintProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: version")
         }
         let version = proto.version
 
         guard proto.hasLocalFingerprint else {
-            throw FingerprintProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: localFingerprint")
+            throw FingerprintProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: localFingerprint")
         }
         let localFingerprint = try FingerprintProtoLogicalFingerprint(proto.localFingerprint)
 
         guard proto.hasRemoteFingerprint else {
-            throw FingerprintProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: remoteFingerprint")
+            throw FingerprintProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: remoteFingerprint")
         }
         let remoteFingerprint = try FingerprintProtoLogicalFingerprint(proto.remoteFingerprint)
 

@@ -43,10 +43,10 @@ class CallControls: UIView {
         accessibilityLabel: viewModel.videoButtonAccessibilityLabel) { [viewModel] _ in
             viewModel.didPressVideo()
         }
-    // TODO: Accessibility label
     private lazy var ringButton = createButton(
         iconName: "bell-ring-fill-28",
-        selectedIconName: "bell-slash-fill") { [viewModel] _ in
+        selectedIconName: "bell-slash-fill",
+        accessibilityLabel: viewModel.ringButtonAccessibilityLabel) { [viewModel] _ in
             viewModel.didPressRing()
         }
     private lazy var flipCameraButton: CallButton = {
@@ -163,9 +163,10 @@ class CallControls: UIView {
 
     private var heightAfterLastUpdate: CGFloat = 0
 
+    private var animator: UIViewPropertyAnimator?
+
     private func updateControls() {
         // Top row
-        audioSourceButton.isHidden = viewModel.audioSourceButtonIsHidden
         hangUpButton.isHidden = viewModel.hangUpButtonIsHidden
         muteButton.isHidden = viewModel.muteButtonIsHidden
         moreButton.isHidden = viewModel.moreButtonIsHidden
@@ -225,13 +226,31 @@ class CallControls: UIView {
         audioSourceButton.accessibilityLabel = viewModel.audioSourceAccessibilityLabel
         muteButton.accessibilityLabel = viewModel.muteButtonAccessibilityLabel
         videoButton.accessibilityLabel = viewModel.videoButtonAccessibilityLabel
+        ringButton.accessibilityLabel = viewModel.ringButtonAccessibilityLabel
         flipCameraButton.accessibilityLabel = viewModel.flipCameraButtonAccessibilityLabel
         moreButton.accessibilityLabel = viewModel.moreButtonAccessibilityLabel
 
         if self.heightAfterLastUpdate != self.currentHeight {
+            // callControlsHeightDidChange will animate changes
+            self.animator?.stopAnimation(true)
+            audioSourceButton.isHiddenInStackView = viewModel.audioSourceButtonIsHidden
+
             callControlsHeightObservers.elements.forEach {
                 $0.callControlsHeightDidChange(newHeight: currentHeight)
             }
+        } else if audioSourceButton.isHiddenInStackView != viewModel.audioSourceButtonIsHidden {
+            // Animate audioSourceButton ourselves
+            self.animator?.stopAnimation(true)
+            let animator = UIViewPropertyAnimator(
+                duration: 0.5,
+                controlPoint1: .init(x: 0.25, y: 1),
+                controlPoint2: .init(x: 0.25, y: 1)
+            )
+            animator.addAnimations { [unowned self] in
+                self.audioSourceButton.isHiddenInStackView = self.viewModel.audioSourceButtonIsHidden
+            }
+            animator.startAnimation()
+            self.animator = animator
         }
 
         self.heightAfterLastUpdate = self.currentHeight
@@ -536,7 +555,6 @@ private class CallControlsViewModel {
         case .individual(_):
             return true
         case .groupThread(let call as GroupCall), .callLink(let call as GroupCall):
-            // [CallLink] TODO: Figure out if this should be shown while pending.
             return call.ringRtcCall.localDeviceState.joinState != .joined
         }
     }
@@ -661,6 +679,7 @@ extension CallControlsViewModel {
     func didPressMute() {
         let shouldMute = !muteButtonIsSelected
         callService.updateIsLocalAudioMuted(isLocalAudioMuted: shouldMute)
+        callService.callUIAdapter.setIsMuted(call: call, isMuted: shouldMute)
         confirmationToastManager.toastInducingCallControlChangeDidOccur(state: .mute(isOn: shouldMute))
         didOverrideDefaultMuteState = true
         refreshView?()
@@ -773,6 +792,31 @@ extension CallControlsViewModel {
                 comment: "Accessibility label for turning off the camera"
             )
         }
+    }
+
+    public var ringButtonAccessibilityLabel: String? {
+        switch call.mode {
+        case .individual, .callLink:
+            // These call types do not use the ring button.
+            break
+        case .groupThread(let call):
+            switch call.groupCallRingState {
+            case .shouldRing:
+                return OWSLocalizedString(
+                    "CALL_VIEW_TURN_OFF_RINGING",
+                    comment: "Accessibility label for turning off call ringing"
+                )
+            case .doNotRing:
+                return OWSLocalizedString(
+                    "CALL_VIEW_TURN_ON_RINGING",
+                    comment: "Accessibility label for turning on call ringing"
+                )
+            default:
+                // Ring button shouldn't be available.
+                break
+            }
+        }
+        return nil
     }
 
     public var flipCameraButtonAccessibilityLabel: String {

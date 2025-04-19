@@ -22,38 +22,26 @@ import LibSignalClient
 /// For unidentified envelopes, we first decrypt the envelope payload which
 /// gives us the `sourceAci` and a nested payload. We then decrypt that
 /// nested payload to populate `plaintextData`.
-@objc
-class DecryptedIncomingEnvelope: NSObject {
-    @objc
+class DecryptedIncomingEnvelope {
     let envelope: SSKProtoEnvelope
-
-    @objc
     let timestamp: UInt64
-
-    @objc
     let serverTimestamp: UInt64
-
     let sourceAci: Aci
-
-    @objc
-    let sourceDeviceId: UInt32
-
+    let sourceDeviceId: DeviceId
     let localIdentity: OWSIdentity
     let wasReceivedByUD: Bool
     let plaintextData: Data
     let content: SSKProtoContent?
 
-    @objc
-    var sourceAciObjC: AciObjC { AciObjC(sourceAci) }
-
     init(
         validatedEnvelope: ValidatedIncomingEnvelope,
         updatedEnvelope: SSKProtoEnvelope,
         sourceAci: Aci,
-        sourceDeviceId: UInt32,
+        sourceDeviceId: DeviceId,
         wasReceivedByUD: Bool,
-        plaintextData: Data
-    ) {
+        plaintextData: Data,
+        isPlaintextCipher: Bool?
+    ) throws {
         self.envelope = updatedEnvelope
         self.timestamp = validatedEnvelope.timestamp
         self.serverTimestamp = validatedEnvelope.serverTimestamp
@@ -70,5 +58,35 @@ class DecryptedIncomingEnvelope: NSObject {
                 return nil
             }
         }()
+
+        let hasDecryptionError = (
+            content?.decryptionErrorMessage != nil
+        )
+        let hasAnythingElse = (
+            content?.dataMessage != nil
+            || content?.syncMessage != nil
+            || content?.callMessage != nil
+            || content?.nullMessage != nil
+            || content?.receiptMessage != nil
+            || content?.typingMessage != nil
+            || content?.storyMessage != nil
+            || content?.pniSignatureMessage != nil
+            || content?.senderKeyDistributionMessage != nil
+            || content?.unknownFields != nil
+        )
+        if hasDecryptionError && hasAnythingElse {
+            throw OWSGenericError("Message content must contain one type.")
+        }
+        if let isPlaintextCipher, isPlaintextCipher != hasDecryptionError {
+            throw OWSGenericError("Plaintext ciphers must have decryption errors.")
+        }
+
+        // This prevents replay attacks by the service.
+        if let dataMessage = content?.dataMessage, dataMessage.timestamp != timestamp {
+            throw OWSGenericError("Data messages must have matching timestamps \(sourceAci)")
+        }
+        if let typingMessage = content?.typingMessage, typingMessage.timestamp != timestamp {
+            throw OWSGenericError("Typing messages must have matching timestamps \(sourceAci)")
+        }
     }
 }

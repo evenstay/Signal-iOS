@@ -94,12 +94,13 @@ struct MergedRecipient {
 
 class RecipientMergerImpl: RecipientMerger {
     private let aciSessionStore: SignalSessionStore
-    private let blockedRecipientStore: any BlockedRecipientStore
+    private let blockedRecipientStore: BlockedRecipientStore
     private let identityManager: OWSIdentityManager
     private let observers: Observers
     private let recipientDatabaseTable: RecipientDatabaseTable
     private let recipientFetcher: RecipientFetcher
     private let storageServiceManager: StorageServiceManager
+    private let storyRecipientStore: StoryRecipientStore
 
     /// Initializes a RecipientMerger.
     ///
@@ -109,12 +110,13 @@ class RecipientMergerImpl: RecipientMerger {
     /// order in which they are provided.
     init(
         aciSessionStore: SignalSessionStore,
-        blockedRecipientStore: any BlockedRecipientStore,
+        blockedRecipientStore: BlockedRecipientStore,
         identityManager: OWSIdentityManager,
         observers: Observers,
         recipientDatabaseTable: RecipientDatabaseTable,
         recipientFetcher: RecipientFetcher,
-        storageServiceManager: StorageServiceManager
+        storageServiceManager: StorageServiceManager,
+        storyRecipientStore: StoryRecipientStore
     ) {
         self.aciSessionStore = aciSessionStore
         self.blockedRecipientStore = blockedRecipientStore
@@ -123,6 +125,7 @@ class RecipientMergerImpl: RecipientMerger {
         self.recipientDatabaseTable = recipientDatabaseTable
         self.recipientFetcher = recipientFetcher
         self.storageServiceManager = storageServiceManager
+        self.storyRecipientStore = storyRecipientStore
     }
 
     struct Observers {
@@ -751,6 +754,7 @@ class RecipientMergerImpl: RecipientMerger {
                 aciSessionStore.mergeRecipient(affectedRecipient, into: mergedRecipient, tx: tx)
                 identityManager.mergeRecipient(affectedRecipient, into: mergedRecipient, tx: tx)
                 blockedRecipientStore.mergeRecipientId(affectedRecipient.id!, into: mergedRecipient.id!, tx: tx)
+                failIfThrows { try storyRecipientStore.mergeRecipient(affectedRecipient, into: mergedRecipient, tx: tx) }
                 recipientDatabaseTable.removeRecipient(affectedRecipient, transaction: tx)
             } else if existingRecipients.contains(where: { $0.uniqueId == affectedRecipient.uniqueId }) {
                 recipientDatabaseTable.updateRecipient(affectedRecipient, transaction: tx)
@@ -944,7 +948,7 @@ extension SignalServiceAddressCache: RecipientMergeObserver {
         // If there are any threads with addresses that have been merged, we should
         // reload them from disk. This allows us to rebuild the addresses with the
         // proper hash values.
-        modelReadCaches.evacuateAllCaches()
+        SSKEnvironment.shared.modelReadCachesRef.evacuateAllCaches()
     }
 }
 
@@ -955,17 +959,13 @@ extension Notification.Name {
 }
 
 public class RecipientMergeNotifier: RecipientMergeObserver {
-    private let scheduler: Scheduler
-
-    public init(scheduler: Scheduler) {
-        self.scheduler = scheduler
-    }
+    public init() {}
 
     func willBreakAssociation(for recipient: SignalRecipient, mightReplaceNonnilPhoneNumber: Bool, tx: DBWriteTransaction) {}
 
     func didLearnAssociation(mergedRecipient: MergedRecipient, tx: DBWriteTransaction) {
-        tx.addAsyncCompletion(on: scheduler) {
-            NotificationCenter.default.post(name: .didLearnRecipientAssociation, object: self)
+        tx.addSyncCompletion {
+            NotificationCenter.default.postOnMainThread(name: .didLearnRecipientAssociation, object: self)
         }
     }
 }

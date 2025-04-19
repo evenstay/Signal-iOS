@@ -22,6 +22,7 @@ extension RegistrationCoordinatorImpl {
         public typealias ProfileManager = _RegistrationCoordinator_ProfileManagerShim
         public typealias PushRegistrationManager = _RegistrationCoordinator_PushRegistrationManagerShim
         public typealias ReceiptManager = _RegistrationCoordinator_ReceiptManagerShim
+        public typealias StorageServiceManager = _RegistrationCoordinator_StorageServiceManagerShim
         public typealias UDManager = _RegistrationCoordinator_UDManagerShim
     }
     public enum Wrappers {
@@ -36,6 +37,7 @@ extension RegistrationCoordinatorImpl {
         public typealias ProfileManager = _RegistrationCoordinator_ProfileManagerWrapper
         public typealias PushRegistrationManager = _RegistrationCoordinator_PushRegistrationManagerWrapper
         public typealias ReceiptManager = _RegistrationCoordinator_ReceiptManagerWrapper
+        public typealias StorageServiceManager = _RegistrationCoordinator_StorageServiceManagerWrapper
         public typealias UDManager = _RegistrationCoordinator_UDManagerWrapper
     }
 }
@@ -104,7 +106,7 @@ public class _RegistrationCoordinator_ExperienceManagerWrapper: _RegistrationCoo
     public init() {}
 
     public func clearIntroducingPinsExperience(_ tx: DBWriteTransaction) {
-        ExperienceUpgradeManager.clearExperienceUpgrade(.introducingPins, transaction: SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite)
+        ExperienceUpgradeManager.clearExperienceUpgrade(.introducingPins, transaction: SDSDB.shimOnlyBridge(tx))
     }
 
     public func enableAllGetStartedCards(_ tx: DBWriteTransaction) {
@@ -116,6 +118,8 @@ public class _RegistrationCoordinator_ExperienceManagerWrapper: _RegistrationCoo
 
 public protocol _RegistrationCoordinator_FeatureFlagsShim {
 
+    var enableAccountEntropyPool: Bool { get }
+
     var messageBackupFileAlphaRegistrationFlow: Bool { get }
 }
 
@@ -123,7 +127,9 @@ public class _RegistrationCoordinator_FeatureFlagsWrapper: _RegistrationCoordina
 
     public init() {}
 
-    public var messageBackupFileAlphaRegistrationFlow: Bool { FeatureFlags.messageBackupFileAlphaRegistrationFlow }
+    public var enableAccountEntropyPool: Bool { FeatureFlags.enableAccountEntropyPool }
+
+    public var messageBackupFileAlphaRegistrationFlow: Bool { FeatureFlags.MessageBackup.fileAlphaRegistrationFlow }
 }
 
 // MARK: - MessagePipelineSupervisor
@@ -155,10 +161,7 @@ public class _RegistrationCoordinator_MessagePipelineSupervisorWrapper: _Registr
 // MARK: - MessageProcessor
 
 public protocol _RegistrationCoordinator_MessageProcessorShim {
-
-    func waitForProcessingCompleteAndThenSuspend(
-        for suspension: MessagePipelineSupervisor.Suspension
-    ) -> Guarantee<Void>
+    func waitForFetchingAndProcessing() -> Guarantee<Void>
 }
 
 public class _RegistrationCoordinator_MessageProcessorWrapper: _RegistrationCoordinator_MessageProcessorShim {
@@ -169,10 +172,8 @@ public class _RegistrationCoordinator_MessageProcessorWrapper: _RegistrationCoor
         self.processor = processor
     }
 
-    public func waitForProcessingCompleteAndThenSuspend(
-        for suspension: MessagePipelineSupervisor.Suspension
-    ) -> Guarantee<Void> {
-        return processor.waitForProcessingCompleteAndThenSuspend(for: suspension)
+    public func waitForFetchingAndProcessing() -> Guarantee<Void> {
+        return processor.waitForFetchingAndProcessing()
     }
 }
 
@@ -275,11 +276,10 @@ public class _RegistrationCoordinator_PreKeyManagerWrapper: _RegistrationCoordin
 
 public protocol _RegistrationCoordinator_ProfileManagerShim {
 
-    var hasProfileName: Bool { get }
+    func localUserProfile(tx: DBReadTransaction) -> OWSUserProfile?
 
     // NOTE: non-optional because OWSProfileManager generates a random key
     // if one doesn't already exist.
-    var localProfileKey: Aes256Key { get }
 
     func updateLocalProfile(
         givenName: OWSUserProfile.NameComponent,
@@ -297,9 +297,9 @@ public class _RegistrationCoordinator_ProfileManagerWrapper: _RegistrationCoordi
     private let manager: ProfileManager
     public init(_ manager: ProfileManager) { self.manager = manager }
 
-    public var hasProfileName: Bool { manager.hasProfileName }
-
-    public var localProfileKey: Aes256Key { manager.localProfileKey }
+    public func localUserProfile(tx: DBReadTransaction) -> OWSUserProfile? {
+        return manager.localUserProfile(tx: SDSDB.shimOnlyBridge(tx))
+    }
 
     public func updateLocalProfile(
         givenName: OWSUserProfile.NameComponent,
@@ -323,7 +323,16 @@ public class _RegistrationCoordinator_ProfileManagerWrapper: _RegistrationCoordi
     }
 
     public func scheduleReuploadLocalProfile(authedAccount: AuthedAccount) {
-        return manager.reuploadLocalProfile(authedAccount: authedAccount)
+        Task {
+            await DependenciesBridge.shared.db.awaitableWrite { tx in
+                _ = manager.reuploadLocalProfile(
+                    unsavedRotatedProfileKey: nil,
+                    mustReuploadAvatar: false,
+                    authedAccount: authedAccount,
+                    tx: tx
+                )
+            }
+        }
     }
 }
 
@@ -416,6 +425,43 @@ public class _RegistrationCoordinator_ReceiptManagerWrapper: _RegistrationCoordi
 
     public func setAreStoryViewedReceiptsEnabled(_ areEnabled: Bool, _ tx: DBWriteTransaction) {
         StoryManager.setAreViewReceiptsEnabled(areEnabled, transaction: SDSDB.shimOnlyBridge(tx))
+    }
+}
+
+// MARK: - StorageService
+public protocol _RegistrationCoordinator_StorageServiceManagerShim {
+    func rotateManifest(mode: StorageServiceManagerManifestRotationMode, authedDevice: AuthedDevice) -> Promise<Void>
+    func restoreOrCreateManifestIfNecessary(authedDevice: AuthedDevice, masterKeySource: StorageService.MasterKeySource) -> Promise<Void>
+    func backupPendingChanges(authedDevice: AuthedDevice)
+    func recordPendingLocalAccountUpdates()
+}
+
+public class _RegistrationCoordinator_StorageServiceManagerWrapper: _RegistrationCoordinator_StorageServiceManagerShim {
+    private let manager: StorageServiceManager
+    public init(_ manager: StorageServiceManager) { self.manager = manager }
+
+    public func rotateManifest(
+        mode: StorageServiceManagerManifestRotationMode,
+        authedDevice: AuthedDevice
+    ) -> Promise<Void> {
+        Promise.wrapAsync {
+            try await self.manager.rotateManifest(mode: mode, authedDevice: authedDevice)
+        }
+    }
+
+    public func restoreOrCreateManifestIfNecessary(
+        authedDevice: AuthedDevice,
+        masterKeySource: StorageService.MasterKeySource
+    ) -> Promise<Void> {
+        manager.restoreOrCreateManifestIfNecessary(authedDevice: authedDevice, masterKeySource: masterKeySource)
+    }
+
+    public func backupPendingChanges(authedDevice: AuthedDevice) {
+        manager.backupPendingChanges(authedDevice: authedDevice)
+    }
+
+    public func recordPendingLocalAccountUpdates() {
+        manager.recordPendingLocalAccountUpdates()
     }
 }
 

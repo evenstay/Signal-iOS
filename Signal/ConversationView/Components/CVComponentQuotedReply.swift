@@ -108,9 +108,27 @@ public class CVComponentQuotedReply: CVComponentBase, CVComponent {
     }
 }
 
+extension CVComponentQuotedReply: CVAccessibilityComponent {
+    public var accessibilityDescription: String {
+        let format = OWSLocalizedString(
+            "QUOTED_REPLY_ACCESSIBILITY_LABEL_FORMAT",
+            comment: "Accessibility label stating the author of the message to which you are replying. Embeds: {{ the author of the message to which you are replying }}."
+        )
+
+        if quotedReply.quotedReplyModel.isOriginalMessageAuthorLocalUser {
+            return String(format: format, CommonStrings.you)
+        } else {
+            return String(
+                format: format,
+                self.quotedReply.viewState.quotedAuthorName
+            )
+        }
+    }
+}
+
 // MARK: -
 
-private class QuotedMessageViewAdapter: QuotedMessageViewDelegate, Dependencies {
+private class QuotedMessageViewAdapter: QuotedMessageViewDelegate {
 
     private let interactionUniqueId: String
 
@@ -119,14 +137,14 @@ private class QuotedMessageViewAdapter: QuotedMessageViewDelegate, Dependencies 
     }
 
     func didTapDownloadQuotedReplyAttachment(_ quotedReply: QuotedReplyModel) {
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             guard let message = TSMessage.anyFetchMessage(uniqueId: interactionUniqueId, transaction: tx) else {
                 return
             }
-            DependenciesBridge.shared.tsResourceDownloadManager.enqueueDownloadOfAttachmentsForMessage(
+            DependenciesBridge.shared.attachmentDownloadManager.enqueueDownloadOfAttachmentsForMessage(
                 message,
                 priority: .userInitiated,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
     }

@@ -12,9 +12,6 @@ public class ProfileDetailLabel: UIStackView {
     private let tapAction: (() -> Void)?
     private let longPressAction: (() -> Void)?
 
-    private static let foregroundColor = UIColor(named: "Signal/label")!
-    private static let secondaryTextColor = UIColor(named: "Signal/secondaryLabel")!
-
     public convenience init(
         title: String,
         icon: ThemeIcon,
@@ -29,7 +26,7 @@ public class ProfileDetailLabel: UIStackView {
                 string: title,
                 attributes: [
                     .font: font,
-                    .foregroundColor: Self.foregroundColor,
+                    .foregroundColor: UIColor.Signal.label,
                 ]
             ),
             icon: icon,
@@ -68,7 +65,7 @@ public class ProfileDetailLabel: UIStackView {
             font: font,
             attributes: [
                 .font: font,
-                .foregroundColor: Self.foregroundColor,
+                .foregroundColor: UIColor.Signal.label,
             ]
         )
         let imageLabel = UILabel()
@@ -87,7 +84,7 @@ public class ProfileDetailLabel: UIStackView {
             let attachmentString = NSAttributedString.with(
                 image: chevron,
                 font: font,
-                attributes: [.foregroundColor: Self.secondaryTextColor]
+                attributes: [.foregroundColor: UIColor.Signal.secondaryLabel]
             )
             if shouldLineWrap {
                 // Add the chevron at the end of the last line of text
@@ -147,7 +144,7 @@ public extension ProfileDetailLabel {
                         displayName,
                         " ",
                         "(\(secondaryName))"
-                            .styled(with: .color(Self.secondaryTextColor))
+                            .styled(with: .color(UIColor.Signal.secondaryLabel))
                     ])
                 } else {
                     return NSAttributedString.composed(of: [displayName])
@@ -159,10 +156,24 @@ public extension ProfileDetailLabel {
         )
     }
 
+    static func profileNameEducation(
+        tapAction: @escaping () -> Void
+    ) -> ProfileDetailLabel {
+        .init(
+            title: OWSLocalizedString(
+                "CONTACT_ABOUT_SHEET_PROFILE_NAMES_EDUCATION",
+                comment: "A label on the profile about sheet"
+            ),
+            icon: .contactInfoNameEducation,
+            showDetailDisclosure: true,
+            tapAction: tapAction
+        )
+    }
+
     static func verified(
         font: UIFont = .dynamicTypeBody
     ) -> ProfileDetailLabel {
-        .init(title: SafetyNumberStrings.verified, icon: .checkmark, font: font)
+        .init(title: SafetyNumberStrings.verified, icon: .contactInfoSafetyNumber, font: font)
     }
 
     static func profileAbout(

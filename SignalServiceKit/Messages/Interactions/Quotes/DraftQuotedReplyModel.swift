@@ -49,8 +49,8 @@ public class DraftQuotedReplyModel {
         /// This includes sticker messages, which are thumbnailable attachments.
         case attachment(
             MessageBody?,
-            attachmentRef: TSResourceReference,
-            attachment: TSResource,
+            attachmentRef: AttachmentReference,
+            attachment: Attachment,
             thumbnailImage: UIImage?
         )
 
@@ -69,6 +69,15 @@ public class DraftQuotedReplyModel {
         public var isGiftBadge: Bool {
             switch self {
             case .giftBadge:
+                return true
+            default:
+                return false
+            }
+        }
+
+        public var isViewOnce: Bool {
+            switch self {
+            case .viewOnce:
                 return true
             default:
                 return false
@@ -118,11 +127,11 @@ public class DraftQuotedReplyModel {
     public static func fromOriginalPaymentMessage(
         _ originalMessage: TSMessage,
         amountString: String,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> DraftQuotedReplyModel? {
         let authorAddress: SignalServiceAddress? = {
             if originalMessage.isOutgoing {
-                return DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aciAddress
+                return DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx)?.aciAddress
             } else if let incomingMessage = originalMessage as? TSIncomingMessage {
                 return incomingMessage.authorAddress
             } else {
@@ -148,11 +157,11 @@ public class DraftQuotedReplyModel {
         replyMessage: TSMessage,
         quotedReply: TSQuotedMessage,
         amountString: String,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> DraftQuotedReplyModel? {
         let authorAddress: SignalServiceAddress? = {
             if originalMessage.isOutgoing {
-                return DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aciAddress
+                return DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx)?.aciAddress
             } else if let incomingMessage = originalMessage as? TSIncomingMessage {
                 return incomingMessage.authorAddress
             } else {
@@ -260,7 +269,7 @@ extension DraftQuotedReplyModel.Content: Equatable {
             .attachment(rhsBody, _, rhsAttachment, rhsThumbnailImage)
         ):
             return lhsBody == rhsBody
-                && lhsAttachment.resourceId == rhsAttachment.resourceId
+                && lhsAttachment.id == rhsAttachment.id
                 && lhsThumbnailImage == rhsThumbnailImage
         case
             (.giftBadge, _),

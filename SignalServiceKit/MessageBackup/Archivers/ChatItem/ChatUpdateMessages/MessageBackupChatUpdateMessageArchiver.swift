@@ -22,23 +22,22 @@ final class MessageBackupChatUpdateMessageArchiver: MessageBackupProtoArchiver {
         callRecordStore: any CallRecordStore,
         contactManager: any MessageBackup.Shims.ContactManager,
         groupCallRecordManager: any GroupCallRecordManager,
-        groupUpdateHelper: any GroupUpdateInfoMessageInserterBackupHelper,
         groupUpdateItemBuilder: any GroupUpdateItemBuilder,
         individualCallRecordManager: any IndividualCallRecordManager,
-        interactionStore: any InteractionStore
+        interactionStore: MessageBackupInteractionStore
     ) {
+        groupUpdateMessageArchiver = MessageBackupGroupUpdateMessageArchiver(
+            groupUpdateBuilder: groupUpdateItemBuilder,
+            interactionStore: interactionStore
+        )
         expirationTimerChatUpdateArchiver = MessageBackupExpirationTimerChatUpdateArchiver(
             contactManager: contactManager,
+            groupUpdateArchiver: groupUpdateMessageArchiver,
             interactionStore: interactionStore
         )
         groupCallArchiver = MessageBackupGroupCallArchiver(
             callRecordStore: callRecordStore,
             groupCallRecordManager: groupCallRecordManager,
-            interactionStore: interactionStore
-        )
-        groupUpdateMessageArchiver = MessageBackupGroupUpdateMessageArchiver(
-            groupUpdateBuilder: groupUpdateItemBuilder,
-            groupUpdateHelper: groupUpdateHelper,
             interactionStore: interactionStore
         )
         individualCallArchiver = MessageBackupIndividualCallArchiver(
@@ -67,41 +66,44 @@ final class MessageBackupChatUpdateMessageArchiver: MessageBackupProtoArchiver {
 
     func archiveIndividualCall(
         _ individualCallInteraction: TSCall,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveChatUpdateMessageResult {
         return individualCallArchiver.archiveIndividualCall(
             individualCallInteraction,
+            threadInfo: threadInfo,
             context: context
         )
     }
 
     func archiveGroupCall(
         _ groupCallInteraction: OWSGroupCallMessage,
-        thread: TSThread,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveChatUpdateMessageResult {
         return groupCallArchiver.archiveGroupCall(
             groupCallInteraction,
+            threadInfo: threadInfo,
             context: context
         )
     }
 
     func archiveErrorMessage(
         _ errorMessage: TSErrorMessage,
-        thread: TSThread,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveChatUpdateMessageResult {
         /// All `TSErrorMessage`s map to simple chat updates.
         return simpleChatUpdateArchiver.archiveSimpleChatUpdate(
             errorMessage: errorMessage,
-            thread: thread,
+            threadInfo: threadInfo,
             context: context
         )
     }
 
     func archiveInfoMessage(
         _ infoMessage: TSInfoMessage,
-        thread: TSThread,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveChatUpdateMessageResult {
         switch infoMessage.groupUpdateMetadata(
@@ -113,6 +115,7 @@ final class MessageBackupChatUpdateMessageArchiver: MessageBackupProtoArchiver {
         case .precomputed, .modelDiff, .newGroup:
             return groupUpdateMessageArchiver.archiveGroupUpdate(
                 infoMessage: infoMessage,
+                threadInfo: threadInfo,
                 context: context
             )
         case .nonGroupUpdate:
@@ -121,24 +124,24 @@ final class MessageBackupChatUpdateMessageArchiver: MessageBackupProtoArchiver {
 
         switch infoMessage.messageType {
         case .typeGroupUpdate:
-            return .skippableChatUpdate(.skippableGroupUpdate(.missingUpdateMetadata))
+            return .skippableInteraction(.skippableGroupUpdate(.missingUpdateMetadata))
         case .userNotRegistered:
-            return .skippableChatUpdate(.legacyInfoMessage(.userNotRegistered))
+            return .skippableInteraction(.legacyInfoMessage(.userNotRegistered))
         case .typeUnsupportedMessage:
-            return .skippableChatUpdate(.legacyInfoMessage(.typeUnsupportedMessage))
+            return .skippableInteraction(.legacyInfoMessage(.typeUnsupportedMessage))
         case .typeGroupQuit:
-            return .skippableChatUpdate(.legacyInfoMessage(.typeGroupQuit))
+            return .skippableInteraction(.legacyInfoMessage(.typeGroupQuit))
         case .addToContactsOffer:
-            return .skippableChatUpdate(.legacyInfoMessage(.addToContactsOffer))
+            return .skippableInteraction(.legacyInfoMessage(.addToContactsOffer))
         case .addUserToProfileWhitelistOffer:
-            return .skippableChatUpdate(.legacyInfoMessage(.addUserToProfileWhitelistOffer))
+            return .skippableInteraction(.legacyInfoMessage(.addUserToProfileWhitelistOffer))
         case .addGroupToProfileWhitelistOffer:
-            return .skippableChatUpdate(.legacyInfoMessage(.addGroupToProfileWhitelistOffer))
+            return .skippableInteraction(.legacyInfoMessage(.addGroupToProfileWhitelistOffer))
         case .syncedThread:
-            return .skippableChatUpdate(.legacyInfoMessage(.syncedThread))
+            return .skippableInteraction(.legacyInfoMessage(.syncedThread))
         case .recipientHidden:
             /// This info message type is handled specially.
-            return .skippableChatUpdate(.contactHiddenInfoMessage)
+            return .skippableInteraction(.contactHiddenInfoMessage)
         case
                 .verificationStateChange,
                 .typeLocalUserEndedSession,
@@ -157,37 +160,37 @@ final class MessageBackupChatUpdateMessageArchiver: MessageBackupProtoArchiver {
             /// These info message types map to simple chat updates.
             return simpleChatUpdateArchiver.archiveSimpleChatUpdate(
                 infoMessage: infoMessage,
-                thread: thread,
+                threadInfo: threadInfo,
                 context: context
             )
         case .profileUpdate:
             return profileChangeChatUpdateArchiver.archive(
                 infoMessage: infoMessage,
-                thread: thread,
+                threadInfo: threadInfo,
                 context: context
             )
         case .typeDisappearingMessagesUpdate:
             return expirationTimerChatUpdateArchiver.archiveExpirationTimerChatUpdate(
                 infoMessage: infoMessage,
-                thread: thread,
+                threadInfo: threadInfo,
                 context: context
             )
         case .threadMerge:
             return threadMergeChatUpdateArchiver.archiveThreadMergeChatUpdate(
                 infoMessage: infoMessage,
-                thread: thread,
+                threadInfo: threadInfo,
                 context: context
             )
         case .sessionSwitchover:
             return sessionSwitchoverChatUpdateArchiver.archiveSessionSwitchoverChatUpdate(
                 infoMessage: infoMessage,
-                thread: thread,
+                threadInfo: threadInfo,
                 context: context
             )
         case .learnedProfileName:
             return learnedProfileChatUpdateArchiver.archiveLearnedProfileChatUpdate(
                 infoMessage: infoMessage,
-                thread: thread,
+                threadInfo: threadInfo,
                 context: context
             )
         }
@@ -198,7 +201,7 @@ final class MessageBackupChatUpdateMessageArchiver: MessageBackupProtoArchiver {
     func restoreChatItem(
         _ chatItem: BackupProto_ChatItem,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreChatUpdateMessageResult {
         let chatUpdateMessage: BackupProto_ChatUpdateMessage
         do {
@@ -215,10 +218,9 @@ final class MessageBackupChatUpdateMessageArchiver: MessageBackupProtoArchiver {
 
         switch chatUpdateMessage.update {
         case nil:
-            return .messageFailure([.restoreFrameError(
-                .invalidProtoData(.emptyChatUpdateMessage),
-                chatItem.id
-            )])
+            return .unrecognizedEnum(MessageBackup.UnrecognizedEnumError(
+                enumType: BackupProto_ChatUpdateMessage.OneOf_Update.self
+            ))
         case .groupChange(let groupChangeChatUpdateProto):
             return groupUpdateMessageArchiver.restoreGroupUpdate(
                 groupChangeChatUpdateProto,

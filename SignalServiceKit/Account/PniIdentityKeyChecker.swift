@@ -6,64 +6,32 @@
 import LibSignalClient
 
 protocol PniIdentityKeyChecker {
-    func serverHasSameKeyAsLocal(
-        localPni: Pni,
-        tx: DBReadTransaction
-    ) -> Promise<Bool>
+    func serverHasSameKeyAsLocal(localPni: Pni) async throws -> Bool
 }
 
 class PniIdentityKeyCheckerImpl: PniIdentityKeyChecker {
-    fileprivate static let logger = PrefixedLogger(prefix: "PIKC")
-
-    private let db: DB
+    private let db: any DB
     private let identityManager: Shims.IdentityManager
     private let profileFetcher: Shims.ProfileFetcher
-    private let schedulers: Schedulers
 
     init(
-        db: DB,
+        db: any DB,
         identityManager: Shims.IdentityManager,
-        profileFetcher: Shims.ProfileFetcher,
-        schedulers: Schedulers
+        profileFetcher: Shims.ProfileFetcher
     ) {
         self.db = db
         self.identityManager = identityManager
         self.profileFetcher = profileFetcher
-        self.schedulers = schedulers
     }
 
-    func serverHasSameKeyAsLocal(
-        localPni: Pni,
-        tx syncTx: DBReadTransaction
-    ) -> Promise<Bool> {
-        let logger = Self.logger
+    func serverHasSameKeyAsLocal(localPni: Pni) async throws -> Bool {
+        let remotePniIdentityKey = try await self.profileFetcher.fetchPniIdentityPublicKey(localPni: localPni)
 
-        if identityManager.pniIdentityKey(tx: syncTx) == nil {
-            // If we have no PNI identity key, we can say it doesn't match.
-            return .value(false)
-        }
+        let localPniIdentityKey = self.db.read(block: { tx -> IdentityKey? in
+            return self.identityManager.pniIdentityKey(tx: tx)
+        })
 
-        return Promise.wrapAsync {
-            return try await self.profileFetcher.fetchPniIdentityPublicKey(localPni: localPni)
-        }.map(on: self.schedulers.global()) { remotePniIdentityKey -> Bool in
-            guard let localPniIdentityKey = self.db.read(block: { tx -> IdentityKey? in
-                return self.identityManager.pniIdentityKey(tx: tx)
-            }) else {
-                logger.warn("Missing local PNI identity key!")
-                return false
-            }
-
-            if let remotePniIdentityKey, remotePniIdentityKey == localPniIdentityKey {
-                logger.info("Local PNI identity key matches server.")
-                return true
-            }
-
-            logger.warn("Local PNI identity key does not match server!")
-            return false
-        }.recover(on: self.schedulers.sync) { error throws -> Promise<Bool> in
-            logger.error("Error checking remote identity key: \(error)!")
-            throw error
-        }
+        return remotePniIdentityKey != nil && remotePniIdentityKey == localPniIdentityKey
     }
 }
 
@@ -113,31 +81,20 @@ class _PniIdentityKeyCheckerImpl_ProfileFetcher_Wrapper: _PniIdentityKeyCheckerI
     }
 
     func fetchPniIdentityPublicKey(localPni: Pni) async throws -> IdentityKey? {
-        let logger = PniIdentityKeyCheckerImpl.logger
-
         do {
             let request = OWSRequestFactory.getUnversionedProfileRequest(
                 serviceId: localPni,
-                udAccessKey: nil,
-                auth: .implicit()
+                auth: .identified(.implicit())
             )
-            let response = try await NSObject.networkManager.makePromise(
-                request: request,
-                canUseWebSocket: true
-            ).awaitable()
-
-            guard let bodyData = response.responseBodyData else {
-                throw OWSGenericError("Couldn't handle success response without data.")
-            }
+            let response = try await SSKEnvironment.shared.networkManagerRef.asyncRequest(request)
 
             struct Response: Decodable {
                 var identityKey: Data?
             }
 
-            let decodedResponse = try JSONDecoder().decode(Response.self, from: bodyData)
+            let decodedResponse = try JSONDecoder().decode(Response.self, from: (response.responseBodyData ?? Data()))
             return try decodedResponse.identityKey.map { try IdentityKey(bytes: $0) }
         } catch where error.httpStatusCode == 404 {
-            logger.warn("Server does not have a profile for the given PNI.")
             return nil
         }
     }

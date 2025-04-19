@@ -5,7 +5,6 @@
 
 #import "TSErrorMessage.h"
 #import "TSContactThread.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -88,10 +87,10 @@ NSUInteger TSErrorMessageSchemaVersion = 2;
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -122,10 +121,10 @@ NSUInteger TSErrorMessageSchemaVersion = 2;
                             sortId:sortId
                          timestamp:timestamp
                     uniqueThreadId:uniqueThreadId
-                     attachmentIds:attachmentIds
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+          deprecated_attachmentIds:deprecated_attachmentIds
                          editState:editState
                    expireStartedAt:expireStartedAt
                 expireTimerVersion:expireTimerVersion
@@ -167,7 +166,7 @@ NSUInteger TSErrorMessageSchemaVersion = 2;
     return OWSInteractionType_Error;
 }
 
-- (NSString *)previewTextWithTransaction:(SDSAnyReadTransaction *)transaction
+- (NSString *)previewTextWithTransaction:(DBReadTransaction *)transaction
 {
     switch (_errorType) {
         case TSErrorMessageNoSession:
@@ -197,8 +196,9 @@ NSUInteger TSErrorMessageSchemaVersion = 2;
             if (self.sender) {
                 NSString *formatString = OWSLocalizedString(@"ERROR_MESSAGE_DECRYPTION_FAILURE",
                     @"Error message for a decryption failure. Embeds {{sender short name}}.");
-                NSString *senderName = [self.contactManagerObjC shortDisplayNameStringForAddress:self.sender
-                                                                                     transaction:transaction];
+                NSString *senderName =
+                    [SSKEnvironment.shared.contactManagerObjcRef shortDisplayNameStringForAddress:self.sender
+                                                                                      transaction:transaction];
                 return [[NSString alloc] initWithFormat:formatString, senderName];
             } else {
                 return OWSLocalizedString(
@@ -223,7 +223,7 @@ NSUInteger TSErrorMessageSchemaVersion = 2;
                        thread:(TSThread *)thread
                  circumstance:(OWSReceiptCircumstance)circumstance
      shouldClearNotifications:(BOOL)shouldClearNotifications
-                  transaction:(SDSAnyWriteTransaction *)transaction
+                  transaction:(DBWriteTransaction *)transaction
 {
     OWSAssertDebug(transaction);
 

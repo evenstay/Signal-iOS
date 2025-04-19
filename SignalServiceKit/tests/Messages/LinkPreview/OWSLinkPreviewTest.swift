@@ -8,16 +8,16 @@ import Foundation
 import XCTest
 
 class OWSLinkPreviewTest: XCTestCase {
-    var mockDB: MockDB!
+    var mockDB: InMemoryDB!
     var linkPreviewManager: LinkPreviewManagerImpl!
 
     override func setUp() {
         super.setUp()
 
-        mockDB = MockDB()
+        mockDB = InMemoryDB()
         linkPreviewManager = LinkPreviewManagerImpl(
-            attachmentManager: TSResourceManagerMock(),
-            attachmentStore: TSResourceStoreMock(),
+            attachmentManager: AttachmentManagerMock(),
+            attachmentStore: AttachmentStoreMock(),
             attachmentValidator: AttachmentContentValidatorMock(),
             db: mockDB,
             linkPreviewSettingStore: LinkPreviewSettingStore.mock()
@@ -43,7 +43,6 @@ class OWSLinkPreviewTest: XCTestCase {
             let linkPreviewBuilder = try! linkPreviewManager.validateAndBuildLinkPreview(
                 from: dataMessage.preview.first!,
                 dataMessage: dataMessage,
-                ownerType: .message,
                 tx: tx
             )
             XCTAssertNotNil(linkPreviewBuilder)
@@ -51,7 +50,8 @@ class OWSLinkPreviewTest: XCTestCase {
                 owner: .messageLinkPreview(.init(
                     messageRowId: 0,
                     receivedAtTimestamp: 1000,
-                    threadRowId: 0
+                    threadRowId: 0,
+                    isPastEditRevision: false
                 )),
                 tx: tx
             )
@@ -72,7 +72,6 @@ class OWSLinkPreviewTest: XCTestCase {
             let linkPreviewBuilder = try! linkPreviewManager.validateAndBuildLinkPreview(
                 from: dataMessage.preview.first!,
                 dataMessage: dataMessage,
-                ownerType: .message,
                 tx: tx
             )
             XCTAssertNotNil(linkPreviewBuilder)
@@ -80,7 +79,8 @@ class OWSLinkPreviewTest: XCTestCase {
                 owner: .messageLinkPreview(.init(
                     messageRowId: 0,
                     receivedAtTimestamp: 100,
-                    threadRowId: 0
+                    threadRowId: 0,
+                    isPastEditRevision: false
                 )),
                 tx: tx
             )
@@ -105,7 +105,6 @@ class OWSLinkPreviewTest: XCTestCase {
             let linkPreviewBuilder = try! linkPreviewManager.validateAndBuildLinkPreview(
                 from: dataMessage.preview.first!,
                 dataMessage: dataMessage,
-                ownerType: .message,
                 tx: tx
             )
             XCTAssertNotNil(linkPreviewBuilder)
@@ -113,7 +112,8 @@ class OWSLinkPreviewTest: XCTestCase {
                 owner: .messageLinkPreview(.init(
                     messageRowId: 0,
                     receivedAtTimestamp: 300,
-                    threadRowId: 1
+                    threadRowId: 1,
+                    isPastEditRevision: false
                 )),
                 tx: tx
             )

@@ -18,16 +18,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
-- (instancetype)initWithThread:(TSThread *)thread transaction:(SDSAnyReadTransaction *)transaction NS_UNAVAILABLE;
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
+                        transaction:(DBReadTransaction *)transaction NS_UNAVAILABLE;
 - (instancetype)initWithTimestamp:(uint64_t)timestamp
-                           thread:(TSThread *)thread
-                      transaction:(SDSAnyReadTransaction *)transaction NS_UNAVAILABLE;
+                      localThread:(TSContactThread *)localThread
+                      transaction:(DBReadTransaction *)transaction NS_UNAVAILABLE;
 
-- (instancetype)initWithLocalThread:(TSThread *)localThread
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
                       messageThread:(TSThread *)messageThread
                     outgoingMessage:(TSOutgoingMessage *)message
                   isRecipientUpdate:(BOOL)isRecipientUpdate
-                        transaction:(SDSAnyReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
+                        transaction:(DBReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
 
 @property (nonatomic, readonly) TSOutgoingMessage *message;

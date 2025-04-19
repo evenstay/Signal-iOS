@@ -18,23 +18,22 @@ public final class GroupCallInteractionFinder {
     public func existsGroupCallMessageForEraId(
         _ eraId: String,
         thread: TSThread,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> Bool {
         let sql = """
-        SELECT EXISTS(
             SELECT 1
             FROM \(InteractionRecord.databaseTableName)
+            \(DEBUG_INDEXED_BY("Interaction_groupCallEraId_partial", or: "index_model_TSInteraction_on_uniqueThreadId_and_eraId_and_recordType"))
             WHERE \(interactionColumn: .recordType) IS \(SDSRecordType.groupCallMessage.rawValue)
             AND \(interactionColumn: .threadUniqueId) = ?
             AND \(interactionColumn: .eraId) = ?
             LIMIT 1
-        )
-        """
+            """
 
         let arguments: StatementArguments = [thread.uniqueId, eraId]
         do {
             return try Bool.fetchOne(
-                transaction.unwrapGrdbRead.database,
+                transaction.database,
                 sql: sql,
                 arguments: arguments
             ) ?? false
@@ -49,21 +48,22 @@ public final class GroupCallInteractionFinder {
 
     public func unendedCallsForGroupThread(
         _ thread: TSThread,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> [OWSGroupCallMessage] {
         let sql: String = """
             SELECT *
             FROM \(InteractionRecord.databaseTableName)
-            WHERE \(interactionColumn: .recordType) IS \(SDSRecordType.groupCallMessage.rawValue)
-            AND \(interactionColumn: .hasEnded) IS FALSE
+            \(DEBUG_INDEXED_BY("Interaction_unendedGroupCall_partial", or: "index_model_TSInteraction_on_uniqueThreadId_and_hasEnded_and_recordType"))
+            WHERE \(interactionColumn: .recordType) = \(SDSRecordType.groupCallMessage.rawValue)
+            AND \(interactionColumn: .hasEnded) = 0
             AND \(interactionColumn: .threadUniqueId) = ?
-        """
+            """
 
         var groupCalls: [OWSGroupCallMessage] = []
         let cursor = OWSGroupCallMessage.grdbFetchCursor(
             sql: sql,
             arguments: [thread.uniqueId],
-            transaction: transaction.unwrapGrdbRead
+            transaction: transaction
         )
 
         do {

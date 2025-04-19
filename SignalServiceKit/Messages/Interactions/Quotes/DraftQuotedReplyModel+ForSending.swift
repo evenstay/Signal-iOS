@@ -11,13 +11,14 @@ extension DraftQuotedReplyModel {
         public let originalMessageTimestamp: UInt64?
         public let originalMessageAuthorAddress: SignalServiceAddress
         public let originalMessageIsGiftBadge: Bool
+        public let originalMessageIsViewOnce: Bool
         public let threadUniqueId: String
 
         public let quoteBody: MessageBody?
 
         public enum Attachment {
             case stub(QuotedMessageAttachmentReference.Stub)
-            case thumbnail(dataSource: QuotedReplyTSResourceDataSource)
+            case thumbnail(dataSource: QuotedReplyAttachmentDataSource)
         }
         public let attachment: Attachment?
 

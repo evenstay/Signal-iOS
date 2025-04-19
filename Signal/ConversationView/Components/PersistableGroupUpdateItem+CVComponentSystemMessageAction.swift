@@ -13,7 +13,7 @@ extension TSInfoMessage.PersistableGroupUpdateItem {
         items: [Self],
         groupThread: () -> TSGroupThread?,
         contactsManager: any ContactManager,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> CVComponentSystemMessage.Action? {
         guard !items.isEmpty else {
             return nil
@@ -79,7 +79,7 @@ extension TSInfoMessage.PersistableGroupUpdateItem {
     private func cvComponentAction(
         groupThread: () -> TSGroupThread?,
         contactsManager: any ContactManager,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> CVComponentSystemMessage.Action? {
         typealias Action = CVComponentSystemMessage.Action
 
@@ -130,7 +130,7 @@ extension TSInfoMessage.PersistableGroupUpdateItem {
             let .unnamedUsersWereInvitedByOtherUser(_, count),
             let .unnamedUsersWereInvitedByUnknownUser(count):
             return Action.forNewlyRequestingMembers(count: count)
-        case .localUserRequestedToJoin, .otherUserRequestedToJoin:
+        case .otherUserRequestedToJoin:
             return Action.forNewlyRequestingMembers(count: 1)
 
         default:
@@ -146,7 +146,7 @@ fileprivate extension CVComponentSystemMessage.Action {
         isTail: Bool,
         groupThread: () -> TSGroupThread?,
         contactsManager: any ContactManager,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> Self? {
         guard isTail else { return nil }
 

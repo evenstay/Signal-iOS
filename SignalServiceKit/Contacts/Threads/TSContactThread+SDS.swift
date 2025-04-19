@@ -16,7 +16,7 @@ public extension TSContactThread {
     // NOTE: This method will fail if the object has unexpected type.
     class func anyFetchContactThread(
         uniqueId: String,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> TSContactThread? {
         assert(!uniqueId.isEmpty)
 
@@ -32,7 +32,7 @@ public extension TSContactThread {
     }
 
     // NOTE: This method will fail if the object has unexpected type.
-    func anyUpdateContactThread(transaction: SDSAnyWriteTransaction, block: (TSContactThread) -> Void) {
+    func anyUpdateContactThread(transaction: DBWriteTransaction, block: (TSContactThread) -> Void) {
         anyUpdate(transaction: transaction) { (object) in
             guard let instance = object as? TSContactThread else {
                 owsFailDebug("Object has unexpected type: \(type(of: object))")
@@ -56,7 +56,7 @@ class TSContactThreadSerializer: SDSSerializer {
 
     // MARK: - Record
 
-    func asRecord() throws -> SDSRecord {
+    func asRecord() -> SDSRecord {
         let id: Int64? = model.grdbId?.int64Value
 
         let recordType: SDSRecordType = .contactThread

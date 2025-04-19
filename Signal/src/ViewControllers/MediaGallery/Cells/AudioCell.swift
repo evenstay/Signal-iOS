@@ -45,7 +45,7 @@ class AudioCell: MediaTileListModeCell {
 
         let currentContentSizeCategory = UITraitCollection.current.preferredContentSizeCategory
         let displaysTopLabel = AudioAllMediaPresenter.hasAttachmentLabel(
-            attachment: audioItem.attachmentStream.attachmentStream,
+            attachment: audioItem.attachmentStream.attachment,
             isVoiceMessage: audioItem.isVoiceMessage
         )
 
@@ -114,7 +114,7 @@ class AudioCell: MediaTileListModeCell {
         return view
     }()
 
-    private func createAudioMessageView(transaction: SDSAnyReadTransaction) {
+    private func createAudioMessageView(transaction: DBReadTransaction) {
         owsAssertDebug(audioMessageView == nil)
 
         guard let audioItem, let audioAttachment, let spoilerState else {
@@ -311,7 +311,7 @@ class AudioCell: MediaTileListModeCell {
             self.audioMessageView = nil
         }
 
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             createAudioMessageView(transaction: transaction)
         }
     }

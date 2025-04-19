@@ -14,7 +14,7 @@ import SignalUI
 
 // TODO: Eventually add 1:1 call support to this view
 // and replace CallViewController
-class GroupCallViewController: UIViewController {
+final class GroupCallViewController: UIViewController {
 
     // MARK: Properties
 
@@ -38,9 +38,7 @@ class GroupCallViewController: UIViewController {
             confirmationToastManager: callControlsConfirmationToastManager,
             callControlsDelegate: self,
             sheetPanDelegate: self,
-            didPresentViewController: { [weak self] _ in
-                self?.scheduleBottomSheetTimeoutIfNecessary()
-            }
+            callDrawerDelegate: self
         )
     }()
     private lazy var fullscreenLocalMemberAddOnsView = SupplementalCallControlsForFullscreenLocalMember(
@@ -187,8 +185,8 @@ class GroupCallViewController: UIViewController {
         return result
     }()
 
-    private var didUserEverSwipeToSpeakerView = true
-    private var didUserEverSwipeToScreenShare = true
+    private var didUserEverSwipeToSpeakerView: Bool
+    private var didUserEverSwipeToScreenShare: Bool
     private let swipeToastView = GroupCallSwipeToastView()
 
     private let speakerPage = UIView()
@@ -244,7 +242,7 @@ class GroupCallViewController: UIViewController {
 
     private var membersAtJoin: Set<SignalServiceAddress>?
 
-    private static let keyValueStore = SDSKeyValueStore(collection: "GroupCallViewController")
+    private static let keyValueStore = KeyValueStore(collection: "GroupCallViewController")
     private static let didUserSwipeToSpeakerViewKey = "didUserSwipeToSpeakerView"
     private static let didUserSwipeToScreenShareKey = "didUserSwipeToScreenShare"
 
@@ -285,16 +283,48 @@ class GroupCallViewController: UIViewController {
     private var callControlsOverflowBottomConstraint: NSLayoutConstraint?
     private var callControlsConfirmationToastContainerViewBottomConstraint: NSLayoutConstraint?
 
-    init(call: SignalCall, groupCall: GroupCall) {
+    static func load(call: SignalCall, groupCall: GroupCall, tx: DBReadTransaction) -> GroupCallViewController {
+        let didUserEverSwipeToSpeakerView = keyValueStore.getBool(
+            didUserSwipeToSpeakerViewKey,
+            defaultValue: false,
+            transaction: tx
+        )
+        let didUserEverSwipeToScreenShare = keyValueStore.getBool(
+            didUserSwipeToScreenShareKey,
+            defaultValue: false,
+            transaction: tx
+        )
+
+        let phoneNumberSharingMode = SSKEnvironment.shared.udManagerRef.phoneNumberSharingMode(tx: tx).orDefault
+
+        return GroupCallViewController(
+            call: call,
+            groupCall: groupCall,
+            didUserEverSwipeToSpeakerView: didUserEverSwipeToSpeakerView,
+            didUserEverSwipeToScreenShare: didUserEverSwipeToScreenShare,
+            phoneNumberSharingMode: phoneNumberSharingMode
+        )
+    }
+
+    init(
+        call: SignalCall,
+        groupCall: GroupCall,
+        didUserEverSwipeToSpeakerView: Bool,
+        didUserEverSwipeToScreenShare: Bool,
+        phoneNumberSharingMode: PhoneNumberSharingMode
+    ) {
         // TODO: Eventually unify UI for group and individual calls
 
         self.call = call
         self.groupCall = groupCall
         self.ringRtcCall = groupCall.ringRtcCall
+        self.didUserEverSwipeToSpeakerView = didUserEverSwipeToSpeakerView
+        self.didUserEverSwipeToScreenShare = didUserEverSwipeToScreenShare
 
         super.init(nibName: nil, bundle: nil)
 
         groupCall.addObserver(self)
+        groupCall.addObserver(AppEnvironment.shared.callLinkProfileKeySharingManager)
 
         NotificationCenter.default.addObserver(
             self,
@@ -302,17 +332,37 @@ class GroupCallViewController: UIViewController {
             name: UIApplication.didBecomeActiveNotification,
             object: nil
         )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(didCompleteAnySpamChallenge),
+            name: SpamChallengeResolver.didCompleteAnyChallenge,
+            object: nil
+        )
+
+        self.callLinkLobbyToastLabel.text = switch phoneNumberSharingMode {
+        case .everybody:
+            OWSLocalizedString(
+                "CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_ON",
+                comment: "Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned on."
+            )
+        case .nobody:
+            OWSLocalizedString(
+                "CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_OFF",
+                comment: "Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned off."
+            )
+        }
     }
 
-    static func presentLobby(thread: TSGroupThread, videoMuted: Bool = false) {
+    static func presentLobby(forGroupId groupId: GroupIdentifier, videoMuted: Bool = false) {
         self._presentLobby { viewController in
             let result = await self._prepareLobby(from: viewController, shouldAskForCameraPermission: !videoMuted) {
                 let callService = AppEnvironment.shared.callService!
-                return callService.buildAndConnectGroupCall(for: thread, isVideoMuted: videoMuted)
+                return callService.buildAndConnectGroupCall(for: groupId, isVideoMuted: videoMuted)
             }
-            await databaseStorage.awaitableWrite { tx in
+            await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
                 // Dismiss the group call tooltip
-                self.preferences.setWasGroupCallTooltipShown(tx: tx)
+                SSKEnvironment.shared.preferencesRef.setWasGroupCallTooltipShown(tx: tx)
             }
             return result
         }
@@ -320,19 +370,14 @@ class GroupCallViewController: UIViewController {
 
     static func presentLobby(
         for callLink: CallLink,
-        adminPasskey: Data? = nil,
         callLinkStateRetrievalStrategy: CallService.CallLinkStateRetrievalStrategy = .fetch
     ) {
-        guard RemoteConfig.current.callLinkJoin else {
-            return
-        }
         self._presentLobby { viewController in
             do {
                 return try await self._prepareLobby(from: viewController, shouldAskForCameraPermission: true) {
                     let callService = AppEnvironment.shared.callService!
                     return try await callService.buildAndConnectCallLinkCall(
                         callLink: callLink,
-                        adminPasskey: adminPasskey,
                         callLinkStateRetrievalStrategy: callLinkStateRetrievalStrategy
                     )
                 }
@@ -358,10 +403,6 @@ class GroupCallViewController: UIViewController {
             owsFail("Can't start a call if there's no view controller")
         }
 
-        // [CallLink] TODO: Check if `canCancel` should be true.
-        // Gotchas:
-        // - Incoming group calls that are ringing.
-        // - Disconnecting calls that the user cancels.
         ModalActivityIndicatorViewController.present(
             fromViewController: frontmostViewController,
             canCancel: false,
@@ -378,7 +419,8 @@ class GroupCallViewController: UIViewController {
         shouldAskForCameraPermission: Bool,
         buildAndStartConnecting: () async throws -> (SignalCall, GroupCall)?
     ) async rethrows -> (() -> Void)? {
-        guard await CallStarter.prepareToStartCall(from: viewController, shouldAskForCameraPermission: shouldAskForCameraPermission) else {
+        let prepareResult = await CallStarter.prepareToStartCall(from: viewController, shouldAskForCameraPermission: shouldAskForCameraPermission)
+        guard prepareResult != nil else {
             return nil
         }
 
@@ -387,10 +429,13 @@ class GroupCallViewController: UIViewController {
             return nil
         }
 
-        let vc = GroupCallViewController(call: call, groupCall: groupCall)
+        let vc = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            return GroupCallViewController.load(call: call, groupCall: groupCall, tx: tx)
+        }
+
         return {
             vc.modalTransitionStyle = .crossDissolve
-            WindowManager.shared.startCall(viewController: vc)
+            AppEnvironment.shared.windowManagerRef.startCall(viewController: vc)
         }
     }
 
@@ -533,37 +578,12 @@ class GroupCallViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        var phoneNumberSharingMode: PhoneNumberSharingMode = .defaultValue
-        SDSDatabaseStorage.shared.asyncRead { readTx in
-            self.didUserEverSwipeToSpeakerView = Self.keyValueStore.getBool(
-                Self.didUserSwipeToSpeakerViewKey,
-                defaultValue: false,
-                transaction: readTx
-            )
-            self.didUserEverSwipeToScreenShare = Self.keyValueStore.getBool(
-                Self.didUserSwipeToScreenShareKey,
-                defaultValue: false,
-                transaction: readTx
-            )
-
-            phoneNumberSharingMode = NSObject.udManager
-                .phoneNumberSharingMode(tx: readTx.asV2Read).orDefault
-        } completion: {
-            self.updateSwipeToastView()
-
-            self.callLinkLobbyToastLabel.text = switch phoneNumberSharingMode {
-            case .everybody:
-                OWSLocalizedString(
-                    "CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_ON",
-                    comment: "Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned on."
-                )
-            case .nobody:
-                OWSLocalizedString(
-                    "CALL_LINK_LOBBY_SHARING_INFO_PHONE_NUMBER_SHARING_OFF",
-                    comment: "Text that appears on a toast in a call lobby before joining a call link informing the user what information will be shared with other call members when they have phone number sharing turned off."
-                )
-            }
-        }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(otherUsersProfileChanged(notification:)),
+            name: UserProfileNotifications.otherUsersProfileDidChange,
+            object: nil
+        )
     }
 
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
@@ -647,6 +667,12 @@ class GroupCallViewController: UIViewController {
         if hasUnresolvedSafetyNumberMismatch {
             resolveSafetyNumberMismatch()
         }
+    }
+
+    @objc
+    private func didCompleteAnySpamChallenge() {
+        AppEnvironment.shared.callLinkProfileKeySharingManager.sendProfileKeyToParticipants(ofCall: self.groupCall)
+        self.ringRtcCall.resendMediaKeys()
     }
 
     // MARK: Call members
@@ -855,7 +881,7 @@ class GroupCallViewController: UIViewController {
         if shouldRepositionBottomVStack {
             switch bottomSheetStateManager.bottomSheetState {
             case .callControlsAndOverflow, .callControls, .callInfo, .transitioning:
-                yMax = size.height - bottomSheet.sheetHeight - 16
+                yMax = size.height - bottomSheet.minimizedHeight - 16
             case .hidden:
                 yMax = size.height - 32
             }
@@ -930,7 +956,7 @@ class GroupCallViewController: UIViewController {
 
     // MARK: Other UI
 
-    func updateSwipeToastView() {
+    private func updateSwipeToastView() {
         let isSpeakerViewAvailable = self.hasAtLeastTwoOthers
         guard isSpeakerViewAvailable else {
             swipeToastView.isHidden = true
@@ -964,13 +990,13 @@ class GroupCallViewController: UIViewController {
             if isAnyRemoteDeviceScreenSharing {
                 if !isAutoScrollingToScreenShare {
                     didUserEverSwipeToScreenShare = true
-                    SDSDatabaseStorage.shared.asyncWrite { writeTx in
+                    SSKEnvironment.shared.databaseStorageRef.asyncWrite { writeTx in
                         Self.keyValueStore.setBool(true, key: Self.didUserSwipeToScreenShareKey, transaction: writeTx)
                     }
                 }
             } else {
                 didUserEverSwipeToSpeakerView = true
-                SDSDatabaseStorage.shared.asyncWrite { writeTx in
+                SSKEnvironment.shared.databaseStorageRef.asyncWrite { writeTx in
                     Self.keyValueStore.setBool(true, key: Self.didUserSwipeToSpeakerViewKey, transaction: writeTx)
                 }
             }
@@ -1004,7 +1030,7 @@ class GroupCallViewController: UIViewController {
             // (ie, minimized in the app). This is not to be confused with the local member view pip
             // (ie, when the call is full screen and the local user is displayed in a pip).
             // The following line disallows having a [local member] pip within a [call] pip.
-            view.isHidden = WindowManager.shared.isCallInPip
+            view.isHidden = !isJustMe && AppEnvironment.shared.windowManagerRef.isCallInPip
         }
 
         if let speakerState = ringRtcCall.remoteDeviceStates.sortedBySpeakerTime.first {
@@ -1060,11 +1086,11 @@ class GroupCallViewController: UIViewController {
     }
 
     private var callControlsOverflowBottomConstraintConstant: CGFloat {
-        -self.bottomSheet.sheetHeight - 12
+        -self.bottomSheet.minimizedHeight - 12
     }
 
     private var callControlsConfirmationToastContainerViewBottomConstraintConstant: CGFloat {
-        return -self.bottomSheet.sheetHeight - 16
+        return -self.bottomSheet.minimizedHeight - 16
     }
 
     private func callControlDisplayStateDidChange(
@@ -1160,7 +1186,7 @@ class GroupCallViewController: UIViewController {
         case .callInfo, .transitioning:
             switch newState {
             case .callControlsAndOverflow:
-                owsFailDebug("Impossible bottomSheetStateManager.bottomSheetState transition")
+                self.callControlsOverflowView.animateIn()
             case .callControls:
                 updateFrames(controlsAreHidden: false, shouldRepositionBottomVStack: false)
             case .callInfo, .transitioning:
@@ -1217,7 +1243,7 @@ class GroupCallViewController: UIViewController {
         guard self.isViewLoaded else {
             // This can happen if the call is canceled before it's ever shown (ie a
             // ring that's not answered).
-            WindowManager.shared.endCall(viewController: self)
+            AppEnvironment.shared.windowManagerRef.endCall(viewController: self)
             return
         }
 
@@ -1230,12 +1256,13 @@ class GroupCallViewController: UIViewController {
             view.superview?.insertSubview(splitViewSnapshot, belowSubview: view) != nil
         else {
             // This can happen if we're in the background when the call is dismissed (say, from CallKit).
-            WindowManager.shared.endCall(viewController: self)
+            AppEnvironment.shared.windowManagerRef.endCall(viewController: self)
             return
         }
 
         splitViewSnapshot.autoPinEdgesToSuperviewEdges()
 
+        bottomSheet.cancelAnimationAndUpdateConstraints()
         bottomSheet.dismiss(animated: true) { [self] in
             dismissSelf(splitViewSnapshot: splitViewSnapshot)
         }
@@ -1246,7 +1273,7 @@ class GroupCallViewController: UIViewController {
             self.view.alpha = 0
         }) { _ in
             splitViewSnapshot.removeFromSuperview()
-            WindowManager.shared.endCall(viewController: self)
+            AppEnvironment.shared.windowManagerRef.endCall(viewController: self)
         }
     }
 
@@ -1410,6 +1437,37 @@ class GroupCallViewController: UIViewController {
 
         callService.callUIAdapter.answerCall(call)
     }
+
+    // MARK: Profile updates
+
+    @objc
+    private func otherUsersProfileChanged(notification: Notification) {
+        AssertIsOnMainThread()
+
+        guard let changedAddress = notification.userInfo?[UserProfileNotifications.profileAddressKey] as? SignalServiceAddress,
+              changedAddress.isValid else {
+            owsFailDebug("changedAddress was unexpectedly nil")
+            return
+        }
+
+        if let peekInfo = self.ringRtcCall.peekInfo {
+            let joinedAndPendingMembers = peekInfo.joinedMembers + peekInfo.pendingUsers
+
+            if joinedAndPendingMembers.contains(where: { uuid in
+                changedAddress == SignalServiceAddress(Aci(fromUUID: uuid))
+            }) {
+                self.bottomSheet.updateMembers()
+
+                switch self.ringRtcCall.kind {
+                case .signalGroup:
+                    break
+                case .callLink:
+                    // Refresh profiles in call link admin approval UI.
+                    self.callLinkApprovalViewModel.loadRequestsWithSneakyTransaction(for: peekInfo.pendingUsers)
+                }
+            }
+        }
+    }
 }
 
 // MARK: CallViewControllerWindowReference
@@ -1423,6 +1481,16 @@ extension GroupCallViewController: CallViewControllerWindowReference {
             return DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction!.aciAddress
         }
         return firstMember.address
+    }
+
+    var isJustMe: Bool {
+        groupCall.isJustMe
+    }
+
+    func minimizeIfNeeded() {
+        if !isCallMinimized {
+            didTapBackButton()
+        }
     }
 
     public func returnFromPip(pipWindow: UIWindow) {
@@ -1451,7 +1519,11 @@ extension GroupCallViewController: CallViewControllerWindowReference {
     func willMoveToPip(pipWindow: UIWindow) {
         flipCameraTooltipManager.dismissTooltip()
         localMemberView.applyChangesToCallMemberViewAndVideoView { view in
-            view.isHidden = true
+            if !isJustMe {
+                view.isHidden = true
+            } else {
+                view.frame = CGRect(origin: .zero, size: pipWindow.bounds.size)
+            }
         }
     }
 
@@ -1486,14 +1558,15 @@ extension GroupCallViewController: CallViewControllerWindowReference {
     }
 
     private func safetyNumberMismatchAddresses(untrustedThreshold: Date?) -> [SignalServiceAddress] {
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             let addressesToCheck: [SignalServiceAddress]
             if
                 case .groupThread(let groupThreadCall) = groupCall.concreteType,
                 ringRtcCall.localDeviceState.joinState == .notJoined
             {
                 // If we haven't joined the call yet, we want to alert for all members of the group
-                addressesToCheck = groupThreadCall.groupThread.recipientAddresses(with: transaction)
+                let groupThread = TSGroupThread.fetch(forGroupId: groupThreadCall.groupId, tx: transaction)
+                addressesToCheck = groupThread!.recipientAddresses(with: transaction)
             } else {
                 // If we are in the call, we only care about safety numbers for the active call participants
                 addressesToCheck = ringRtcCall.remoteDeviceStates.map { $0.value.address }
@@ -1504,18 +1577,9 @@ extension GroupCallViewController: CallViewControllerWindowReference {
                 identityManager.untrustedIdentityForSending(
                     to: memberAddress,
                     untrustedThreshold: untrustedThreshold,
-                    tx: transaction.asV2Read
+                    tx: transaction
                 ) != nil
             }
-        }
-    }
-
-    private func groupCallThreadForSafetyNumberMismatch() -> GroupThreadCall {
-        switch groupCall.concreteType {
-        case .groupThread(let groupThreadCall):
-            return groupThreadCall
-        case .callLink:
-            owsFail("[CallLink] TODO: Support Safety Number mismatches.")
         }
     }
 
@@ -1546,10 +1610,29 @@ extension GroupCallViewController: CallViewControllerWindowReference {
             // we'll still treat them as having been there "since join", but that's okay.
             // It's not worth trying to track this more precisely.
             let atLeastOneUnresolvedPresentAtJoin = unresolvedAddresses.contains { membersAtJoin?.contains($0) ?? false }
-            Self.notificationPresenterImpl.notifyForGroupCallSafetyNumberChange(
-                inThread: self.groupCallThreadForSafetyNumberMismatch().groupThread,
-                presentAtJoin: atLeastOneUnresolvedPresentAtJoin
-            )
+            switch groupCall.concreteType {
+            case .groupThread(let call):
+                let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+                let groupThread = databaseStorage.read { tx in
+                    return TSGroupThread.fetch(forGroupId: call.groupId, tx: tx)
+                }
+                guard let groupThread else {
+                    owsFail("Missing thread for active call.")
+                }
+                SSKEnvironment.shared.notificationPresenterRef.notifyForGroupCallSafetyNumberChange(
+                    callTitle: groupThread.groupNameOrDefault,
+                    threadUniqueId: groupThread.uniqueId,
+                    roomId: nil,
+                    presentAtJoin: atLeastOneUnresolvedPresentAtJoin
+                )
+            case .callLink(let call):
+                SSKEnvironment.shared.notificationPresenterRef.notifyForGroupCallSafetyNumberChange(
+                    callTitle: call.callLinkState.localizedName,
+                    threadUniqueId: nil,
+                    roomId: call.callLink.rootKey.deriveRoomId(),
+                    presentAtJoin: atLeastOneUnresolvedPresentAtJoin
+                )
+            }
         }
     }
 
@@ -1561,7 +1644,7 @@ extension GroupCallViewController: CallViewControllerWindowReference {
         // There are no unverified addresses that we're currently concerned about. No need to show a sheet
         guard !addressesToAlert.isEmpty else { return completion(true) }
 
-        if let existingSheet = presentedViewController as? SafetyNumberConfirmationSheet {
+        if let existingSheet = (presentedViewController as? SafetyNumberConfirmationSheet) ?? (presentedViewController?.presentedViewController as? SafetyNumberConfirmationSheet) {
             // The set of untrusted addresses may have changed.
             // It's a bit clunky, but we'll just dismiss the existing sheet before putting up a new one.
             existingSheet.dismiss(animated: false)
@@ -1594,7 +1677,7 @@ extension GroupCallViewController: CallViewControllerWindowReference {
             }
         }
         sheet.allowsDismissal = localDeviceHasNotJoined
-        present(sheet, animated: true, completion: nil)
+        presenter.present(sheet, animated: true, completion: nil)
     }
 }
 
@@ -1771,14 +1854,14 @@ extension GroupCallViewController: GroupCallObserver {
         guard self.isReadyToHandleObserver else {
             return
         }
-        let localAci = databaseStorage.read { tx in
-            return DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci
+        let localAci = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            return DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx)?.aci
         }
         guard let localAci else {
             owsFailDebug("Local user is in call but doesn't have ACI!")
             return
         }
-        let mappedReactions = databaseStorage.read { tx in
+        let mappedReactions = SSKEnvironment.shared.databaseStorageRef.read { tx in
             return reactions.map { reaction in
                 let name: String
                 let aci: Aci
@@ -1786,7 +1869,7 @@ extension GroupCallViewController: GroupCallObserver {
                     let remoteDeviceState = ringRtcCall.remoteDeviceStates[reaction.demuxId],
                     remoteDeviceState.aci != localAci
                 {
-                    name = contactsManager.displayName(for: remoteDeviceState.address, tx: tx).resolvedValue()
+                    name = SSKEnvironment.shared.contactManagerRef.displayName(for: remoteDeviceState.address, tx: tx).resolvedValue()
                     aci = remoteDeviceState.aci
                 } else {
                     name = CommonStrings.you
@@ -1832,7 +1915,7 @@ extension GroupCallViewController: CallHeaderDelegate {
     func didTapBackButton() {
         if groupCall.hasJoinedOrIsWaitingForAdminApproval {
             isCallMinimized = true
-            WindowManager.shared.leaveCallView()
+            AppEnvironment.shared.windowManagerRef.leaveCallView()
             // This ensures raised hands are removed
             updateCallUI()
         } else {
@@ -2059,6 +2142,19 @@ extension GroupCallViewController: SheetPanDelegate {
         } else if bottomSheet.isCrossFading() {
             bottomSheetStateManager.submitState(.transitioning)
         }
+    }
+}
+
+// MARK: - CallDrawerDelegate
+
+extension GroupCallViewController: CallDrawerDelegate {
+    func didPresentViewController(_ viewController: UIViewController) {
+        self.scheduleBottomSheetTimeoutIfNecessary()
+    }
+
+    func didTapDone() {
+        bottomSheetStateManager.submitState(.callControls)
+        self.bottomSheet.minimizeHeight()
     }
 }
 

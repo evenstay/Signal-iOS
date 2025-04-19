@@ -74,7 +74,7 @@ public class SignalServiceAddress: NSObject, NSCopying, NSSecureCoding, Codable 
             serviceId: identifiers.serviceId,
             // If there's no ServiceId, then we look up the phone number in the cache.
             phoneNumber: (identifiers.serviceId == nil) ? identifiers.phoneNumber : nil,
-            cache: cache ?? Self.signalServiceAddressCache
+            cache: cache ?? SSKEnvironment.shared.signalServiceAddressCacheRef
         )
     }
 
@@ -98,7 +98,7 @@ public class SignalServiceAddress: NSObject, NSCopying, NSSecureCoding, Codable 
         return SignalServiceAddress(
             serviceId: nil,
             phoneNumber: phoneNumber,
-            cache: cache ?? Self.signalServiceAddressCache
+            cache: cache ?? SSKEnvironment.shared.signalServiceAddressCacheRef
         )
     }
 
@@ -135,7 +135,7 @@ public class SignalServiceAddress: NSObject, NSCopying, NSSecureCoding, Codable 
         return SignalServiceAddress(
             serviceId: serviceId,
             legacyPhoneNumber: phoneNumber,
-            cache: Self.signalServiceAddressCache
+            cache: SSKEnvironment.shared.signalServiceAddressCacheRef
         )
     }
 
@@ -143,7 +143,7 @@ public class SignalServiceAddress: NSObject, NSCopying, NSSecureCoding, Codable 
         return SignalServiceAddress(
             serviceId: Aci.parseFrom(aciString: aciString),
             legacyPhoneNumber: phoneNumber,
-            cache: Self.signalServiceAddressCache
+            cache: SSKEnvironment.shared.signalServiceAddressCacheRef
         )
     }
 
@@ -152,7 +152,7 @@ public class SignalServiceAddress: NSObject, NSCopying, NSSecureCoding, Codable 
         return SignalServiceAddress(
             serviceId: serviceIdString.flatMap { try? ServiceId.parseFrom(serviceIdString: $0) },
             legacyPhoneNumber: phoneNumber,
-            cache: Self.signalServiceAddressCache
+            cache: SSKEnvironment.shared.signalServiceAddressCacheRef
         )
     }
 
@@ -234,7 +234,7 @@ public class SignalServiceAddress: NSObject, NSCopying, NSSecureCoding, Codable 
             serviceId: serviceId,
             phoneNumber: phoneNumber,
             isLegacyPhoneNumber: false,
-            cache: Self.signalServiceAddressCache
+            cache: SSKEnvironment.shared.signalServiceAddressCacheRef
         )
     }
 
@@ -303,7 +303,7 @@ public class SignalServiceAddress: NSObject, NSCopying, NSSecureCoding, Codable 
         self.init(
             serviceId: decodedServiceId,
             legacyPhoneNumber: decodedPhoneNumber,
-            cache: Self.signalServiceAddressCache
+            cache: SSKEnvironment.shared.signalServiceAddressCacheRef
         )
     }
 
@@ -348,7 +348,7 @@ public class SignalServiceAddress: NSObject, NSCopying, NSSecureCoding, Codable 
         self.init(
             serviceId: decodedServiceId,
             legacyPhoneNumber: decodedPhoneNumber,
-            cache: Self.signalServiceAddressCache
+            cache: SSKEnvironment.shared.signalServiceAddressCacheRef
         )
     }
 
@@ -395,11 +395,6 @@ public class SignalServiceAddress: NSObject, NSCopying, NSSecureCoding, Codable 
     // while also allowing addresses to live in hash tables.
     public override var hash: Int { return cachedAddress.hashValue }
 
-    @objc
-    public func compare(_ otherAddress: SignalServiceAddress) -> ComparisonResult {
-        return stringForDisplay.compare(otherAddress.stringForDisplay)
-    }
-
     // MARK: -
 
     @objc
@@ -423,46 +418,6 @@ public class SignalServiceAddress: NSObject, NSCopying, NSSecureCoding, Codable 
     }
 
     @objc
-    public var stringForDisplay: String {
-        let identifiers = cachedAddress.identifiers.get()
-
-        if let phoneNumber = identifiers.phoneNumber {
-            return phoneNumber
-        } else if let serviceId = identifiers.serviceId {
-            return serviceId.serviceIdUppercaseString
-        }
-
-        owsFailDebug("unexpectedly have no backing value")
-
-        return ""
-    }
-
-    @objc
-    public var serviceIdentifier: String? {
-        let identifiers = cachedAddress.identifiers.get()
-
-        if let serviceId = identifiers.serviceId {
-            return serviceId.serviceIdUppercaseString
-        }
-        if let phoneNumber = identifiers.phoneNumber {
-            return phoneNumber
-        }
-        if !CurrentAppContext().isRunningTests {
-            owsFailDebug("phoneNumber was unexpectedly nil")
-        }
-        return nil
-    }
-
-    @objc
-    public var sortKey: String {
-        guard let serviceIdentifier = serviceIdentifier else {
-            owsFailDebug("Invalid address.")
-            return "Invalid"
-        }
-        return serviceIdentifier
-    }
-
-    @objc
     override public var description: String {
         let identifiers = cachedAddress.identifiers.get()
         return Self.addressComponentsDescription(
@@ -475,20 +430,10 @@ public class SignalServiceAddress: NSObject, NSCopying, NSSecureCoding, Codable 
         var splits = [String]()
         if let uuid = uuidString?.nilIfEmpty {
             splits.append("serviceId: " + uuid)
-        }
-        if let phoneNumber = phoneNumber?.nilIfEmpty {
+        } else if let phoneNumber = phoneNumber?.nilIfEmpty {
             splits.append("phoneNumber: " + phoneNumber)
         }
         return "<" + splits.joined(separator: ", ") + ">"
-    }
-}
-
-// MARK: -
-
-public extension Array where Element == SignalServiceAddress {
-    func stableSort() -> [SignalServiceAddress] {
-        // Use an arbitrary sort but ensure the ordering is stable.
-        self.sorted { $0.sortKey < $1.sortKey }
     }
 }
 
@@ -547,13 +492,13 @@ public class SignalServiceAddressCache: NSObject {
         self._phoneNumberVisibilityFetcher = phoneNumberVisibilityFetcher
     }
 
-    func warmCaches() {
+    func prepareCache() {
         owsAssertDebug(GRDBSchemaMigrator.areMigrationsComplete)
 
-        databaseStorage.read { tx in
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
             let bulkFetcher: BulkPhoneNumberVisibilityFetcher?
             do {
-                bulkFetcher = try phoneNumberVisibilityFetcher.fetchAll(tx: tx.asV2Read)
+                bulkFetcher = try phoneNumberVisibilityFetcher.fetchAll(tx: tx)
             } catch {
                 Logger.warn("Couldn't fetch visible phone numbers. Hiding all of them…")
                 bulkFetcher = nil
@@ -868,6 +813,17 @@ extension SignalServiceAddress {
         SignalServiceAddress(
             serviceId: Aci.randomForTesting(),
             phoneNumber: nil,
+            cache: SignalServiceAddressCache()
+        )
+    }
+
+    static func isolatedForTesting(
+        serviceId: ServiceId? = nil,
+        phoneNumber: String? = nil
+    ) -> SignalServiceAddress {
+        SignalServiceAddress(
+            serviceId: serviceId,
+            phoneNumber: phoneNumber,
             cache: SignalServiceAddressCache()
         )
     }

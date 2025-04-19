@@ -273,6 +273,9 @@ message GroupChange {
     }
 
     bytes sourceUserId = 1; // Encrypted ServiceId for who made the change
+    // clients should not provide this value; the server will provide it in the response buffer to ensure the signature is binding to a particular group
+    // if clients set it during a request the server will respond with 400.
+    bytes group_id = 25;
     uint32 revision = 2; // The change revision number
     repeated AddMemberAction addMembers = 3; // Members added
     repeated DeleteMemberAction deleteMembers = 4; // Members deleted
@@ -303,6 +306,19 @@ message GroupChange {
   uint32 changeEpoch = 3;
 }
 
+// External credentials
+
+message GroupExternalCredential {
+  string token = 1;
+}
+
+// API responses
+
+message GroupResponse {
+  Group group = 1;
+  bytes group_send_endorsements_response = 2;
+}
+
 message GroupChanges {
   message GroupChangeState {
     GroupChange groupChange = 1;
@@ -310,8 +326,10 @@ message GroupChanges {
   }
 
   repeated bytes /*GroupChangeState*/ groupChanges = 1;
+  bytes group_send_endorsements_response = 2;
 }
 
-message GroupExternalCredential {
-  string token = 1;
+message GroupChangeResponse {
+  GroupChange group_change = 1;
+  bytes group_send_endorsements_response = 2;
 }

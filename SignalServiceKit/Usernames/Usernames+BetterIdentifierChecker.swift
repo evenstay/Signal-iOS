@@ -28,11 +28,11 @@ extension Usernames {
             forRecipient recipient: SignalRecipient,
             profileManager: any ProfileManager,
             contactManager: any ContactManager,
-            transaction: SDSAnyReadTransaction
+            transaction: DBReadTransaction
         ) -> BetterIdentifierChecker {
             var checker = BetterIdentifierChecker(forRecipient: recipient)
 
-            let userProfile = profileManager.getUserProfile(for: recipient.address, transaction: transaction)
+            let userProfile = profileManager.userProfile(for: recipient.address, tx: transaction)
             if let userProfile, let profileNameComponents = userProfile.filteredNameComponents {
                 checker.add(profileGivenName: profileNameComponents.givenName)
                 checker.add(profileFamilyName: profileNameComponents.familyName)

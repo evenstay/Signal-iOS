@@ -35,12 +35,11 @@ public struct UnsentTextAttachment {
     }
 
     public func validateAndPrepareForSending() throws -> ForSending {
-        let validatedLinkPreview: LinkPreviewTSResourceDataSource?
+        let validatedLinkPreview: LinkPreviewDataSource?
         if let linkPreview = linkPreviewDraft {
             do {
                 validatedLinkPreview = try DependenciesBridge.shared.linkPreviewManager.buildDataSource(
-                    from: linkPreview,
-                    ownerType: .story
+                    from: linkPreview
                 )
             } catch LinkPreviewError.featureDisabled {
                 validatedLinkPreview = .init(
@@ -50,8 +49,7 @@ public struct UnsentTextAttachment {
                         previewDescription: nil,
                         date: nil
                     ),
-                    imageV2DataSource: nil,
-                    imageLegacyDataSource: nil
+                    imageDataSource: nil
                 )
             } catch {
                 Logger.error("Failed to generate link preview.")
@@ -82,25 +80,24 @@ public struct UnsentTextAttachment {
         public let textBackgroundColor: UIColor?
         public let background: TextAttachment.Background
 
-        public let linkPreviewDraft: LinkPreviewTSResourceDataSource?
+        public let linkPreviewDraft: LinkPreviewDataSource?
 
         public var textContent: TextAttachment.TextContent {
             return TextAttachment.textContent(body: body, textStyle: textStyle)
         }
 
         public func buildTextAttachment(
-            transaction: SDSAnyWriteTransaction
+            transaction: DBWriteTransaction
         ) -> OwnedAttachmentBuilder<TextAttachment>? {
             var linkPreviewBuilder: OwnedAttachmentBuilder<OWSLinkPreview>?
             if let linkPreview = linkPreviewDraft {
                 do {
                     linkPreviewBuilder = try DependenciesBridge.shared.linkPreviewManager.buildLinkPreview(
                         from: linkPreview,
-                        ownerType: .story,
-                        tx: transaction.asV2Write
+                        tx: transaction
                     )
                 } catch LinkPreviewError.featureDisabled {
-                    linkPreviewBuilder = .withoutFinalizer(.withoutImage(urlString: linkPreview.metadata.urlString, ownerType: .story))
+                    linkPreviewBuilder = .withoutFinalizer(OWSLinkPreview(urlString: linkPreview.metadata.urlString))
                 } catch {
                     Logger.error("Failed to generate link preview.")
                 }
@@ -258,7 +255,7 @@ public struct TextAttachment: Codable, Equatable {
         from proto: SSKProtoTextAttachment,
         bodyRanges: [SSKProtoBodyRange],
         linkPreview: OWSLinkPreview?,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) throws {
         self.body = proto.text?.nilIfEmpty.map { StyleOnlyMessageBody(text: $0, protos: bodyRanges) }
 
@@ -318,7 +315,7 @@ public struct TextAttachment: Codable, Equatable {
     public func buildProto(
         parentStoryMessage: StoryMessage,
         bodyRangeHandler: ([SSKProtoBodyRange]) -> Void,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) throws -> SSKProtoTextAttachment {
         let builder = SSKProtoTextAttachment.builder()
 
@@ -357,7 +354,7 @@ public struct TextAttachment: Codable, Equatable {
             let previewProto = try DependenciesBridge.shared.linkPreviewManager.buildProtoForSending(
                 preview,
                 parentStoryMessage: parentStoryMessage,
-                tx: transaction.asV2Read
+                tx: transaction
             )
             builder.setPreview(previewProto)
         }

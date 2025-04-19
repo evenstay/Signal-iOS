@@ -206,8 +206,8 @@ class AudioMessagePlaybackRateView: ManualLayoutViewWithLayer {
         audioMessageViewDelegate: AudioMessageViewDelegate?
     ) -> Bool {
         guard
-            let attachmentId = audioAttachment.attachmentStream?.attachmentStream.resourceId,
-            cvAudioPlayer.audioPlaybackState(forAttachmentId: attachmentId) == .playing
+            let attachmentId = audioAttachment.attachmentStream?.attachmentStream.id,
+            AppEnvironment.shared.cvAudioPlayerRef.audioPlaybackState(forAttachmentId: attachmentId) == .playing
         else {
             return false
         }
@@ -222,7 +222,7 @@ class AudioMessagePlaybackRateView: ManualLayoutViewWithLayer {
             return false
         }
         let newPlaybackRate = playbackRate.next
-        self.cvAudioPlayer.setPlaybackRate(newPlaybackRate.rawValue, forThreadUniqueId: threadUniqueId)
+        AppEnvironment.shared.cvAudioPlayerRef.setPlaybackRate(newPlaybackRate.rawValue, forThreadUniqueId: threadUniqueId)
 
         // Hold off updates until we animate the change.
         let animationCompletion = audioMessageViewDelegate?.beginCellAnimation(
@@ -234,7 +234,7 @@ class AudioMessagePlaybackRateView: ManualLayoutViewWithLayer {
         // First write the update to the db, this persists the change and ensures the
         // reload we do afterwards pulls the updated rate.
         reloadGroup.enter()
-        itemModel.databaseStorage.asyncWrite(
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite(
             block: {
                 itemModel.threadAssociatedData.updateWith(
                     audioPlaybackRate: newPlaybackRate.rawValue,

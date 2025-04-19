@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
+
 final class MessageBackupIndividualCallArchiver {
     typealias Details = MessageBackup.InteractionArchiveDetails
     typealias ArchiveChatUpdateMessageResult = MessageBackup.ArchiveInteractionResult<Details>
@@ -10,12 +12,12 @@ final class MessageBackupIndividualCallArchiver {
 
     private let callRecordStore: CallRecordStore
     private let individualCallRecordManager: IndividualCallRecordManager
-    private let interactionStore: InteractionStore
+    private let interactionStore: MessageBackupInteractionStore
 
     init(
         callRecordStore: CallRecordStore,
         individualCallRecordManager: IndividualCallRecordManager,
-        interactionStore: InteractionStore
+        interactionStore: MessageBackupInteractionStore
     ) {
         self.callRecordStore = callRecordStore
         self.individualCallRecordManager = individualCallRecordManager
@@ -24,6 +26,7 @@ final class MessageBackupIndividualCallArchiver {
 
     func archiveIndividualCall(
         _ individualCallInteraction: TSCall,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveChatUpdateMessageResult {
         let associatedCallRecord: CallRecord? = callRecordStore.fetch(
@@ -60,14 +63,16 @@ final class MessageBackupIndividualCallArchiver {
         }()
         individualCallUpdate.state = { () -> BackupProto_IndividualCall.State in
             switch individualCallInteraction.callType {
-            case .incoming, .outgoing:
+            case
+                    .incoming,
+                    .incomingAnsweredElsewhere,
+                    .outgoing:
                 return .accepted
             case
                     .outgoingIncomplete,
                     .incomingIncomplete,
                     .incomingDeclined,
                     .incomingDeclinedElsewhere,
-                    .incomingAnsweredElsewhere,
                     .incomingBusyElsewhere:
                 return .notAccepted
             case
@@ -83,11 +88,25 @@ final class MessageBackupIndividualCallArchiver {
             }
         }()
 
+        var partialErrors = [MessageBackup.ArchiveFrameError<MessageBackup.InteractionUniqueId>]()
+
         /// Prefer the call record timestamp if available, since it'll have the
         /// more accurate timestamp. (In practice this won't matter, since for
         /// 1:1 calls the call record takes the same "call started" timestamp as
         /// the interaction: when the call offer message arrives.)
-        individualCallUpdate.startedCallTimestamp = associatedCallRecord?.callBeganTimestamp ?? individualCallInteraction.timestamp
+        let startedCallTimestamp = associatedCallRecord?.callBeganTimestamp ?? individualCallInteraction.timestamp
+
+        switch
+            MessageBackup.Timestamps.validateTimestamp(startedCallTimestamp)
+                .bubbleUp(Details.self, partialErrors: &partialErrors)
+        {
+        case .continue:
+            break
+        case .bubbleUpError(let error):
+            return error
+        }
+
+        individualCallUpdate.startedCallTimestamp = startedCallTimestamp
 
         if let associatedCallRecord {
             individualCallUpdate.callID = associatedCallRecord.callId
@@ -95,30 +114,45 @@ final class MessageBackupIndividualCallArchiver {
             case .read: true
             case .unread: false
             }
+        } else {
+            /// This property is non-optional, but we only track it for calls
+            /// with an `associatedCallRecord`. For those without, mark them as
+            /// read.
+            individualCallUpdate.read = true
         }
 
         var chatUpdateMessage = BackupProto_ChatUpdateMessage()
         chatUpdateMessage.update = .individualCall(individualCallUpdate)
 
-        let interactionArchiveDetails = Details(
-            author: context.recipientContext.localRecipientId,
+        switch Details.validateAndBuild(
+            interactionUniqueId: individualCallInteraction.uniqueInteractionId,
+            author: .localUser,
             directionalDetails: .directionless(BackupProto_ChatItem.DirectionlessMessageDetails()),
             dateCreated: individualCallInteraction.timestamp,
             expireStartDate: nil,
             expiresInMs: nil,
             isSealedSender: false,
             chatItemType: .updateMessage(chatUpdateMessage),
-            isSmsPreviouslyRestoredFromBackup: false
-        )
-
-        return .success(interactionArchiveDetails)
+            isSmsPreviouslyRestoredFromBackup: false,
+            threadInfo: threadInfo,
+            context: context.recipientContext
+        ).bubbleUp(Details.self, partialErrors: &partialErrors) {
+        case .continue(let details):
+            if partialErrors.isEmpty {
+                return .success(details)
+            } else {
+                return .partialFailure(details, partialErrors)
+            }
+        case .bubbleUpError(let error):
+            return error
+        }
     }
 
     func restoreIndividualCall(
         _ individualCall: BackupProto_IndividualCall,
         chatItem: BackupProto_ChatItem,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreChatUpdateMessageResult {
         let contactThread: TSContactThread
         switch chatThread.threadType {
@@ -131,41 +165,40 @@ final class MessageBackupIndividualCallArchiver {
             )])
         }
 
-        let callInteractionType: RPRecentCallType
         let callRecordDirection: CallRecord.CallDirection
-        let callRecordStatus: CallRecord.CallStatus.IndividualCallStatus
-        switch (individualCall.direction, individualCall.state) {
-        case (.unknownDirection, _), (.UNRECOGNIZED, _):
-            return .messageFailure([.restoreFrameError(.invalidProtoData(.individualCallUnrecognizedDirection), chatItem.id)])
-        case (_, .unknownState), (_, .UNRECOGNIZED):
-            return .messageFailure([.restoreFrameError(.invalidProtoData(.individualCallUnrecognizedState), chatItem.id)])
-        case (.incoming, .accepted):
-            callInteractionType = .incoming
+        switch individualCall.direction {
+        case .unknownDirection, .UNRECOGNIZED:
+            // Fallback to incoming
             callRecordDirection = .incoming
+        case .incoming:
+            callRecordDirection = .incoming
+        case .outgoing:
+            callRecordDirection = .outgoing
+        }
+
+        let callInteractionType: RPRecentCallType
+        let callRecordStatus: CallRecord.CallStatus.IndividualCallStatus
+        switch (callRecordDirection, individualCall.state) {
+        case (.incoming, .accepted), (.incoming, .unknownState), (.incoming, .UNRECOGNIZED):
+            callInteractionType = .incoming
             callRecordStatus = .accepted
         case (.incoming, .notAccepted):
             callInteractionType = .incomingDeclined
-            callRecordDirection = .incoming
             callRecordStatus = .notAccepted
         case (.incoming, .missed):
             callInteractionType = .incomingMissed
-            callRecordDirection = .incoming
             callRecordStatus = .incomingMissed
         case (.incoming, .missedNotificationProfile):
             callInteractionType = .incomingMissedBecauseOfDoNotDisturb
-            callRecordDirection = .incoming
             callRecordStatus = .incomingMissed
-        case (.outgoing, .accepted):
+        case (.outgoing, .accepted), (.outgoing, .unknownState), (.outgoing, .UNRECOGNIZED):
             callInteractionType = .outgoing
-            callRecordDirection = .outgoing
             callRecordStatus = .accepted
         case (.outgoing, .notAccepted):
             callInteractionType = .outgoingIncomplete
-            callRecordDirection = .outgoing
             callRecordStatus = .notAccepted
         case (.outgoing, .missed), (.outgoing, .missedNotificationProfile):
             callInteractionType = .outgoingMissed
-            callRecordDirection = .outgoing
             callRecordStatus = .notAccepted
         }
 
@@ -179,7 +212,19 @@ final class MessageBackupIndividualCallArchiver {
             callInteractionOfferType = .video
             callRecordType = .videoCall
         case .unknownType, .UNRECOGNIZED:
-            return .messageFailure([.restoreFrameError(.invalidProtoData(.individualCallUnrecognizedType), chatItem.id)])
+            // Fallback to audio
+            callInteractionOfferType = .audio
+            callRecordType = .audioCall
+        }
+
+        let callerAci: Aci?
+        switch callRecordDirection {
+        case .outgoing:
+            callerAci = context.recipientContext.localIdentifiers.aci
+        case .incoming:
+            // Note: we may not _have_ an aci if this call
+            // was made before the introduction of acis.
+            callerAci = contactThread.contactAddress.aci
         }
 
         let individualCallInteraction = TSCall(
@@ -188,25 +233,41 @@ final class MessageBackupIndividualCallArchiver {
             thread: contactThread,
             sentAtTimestamp: chatItem.dateSent
         )
-        interactionStore.insertInteraction(individualCallInteraction, tx: context.tx)
+
+        do {
+            try interactionStore.insert(
+                individualCallInteraction,
+                in: chatThread,
+                chatId: chatItem.typedChatId,
+                callerAci: callerAci,
+                wasRead: individualCall.read,
+                context: context
+            )
+        } catch let error {
+            return .messageFailure([.restoreFrameError(.databaseInsertionFailed(error), chatItem.id)])
+        }
 
         if individualCall.hasCallID {
-            let callRecord = individualCallRecordManager.createRecordForInteraction(
-                individualCallInteraction: individualCallInteraction,
-                individualCallInteractionRowId: individualCallInteraction.sqliteRowId!,
-                contactThread: contactThread,
-                contactThreadRowId: chatThread.threadRowId,
-                callId: individualCall.callID,
-                callType: callRecordType,
-                callDirection: callRecordDirection,
-                individualCallStatus: callRecordStatus,
-                callEventTimestamp: individualCall.startedCallTimestamp,
-                shouldSendSyncMessage: false,
-                tx: context.tx
-            )
-
-            if individualCall.read {
-                callRecordStore.markAsRead(callRecord: callRecord, tx: context.tx)
+            let callRecord: CallRecord
+            do {
+                callRecord = try individualCallRecordManager.createRecordForInteraction(
+                    individualCallInteraction: individualCallInteraction,
+                    individualCallInteractionRowId: individualCallInteraction.sqliteRowId!,
+                    contactThread: contactThread,
+                    contactThreadRowId: chatThread.threadRowId,
+                    callId: individualCall.callID,
+                    callType: callRecordType,
+                    callDirection: callRecordDirection,
+                    individualCallStatus: callRecordStatus,
+                    callEventTimestamp: individualCall.startedCallTimestamp,
+                    shouldSendSyncMessage: false,
+                    tx: context.tx
+                )
+                if individualCall.read {
+                    try callRecordStore.markAsRead(callRecord: callRecord, tx: context.tx)
+                }
+            } catch {
+                return .messageFailure([.restoreFrameError(.databaseInsertionFailed(error), chatItem.id)])
             }
         }
 

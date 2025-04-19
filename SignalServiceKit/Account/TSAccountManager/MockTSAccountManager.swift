@@ -52,11 +52,11 @@ public class MockTSAccountManager: TSAccountManager {
         return storedServerAuthTokenWithMaybeTransaction
     }
 
-    public var storedDeviceIdMock: (() -> UInt32) = { 1 }
+    public var storedDeviceIdMock: (() -> LocalDeviceId) = { .valid(.primary) }
 
-    open var storedDeviceIdWithMaybeTransaction: UInt32 { storedDeviceIdMock() }
+    open var storedDeviceIdWithMaybeTransaction: LocalDeviceId { storedDeviceIdMock() }
 
-    open func storedDeviceId(tx: DBReadTransaction) -> UInt32 {
+    open func storedDeviceId(tx: DBReadTransaction) -> LocalDeviceId {
         return storedDeviceIdWithMaybeTransaction
     }
 
@@ -99,6 +99,8 @@ public class MockTSAccountManager: TSAccountManager {
     open func getOrGeneratePniRegistrationId(tx: DBWriteTransaction) -> UInt32 {
         return pniRegistrationIdMock()
     }
+
+    open func wipeRegistrationIdsFromFailedProvisioning(tx: DBWriteTransaction) {}
 
     public lazy var setPniRegistrationIdMock: (_ id: UInt32) -> Void = { [weak self] id in
         self?.pniRegistrationIdMock = { id }

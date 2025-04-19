@@ -7,6 +7,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class AciObjC;
 @class SignalServiceAddress;
 
 @interface OWSViewOnceMessageReadSyncMessage : OWSOutgoingSyncMessage
@@ -17,16 +18,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
-- (instancetype)initWithThread:(TSThread *)thread transaction:(SDSAnyReadTransaction *)transaction NS_UNAVAILABLE;
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
+                        transaction:(DBReadTransaction *)transaction NS_UNAVAILABLE;
 - (instancetype)initWithTimestamp:(uint64_t)timestamp
-                           thread:(TSThread *)thread
-                      transaction:(SDSAnyReadTransaction *)transaction NS_UNAVAILABLE;
+                      localThread:(TSContactThread *)localThread
+                      transaction:(DBReadTransaction *)transaction NS_UNAVAILABLE;
 
-- (instancetype)initWithThread:(TSThread *)thread
-                 senderAddress:(SignalServiceAddress *)senderAddress
-                       message:(TSMessage *)message
-                 readTimestamp:(uint64_t)readTimestamp
-                   transaction:(SDSAnyReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
+                          senderAci:(AciObjC *)senderAci
+                            message:(TSMessage *)message
+                      readTimestamp:(uint64_t)readTimestamp
+                        transaction:(DBReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
 
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
 

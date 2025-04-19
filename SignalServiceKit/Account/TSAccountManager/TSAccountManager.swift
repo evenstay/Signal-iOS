@@ -24,9 +24,9 @@ public protocol TSAccountManager {
 
     func storedServerAuthToken(tx: DBReadTransaction) -> String?
 
-    var storedDeviceIdWithMaybeTransaction: UInt32 { get }
+    var storedDeviceIdWithMaybeTransaction: LocalDeviceId { get }
 
-    func storedDeviceId(tx: DBReadTransaction) -> UInt32
+    func storedDeviceId(tx: DBReadTransaction) -> LocalDeviceId
 
     // MARK: - Registration State
 
@@ -40,6 +40,7 @@ public protocol TSAccountManager {
 
     func getOrGenerateAciRegistrationId(tx: DBWriteTransaction) -> UInt32
     func getOrGeneratePniRegistrationId(tx: DBWriteTransaction) -> UInt32
+    func wipeRegistrationIdsFromFailedProvisioning(tx: DBWriteTransaction)
 
     /// Set the PNI registration ID.
     ///
@@ -63,6 +64,47 @@ public protocol TSAccountManager {
 
     func phoneNumberDiscoverability(tx: DBReadTransaction) -> PhoneNumberDiscoverability?
     func lastSetIsDiscoverableByPhoneNumber(tx: DBReadTransaction) -> Date
+}
+
+/// It's *possible* (but implausible) that the local user's "device ID"
+/// isn't valid. These "device IDs" aren't supported on the server, so these
+/// users consider themselves "deregistered" (or, if they don't, they will
+/// as soon as they try to authenticate).
+public enum LocalDeviceId: CustomStringConvertible {
+    case valid(DeviceId)
+    case invalid
+
+    public var ifValid: DeviceId? {
+        switch self {
+        case .valid(let deviceId):
+            return deviceId
+        case .invalid:
+            return nil
+        }
+    }
+
+    /// Checks if the LocalDeviceId matches an arbitrary DeviceId.
+    ///
+    /// All DeviceIds are valid, so if the LocalDeviceId isn't valid, it can't
+    /// possibly match a DeviceId.
+    public func equals(_ otherDeviceId: DeviceId?) -> Bool {
+        switch self {
+        case .valid(let deviceId):
+            return deviceId == otherDeviceId
+        case .invalid:
+            return false
+        }
+    }
+
+    public var description: String {
+        switch self {
+        case .valid(let deviceId):
+            return "\(deviceId)"
+        case .invalid:
+            // If the device ID isn't valid, represent it as an artibrary invalid device ID.
+            return "0"
+        }
+    }
 }
 
 extension TSAccountManager {
@@ -107,7 +149,7 @@ public protocol LocalIdentifiersSetter {
         e164: E164,
         aci: Aci,
         pni: Pni,
-        deviceId: UInt32,
+        deviceId: DeviceId,
         serverAuthToken: String,
         tx: DBWriteTransaction
     )

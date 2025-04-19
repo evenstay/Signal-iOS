@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+#if TESTABLE_BUILD
+
 import Foundation
 public import LibSignalClient
-
-#if TESTABLE_BUILD
 
 open class MockRegistrationStateChangeManager: RegistrationStateChangeManager {
 
@@ -44,12 +44,12 @@ open class MockRegistrationStateChangeManager: RegistrationStateChangeManager {
         _ aci: Aci,
         _ pni: Pni,
         _ authToken: String,
-        _ deviceId: UInt32
+        _ deviceId: DeviceId
     ) -> Void = { [weak self] _, _, _, _, _ in
         self?.registrationStateMock = { .provisioned }
     }
 
-    open func didProvisionSecondary(e164: E164, aci: Aci, pni: Pni, authToken: String, deviceId: UInt32, tx: DBWriteTransaction) {
+    open func didProvisionSecondary(e164: E164, aci: Aci, pni: Pni, authToken: String, deviceId: DeviceId, tx: DBWriteTransaction) {
         didProvisionSecondaryMock(e164, aci, pni, authToken, deviceId)
     }
 

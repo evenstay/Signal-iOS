@@ -230,11 +230,11 @@ class DebugUIStress: DebugUIPage {
             disappearingMessageToken: .disabledToken,
             shouldSendMessage: false
         )
-        SignalApp.shared.presentConversationForThread(groupThread, animated: true)
+        SignalApp.shared.presentConversationForThread(threadUniqueId: groupThread.uniqueId, animated: true)
     }
 
     private func copyToAnotherGroup(_ srcGroupThread: TSGroupThread, fromViewController: UIViewController) {
-        let groupThreads = self.databaseStorage.read { (transaction: SDSAnyReadTransaction) -> [TSGroupThread] in
+        let groupThreads = self.databaseStorage.read { (transaction: DBReadTransaction) -> [TSGroupThread] in
             TSThread.anyFetchAll(transaction: transaction).compactMap { $0 as? TSGroupThread }
         }
         guard !groupThreads.isEmpty else {
@@ -255,12 +255,12 @@ class DebugUIStress: DebugUIPage {
         }
         Task { @MainActor in
             do {
-                let groupThread = try await GroupManager.addOrInvite(
+                try await GroupManager.addOrInvite(
                     serviceIds: serviceIdsToAdd,
                     toExistingGroup: dstGroupThread.groupModel
                 )
                 Logger.info("Complete.")
-                SignalApp.shared.presentConversationForThread(groupThread, animated: true)
+                SignalApp.shared.presentConversationForThread(threadUniqueId: dstGroupThread.uniqueId, animated: true)
             } catch {
                 owsFailDebug("Error: \(error)")
             }
@@ -336,8 +336,8 @@ private class GroupThreadPicker: OWSTableViewController {
     }
 
     private func rebuildTableContents() {
-        let contactsManager = Self.contactsManager
-        let databaseStorage = Self.databaseStorage
+        let contactsManager = SSKEnvironment.shared.contactManagerRef
+        let databaseStorage = SSKEnvironment.shared.databaseStorageRef
 
         let contents = OWSTableContents()
         let section = OWSTableSection()

@@ -262,7 +262,7 @@ class StoryPageViewController: UIPageViewController {
         // ensure the session configuration doesn't get needlessly changed every time a player
         // for an individual story starts and stops. The config stays the same as long
         // as the story viewer is up.
-        let startAudioActivitySuccess = audioSession.startAudioActivity(audioActivity)
+        let startAudioActivitySuccess = SUIEnvironment.shared.audioSessionRef.startAudioActivity(audioActivity)
         owsAssertDebug(startAudioActivitySuccess, "Starting stories audio activity failed")
 
         // Set initial mute state for each viewer session based
@@ -275,7 +275,7 @@ class StoryPageViewController: UIPageViewController {
 
     private func stopAudioSession() {
         // If the view disappeared and we were listening, stop.
-        audioSession.endAudioActivity(audioActivity)
+        SUIEnvironment.shared.audioSessionRef.endAudioActivity(audioActivity)
         RingerSwitch.shared.removeObserver(self)
         NotificationCenter.default.removeObserver(self, name: .OWSApplicationWillEnterForeground, object: nil)
         isAudioSessionActive = false
@@ -560,10 +560,10 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
     }
 
     private func storyThumbnailSize(for presentingMessage: StoryMessage) throws -> CGSize? {
-        let attachment: TSResource?
+        let attachment: Attachment?
         switch presentingMessage.attachment {
-        case .file, .foreignReferenceAttachment:
-            attachment = databaseStorage.read { tx in
+        case .media:
+            attachment = SSKEnvironment.shared.databaseStorageRef.read { tx in
                 return presentingMessage.fileAttachment(tx: tx)
             }?.attachment
         case .text:
@@ -573,7 +573,7 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
             throw OWSAssertionError("Unexpectedly missing attachment for story message")
         }
 
-        if let stream = attachment.asResourceStream(), let thumbnailImage = stream.thumbnailImageSync(quality: .small) {
+        if let stream = attachment.asStream(), let thumbnailImage = stream.thumbnailImageSync(quality: .small) {
             return thumbnailImage.size
         } else {
             return nil
@@ -583,8 +583,8 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
     private func storyView(for presentingMessage: StoryMessage) -> UIView? {
         let storyView: UIView
         switch presentingMessage.attachment {
-        case .file, .foreignReferenceAttachment:
-            guard let attachment = databaseStorage.read(block: { presentingMessage.fileAttachment(tx: $0) })?.attachment else {
+        case .media:
+            guard let attachment = SSKEnvironment.shared.databaseStorageRef.read(block: { presentingMessage.fileAttachment(tx: $0) })?.attachment else {
                 // Can happen if the story was deleted by the sender while in the viewer.
                 return nil
             }
@@ -592,7 +592,7 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
             let view = UIView()
             storyView = view
 
-            if let stream = attachment.asResourceStream(), let thumbnailImage = stream.thumbnailImageSync(quality: .small) {
+            if let stream = attachment.asStream(), let thumbnailImage = stream.thumbnailImageSync(quality: .small) {
                 let blurredImageView = UIImageView()
                 blurredImageView.contentMode = .scaleAspectFill
                 blurredImageView.image = thumbnailImage
@@ -609,7 +609,7 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
                 imageView.image = thumbnailImage
                 view.addSubview(imageView)
                 imageView.autoPinEdgesToSuperviewEdges()
-            } else if let blurHash = attachment.resourceBlurHash, let blurHashImage = BlurHash.image(for: blurHash) {
+            } else if let blurHash = attachment.blurHash, let blurHashImage = BlurHash.image(for: blurHash) {
                 let blurHashImageView = UIImageView()
                 blurHashImageView.contentMode = .scaleAspectFill
                 blurHashImageView.image = blurHashImage
@@ -617,7 +617,7 @@ extension StoryPageViewController: UIViewControllerTransitioningDelegate {
                 blurHashImageView.autoPinEdgesToSuperviewEdges()
             }
         case .text(let attachment):
-            let preloadedAttachment = databaseStorage.read { tx in
+            let preloadedAttachment = SSKEnvironment.shared.databaseStorageRef.read { tx in
                 return PreloadedTextAttachment.from(
                     attachment,
                     storyMessage: presentingMessage,

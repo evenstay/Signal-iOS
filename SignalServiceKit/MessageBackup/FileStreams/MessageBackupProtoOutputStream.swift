@@ -14,6 +14,8 @@ extension MessageBackup {
     }
 }
 
+// MARK: -
+
 /**
  * Output stream for reading and writing a backup file on disk.
  *
@@ -22,29 +24,24 @@ extension MessageBackup {
  * The output stream abstracts over this, and allows callers to just think in terms of "frames",
  * the individual proto objects that we write one at a time.
  */
-public protocol MessageBackupProtoOutputStream {
-
-    /// Write a header (BakckupInfo) to the backup file.
-    /// It is the caller's responsibility to ensure this is always written, and is the first thing written,
-    /// in order to produce a valid backup file.
-    func writeHeader(_ header: BackupProto_BackupInfo) -> MessageBackup.ProtoOutputStreamWriteResult
-
-    /// Write a frame to the backup file.
-    func writeFrame(_ frame: BackupProto_Frame) -> MessageBackup.ProtoOutputStreamWriteResult
-
-    /// Closes the output stream.
-    func closeFileStream() throws
-}
-
-internal class MessageBackupProtoOutputStreamImpl: MessageBackupProtoOutputStream {
-
+class MessageBackupProtoOutputStream {
     private let outputStream: OutputStreamable
+    private let exportProgress: MessageBackupExportProgress?
 
-    internal init(outputStream: OutputStreamable) {
+    init(
+        outputStream: OutputStreamable,
+        exportProgress: MessageBackupExportProgress?
+    ) {
         self.outputStream = outputStream
+        self.exportProgress = exportProgress
     }
 
-    internal func writeHeader(_ header: BackupProto_BackupInfo) -> MessageBackup.ProtoOutputStreamWriteResult {
+    /// Write a header (``BackupProto_BackupInfo``) to the backup file.
+    ///
+    /// - Important
+    /// It is the caller's responsibility to ensure this is always written, and
+    /// is the first thing written, in order to produce a valid backup file.
+    func writeHeader(_ header: BackupProto_BackupInfo) -> MessageBackup.ProtoOutputStreamWriteResult {
         let bytes: Data
         do {
             bytes = try header.serializedData()
@@ -56,10 +53,12 @@ internal class MessageBackupProtoOutputStreamImpl: MessageBackupProtoOutputStrea
         } catch {
             return .fileIOError(error)
         }
+        exportProgress?.didExportFrame()
         return .success
     }
 
-    internal func writeFrame(_ frame: BackupProto_Frame) -> MessageBackup.ProtoOutputStreamWriteResult {
+    /// Write a frame to the backup file.
+    func writeFrame(_ frame: BackupProto_Frame) -> MessageBackup.ProtoOutputStreamWriteResult {
         let bytes: Data
         do {
             bytes = try frame.serializedData()
@@ -71,10 +70,12 @@ internal class MessageBackupProtoOutputStreamImpl: MessageBackupProtoOutputStrea
         } catch {
             return .fileIOError(error)
         }
+        exportProgress?.didExportFrame()
         return .success
     }
 
-    public func closeFileStream() throws {
+    /// Closes the output stream.
+    func closeFileStream() throws {
         try? outputStream.close()
     }
 }

@@ -52,13 +52,13 @@ extension Upload.CDN0.Form {
 extension Upload.CDN0 {
     public static func upload(data: Data, uploadForm: Upload.CDN0.Form) async throws -> String {
         if DependenciesBridge.shared.appExpiry.isExpired {
-            throw OWSAssertionError("App is expired.")
+            throw OWSGenericError("App is expired.")
         }
 
         let dataFileUrl = OWSFileSystem.temporaryFileUrl(isAvailableWhileDeviceLocked: true)
         try data.write(to: dataFileUrl)
 
-        let cdn0UrlSession = NSObject.signalService.urlSessionForCdn(cdnNumber: 0, maxResponseSize: nil)
+        let cdn0UrlSession = SSKEnvironment.shared.signalServiceRef.urlSessionForCdn(cdnNumber: 0, maxResponseSize: nil)
         // urlPath is "" for all endpoints that still use CDN0
         let request = try cdn0UrlSession.endpoint.buildRequest("", method: .post)
 
@@ -70,14 +70,19 @@ extension Upload.CDN0 {
         var textParts = uploadForm.asOrderedDictionary
         textParts.append(key: "Content-Type", value: MimeType.applicationOctetStream.rawValue)
 
-        _ = try await cdn0UrlSession.multiPartUploadTaskPromise(
-            request: request,
-            fileUrl: dataFileUrl,
-            name: "file",
-            fileName: "file",
-            mimeType: MimeType.applicationOctetStream.rawValue,
-            textParts: textParts
-        ).awaitable()
+        do {
+            _ = try await cdn0UrlSession.performMultiPartUpload(
+                request: request,
+                fileUrl: dataFileUrl,
+                name: "file",
+                fileName: "file",
+                mimeType: MimeType.applicationOctetStream.rawValue,
+                textParts: textParts
+            )
+        } catch {
+            Logger.warn("\(error)")
+            throw error
+        }
 
         return uploadForm.key
     }

@@ -83,8 +83,6 @@ class ContactShareViewHelper: NSObject, CNContactViewControllerDelegate {
 
     // MARK: Invite
 
-    private var inviteFlow: InviteFlow?
-
     func showInviteContact(contactShare: ContactShareViewModel, from viewController: UIViewController) {
         Logger.info("")
 
@@ -100,7 +98,6 @@ class ContactShareViewHelper: NSObject, CNContactViewControllerDelegate {
         }
 
         let inviteFlow = InviteFlow(presentingViewController: viewController)
-        self.inviteFlow = inviteFlow
         inviteFlow.sendSMSTo(phoneNumbers: phoneNumbers)
     }
 
@@ -136,7 +133,7 @@ class ContactShareViewHelper: NSObject, CNContactViewControllerDelegate {
     private func presentCreateNewContactFlow(contactShare: ContactShareViewModel, from viewController: UIViewController) {
         Logger.info("")
 
-        contactsViewHelper.checkEditAuthorization(
+        SUIEnvironment.shared.contactsViewHelperRef.checkEditAuthorization(
             performWhenAllowed: {
                 let modalViewController = AddContactShareToContactsFlowNavigationController(
                     flow: .init(contactShare: contactShare, operation: .createNew),
@@ -153,7 +150,7 @@ class ContactShareViewHelper: NSObject, CNContactViewControllerDelegate {
     private func presentAddToExistingContactFlow(contactShare: ContactShareViewModel, from viewController: UIViewController) {
         Logger.info("")
 
-        contactsViewHelper.checkEditAuthorization(
+        SUIEnvironment.shared.contactsViewHelperRef.checkEditAuthorization(
             performWhenAllowed: {
                 let modalViewController = AddContactShareToContactsFlowNavigationController(
                     flow: .init(contactShare: contactShare, operation: .addToExisting),
@@ -225,7 +222,7 @@ private class AddContactShareToContactsFlow {
         var existingUserTextPhoneNumbers = Set(oldContact.phoneNumbers.map { $0.value })
         var existingCanonicalPhoneNumbers = Set(FetchedSystemContacts.parsePhoneNumbers(
             for: oldContact,
-            phoneNumberUtil: NSObject.phoneNumberUtil,
+            phoneNumberUtil: SSKEnvironment.shared.phoneNumberUtilRef,
             localPhoneNumber: localPhoneNumber
         ))
         var mergedPhoneNumbers = mergedCNContact.phoneNumbers
@@ -236,7 +233,7 @@ private class AddContactShareToContactsFlow {
             }
             let canonicalPhoneNumbers = FetchedSystemContacts.parsePhoneNumber(
                 phoneNumber,
-                phoneNumberUtil: NSObject.phoneNumberUtil,
+                phoneNumberUtil: SSKEnvironment.shared.phoneNumberUtilRef,
                 localPhoneNumber: localPhoneNumber
             )
             guard existingCanonicalPhoneNumbers.isDisjoint(with: canonicalPhoneNumbers) else {
@@ -327,7 +324,7 @@ private class AddContactShareToContactsFlowNavigationController: UINavigationCon
     }
 
     func contactPicker(_ contactPicker: ContactPickerViewController, didSelect systemContact: SystemContact) {
-        flow.existingContact = contactsManager.cnContact(withId: systemContact.cnContactId)
+        flow.existingContact = SSKEnvironment.shared.contactManagerRef.cnContact(withId: systemContact.cnContactId)
         // Note that CNContactViewController uses Cancel as the left bar button item (not the < back button).
         // Therefore to go back to contact picker CNContactViewControllerDelegate method above
         // would need to be modified to handle contact editing cancellation.

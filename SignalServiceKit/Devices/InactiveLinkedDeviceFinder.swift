@@ -58,10 +58,10 @@ public extension InactiveLinkedDeviceFinder {
 class InactiveLinkedDeviceFinderImpl: InactiveLinkedDeviceFinder {
     private enum Constants {
         /// How long we should wait between device state refreshes.
-        static let intervalForDeviceRefresh: TimeInterval = kDayInterval
+        static let intervalForDeviceRefresh: TimeInterval = .day
 
         /// How long before a device expires it is considered "inactive".
-        static let intervalBeforeExpirationConsideredInactive = kWeekInterval
+        static let intervalBeforeExpirationConsideredInactive: TimeInterval = .week
     }
 
     private enum StoreKeys {
@@ -70,41 +70,40 @@ class InactiveLinkedDeviceFinderImpl: InactiveLinkedDeviceFinder {
     }
 
     private let dateProvider: DateProvider
-    private let db: DB
+    private let db: any DB
     private let deviceNameDecrypter: Shims.OWSDeviceNameDecrypter
+    private let deviceService: OWSDeviceService
     private let deviceStore: OWSDeviceStore
-    private let devicesService: Shims.OWSDevicesService
     private let kvStore: KeyValueStore
-    private let remoteConfig: Shims.RemoteConfig
+    private let remoteConfigProvider: any RemoteConfigProvider
     private let tsAccountManager: TSAccountManager
 
     private var intervalForDeviceExpiration: TimeInterval {
-        return remoteConfig.linkedDeviceLifespan()
+        return remoteConfigProvider.currentConfig().messageQueueTime
     }
 
     private var intervalForDeviceInactivity: TimeInterval {
-        return max(0, remoteConfig.linkedDeviceLifespan() - Constants.intervalBeforeExpirationConsideredInactive)
+        return max(0, remoteConfigProvider.currentConfig().messageQueueTime - Constants.intervalBeforeExpirationConsideredInactive)
     }
 
     private let logger = PrefixedLogger(prefix: "InactiveLinkedDeviceFinder")
 
     init(
         dateProvider: @escaping DateProvider,
-        db: DB,
+        db: any DB,
         deviceNameDecrypter: Shims.OWSDeviceNameDecrypter,
+        deviceService: OWSDeviceService,
         deviceStore: OWSDeviceStore,
-        devicesService: Shims.OWSDevicesService,
-        kvStoreFactory: KeyValueStoreFactory,
-        remoteConfig: Shims.RemoteConfig,
+        remoteConfigProvider: any RemoteConfigProvider,
         tsAccountManager: TSAccountManager
     ) {
         self.dateProvider = dateProvider
         self.db = db
         self.deviceNameDecrypter = deviceNameDecrypter
+        self.deviceService = deviceService
         self.deviceStore = deviceStore
-        self.devicesService = devicesService
-        self.kvStore = kvStoreFactory.keyValueStore(collection: "InactiveLinkedDeviceFinderImpl")
-        self.remoteConfig = remoteConfig
+        self.kvStore = KeyValueStore(collection: "InactiveLinkedDeviceFinderImpl")
+        self.remoteConfigProvider = remoteConfigProvider
         self.tsAccountManager = tsAccountManager
     }
 
@@ -138,7 +137,7 @@ class InactiveLinkedDeviceFinderImpl: InactiveLinkedDeviceFinder {
         }
 
         do {
-            try await devicesService.refreshDevices()
+            _ = try await deviceService.refreshDevices()
 
             await db.awaitableWrite { tx in
                 self.kvStore.setDate(
@@ -209,14 +208,10 @@ class InactiveLinkedDeviceFinderImpl: InactiveLinkedDeviceFinder {
 extension InactiveLinkedDeviceFinderImpl {
     enum Shims {
         typealias OWSDeviceNameDecrypter = InactiveLinkedDeviceFinderImpl_OWSDeviceNameDecrypter_Shim
-        typealias OWSDevicesService = InactiveLinkedDeviceFinderImpl_OWSDevicesService_Shim
-        typealias RemoteConfig = InactiveLinkedDeviceFinderImpl_RemoteConfig_Shim
     }
 
     enum Wrappers {
         typealias OWSDeviceNameDecrypter = InactiveLinkedDeviceFinderImpl_OWSDeviceNameDecrypter_Wrapper
-        typealias OWSDevicesService = InactiveLinkedDeviceFinderImpl_OWSDevicesService_Wrapper
-        typealias RemoteConfig = InactiveLinkedDeviceFinderImpl_RemoteConfig_Wrapper
     }
 }
 
@@ -237,34 +232,5 @@ class InactiveLinkedDeviceFinderImpl_OWSDeviceNameDecrypter_Wrapper: InactiveLin
         return device.displayName(
             identityManager: identityManager, tx: tx
         )
-    }
-}
-
-// MARK: OWSDevicesService
-
-protocol InactiveLinkedDeviceFinderImpl_OWSDevicesService_Shim {
-    func refreshDevices() async throws
-}
-
-class InactiveLinkedDeviceFinderImpl_OWSDevicesService_Wrapper: InactiveLinkedDeviceFinderImpl_OWSDevicesService_Shim {
-    init() {}
-
-    func refreshDevices() async throws {
-        try await OWSDevicesService.refreshDevices().awaitable()
-    }
-}
-
-// MARK: RemoteConfig
-
-/// We need to shim around ``RemoteConfig`` because accessing it transitively
-/// accesses the global ``RemoteConfigManager`` in ``Dependencies``, which is
-/// not set up when ``InactiveLinkedDeviceFinderImpl`` is initialized.
-protocol InactiveLinkedDeviceFinderImpl_RemoteConfig_Shim {
-    func linkedDeviceLifespan() -> TimeInterval
-}
-
-class InactiveLinkedDeviceFinderImpl_RemoteConfig_Wrapper: InactiveLinkedDeviceFinderImpl_RemoteConfig_Shim {
-    func linkedDeviceLifespan() -> TimeInterval {
-        return RemoteConfig.current.linkedDeviceLifespan
     }
 }

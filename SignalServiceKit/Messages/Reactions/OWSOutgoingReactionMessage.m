@@ -4,7 +4,6 @@
 //
 
 #import "OWSOutgoingReactionMessage.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -17,7 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
                     isRemoving:(BOOL)isRemoving
               expiresInSeconds:(uint32_t)expiresInSeconds
             expireTimerVersion:(nullable NSNumber *)expireTimerVersion
-                   transaction:(SDSAnyReadTransaction *)transaction
+                   transaction:(DBReadTransaction *)transaction
 {
     OWSAssertDebug([thread.uniqueId isEqualToString:message.uniqueThreadId]);
     OWSAssertDebug(emoji.isSingleEmoji);
@@ -47,7 +46,7 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 - (nullable SSKProtoDataMessageBuilder *)dataMessageBuilderWithThread:(TSThread *)thread
-                                                          transaction:(SDSAnyReadTransaction *)transaction
+                                                          transaction:(DBReadTransaction *)transaction
 {
     SSKProtoDataMessageReaction *_Nullable reactionProto = [self buildDataMessageReactionProtoWithTx:transaction];
     if (!reactionProto) {

@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import SignalServiceKit
 import SignalUI
 
 // This captures the CV view state that can affect the load.
 // It is used when building, measuring & configuring components and their views.
-struct CVViewStateSnapshot: Dependencies {
+struct CVViewStateSnapshot {
 
     let textExpansion: CVTextExpansion
     let spoilerReveal: SpoilerRevealState.Snapshot
@@ -39,7 +40,7 @@ struct CVViewStateSnapshot: Dependencies {
     let oldestUnreadMessageSortId: UInt64?
 
     let hasActiveCall: Bool
-    let currentGroupCallThreadUniqueId: String?
+    let currentGroupThreadCallGroupId: GroupIdentifier?
 
     private static var currentCallProvider: any CurrentCallProvider { DependenciesBridge.shared.currentCallProvider }
 
@@ -60,7 +61,7 @@ struct CVViewStateSnapshot: Dependencies {
             searchText: viewState.lastSearchedText,
             oldestUnreadMessageSortId: oldestUnreadMessageSortId,
             hasActiveCall: currentCallProvider.hasCurrentCall,
-            currentGroupCallThreadUniqueId: currentCallProvider.currentGroupCallThread?.uniqueId
+            currentGroupThreadCallGroupId: currentCallProvider.currentGroupThreadCallGroupId
         )
     }
 
@@ -79,7 +80,7 @@ struct CVViewStateSnapshot: Dependencies {
             searchText: nil,
             oldestUnreadMessageSortId: nil,
             hasActiveCall: false,
-            currentGroupCallThreadUniqueId: nil
+            currentGroupThreadCallGroupId: nil
         )
     }
 }

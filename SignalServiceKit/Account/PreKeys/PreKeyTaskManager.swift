@@ -15,32 +15,32 @@
 /// 6. Upload these new keys to the server (except for registration/provisioning)
 /// 7. Store the new keys and run any cleanup logic
 internal struct PreKeyTaskManager {
+    private let apiClient: PreKeyTaskAPIClient
     private let dateProvider: DateProvider
-    private let db: DB
+    private let db: any DB
     private let identityManager: PreKey.Shims.IdentityManager
     private let linkedDevicePniKeyManager: LinkedDevicePniKeyManager
-    private let messageProcessor: PreKey.Shims.MessageProcessor
+    private let messageProcessor: MessageProcessor
     private let protocolStoreManager: SignalProtocolStoreManager
-    private let serviceClient: AccountServiceClient
     private let tsAccountManager: TSAccountManager
 
     init(
+        apiClient: PreKeyTaskAPIClient,
         dateProvider: @escaping DateProvider,
-        db: DB,
+        db: any DB,
         identityManager: PreKey.Shims.IdentityManager,
         linkedDevicePniKeyManager: LinkedDevicePniKeyManager,
-        messageProcessor: PreKey.Shims.MessageProcessor,
+        messageProcessor: MessageProcessor,
         protocolStoreManager: SignalProtocolStoreManager,
-        serviceClient: AccountServiceClient,
         tsAccountManager: TSAccountManager
     ) {
+        self.apiClient = apiClient
         self.dateProvider = dateProvider
         self.db = db
         self.identityManager = identityManager
         self.linkedDevicePniKeyManager = linkedDevicePniKeyManager
         self.messageProcessor = messageProcessor
         self.protocolStoreManager = protocolStoreManager
-        self.serviceClient = serviceClient
         self.tsAccountManager = tsAccountManager
     }
 
@@ -52,9 +52,9 @@ internal struct PreKeyTaskManager {
         internal static let PqPreKeysMinimumCount: UInt = 10
 
         // Signed prekeys should be rotated every at least every 2 days
-        internal static let SignedPreKeyRotationTime: TimeInterval = 2 * kDayInterval
+        internal static let SignedPreKeyRotationTime: TimeInterval = 2 * .day
 
-        internal static let LastResortPqPreKeyRotationTime: TimeInterval = 2 * kDayInterval
+        internal static let LastResortPqPreKeyRotationTime: TimeInterval = 2 * .day
     }
 
     enum Error: Swift.Error {
@@ -75,8 +75,8 @@ internal struct PreKeyTaskManager {
 
         try Task.checkCancellation()
         let (aciBundle, pniBundle) = try await db.awaitableWrite { tx in
-            let aciBundle = try self.generateKeysForRegistration(identity: .aci, tx: tx)
-            let pniBundle = try self.generateKeysForRegistration(identity: .pni, tx: tx)
+            let aciBundle = self.generateKeysForRegistration(identity: .aci, tx: tx)
+            let pniBundle = self.generateKeysForRegistration(identity: .pni, tx: tx)
             try self.persistKeysPriorToUpload(bundle: aciBundle, tx: tx)
             try self.persistKeysPriorToUpload(bundle: pniBundle, tx: tx)
             return (aciBundle, pniBundle)
@@ -95,12 +95,12 @@ internal struct PreKeyTaskManager {
 
         try Task.checkCancellation()
         let (aciBundle, pniBundle) = try await db.awaitableWrite { tx in
-            let aciBundle = try self.generateKeysForProvisioning(
+            let aciBundle = self.generateKeysForProvisioning(
                 identity: .aci,
                 identityKeyPair: aciIdentityKeyPair,
                 tx: tx
             )
-            let pniBundle = try self.generateKeysForProvisioning(
+            let pniBundle = self.generateKeysForProvisioning(
                 identity: .pni,
                 identityKeyPair: pniIdentityKeyPair,
                 tx: tx
@@ -153,7 +153,7 @@ internal struct PreKeyTaskManager {
         } else {
             let (ecCount, pqCount): (Int?, Int?)
             if targets.contains(target: .oneTimePreKey) || targets.contains(target: .oneTimePqPreKey) {
-                (ecCount, pqCount) = try await self.serviceClient.getPreKeysCount(for: identity).awaitable()
+                (ecCount, pqCount) = try await self.apiClient.getAvailablePreKeys(for: identity)
             } else {
                 // No need to fetch prekey counts.
                 (ecCount, pqCount) = (nil, nil)
@@ -187,32 +187,6 @@ internal struct PreKeyTaskManager {
         try await uploadAndPersistBundle(bundle, auth: auth)
     }
 
-    /// When we rotate keys (e.g. due to prior prekey failure) we should never change
-    /// our identity key. So this variant:
-    /// CANNOT create a new identity key
-    /// ALWAYS changes the targeted keys (regardless of current key state)
-    internal func rotate(
-        identity: OWSIdentity,
-        targets: PreKey.Target,
-        auth: ChatServiceAuth
-    ) async throws {
-        PreKey.logger.info("[\(identity)] Rotate [\(targets)]")
-        try Task.checkCancellation()
-        try await waitForMessageProcessing(identity: identity)
-        try Task.checkCancellation()
-        let bundle = try await db.awaitableWrite { tx in
-            let identityKeyPair = try self.requireIdentityKeyPair(for: identity, tx: tx)
-            return try self.createAndPersistPartialBundle(
-                identity: identity,
-                identityKeyPair: identityKeyPair,
-                targets: targets,
-                tx: tx
-            )
-        }
-        try Task.checkCancellation()
-        try await uploadAndPersistBundle(bundle, auth: auth)
-    }
-
     internal func createOneTimePreKeys(
         identity: OWSIdentity,
         auth: ChatServiceAuth
@@ -240,14 +214,14 @@ internal struct PreKeyTaskManager {
     private func generateKeysForRegistration(
         identity: OWSIdentity,
         tx: DBWriteTransaction
-    ) throws -> RegistrationPreKeyUploadBundle {
+    ) -> RegistrationPreKeyUploadBundle {
         let identityKeyPair = getOrCreateIdentityKeyPair(identity: identity, tx: tx)
         let protocolStore = self.protocolStoreManager.signalProtocolStore(for: identity)
         return RegistrationPreKeyUploadBundle(
             identity: identity,
             identityKeyPair: identityKeyPair,
             signedPreKey: protocolStore.signedPreKeyStore.generateSignedPreKey(signedBy: identityKeyPair),
-            lastResortPreKey: try protocolStore.kyberPreKeyStore.generateLastResortKyberPreKey(
+            lastResortPreKey: protocolStore.kyberPreKeyStore.generateLastResortKyberPreKey(
                 signedBy: identityKeyPair,
                 tx: tx
             )
@@ -258,7 +232,7 @@ internal struct PreKeyTaskManager {
         identity: OWSIdentity,
         identityKeyPair: ECKeyPair,
         tx: DBWriteTransaction
-    ) throws -> RegistrationPreKeyUploadBundle {
+    ) -> RegistrationPreKeyUploadBundle {
         let protocolStore = self.protocolStoreManager.signalProtocolStore(for: identity)
         return RegistrationPreKeyUploadBundle(
             identity: identity,
@@ -266,7 +240,7 @@ internal struct PreKeyTaskManager {
             signedPreKey: protocolStore.signedPreKeyStore.generateSignedPreKey(
                 signedBy: identityKeyPair
             ),
-            lastResortPreKey: try protocolStore.kyberPreKeyStore.generateLastResortKyberPreKey(
+            lastResortPreKey: protocolStore.kyberPreKeyStore.generateLastResortKyberPreKey(
                 signedBy: identityKeyPair,
                 tx: tx
             )
@@ -321,20 +295,20 @@ internal struct PreKeyTaskManager {
         var lastResortPreKey: KyberPreKeyRecord?
         var pqPreKeyRecords: [KyberPreKeyRecord]?
 
-        try targets.targets.forEach { target in
+        targets.targets.forEach { target in
             switch target {
             case .oneTimePreKey:
                 preKeyRecords = protocolStore.preKeyStore.generatePreKeyRecords(tx: tx)
             case .signedPreKey:
                 signedPreKey = protocolStore.signedPreKeyStore.generateSignedPreKey(signedBy: identityKeyPair)
             case .oneTimePqPreKey:
-                pqPreKeyRecords = try protocolStore.kyberPreKeyStore.generateKyberPreKeyRecords(
+                pqPreKeyRecords = protocolStore.kyberPreKeyStore.generateKyberPreKeyRecords(
                     count: 100,
                     signedBy: identityKeyPair,
                     tx: tx
                 )
             case .lastResortPqPreKey:
-                lastResortPreKey = try protocolStore.kyberPreKeyStore.generateLastResortKyberPreKey(
+                lastResortPreKey = protocolStore.kyberPreKeyStore.generateLastResortKyberPreKey(
                     signedBy: identityKeyPair,
                     tx: tx
                 )
@@ -410,12 +384,8 @@ internal struct PreKeyTaskManager {
 
     // MARK: Message Processing
 
-    private class MessageProcessingTimeoutError: Swift.Error {}
-
-    /// Waits (potentially forever) for message processing, pausing every couple of seconds if not finished to check for cancellation.
+    /// Waits (potentially forever) for message processing. Supports cancellation.
     private func waitForMessageProcessing(identity: OWSIdentity) async throws {
-        try Task.checkCancellation()
-
         switch identity {
         case .aci:
             // We can't change our ACI via a message, so there's no need to wait.
@@ -425,18 +395,12 @@ internal struct PreKeyTaskManager {
             break
         }
 
-        do {
-            try await messageProcessor.waitForFetchingAndProcessing().asPromise()
-                .timeout(seconds: 3, timeoutErrorBlock: { MessageProcessingTimeoutError() })
-                .awaitable()
-        } catch let error {
-            if error is MessageProcessingTimeoutError {
-                // try again so we get the chance to check for cancellation.
-                try await self.waitForMessageProcessing(identity: identity)
-                return
-            }
-            throw SSKUnretryableError.messageProcessingFailed
+        let continuation = CancellableContinuation<Void>()
+        Task {
+            await messageProcessor.waitForFetchingAndProcessing().awaitable()
+            continuation.resume(with: .success(()))
         }
+        try await continuation.wait()
     }
 
     // MARK: Persist
@@ -529,19 +493,17 @@ internal struct PreKeyTaskManager {
             try await db.awaitableWrite { tx in
                 try self.persistStateAfterUpload(bundle: bundle, tx: tx)
             }
-        case .incorrectIdentityKeyOnLinkedDevice:
-            guard
-                identity == .pni
-            else {
-                throw OWSAssertionError("Expected to be a PNI operation!")
-            }
-
+        case let .failure(error) where error.httpStatusCode == 422 && identity == .pni && tsAccountManager.registrationStateWithMaybeSneakyTransaction.isPrimaryDevice == false:
             // We think we have an incorrect PNI identity key, which
             // we should record so we can handle it later.
-            db.asyncWrite { tx in
+            await db.awaitableWrite { tx in
                 self.linkedDevicePniKeyManager
                     .recordSuspectedIssueWithPniIdentityKey(tx: tx)
             }
+            Task {
+                await self.linkedDevicePniKeyManager.validateLocalPniIdentityKeyIfNecessary()
+            }
+            fallthrough
         case let .failure(error):
             PreKey.logger.info("[\(identity)] Failed to upload prekeys")
             throw error
@@ -551,12 +513,6 @@ internal struct PreKeyTaskManager {
     private enum UploadResult {
         case success
         case skipped
-        /// An error in which we, a linked device, attempted an upload and
-        /// were told by the server that the identity key in our bundle was
-        /// incorrect.
-        ///
-        /// This error should never occur on a primary.
-        case incorrectIdentityKeyOnLinkedDevice
         case failure(Swift.Error)
     }
 
@@ -570,22 +526,17 @@ internal struct PreKeyTaskManager {
         PreKey.logger.info("[\(bundle.identity)] uploading prekeys")
 
         do {
-            try await self.serviceClient.setPreKeys(
+            try await self.apiClient.registerPreKeys(
                 for: bundle.identity,
                 signedPreKeyRecord: bundle.getSignedPreKey(),
                 preKeyRecords: bundle.getPreKeyRecords(),
                 pqLastResortPreKeyRecord: bundle.getLastResortPreKey(),
                 pqPreKeyRecords: bundle.getPqPreKeyRecords(),
                 auth: auth
-            ).awaitable()
+            )
             return .success
         } catch let error {
-            switch error.httpStatusCode {
-            case 403:
-                return .incorrectIdentityKeyOnLinkedDevice
-            default:
-                return .failure(error)
-            }
+            return .failure(error)
         }
     }
 }

@@ -160,6 +160,17 @@ public class RegistrationNavigationController: OWSNavigationController {
                 // but its overkill so we have not.
                 update: nil
             )
+        case .scanQuickRegistrationQrCode:
+            return Controller(
+                type: RegistrationQuickRestoreQRCodeViewController.self,
+                make: { presenter in
+                    return RegistrationQuickRestoreQRCodeViewController(
+                        presenter: presenter
+                    )
+                },
+                // State never changes.
+                update: nil
+            )
         case .phoneNumberEntry(let state):
             switch state {
             case .registration(let registrationMode):
@@ -282,11 +293,11 @@ public class RegistrationNavigationController: OWSNavigationController {
                 // No state to update.
                 update: nil
             )
-        case .restoreFromLocalMessageBackup:
+        case .chooseRestoreMethod:
             return Controller(
-                type: RegistrationRestoreFromBackupViewController.self,
+                type: RegistrationChooseRestoreMethodViewController.self,
                 make: { presenter in
-                    return RegistrationRestoreFromBackupViewController(presenter: presenter)
+                    return RegistrationChooseRestoreMethodViewController(presenter: presenter)
                 },
                 update: nil
             )
@@ -307,6 +318,16 @@ public class RegistrationNavigationController: OWSNavigationController {
                 // No state to update.
                 update: nil
             )
+        case .enterBackupKey:
+            return Controller(
+                type: RegistrationEnterBackupKeyViewController.self,
+                make: { presenter in
+                    return RegistrationEnterBackupKeyViewController(presenter: presenter)
+                },
+                // No state to update.
+                update: nil
+            )
+
         case let .showErrorSheet(errorSheet):
             let title: String?
             let message: String
@@ -401,6 +422,10 @@ extension RegistrationNavigationController: RegistrationSplashPresenter {
 
     public func continueFromSplash() {
         pushNextController(coordinator.continueFromSplash())
+    }
+
+    public func setHasOldDevice(_ hasOldDevice: Bool) {
+        pushNextController(coordinator.setHasOldDevice(hasOldDevice))
     }
 
     public func switchToDeviceLinkingMode() {
@@ -575,15 +600,33 @@ extension RegistrationNavigationController: RegistrationReglockTimeoutPresenter 
     }
 }
 
-extension RegistrationNavigationController: RegistrationRestoreFromBackupPresenter {
+extension RegistrationNavigationController: RegistrationEnterBackupKeyPresenter {
+    func next(accountEntropyPool: AccountEntropyPool) {
+        let guarantee = coordinator.updateAccountEntropyPool(accountEntropyPool)
+        pushNextController(guarantee)
+    }
+}
 
-    func skipRestoreFromBackup() {
-        pushNextController(coordinator.skipRestoreFromBackup())
+extension RegistrationNavigationController: RegistrationChooseRestoreMethodPresenter {
+    func didChooseRestoreMethod(method: RegistrationRestoreMethod) {
+        switch method {
+        case .deviceTransfer:
+            transferDevice()
+        case .declined, .local, .remote:
+            let guarantee = coordinator.updateRestoreMethod(method: method)
+            pushNextController(guarantee)
+        }
+    }
+}
+
+extension RegistrationNavigationController: RegistrationQuickRestoreQRCodePresenter {
+    func didReceiveRegistrationMessage(_ message: SignalServiceKit.RegistrationProvisioningMessage) {
+        let guarantee = coordinator.restoreFromRegistrationMessage(message: message)
+        pushNextController(guarantee)
     }
 
-    func didSelectBackup(type: RegistrationMessageBackupRestoreType) {
-        let guarantee = coordinator.restoreFromMessageBackup(type: type)
-        pushNextController(guarantee, loadingMode: .restoringBackup)
+    func cancel() {
+        // TODO [Quick Restore]: Pop back to the very first screen in the flow (splash).
     }
 }
 

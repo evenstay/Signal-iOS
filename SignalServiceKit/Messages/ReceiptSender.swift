@@ -9,11 +9,19 @@ import LibSignalClient
 @objc
 class MessageReceiptSet: NSObject, Codable {
     @objc
-    public private(set) var timestamps: Set<UInt64> = Set()
+    public private(set) var timestamps: Set<UInt64>
     @objc
-    public private(set) var uniqueIds: Set<String> = Set()
+    public private(set) var uniqueIds: Set<String>
 
-    @objc
+    convenience override init() {
+        self.init(timestamps: Set(), uniqueIds: Set())
+    }
+
+    fileprivate init(timestamps: Set<UInt64>, uniqueIds: Set<String>) {
+        self.timestamps = timestamps
+        self.uniqueIds = uniqueIds
+    }
+
     func insert(timestamp: UInt64, messageUniqueId: String? = nil) {
         timestamps.insert(timestamp)
         if let uniqueId = messageUniqueId {
@@ -21,19 +29,17 @@ class MessageReceiptSet: NSObject, Codable {
         }
     }
 
-    @objc
     func union(_ other: MessageReceiptSet) {
         timestamps.formUnion(other.timestamps)
         uniqueIds.formUnion(other.uniqueIds)
     }
 
-    @objc
     func subtract(_ other: MessageReceiptSet) {
         timestamps.subtract(other.timestamps)
         uniqueIds.subtract(other.uniqueIds)
     }
 
-    fileprivate func union(timestampSet: Set<UInt64>) {
+    fileprivate func union(timestampSet: some Sequence<UInt64>) {
         timestamps.formUnion(timestampSet)
     }
 }
@@ -50,15 +56,15 @@ public class ReceiptSender: NSObject {
     private let viewedReceiptStore: KeyValueStore
 
     private var observers = [NSObjectProtocol]()
-    private let pendingTasks = PendingTasks(label: #fileID)
+    private let pendingTasks = PendingTasks()
     private let sendingState: AtomicValue<SendingState>
 
-    public init(appReadiness: AppReadiness, kvStoreFactory: KeyValueStoreFactory, recipientDatabaseTable: any RecipientDatabaseTable) {
+    public init(appReadiness: AppReadiness, recipientDatabaseTable: any RecipientDatabaseTable) {
         self.appReadiness = appReadiness
         self.recipientDatabaseTable = recipientDatabaseTable
-        self.deliveryReceiptStore = kvStoreFactory.keyValueStore(collection: "kOutgoingDeliveryReceiptManagerCollection")
-        self.readReceiptStore = kvStoreFactory.keyValueStore(collection: "kOutgoingReadReceiptManagerCollection")
-        self.viewedReceiptStore = kvStoreFactory.keyValueStore(collection: "kOutgoingViewedReceiptManagerCollection")
+        self.deliveryReceiptStore = KeyValueStore(collection: "kOutgoingDeliveryReceiptManagerCollection")
+        self.readReceiptStore = KeyValueStore(collection: "kOutgoingReadReceiptManagerCollection")
+        self.viewedReceiptStore = KeyValueStore(collection: "kOutgoingViewedReceiptManagerCollection")
 
         self.sendingState = AtomicValue(SendingState(), lock: .init())
 
@@ -93,7 +99,7 @@ public class ReceiptSender: NSObject {
     func enqueueDeliveryReceipt(
         for decryptedEnvelope: DecryptedIncomingEnvelope,
         messageUniqueId: String?,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         enqueueReceipt(
             for: decryptedEnvelope.sourceAci,
@@ -104,17 +110,12 @@ public class ReceiptSender: NSObject {
         )
     }
 
-    @objc
-    public func enqueueReadReceipt(
-        for address: SignalServiceAddress,
+    func enqueueReadReceipt(
+        for aci: Aci,
         timestamp: UInt64,
         messageUniqueId: String?,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
-        guard let aci = address.aci else {
-            Logger.warn("Dropping receipt for message without ACI.")
-            return
-        }
         enqueueReceipt(
             for: aci,
             timestamp: timestamp,
@@ -124,17 +125,12 @@ public class ReceiptSender: NSObject {
         )
     }
 
-    @objc
-    public func enqueueViewedReceipt(
-        for address: SignalServiceAddress,
+    func enqueueViewedReceipt(
+        for aci: Aci,
         timestamp: UInt64,
         messageUniqueId: String?,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
-        guard let aci = address.aci else {
-            Logger.warn("Dropping receipt for message without ACI.")
-            return
-        }
         enqueueReceipt(
             for: aci,
             timestamp: timestamp,
@@ -149,17 +145,17 @@ public class ReceiptSender: NSObject {
         timestamp: UInt64,
         messageUniqueId: String?,
         receiptType: ReceiptType,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         guard timestamp >= 1 else {
             owsFailDebug("Invalid timestamp.")
             return
         }
-        let pendingTask = pendingTasks.buildPendingTask(label: "Receipt Send")
-        let persistedSet = fetchReceiptSet(receiptType: receiptType, aci: aci, tx: tx.asV2Read)
+        let pendingTask = pendingTasks.buildPendingTask()
+        let persistedSet = fetchReceiptSet(receiptType: receiptType, aci: aci, tx: tx)
         persistedSet.insert(timestamp: timestamp, messageUniqueId: messageUniqueId)
-        storeReceiptSet(persistedSet, receiptType: receiptType, aci: aci, tx: tx.asV2Write)
-        tx.addAsyncCompletionOffMain {
+        storeReceiptSet(persistedSet, receiptType: receiptType, aci: aci, tx: tx)
+        tx.addSyncCompletion {
             self.sendingState.update { $0.mightHavePendingReceipts = true }
             self.sendPendingReceiptsIfNeeded(pendingTask: pendingTask)
         }
@@ -195,7 +191,7 @@ public class ReceiptSender: NSObject {
         do {
             defer { pendingTask?.complete() }
 
-            guard appReadiness.isAppReady, reachabilityManager.isReachable else {
+            guard appReadiness.isAppReady, SSKEnvironment.shared.reachabilityManagerRef.isReachable else {
                 return
             }
             guard sendingState.update(block: { $0.startIfPossible() }) else {
@@ -224,11 +220,13 @@ public class ReceiptSender: NSObject {
     }
 
     private func sendReceipts(receiptType: ReceiptType) async throws {
-        let pendingReceipts = databaseStorage.read { tx in fetchAllReceiptSets(receiptType: receiptType, tx: tx.asV2Read) }
+        let pendingReceipts = SSKEnvironment.shared.databaseStorageRef.read { tx in fetchAllReceiptSets(receiptType: receiptType, tx: tx) }
         try await withThrowingTaskGroup(of: Void.self) { taskGroup in
             for (aci, receiptBatches) in pendingReceipts {
-                taskGroup.addTask {
-                    try await self.sendReceipts(receiptType: receiptType, to: aci, receiptBatches: receiptBatches)
+                for receiptBatch in receiptBatches {
+                    taskGroup.addTask {
+                        try await self.sendReceipts(receiptType: receiptType, to: aci, receiptBatch: receiptBatch)
+                    }
                 }
             }
             try await taskGroup.waitForAll()
@@ -238,74 +236,117 @@ public class ReceiptSender: NSObject {
     private func sendReceipts(
         receiptType: ReceiptType,
         to aci: Aci?,
-        receiptBatches: [ReceiptBatch]
+        receiptBatch: ReceiptBatch
     ) async throws {
-        let sendPromise = await databaseStorage.awaitableWrite { tx -> Promise<Void>? in
-            guard let aci else {
-                Logger.warn("Dropping receipts without an ACI")
-                return .value(())
+        var remainingTimestamps = receiptBatch.receiptSet.timestamps.sorted()[...]
+        repeat {
+            let sendResult = await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx -> (sendPromise: Promise<Void>, batchEndIndex: Int)? in
+                // If any of the following checks fail, we throw away ALL of the pending
+                // receipts, so there's no reason to batch them. (It's actually more costly
+                // if we batch the removals.) A "sendPromise" that always succeeds and
+                // covers all of the "remainingTimestamps" simulates a successful send,
+                // causing them to be dequeued.
+
+                if remainingTimestamps.isEmpty {
+                    Logger.warn("Dropping receipts without any timestamps")
+                    return (.value(()), remainingTimestamps.endIndex)
+                }
+
+                guard let aci else {
+                    Logger.warn("Dropping receipts without an ACI")
+                    return (.value(()), remainingTimestamps.endIndex)
+                }
+
+                if SSKEnvironment.shared.blockingManagerRef.isAddressBlocked(SignalServiceAddress(aci), transaction: tx) {
+                    Logger.warn("Dropping receipts for blocked \(aci)")
+                    return (.value(()), remainingTimestamps.endIndex)
+                }
+
+                let recipientHidingManager = DependenciesBridge.shared.recipientHidingManager
+                if recipientHidingManager.isHiddenAddress(SignalServiceAddress(aci), tx: tx) {
+                    Logger.warn("Dropping receipts for hidden \(aci)")
+                    return (.value(()), remainingTimestamps.endIndex)
+                }
+
+                // We skip any sends to untrusted identities since we know they'll fail
+                // anyway. If an identity state changes we should recheck our
+                // pendingReceipts to re-attempt a send to formerly untrusted recipients.
+                let identityManager = DependenciesBridge.shared.identityManager
+                guard identityManager.untrustedIdentityForSending(to: SignalServiceAddress(aci), untrustedThreshold: nil, tx: tx) == nil else {
+                    Logger.warn("Deferring receipts for untrusted \(aci)")
+                    return nil
+                }
+
+                let batchLimit = 4096
+                let batchTimestamps = remainingTimestamps.prefix(batchLimit)
+                let batchEndIndex = batchTimestamps.endIndex
+
+                // Even if we're sending a partial batch, we still include all of the
+                // uniqueIds. We don't know which ones correspond to the timestamps in this
+                // receipt message, so we include all of them to err on the safe side.
+                let batchToSend = MessageReceiptSet(
+                    timestamps: Set(batchTimestamps),
+                    uniqueIds: receiptBatch.receiptSet.uniqueIds
+                )
+
+                let thread = TSContactThread.getOrCreateThread(withContactAddress: SignalServiceAddress(aci), transaction: tx)
+                let message: OWSReceiptsForSenderMessage
+                switch receiptType {
+                case .delivery:
+                    message = .deliveryReceiptsForSenderMessage(with: thread, receiptSet: batchToSend, transaction: tx)
+                case .read:
+                    message = .readReceiptsForSenderMessage(with: thread, receiptSet: batchToSend, transaction: tx)
+                case .viewed:
+                    message = .viewedReceiptsForSenderMessage(with: thread, receiptSet: batchToSend, transaction: tx)
+                }
+
+                let messageSenderJobQueue = SSKEnvironment.shared.messageSenderJobQueueRef
+                let preparedMessage = PreparedOutgoingMessage.preprepared(
+                    transientMessageWithoutAttachments: message
+                )
+                let sendPromise = messageSenderJobQueue.add(
+                    .promise,
+                    message: preparedMessage,
+                    limitToCurrentProcessLifetime: true,
+                    transaction: tx
+                )
+                return (sendPromise, batchEndIndex)
             }
 
-            let receiptSet = receiptBatches.reduce(into: MessageReceiptSet(), { $0.union($1.receiptSet) })
-            if receiptSet.timestamps.isEmpty {
-                Logger.warn("Dropping receipts without any timestamps")
-                return .value(())
+            guard let sendResult else {
+                // We deferred sending the receipts, so exit the batching loop.
+                return
             }
 
-            if self.blockingManager.isAddressBlocked(SignalServiceAddress(aci), transaction: tx) {
-                Logger.warn("Dropping receipts for blocked \(aci)")
-                return .value(())
+            let sentTimestamps = remainingTimestamps[..<sendResult.batchEndIndex]
+            remainingTimestamps = remainingTimestamps[sendResult.batchEndIndex...]
+
+            do {
+                try await sendResult.sendPromise.awaitable()
+
+                let uniqueIdsToDequeue: Set<String>
+                if remainingTimestamps.isEmpty {
+                    uniqueIdsToDequeue = receiptBatch.receiptSet.uniqueIds
+                } else {
+                    // If we only sent a partial batch, we don't know which timestamps
+                    // correspond to which uniqueIds. So we just err on the safe side and keep
+                    // around all of the uniqueIds.
+                    uniqueIdsToDequeue = []
+                }
+
+                let batchToDequeue = ReceiptBatch(
+                    receiptSet: MessageReceiptSet(timestamps: Set(sentTimestamps), uniqueIds: uniqueIdsToDequeue),
+                    identifier: receiptBatch.identifier
+                )
+                await self.dequeueReceipts(for: batchToDequeue, receiptType: receiptType)
+            } catch let error as MessageSenderNoSuchSignalRecipientError {
+                // If we try to send a subset of the receipts and the recipient doesn't
+                // exist, the remaining receipts will also fail. Dequeue all of them to
+                // avoid pointless retries.
+                await self.dequeueReceipts(for: receiptBatch, receiptType: receiptType)
+                throw error
             }
-
-            let recipientHidingManager = DependenciesBridge.shared.recipientHidingManager
-            if recipientHidingManager.isHiddenAddress(SignalServiceAddress(aci), tx: tx.asV2Read) {
-                Logger.warn("Dropping receipts for hidden \(aci)")
-                return .value(())
-            }
-
-            // We skip any sends to untrusted identities since we know they'll fail
-            // anyway. If an identity state changes we should recheck our
-            // pendingReceipts to re-attempt a send to formerly untrusted recipients.
-            let identityManager = DependenciesBridge.shared.identityManager
-            guard identityManager.untrustedIdentityForSending(to: SignalServiceAddress(aci), untrustedThreshold: nil, tx: tx.asV2Read) == nil else {
-                Logger.warn("Skipping receipts for untrusted \(aci)")
-                return nil
-            }
-
-            let thread = TSContactThread.getOrCreateThread(withContactAddress: SignalServiceAddress(aci), transaction: tx)
-            let message: OWSReceiptsForSenderMessage
-            switch receiptType {
-            case .delivery:
-                message = .deliveryReceiptsForSenderMessage(with: thread, receiptSet: receiptSet, transaction: tx)
-            case .read:
-                message = .read(with: thread, receiptSet: receiptSet, transaction: tx)
-            case .viewed:
-                message = .viewedReceiptsForSenderMessage(with: thread, receiptSet: receiptSet, transaction: tx)
-            }
-
-            let messageSenderJobQueue = SSKEnvironment.shared.messageSenderJobQueueRef
-            let preparedMessage = PreparedOutgoingMessage.preprepared(
-                transientMessageWithoutAttachments: message
-            )
-            return messageSenderJobQueue.add(
-                .promise,
-                message: preparedMessage,
-                limitToCurrentProcessLifetime: true,
-                transaction: tx
-            )
-        }
-
-        guard let sendPromise else {
-            return
-        }
-
-        do {
-            try await sendPromise.awaitable()
-            await self.dequeueReceipts(for: receiptBatches, receiptType: receiptType)
-        } catch let error as MessageSenderNoSuchSignalRecipientError {
-            await self.dequeueReceipts(for: receiptBatches, receiptType: receiptType)
-            throw error
-        }
+        } while !remainingTimestamps.isEmpty
     }
 
     // MARK: - Fetching & Saving
@@ -316,13 +357,11 @@ public class ReceiptSender: NSObject {
         case viewed
     }
 
-    private func dequeueReceipts(for receiptBatches: [ReceiptBatch], receiptType: ReceiptType) async {
-        await databaseStorage.awaitableWrite { tx in
-            for receiptBatch in receiptBatches {
-                let persistedSet = self._fetchReceiptSet(receiptType: receiptType, identifier: receiptBatch.identifier, tx: tx.asV2Write)
-                persistedSet.subtract(receiptBatch.receiptSet)
-                self._storeReceiptSet(persistedSet, receiptType: receiptType, identifier: receiptBatch.identifier, tx: tx.asV2Write)
-            }
+    private func dequeueReceipts(for receiptBatch: ReceiptBatch, receiptType: ReceiptType) async {
+        await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
+            let persistedSet = self._fetchReceiptSet(receiptType: receiptType, identifier: receiptBatch.identifier, tx: tx)
+            persistedSet.subtract(receiptBatch.receiptSet)
+            self._storeReceiptSet(persistedSet, receiptType: receiptType, identifier: receiptBatch.identifier, tx: tx)
         }
     }
 
@@ -367,7 +406,7 @@ public class ReceiptSender: NSObject {
         let result = MessageReceiptSet()
         if let receiptSet: MessageReceiptSet = try? store.getCodableValue(forKey: identifier, transaction: tx) {
             result.union(receiptSet)
-        } else if let numberSet = store.getObject(forKey: identifier, transaction: tx) as? Set<UInt64> {
+        } else if let numberSet = store.getSet(identifier, ofClass: NSNumber.self, transaction: tx)?.map({ $0.uint64Value }) {
             result.union(timestampSet: numberSet)
         }
         return result
@@ -398,11 +437,7 @@ public class ReceiptSender: NSObject {
         }
     }
 
-    public func pendingSendsPromise() -> Promise<Void> {
-        // This promise blocks on all operations already in the queue but will not
-        // block on new operations added after this promise is created. That's
-        // intentional to ensure that NotificationService instances complete in a
-        // timely way.
-        pendingTasks.pendingTasksPromise()
+    public func waitForPendingReceipts() async throws {
+        try await pendingTasks.waitForPendingTasks()
     }
 }

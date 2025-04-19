@@ -53,7 +53,7 @@ public final class ConversationViewController: OWSViewController {
     lazy var updateContentInsetsEvent = DebouncedEvents.build(
         mode: .lastOnly,
         maxFrequencySeconds: 0.01,
-        onQueue: .asyncOnQueue(queue: .main),
+        onQueue: .main,
         notifyBlock: { [weak self] in
             self?.updateContentInsets()
         })
@@ -65,7 +65,7 @@ public final class ConversationViewController: OWSViewController {
         threadViewModel: ThreadViewModel,
         action: ConversationViewAction,
         focusMessageId: String?,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> ConversationViewController {
         let thread = threadViewModel.threadRecord
 
@@ -99,7 +99,7 @@ public final class ConversationViewController: OWSViewController {
             for: thread, chatColor: chatColor, wallpaperViewBuilder: wallpaperViewBuilder
         )
         let conversationViewModel = ConversationViewModel.load(for: thread, tx: tx)
-        let didAlreadyShowGroupCallTooltipEnoughTimes = preferences.wasGroupCallTooltipShown(withTransaction: tx)
+        let didAlreadyShowGroupCallTooltipEnoughTimes = SSKEnvironment.shared.preferencesRef.wasGroupCallTooltipShown(withTransaction: tx)
 
         let cvc = ConversationViewController(
             appReadiness: appReadiness,
@@ -118,14 +118,14 @@ public final class ConversationViewController: OWSViewController {
         return cvc
     }
 
-    static func loadChatColor(for thread: TSThread, tx: SDSAnyReadTransaction) -> ColorOrGradientSetting {
+    static func loadChatColor(for thread: TSThread, tx: DBReadTransaction) -> ColorOrGradientSetting {
         return DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(
             for: thread,
-            tx: tx.asV2Read
+            tx: tx
         )
     }
 
-    static func loadWallpaperViewBuilder(for thread: TSThread, tx: SDSAnyReadTransaction) -> WallpaperViewBuilder? {
+    static func loadWallpaperViewBuilder(for thread: TSThread, tx: DBReadTransaction) -> WallpaperViewBuilder? {
         return Wallpaper.viewBuilder(for: thread, tx: tx)
     }
 
@@ -172,7 +172,7 @@ public final class ConversationViewController: OWSViewController {
 
         self.inputAccessoryPlaceholder.delegate = self
 
-        contactsViewHelper.addObserver(self)
+        SUIEnvironment.shared.contactsViewHelperRef.addObserver(self)
 
         self.actionOnOpen = action
 
@@ -193,7 +193,7 @@ public final class ConversationViewController: OWSViewController {
         self.otherUsersProfileDidChangeEvent = DebouncedEvents.build(
             mode: .firstLast,
             maxFrequencySeconds: 1.0,
-            onQueue: .asyncOnQueue(queue: .main)
+            onQueue: .main
         ) { [weak self] in
             // Reload all cells if this is a group conversation,
             // since we may need to update the sender names on the messages.
@@ -352,7 +352,7 @@ public final class ConversationViewController: OWSViewController {
 
         // We should have already requested contact access at this point, so this should be a no-op
         // unless it ever becomes possible to load this VC without going via the ChatListViewController.
-        self.contactsManagerImpl.requestSystemContactsOnce()
+        SSKEnvironment.shared.contactManagerImplRef.requestSystemContactsOnce()
 
         self.updateBarButtonItems()
         self.updateNavigationTitle()
@@ -365,6 +365,8 @@ public final class ConversationViewController: OWSViewController {
         self.viewWillAppearDidComplete()
     }
 
+    private var groupAndProfileRefresherTask: Task<Void, any Error>?
+
     public override func viewDidAppear(_ animated: Bool) {
         self.viewDidAppearDidBegin()
 
@@ -375,7 +377,7 @@ public final class ConversationViewController: OWSViewController {
         // is being presented where a message notification for the not-quite-yet
         // presented conversation can be shown. If that happens, dismiss it as soon
         // as we enter the conversation.
-        self.notificationPresenter.cancelNotifications(threadId: thread.uniqueId)
+        SSKEnvironment.shared.notificationPresenterRef.cancelNotifications(threadId: thread.uniqueId)
 
         // recover status bar when returning from PhotoPicker, which is dark (uses light status bar)
         self.setNeedsStatusBarAppearanceUpdate()
@@ -384,19 +386,21 @@ public final class ConversationViewController: OWSViewController {
         self.startReadTimer()
         self.updateNavigationBarSubtitleLabel()
         _ = self.autoLoadMoreIfNecessary()
-        if !DebugFlags.reduceLogChatter {
-            var addresses = Set(thread.recipientAddressesWithSneakyTransaction)
-            if let groupThread = thread as? TSGroupThread, let groupModel = groupThread.groupModel as? TSGroupModelV2 {
-                addresses.formUnion(groupModel.droppedMembers)
+
+        let serviceIds = thread.recipientAddressesWithSneakyTransaction.compactMap(\.serviceId)
+
+        self.groupAndProfileRefresherTask?.cancel()
+        self.groupAndProfileRefresherTask = Task {
+            await self.updateV2GroupIfNecessary()
+
+            // Fetch profiles AFTER refreshing the group to ensure GSEs are available.
+            let profileFetcher = SSKEnvironment.shared.profileFetcherRef
+            for serviceId in Set(serviceIds).shuffled() {
+                try Task.checkCancellation()
+                let thread = self.thread as? TSGroupThread
+                let context = ProfileFetchContext(groupId: try? thread?.groupIdentifier, isOpportunistic: true)
+                _ = try? await profileFetcher.fetchProfile(for: serviceId, context: context)
             }
-            let serviceIds = addresses.compactMap { $0.serviceId }
-            Task {
-                let profileFetcher = SSKEnvironment.shared.profileFetcherRef
-                for serviceId in serviceIds {
-                    _ = try? await profileFetcher.fetchProfile(for: serviceId, options: [.opportunistic])
-                }
-            }
-            self.updateV2GroupIfNecessary()
         }
 
         if !self.viewHasEverAppeared {
@@ -460,6 +464,9 @@ public final class ConversationViewController: OWSViewController {
 
         self.dismissReactionsDetailSheet(animated: false)
         self.saveLastVisibleSortIdAndOnScreenPercentage(async: true)
+
+        self.groupAndProfileRefresherTask?.cancel()
+        self.groupAndProfileRefresherTask = nil
     }
 
     public override func viewDidDisappear(_ animated: Bool) {
@@ -469,7 +476,7 @@ public final class ConversationViewController: OWSViewController {
         self.isViewVisible = false
         self.shouldAnimateKeyboardChanges = false
 
-        self.cvAudioPlayer.stopAll()
+        AppEnvironment.shared.cvAudioPlayerRef.stopAll()
 
         self.cancelReadTimer()
         self.saveDraft()

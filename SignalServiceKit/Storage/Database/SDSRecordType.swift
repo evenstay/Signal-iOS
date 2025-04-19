@@ -13,10 +13,8 @@ import GRDB
 public enum SDSRecordType: UInt, CaseIterable {
     case invalidIdentityKeyReceivingErrorMessage = 1
     case thread = 2
-    case attachmentPointer = 3
     case unreadIndicatorInteraction = 4
     case unknownContactBlockOfferMessage = 5
-    case attachment = 6
     case addToProfileWhitelistOfferMessage = 7
     case errorMessage = 9
     case infoMessage = 10
@@ -27,7 +25,6 @@ public enum SDSRecordType: UInt, CaseIterable {
     case messageContentJob = 15
     case interaction = 16
     case invalidIdentityKeyErrorMessage = 17
-    case attachmentStream = 18
     case incomingMessage = 19
     case call = 20
     case outgoingMessage = 21
@@ -38,7 +35,6 @@ public enum SDSRecordType: UInt, CaseIterable {
     case groupThread = 26
     case contactThread = 27
     case disappearingConfigurationUpdateInfoMessage = 28
-    case knownStickerPack = 29
     case signalAccount = 30
     case signalRecipient = 31
     case backupFragment = 32
@@ -67,7 +63,6 @@ public enum SDSRecordType: UInt, CaseIterable {
     case experienceUpgrade = 55
     case baseModel = 56
     case contactQuery = 57
-    case tsAttachmentMultisendJobRecord = 58
     case testModel = 59
     case incomingGroupSyncJobRecord = 60
     case incomingContactSyncJobRecord = 61

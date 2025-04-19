@@ -53,7 +53,7 @@ public class LongTextViewController: OWSViewController {
 
         self.messageTextView.contentOffset = CGPoint(x: 0, y: self.messageTextView.contentInset.top)
 
-        databaseStorage.appendDatabaseChangeDelegate(self)
+        DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
     }
 
     public override func themeDidChange() {
@@ -101,7 +101,7 @@ public class LongTextViewController: OWSViewController {
                 mutableText = (attrString as? NSMutableAttributedString) ?? NSMutableAttributedString(attributedString: attrString)
             }
 
-            let hasPendingMessageRequest = databaseStorage.read { transaction in
+            let hasPendingMessageRequest = SSKEnvironment.shared.databaseStorageRef.read { transaction in
                 itemViewModel.thread.hasPendingMessageRequest(transaction: transaction)
             }
             CVComponentBodyText.configureTextView(
@@ -154,7 +154,7 @@ public class LongTextViewController: OWSViewController {
         AssertIsOnMainThread()
 
         let uniqueId = itemViewModel.interaction.uniqueId
-        let messageWasDeleted = databaseStorage.read {
+        let messageWasDeleted = SSKEnvironment.shared.databaseStorageRef.read {
             TSInteraction.anyFetch(uniqueId: uniqueId, transaction: $0) == nil
         }
         guard messageWasDeleted else {
@@ -314,8 +314,6 @@ public class LongTextViewController: OWSViewController {
 extension LongTextViewController: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
-        AssertIsOnMainThread()
-
         guard databaseChanges.didUpdate(interaction: itemViewModel.interaction) else {
             return
         }
@@ -325,14 +323,10 @@ extension LongTextViewController: DatabaseChangeDelegate {
     }
 
     public func databaseChangesDidUpdateExternally() {
-        AssertIsOnMainThread()
-
         refreshContent()
     }
 
     public func databaseChangesDidReset() {
-        AssertIsOnMainThread()
-
         refreshContent()
     }
 }

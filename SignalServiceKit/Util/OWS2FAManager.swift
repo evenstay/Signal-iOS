@@ -20,7 +20,7 @@ public enum OWS2FAMode {
     case V2
 }
 
-public class OWS2FAManager: Dependencies {
+public class OWS2FAManager {
     init(appReadiness: AppReadiness) {
         SwiftSingletons.register(self)
 
@@ -33,7 +33,7 @@ public class OWS2FAManager: Dependencies {
                         try await self.migrateToRegistrationLockV2()
                         Logger.info("Successfully migrated to registration lock V2")
                     } catch {
-                        owsFailDebug("Failed to migrate V1 reglock to V2 reglock: \(error.userErrorDescription)")
+                        owsFailDebug("Failed to migrate V1 reglock to V2 reglock: \(error)")
                     }
                 }
             }
@@ -43,11 +43,11 @@ public class OWS2FAManager: Dependencies {
 
 extension OWS2FAManager {
 
-    public static var keyValueStore = SDSKeyValueStore(collection: "kOWS2FAManager_Collection")
+    public static var keyValueStore = KeyValueStore(collection: "kOWS2FAManager_Collection")
     public static var isRegistrationLockV2EnabledKey = "isRegistrationLockV2Enabled"
 
     public var mode: OWS2FAMode {
-        let hasBackedUpMasterKey = databaseStorage.read { self.hasBackedUpMasterKey(transaction: $0) }
+        let hasBackedUpMasterKey = SSKEnvironment.shared.databaseStorageRef.read { self.hasBackedUpMasterKey(transaction: $0) }
         if hasBackedUpMasterKey {
             return .V2
         } else if pinCode != nil {
@@ -73,9 +73,9 @@ extension OWS2FAManager {
     }
 
     public var isRegistrationLockV2Enabled: Bool {
-        return databaseStorage.read { isRegistrationLockV2Enabled(transaction: $0) }
+        return SSKEnvironment.shared.databaseStorageRef.read { isRegistrationLockV2Enabled(transaction: $0) }
     }
-    public func isRegistrationLockV2Enabled(transaction: SDSAnyReadTransaction) -> Bool {
+    public func isRegistrationLockV2Enabled(transaction: DBReadTransaction) -> Bool {
         return Self.keyValueStore.getBool(
             OWS2FAManager.isRegistrationLockV2EnabledKey,
             defaultValue: false,
@@ -84,51 +84,51 @@ extension OWS2FAManager {
     }
 
     public var pinCode: String? {
-        return databaseStorage.read { pinCode(transaction: $0) }
+        return SSKEnvironment.shared.databaseStorageRef.read { pinCode(transaction: $0) }
     }
-    public func pinCode(transaction: SDSAnyReadTransaction) -> String? {
+    public func pinCode(transaction: DBReadTransaction) -> String? {
         return Self.keyValueStore.getString(kOWS2FAManager_PinCode, transaction: transaction)
     }
 
-    static var allRepetitionIntervals: [TimeInterval] = [12 * kHourInterval, 1 * kDayInterval, 3 * kDayInterval, 7 * kDayInterval, 14 * kDayInterval]
+    static var allRepetitionIntervals: [TimeInterval] = [12 * .hour, 1 * .day, 3 * .day, 7 * .day, 14 * .day]
     var defaultRepetitionInterval: TimeInterval {
         return Self.allRepetitionIntervals.first!
     }
-    public func setDefaultRepetitionInterval(transaction: SDSAnyWriteTransaction) {
+    public func setDefaultRepetitionInterval(transaction: DBWriteTransaction) {
         Self.keyValueStore.removeValue(forKey: kOWS2FAManager_RepetitionInterval, transaction: transaction)
     }
     public var repetitionInterval: TimeInterval {
-        return databaseStorage.read { repetitionInterval(transaction: $0) }
+        return SSKEnvironment.shared.databaseStorageRef.read { repetitionInterval(transaction: $0) }
     }
-    func repetitionInterval(transaction: SDSAnyReadTransaction) -> TimeInterval {
+    func repetitionInterval(transaction: DBReadTransaction) -> TimeInterval {
         return Self.keyValueStore.getDouble(kOWS2FAManager_RepetitionInterval, defaultValue: defaultRepetitionInterval, transaction: transaction)
     }
 
     public var areRemindersEnabled: Bool {
-        return databaseStorage.read { areRemindersEnabled(transaction: $0) }
+        return SSKEnvironment.shared.databaseStorageRef.read { areRemindersEnabled(transaction: $0) }
     }
-    public func areRemindersEnabled(transaction: SDSAnyReadTransaction) -> Bool {
+    public func areRemindersEnabled(transaction: DBReadTransaction) -> Bool {
         return Self.keyValueStore.getBool(kOWS2FAManager_AreRemindersEnabled, defaultValue: true, transaction: transaction)
     }
-    public func setAreRemindersEnabled(_ areRemindersEnabled: Bool, transaction: SDSAnyWriteTransaction) {
+    public func setAreRemindersEnabled(_ areRemindersEnabled: Bool, transaction: DBWriteTransaction) {
         Self.keyValueStore.setBool(areRemindersEnabled, key: kOWS2FAManager_AreRemindersEnabled, transaction: transaction)
     }
 
-    public func lastCompletedReminderDate(transaction: SDSAnyReadTransaction) -> Date? {
+    public func lastCompletedReminderDate(transaction: DBReadTransaction) -> Date? {
         return Self.keyValueStore.getDate(kOWS2FAManager_LastSuccessfulReminderDateKey, transaction: transaction)
     }
-    public func setLastCompletedReminderDate(_ date: Date, transaction: SDSAnyWriteTransaction) {
+    public func setLastCompletedReminderDate(_ date: Date, transaction: DBWriteTransaction) {
         Self.keyValueStore.setDate(date, key: kOWS2FAManager_LastSuccessfulReminderDateKey, transaction: transaction)
     }
-    public func nextReminderDate(transaction: SDSAnyReadTransaction) -> Date {
+    public func nextReminderDate(transaction: DBReadTransaction) -> Date {
         let lastCompletedReminderDate = lastCompletedReminderDate(transaction: transaction) ?? .distantPast
         let repetitionInterval = repetitionInterval(transaction: transaction)
 
         return lastCompletedReminderDate.addingTimeInterval(repetitionInterval)
     }
 
-    public func isDueForV2Reminder(transaction: SDSAnyReadTransaction) -> Bool {
-        guard DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegistered else { return false }
+    public func isDueForV2Reminder(transaction: DBReadTransaction) -> Bool {
+        guard DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction).isRegistered else { return false }
         guard hasBackedUpMasterKey(transaction: transaction) else { return false }
         if pinCode(transaction: transaction).isEmptyOrNil {
             Logger.info("Missing 2FA pin, prompting for reminder so we can backfill it.")
@@ -140,7 +140,7 @@ extension OWS2FAManager {
     }
 
     public func reminderCompleted(incorrectAttempts: Bool) {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             setLastCompletedReminderDate(Date(), transaction: transaction)
 
             let oldInterval = repetitionInterval(transaction: transaction)
@@ -179,7 +179,7 @@ extension OWS2FAManager {
 
                     if isValid {
                         Logger.info("Verified PIN code")
-                        self.databaseStorage.write { self.setPinCode(pin, transaction: $0) }
+                        SSKEnvironment.shared.databaseStorageRef.write { self.setPinCode(pin, transaction: $0) }
                     }
                 }
             }
@@ -189,6 +189,7 @@ extension OWS2FAManager {
             if let pinToMatch {
                 result(pinToMatch.ensureArabicNumerals == pin.ensureArabicNumerals)
             } else {
+                Logger.info("Attempting to verify missing PIN")
                 result(false)
             }
         case .disabled:
@@ -198,7 +199,7 @@ extension OWS2FAManager {
     }
 
     public var needsLegacyPinMigration: Bool {
-        let hasMigratedTruncatedPin = databaseStorage.read { Self.keyValueStore.getBool(kOWS2FAManager_HasMigratedTruncatedPinKey, defaultValue: false, transaction: $0) }
+        let hasMigratedTruncatedPin = SSKEnvironment.shared.databaseStorageRef.read { Self.keyValueStore.getBool(kOWS2FAManager_HasMigratedTruncatedPinKey, defaultValue: false, transaction: $0) }
         if hasMigratedTruncatedPin {
             return false
         }
@@ -213,21 +214,21 @@ extension OWS2FAManager {
 
         // We don't need to migrate this pin, either because it's v2 or short enough that
         // we never truncated it. Mark it as complete so we don't need to check again.
-        databaseStorage.write { markLegacyPinAsMigrated(transaction: $0) }
+        SSKEnvironment.shared.databaseStorageRef.write { markLegacyPinAsMigrated(transaction: $0) }
         return false
     }
-    internal func markLegacyPinAsMigrated(transaction: SDSAnyWriteTransaction) {
+    internal func markLegacyPinAsMigrated(transaction: DBWriteTransaction) {
         Self.keyValueStore.setBool(true, key: kOWS2FAManager_HasMigratedTruncatedPinKey, transaction: transaction)
     }
 
-    public func markDisabled(transaction: SDSAnyWriteTransaction) {
+    public func markDisabled(transaction: DBWriteTransaction) {
         Self.keyValueStore.removeValues(forKeys: [kOWS2FAManager_PinCode, Self.isRegistrationLockV2EnabledKey], transaction: transaction)
         transaction.addSyncCompletion {
             Self.triggerAccountAttributesUpdate()
         }
     }
 
-    public func markEnabled(pin: String, transaction: SDSAnyWriteTransaction) {
+    public func markEnabled(pin: String, transaction: DBWriteTransaction) {
         setPinCode(pin, transaction: transaction)
 
         // Since we just created this pin, we know it doesn't need migration. Mark it as such.
@@ -244,7 +245,11 @@ extension OWS2FAManager {
         }
     }
 
-    internal func setPinCode(_ pin: String, transaction: SDSAnyWriteTransaction) {
+    public func restorePinFromBackup(_ pin: String, transaction: DBWriteTransaction) {
+        Self.keyValueStore.setString(pin, key: kOWS2FAManager_PinCode, transaction: transaction)
+    }
+
+    private func setPinCode(_ pin: String, transaction: DBWriteTransaction) {
         if pin.isEmpty {
             clearLocalPinCode(transaction: transaction)
             return
@@ -288,9 +293,21 @@ extension OWS2FAManager {
 
         // Enabling V2 2FA doesn't inherently enable registration lock,
         // it's managed by a separate setting.
-        DependenciesBridge.shared.svr.generateAndBackupKeys(pin: pin, authMethod: .implicit).done {
+        let masterKey: MasterKey
+        do {
+            guard let key = DependenciesBridge.shared.db.read(block: {
+                DependenciesBridge.shared.accountKeyStore.getMasterKey(tx: $0)
+            }) else {
+                throw OWSAssertionError("Missing master key")
+            }
+            masterKey = key
+        } catch {
+            failure(error)
+            return
+        }
+        DependenciesBridge.shared.svr.backupMasterKey(pin: pin, masterKey: masterKey, authMethod: .implicit).done { _ in
             AssertIsOnMainThread()
-            self.databaseStorage.write { self.markEnabled(pin: pin, transaction: $0) }
+            SSKEnvironment.shared.databaseStorageRef.write { self.markEnabled(pin: pin, transaction: $0) }
             success()
         }.catch { error in
             AssertIsOnMainThread()
@@ -307,7 +324,7 @@ extension OWS2FAManager {
                     try await self.disableRegistrationLockV2()
                 } catch {
                 }
-                await self.databaseStorage.awaitableWrite { self.markDisabled(transaction: $0) }
+                await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { self.markDisabled(transaction: $0) }
             }
         case .V1:
             disable2FAV1()
@@ -317,20 +334,20 @@ extension OWS2FAManager {
     }
 
     public func enableRegistrationLockV2() async throws {
-        let token = self.databaseStorage.read { tx in
-            return DependenciesBridge.shared.svr.data(
-                for: .registrationLock,
-                transaction: tx.asV2Read
-            )?.canonicalStringRepresentation
+        let token = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            let masterKey = DependenciesBridge.shared.accountKeyStore.getMasterKey(tx: tx)
+            return masterKey?.data(
+                for: .registrationLock
+            ).canonicalStringRepresentation
         }
         guard let token else {
             throw OWSAssertionError("Cannot enable registration lock without an existing PIN")
         }
 
         let request = OWSRequestFactory.enableRegistrationLockV2Request(token: token)
-        _ = try await self.networkManager.makePromise(request: request).awaitable()
+        _ = try await SSKEnvironment.shared.networkManagerRef.asyncRequest(request)
 
-        await self.databaseStorage.awaitableWrite { transaction in
+        await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
             Self.keyValueStore.setBool(
                 true,
                 key: OWS2FAManager.isRegistrationLockV2EnabledKey,
@@ -341,8 +358,8 @@ extension OWS2FAManager {
         Self.triggerAccountAttributesUpdate()
     }
 
-    public func markRegistrationLockV2Enabled(transaction: SDSAnyWriteTransaction) {
-        guard !DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegistered else {
+    public func markRegistrationLockV2Enabled(transaction: DBWriteTransaction) {
+        guard !DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction).isRegistered else {
             return owsFailDebug("Unexpectedly attempted to mark reglock as enabled after registration")
         }
 
@@ -355,9 +372,9 @@ extension OWS2FAManager {
 
     public func disableRegistrationLockV2() async throws {
         let request = OWSRequestFactory.disableRegistrationLockV2Request()
-        _ = try await self.networkManager.makePromise(request: request).awaitable()
+        _ = try await SSKEnvironment.shared.networkManagerRef.asyncRequest(request)
 
-        await self.databaseStorage.awaitableWrite { transaction in
+        await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
             Self.keyValueStore.removeValue(
                 forKey: OWS2FAManager.isRegistrationLockV2EnabledKey,
                 transaction: transaction
@@ -380,8 +397,8 @@ extension OWS2FAManager {
         Task {
             do {
                 let request = OWSRequestFactory.disable2FARequest()
-                _ = try await self.networkManager.makePromise(request: request).awaitable()
-                await self.databaseStorage.awaitableWrite { transaction in
+                _ = try await SSKEnvironment.shared.networkManagerRef.asyncRequest(request)
+                await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
                     self.markDisabled(transaction: transaction)
                 }
             } catch {
@@ -422,14 +439,14 @@ extension OWS2FAManager {
         return allTheSame || forwardSequential || reverseSequential
     }
 
-    public func clearLocalPinCode(transaction: SDSAnyWriteTransaction) {
+    public func clearLocalPinCode(transaction: DBWriteTransaction) {
         Self.keyValueStore.removeValue(forKey: kOWS2FAManager_PinCode, transaction: transaction)
     }
 
     // MARK: - KeyBackupService Wrappers/Helpers
 
-    public func hasBackedUpMasterKey(transaction: SDSAnyReadTransaction) -> Bool {
-        return DependenciesBridge.shared.svr.hasBackedUpMasterKey(transaction: transaction.asV2Read)
+    public func hasBackedUpMasterKey(transaction: DBReadTransaction) -> Bool {
+        return DependenciesBridge.shared.svr.hasBackedUpMasterKey(transaction: transaction)
     }
 
     public func verifyKBSPin(_ pin: String, resultHandler: @escaping (Bool) -> Void) {

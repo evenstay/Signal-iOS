@@ -20,12 +20,9 @@ class ProvisioningPermissionsViewController: ProvisioningBaseViewController {
         content.didMove(toParent: self)
     }
 
-    func needsToAskForAnyPermissions() -> Guarantee<Bool> {
-        Guarantee { resolve in
-            UNUserNotificationCenter.current().getNotificationSettings { settings in
-                resolve(settings.authorizationStatus == .notDetermined)
-            }
-        }
+    func needsToAskForAnyPermissions() async -> Bool {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        return settings.authorizationStatus == .notDetermined
     }
 }
 
@@ -35,7 +32,7 @@ extension ProvisioningPermissionsViewController: RegistrationPermissionsPresente
 
         // If you request any additional permissions, make sure to add them to
         // `needsToAskForAnyPermissions`.
-        await PushRegistrationManager.shared.registerUserNotificationSettings()
+        await AppEnvironment.shared.pushRegistrationManagerRef.registerUserNotificationSettings()
         provisioningController.provisioningPermissionsDidComplete(viewController: self)
     }
 }

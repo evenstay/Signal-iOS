@@ -336,15 +336,8 @@ public class GroupMembership: MTLModel {
 
     // MARK: -
 
-    @objc
     public static var empty: GroupMembership {
         return Builder().build()
-    }
-
-    @objc
-    public static func normalize(_ addresses: [SignalServiceAddress]) -> [SignalServiceAddress] {
-        return Array(Set(addresses))
-            .sorted(by: { (l, r) in l.compare(r) == .orderedAscending })
     }
 
     public var asBuilder: Builder {
@@ -357,7 +350,7 @@ public class GroupMembership: MTLModel {
 
     public override var debugDescription: String {
         var result = "[\n"
-        for address in GroupMembership.normalize(Array(allMembersOfAnyKind)) {
+        for address in allMembersOfAnyKind.sorted(by: { ($0.serviceId?.serviceIdString ?? "") < ($1.serviceId?.serviceIdString ?? "") }) {
             guard let memberState = memberStates[address] else {
                 owsFailDebug("Missing memberState.")
                 continue
@@ -444,7 +437,6 @@ public extension GroupMembership {
         return isFullOrInvitedAdministrator(SignalServiceAddress(serviceId))
     }
 
-    @objc
     func isFullMemberAndAdministrator(_ address: SignalServiceAddress) -> Bool {
         guard let memberState = memberStates[address] else {
             return false
@@ -468,7 +460,6 @@ public extension GroupMembership {
         return isFullMember(SignalServiceAddress(serviceId))
     }
 
-    @objc
     func isInvitedMember(_ address: SignalServiceAddress) -> Bool {
         guard let memberState = memberStates[address] else {
             return false
@@ -794,7 +785,6 @@ public extension GroupMembership {
         return nil
     }
 
-    @objc
     var isLocalUserMemberOfAnyKind: Bool {
         guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction else {
             return false
@@ -807,7 +797,6 @@ public extension GroupMembership {
         return localPniAsInvitedMember(localIdentifiers: localIdentifiers) != nil
     }
 
-    @objc
     var isLocalUserFullMember: Bool {
         guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci else {
             return false
@@ -854,7 +843,6 @@ public extension GroupMembership {
         return isRequestingMember(localAci)
     }
 
-    @objc
     var isLocalUserFullOrInvitedMember: Bool {
         return isLocalUserFullMember || isLocalUserInvitedMember
     }

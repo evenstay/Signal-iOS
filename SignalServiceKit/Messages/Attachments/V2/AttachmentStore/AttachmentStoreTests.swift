@@ -12,10 +12,12 @@ class AttachmentStoreTests: XCTestCase {
     private var db: InMemoryDB!
 
     private var attachmentStore: AttachmentStoreImpl!
+    private var attachmentUploadStore: AttachmentUploadStoreImpl!
 
     override func setUp() async throws {
         db = InMemoryDB()
         attachmentStore = AttachmentStoreImpl()
+        attachmentUploadStore = AttachmentUploadStoreImpl(attachmentStore: attachmentStore)
     }
 
     // MARK: - Inserts
@@ -30,7 +32,6 @@ class AttachmentStoreTests: XCTestCase {
             try attachmentStore.insert(
                 attachmentParams,
                 reference: referenceParams,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
         }
@@ -38,12 +39,10 @@ class AttachmentStoreTests: XCTestCase {
         let (references, attachments) = db.read { tx in
             let references = attachmentStore.fetchReferences(
                 owners: [.globalThreadWallpaperImage],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
             let attachments = attachmentStore.fetch(
                 ids: references.map(\.attachmentRowId),
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
             return (references, attachments)
@@ -90,7 +89,6 @@ class AttachmentStoreTests: XCTestCase {
                     try attachmentStore.insert(
                         attachmentParams,
                         reference: attachmentReferenceParams,
-                        db: InMemoryDB.shimOnlyBridge(tx).db,
                         tx: tx
                     )
                     attachmentIdToAttachmentParams[id] = attachmentParams
@@ -107,12 +105,10 @@ class AttachmentStoreTests: XCTestCase {
             let (references, attachments) = db.read { tx in
                 let references = attachmentStore.fetchReferences(
                     owners: [.messageBodyAttachment(messageRowId: messageId)],
-                    db: InMemoryDB.shimOnlyBridge(tx).db,
                     tx: tx
                 )
                 let attachments = attachmentStore.fetch(
                     ids: references.map(\.attachmentRowId),
-                    db: InMemoryDB.shimOnlyBridge(tx).db,
                     tx: tx
                 )
                 return (references, attachments)
@@ -165,18 +161,15 @@ class AttachmentStoreTests: XCTestCase {
             try attachmentStore.insert(
                 attachmentParams1,
                 reference: attachmentReferenceParams1,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
 
             let message1References = attachmentStore.fetchReferences(
                 owners: [.messageBodyAttachment(messageRowId: messageId1)],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
             let message1Attachment = attachmentStore.fetch(
                 ids: message1References.map(\.attachmentRowId),
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             ).first!
 
@@ -188,7 +181,6 @@ class AttachmentStoreTests: XCTestCase {
                 try attachmentStore.insert(
                     attachmentParams2,
                     reference: attachmentReferenceParams2,
-                    db: InMemoryDB.shimOnlyBridge(tx).db,
                     tx: tx
                 )
                 XCTFail("Should have thrown error!")
@@ -198,6 +190,8 @@ class AttachmentStoreTests: XCTestCase {
                     switch error as! AttachmentInsertError {
                     case .duplicatePlaintextHash(let existingAttachmentId):
                         XCTAssertEqual(existingAttachmentId, message1Attachment.id)
+                    default:
+                        XCTFail("Unexpected error")
                     }
                 default:
                     XCTFail("Unexpected error")
@@ -208,7 +202,6 @@ class AttachmentStoreTests: XCTestCase {
             try attachmentStore.addOwner(
                 attachmentReferenceParams2,
                 for: message1Attachment.id,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
         }
@@ -221,22 +214,18 @@ class AttachmentStoreTests: XCTestCase {
         ) = db.read { tx in
             let message1References = attachmentStore.fetchReferences(
                 owners: [.messageBodyAttachment(messageRowId: messageId1)],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
             let message1Attachments = attachmentStore.fetch(
                 ids: message1References.map(\.attachmentRowId),
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
             let message2References = attachmentStore.fetchReferences(
                 owners: [.messageBodyAttachment(messageRowId: messageId2)],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
             let message2Attachments = attachmentStore.fetch(
                 ids: message1References.map(\.attachmentRowId),
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
             return (message1References, message1Attachments, message2References, message2Attachments)
@@ -271,14 +260,12 @@ class AttachmentStoreTests: XCTestCase {
             try attachmentStore.insert(
                 attachmentParams1,
                 reference: referenceParams1,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
             // Insert which should overwrite the existing row.
             try attachmentStore.insert(
                 attachmentParams2,
                 reference: referenceParams2,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
         }
@@ -286,12 +273,10 @@ class AttachmentStoreTests: XCTestCase {
         let (references, attachments) = db.read { tx in
             let references = attachmentStore.fetchReferences(
                 owners: [.globalThreadWallpaperImage],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
             let attachments = attachmentStore.fetch(
                 ids: references.map(\.attachmentRowId),
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
             return (references, attachments)
@@ -329,7 +314,6 @@ class AttachmentStoreTests: XCTestCase {
                 try attachmentStore.insert(
                     attachmentParams,
                     reference: attachmentReferenceParams,
-                    db: InMemoryDB.shimOnlyBridge(tx).db,
                     tx: tx
                 )
             }
@@ -348,7 +332,6 @@ class AttachmentStoreTests: XCTestCase {
                 try attachmentStore.insert(
                     attachmentParams,
                     reference: attachmentReferenceParams,
-                    db: InMemoryDB.shimOnlyBridge(tx).db,
                     tx: tx
                 )
             }
@@ -384,17 +367,15 @@ class AttachmentStoreTests: XCTestCase {
                         try attachmentStore.addOwner(
                             attachmentReferenceParams,
                             for: attachmentRowId,
-                            db: InMemoryDB.shimOnlyBridge(tx).db,
                             tx: tx
                         )
                     } else {
                         try attachmentStore.insert(
                             attachmentParams,
                             reference: attachmentReferenceParams,
-                            db: InMemoryDB.shimOnlyBridge(tx).db,
                             tx: tx
                         )
-                        attachmentRowId = InMemoryDB.shimOnlyBridge(tx).db.lastInsertedRowID
+                        attachmentRowId = tx.database.lastInsertedRowID
                     }
                     return attachmentIdInOwner
                 }
@@ -405,12 +386,10 @@ class AttachmentStoreTests: XCTestCase {
         let attachmentId = db.read { tx in
             let references = attachmentStore.fetchReferences(
                 owners: [.messageBodyAttachment(messageRowId: threadIdAndMessageIds[0].interactionRowId)],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
             let attachment = attachmentStore.fetch(
                 ids: references.map(\.attachmentRowId),
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
             return attachment.first!.id
@@ -428,7 +407,6 @@ class AttachmentStoreTests: XCTestCase {
                     try attachmentStore.insert(
                         Attachment.ConstructionParams.mockPointer(),
                         reference: attachmentReferenceParams,
-                        db: InMemoryDB.shimOnlyBridge(tx).db,
                         tx: tx
                     )
                 }
@@ -440,7 +418,6 @@ class AttachmentStoreTests: XCTestCase {
         try db.read { tx in
             try attachmentStore.enumerateAllReferences(
                 toAttachmentId: attachmentId,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx,
                 block: { reference in
                     enumeratedCount += 1
@@ -460,7 +437,7 @@ class AttachmentStoreTests: XCTestCase {
         XCTAssertEqual(enumeratedCount, attachmentIdsInOwner.count)
     }
 
-    func testEnumerateAttachments() throws {
+    func testEnumerateAttachmentsWithMediaName() throws {
         let attachmentCount = 100
 
         let threadIds = db.write { tx in
@@ -474,7 +451,6 @@ class AttachmentStoreTests: XCTestCase {
                 try attachmentStore.insert(
                     .mockStream(),
                     reference: .mock(owner: .thread(.threadWallpaperImage(.init(threadRowId: threadId, creationTimestamp: 0)))),
-                    db: InMemoryDB.shimOnlyBridge(tx).db,
                     tx: tx
                 )
             }
@@ -483,8 +459,7 @@ class AttachmentStoreTests: XCTestCase {
         // Check that we enumerate all the ids we created for the original attachment's id.
         var enumeratedCount = 0
         try db.read { tx in
-            try attachmentStore.enumerateAllAttachments(
-                db: InMemoryDB.shimOnlyBridge(tx).db,
+            try attachmentStore.enumerateAllAttachmentsWithMediaName(
                 tx: tx,
                 block: { _ in
                     enumeratedCount += 1
@@ -493,6 +468,161 @@ class AttachmentStoreTests: XCTestCase {
         }
 
         XCTAssertEqual(enumeratedCount, attachmentCount)
+    }
+
+    func testOldestStickerPackReferences() throws {
+        // Sticker pack id to oldest row id.
+        var stickerPackIds = [Data: Int64]()
+
+        try db.write { tx in
+            let thread = insertThread(tx: tx)
+            let threadRowId = thread.sqliteRowId!
+
+            // Add some non sticker attachments.
+            for _ in 0..<10 {
+                let messageRowId = insertInteraction(thread: thread, tx: tx)
+
+                try attachmentStore.insert(
+                    .mockStream(),
+                    reference: .mock(
+                        owner: .message(.bodyAttachment(.init(
+                            messageRowId: messageRowId,
+                            receivedAtTimestamp: .random(in: 0..<9999999),
+                            threadRowId: threadRowId,
+                            contentType: .image,
+                            isPastEditRevision: false,
+                            caption: nil,
+                            renderingFlag: .default,
+                            orderInOwner: 0,
+                            idInOwner: nil,
+                            isViewOnce: false
+                        )))),
+                    tx: tx
+                )
+            }
+
+            // Add some sticker attachments
+            for _ in 0..<10 {
+                let packId = UUID().data
+                // Each sticker pack gets multiple stickers, but we should
+                // dedupe down to the pack IDs.
+                let numStickersInPack = Int.random(in: 1...10)
+                for _ in 0..<numStickersInPack {
+                    let stickerId = UInt32.random(in: 0..<UInt32.max)
+
+                    let messageRowId = insertInteraction(thread: thread, tx: tx)
+
+                    try attachmentStore.insert(
+                        .mockStream(),
+                        reference: .mock(
+                            owner: .message(.sticker(.init(
+                                messageRowId: messageRowId,
+                                receivedAtTimestamp: .random(in: 0..<9999999),
+                                threadRowId: threadRowId,
+                                contentType: .image,
+                                isPastEditRevision: false,
+                                stickerPackId: packId,
+                                stickerId: stickerId
+                            )))),
+                        tx: tx
+                    )
+
+                    stickerPackIds[packId] = min(messageRowId, stickerPackIds[packId] ?? .max)
+                }
+            }
+        }
+
+        let readPackReferences =  try db.read { tx in
+            try attachmentStore.oldestStickerPackReferences(tx: tx)
+        }
+
+        XCTAssertEqual(readPackReferences.count, stickerPackIds.count)
+        readPackReferences.forEach { packRef in
+            XCTAssertEqual(packRef.messageRowId, stickerPackIds[packRef.stickerPackId])
+        }
+    }
+
+    func testallAttachmentIdsForSticker() throws {
+        // Sticker info to count of attachments with that info.
+        var stickerInfos = [StickerInfo: Int]()
+
+        try db.write { tx in
+            let thread = insertThread(tx: tx)
+            let threadRowId = thread.sqliteRowId!
+
+            // Add some non sticker attachments.
+            for _ in 0..<10 {
+                let messageRowId = insertInteraction(thread: thread, tx: tx)
+
+                try attachmentStore.insert(
+                    .mockStream(),
+                    reference: .mock(
+                        owner: .message(.bodyAttachment(.init(
+                            messageRowId: messageRowId,
+                            receivedAtTimestamp: .random(in: 0..<9999999),
+                            threadRowId: threadRowId,
+                            contentType: .image,
+                            isPastEditRevision: false,
+                            caption: nil,
+                            renderingFlag: .default,
+                            orderInOwner: 0,
+                            idInOwner: nil,
+                            isViewOnce: false
+                        )))),
+                    tx: tx
+                )
+            }
+
+            // Add some sticker attachments
+            for _ in 0..<10 {
+                let packId = UUID().data
+                // Each sticker pack gets multiple stickers, but we should
+                // dedupe down to the pack IDs.
+                let numStickersInPack = Int.random(in: 1...10)
+                for _ in 0..<numStickersInPack {
+                    let stickerId = UInt32.random(in: 0..<UInt32.max)
+
+                    let attachmentCount = Int.random(in: 1...10)
+                    stickerInfos[StickerInfo(
+                        packId: packId,
+                        packKey: Data(repeating: 8, count: Int(StickerManager.packKeyLength)),
+                        stickerId: stickerId
+                    )] = attachmentCount
+                    for _ in 0..<attachmentCount {
+
+                        let messageRowId = insertInteraction(thread: thread, tx: tx)
+
+                        try attachmentStore.insert(
+                            .mockStream(),
+                            reference: .mock(
+                                owner: .message(.sticker(.init(
+                                    messageRowId: messageRowId,
+                                    receivedAtTimestamp: .random(in: 0..<9999999),
+                                    threadRowId: threadRowId,
+                                    contentType: .image,
+                                    isPastEditRevision: false,
+                                    stickerPackId: packId,
+                                    stickerId: stickerId
+                                )))),
+                            tx: tx
+                        )
+                    }
+
+                }
+            }
+        }
+
+        try db.read { tx in
+            for (stickerInfo, expectedCount) in stickerInfos {
+                XCTAssertEqual(
+                    expectedCount,
+                    try attachmentStore
+                        .allAttachmentIdsForSticker(stickerInfo, tx: tx)
+                        .count
+                )
+            }
+        }
+
     }
 
     // MARK: - Update
@@ -512,7 +642,6 @@ class AttachmentStoreTests: XCTestCase {
             try attachmentStore.insert(
                 attachmentParams,
                 reference: attachmentReferenceParams,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
         }
@@ -520,7 +649,6 @@ class AttachmentStoreTests: XCTestCase {
         var reference = db.read { tx in
             return attachmentStore.fetchReferences(
                 owners: [.messageBodyAttachment(messageRowId: messageId)],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             ).first!
         }
@@ -539,13 +667,11 @@ class AttachmentStoreTests: XCTestCase {
             try attachmentStore.update(
                 reference,
                 withReceivedAtTimestamp: changedReceivedAtTimestamp,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
 
             return attachmentStore.fetchReferences(
                 owners: [.messageBodyAttachment(messageRowId: messageId)],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             ).first!
         }
@@ -570,7 +696,6 @@ class AttachmentStoreTests: XCTestCase {
             try attachmentStore.insert(
                 attachmentParams,
                 reference: attachmentReferenceParams,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
         }
@@ -579,12 +704,10 @@ class AttachmentStoreTests: XCTestCase {
             return db.read { tx in
                 let references = attachmentStore.fetchReferences(
                     owners: [.messageBodyAttachment(messageRowId: messageId)],
-                    db: InMemoryDB.shimOnlyBridge(tx).db,
                     tx: tx
                 )
                 return attachmentStore.fetch(
                     ids: references.map(\.attachmentRowId),
-                    db: InMemoryDB.shimOnlyBridge(tx).db,
                     tx: tx
                 ).first!
             }
@@ -611,10 +734,9 @@ class AttachmentStoreTests: XCTestCase {
 
         // Mark it as uploaded.
         try db.write { tx in
-            try attachmentStore.markUploadedToTransitTier(
+            try attachmentUploadStore.markUploadedToTransitTier(
                 attachmentStream: stream,
                 info: transitTierInfo,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
         }
@@ -641,17 +763,15 @@ class AttachmentStoreTests: XCTestCase {
                     messageRowId: messageId1,
                     threadRowId: threadId1
                 ),
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
-            let attachmentId = InMemoryDB.shimOnlyBridge(tx).db.lastInsertedRowID
+            let attachmentId = tx.database.lastInsertedRowID
             try attachmentStore.addOwner(
                 AttachmentReference.ConstructionParams.mockMessageBodyAttachmentReference(
                     messageRowId: messageId2,
                     threadRowId: threadId2
                 ),
                 for: attachmentId,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
         }
@@ -659,12 +779,10 @@ class AttachmentStoreTests: XCTestCase {
         let (reference1, reference2) = db.read { tx in
             let reference1 = attachmentStore.fetchReferences(
                 owners: [.messageBodyAttachment(messageRowId: messageId1)],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             ).first!
             let reference2 = attachmentStore.fetchReferences(
                 owners: [.messageBodyAttachment(messageRowId: messageId2)],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             ).first!
             return (reference1, reference2)
@@ -675,33 +793,110 @@ class AttachmentStoreTests: XCTestCase {
         try db.write { tx in
             // Remove the first reference.
             try attachmentStore.removeOwner(
-                reference1.owner.id,
-                for: reference1.attachmentRowId,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
+                reference: reference1,
                 tx: tx
             )
 
             // The attachment should still exist.
             XCTAssertNotNil(attachmentStore.fetch(
                 ids: [reference1.attachmentRowId],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             ).first)
 
             // Remove the second reference.
             try attachmentStore.removeOwner(
-                reference2.owner.id,
-                for: reference2.attachmentRowId,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
+                reference: reference2,
                 tx: tx
             )
 
             // The attachment should no longer exist.
             XCTAssertNil(attachmentStore.fetch(
                 ids: [reference1.attachmentRowId],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             ).first)
+        }
+    }
+
+    func testRemoveOwner_sameOwnerMultipleReferences() throws {
+        let (threadId1, messageId1) = insertThreadAndInteraction()
+
+        let referenceUUID1 = UUID()
+        let referenceUUID2 = UUID()
+
+        // Create two references to the same attachment on the same message.
+        let attachmentParams = Attachment.ConstructionParams.mockStream()
+
+        try db.write { tx in
+            try attachmentStore.insert(
+                attachmentParams,
+                reference: AttachmentReference.ConstructionParams.mockMessageBodyAttachmentReference(
+                    messageRowId: messageId1,
+                    threadRowId: threadId1,
+                    orderInOwner: 0,
+                    idInOwner: referenceUUID1
+                ),
+                tx: tx
+            )
+            let attachmentId = tx.database.lastInsertedRowID
+            try attachmentStore.addOwner(
+                AttachmentReference.ConstructionParams.mockMessageBodyAttachmentReference(
+                    messageRowId: messageId1,
+                    threadRowId: threadId1,
+                    orderInOwner: 1,
+                    idInOwner: referenceUUID2
+                ),
+                for: attachmentId,
+                tx: tx
+            )
+        }
+
+        let (reference1, reference2) = db.read { tx in
+            let references = attachmentStore.fetchReferences(
+                owners: [.messageBodyAttachment(messageRowId: messageId1)],
+                tx: tx
+            ).sorted(by: {
+                $0.orderInOwningMessage! < $1.orderInOwningMessage!
+            })
+            return (references[0], references[1])
+        }
+
+        func checkIdInOwner(of reference: AttachmentReference, matches uuid: UUID) {
+            switch reference.owner {
+            case .message(let messageSource):
+                switch messageSource {
+                case .bodyAttachment(let metadata):
+                    XCTAssertEqual(metadata.idInOwner, uuid)
+                default:
+                    XCTFail("Unexpected reference type")
+                }
+            default:
+                XCTFail("Unexpected reference type")
+            }
+        }
+
+        checkIdInOwner(of: reference1, matches: referenceUUID1)
+        checkIdInOwner(of: reference2, matches: referenceUUID2)
+
+        try db.write { tx in
+            // Remove the first reference.
+            try attachmentStore.removeOwner(
+                reference: reference1,
+                tx: tx
+            )
+
+            // The attachment should still exist.
+            XCTAssertNotNil(attachmentStore.fetch(
+                ids: [reference1.attachmentRowId],
+                tx: tx
+            ).first)
+
+            // Refetch references
+            let references = attachmentStore.fetchReferences(
+                owners: [.messageBodyAttachment(messageRowId: messageId1)],
+                tx: tx
+            )
+            XCTAssertEqual(references.count, 1)
+            checkIdInOwner(of: references[0], matches: referenceUUID2)
         }
     }
 
@@ -727,7 +922,6 @@ class AttachmentStoreTests: XCTestCase {
                 try attachmentStore.insert(
                     attachmentParams,
                     reference: referenceParams,
-                    db: InMemoryDB.shimOnlyBridge(tx).db,
                     tx: tx
                 )
             }
@@ -741,12 +935,10 @@ class AttachmentStoreTests: XCTestCase {
                             .threadWallpaperImage(threadRowId: $0)
                         } ?? .globalThreadWallpaperImage
                     },
-                    db: InMemoryDB.shimOnlyBridge(tx).db,
                     tx: tx
                 )
                 let attachments = attachmentStore.fetch(
                     ids: references.map(\.attachmentRowId),
-                    db: InMemoryDB.shimOnlyBridge(tx).db,
                     tx: tx
                 )
                 XCTAssertEqual(references.count, expectedCount)
@@ -760,7 +952,6 @@ class AttachmentStoreTests: XCTestCase {
 
         try db.write { tx in
             try attachmentStore.removeAllThreadOwners(
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
         }
@@ -790,7 +981,6 @@ class AttachmentStoreTests: XCTestCase {
             try attachmentStore.insert(
                 attachmentParams,
                 reference: originalReferenceParams,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
         }
@@ -799,7 +989,6 @@ class AttachmentStoreTests: XCTestCase {
         let reference1 = db.read { tx in
             return attachmentStore.fetchReferences(
                 owners: [.messageBodyAttachment(messageRowId: messageId1)],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             ).first!
         }
@@ -813,7 +1002,7 @@ class AttachmentStoreTests: XCTestCase {
                     with: reference1,
                     newOwnerMessageRowId: messageId2,
                     newOwnerThreadRowId: threadId,
-                    db: InMemoryDB.shimOnlyBridge(tx).db,
+                    newOwnerIsPastEditRevision: false,
                     tx: tx
                 )
             default:
@@ -825,7 +1014,6 @@ class AttachmentStoreTests: XCTestCase {
         let newReference = db.read { tx in
             return attachmentStore.fetchReferences(
                 owners: [.messageBodyAttachment(messageRowId: messageId2)],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             ).first!
         }
@@ -847,7 +1035,6 @@ class AttachmentStoreTests: XCTestCase {
             try attachmentStore.insert(
                 attachmentParams,
                 reference: originalReferenceParams,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
         }
@@ -856,7 +1043,6 @@ class AttachmentStoreTests: XCTestCase {
         let reference1 = db.read { tx in
             return attachmentStore.fetchReferences(
                 owners: [.messageBodyAttachment(messageRowId: messageId1)],
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             ).first!
         }
@@ -874,7 +1060,7 @@ class AttachmentStoreTests: XCTestCase {
                         with: reference1,
                         newOwnerMessageRowId: messageId2,
                         newOwnerThreadRowId: threadId2,
-                        db: InMemoryDB.shimOnlyBridge(tx).db,
+                        newOwnerIsPastEditRevision: false,
                         tx: tx
                     )
                 default:
@@ -886,6 +1072,119 @@ class AttachmentStoreTests: XCTestCase {
         } catch {
             // Good, we threw an error
         }
+    }
+
+    // MARK: - Thread merging
+
+    func testThreadMerging() throws {
+        var threadId1: Int64!
+        var threadId2: Int64!
+        var threadId3: Int64!
+        var messageId1: Int64!
+        var messageId2: Int64!
+        var messageId3: Int64!
+        db.write { tx in
+            let thread1 = insertThread(tx: tx)
+            threadId1 = thread1.sqliteRowId!
+            messageId1 = insertInteraction(thread: thread1, tx: tx)
+            messageId2 = insertInteraction(thread: thread1, tx: tx)
+            let thread2 = insertThread(tx: tx)
+            threadId2 = thread2.sqliteRowId!
+            messageId3 = insertInteraction(thread: thread2, tx: tx)
+            let thread3 = insertThread(tx: tx)
+            threadId3 = thread3.sqliteRowId!
+        }
+
+        try db.write { tx in
+            for (threadRowId, messageRowId) in [
+                (threadId1, messageId1),
+                (threadId1, messageId2),
+                (threadId2, messageId3)
+            ] {
+                // Create an attachment and reference for each message.
+                let attachmentParams = Attachment.ConstructionParams.mockStream()
+                try attachmentStore.insert(
+                    attachmentParams,
+                    reference: AttachmentReference.ConstructionParams.mockMessageBodyAttachmentReference(
+                        messageRowId: messageRowId!,
+                        threadRowId: threadRowId!
+                    ),
+                    tx: tx
+                )
+            }
+        }
+
+        var (reference1, reference2, reference3) = db.read { tx in
+            let reference1 = attachmentStore.fetchReferences(
+                owners: [.messageBodyAttachment(messageRowId: messageId1)],
+                tx: tx
+            ).first!
+            let reference2 = attachmentStore.fetchReferences(
+                owners: [.messageBodyAttachment(messageRowId: messageId2)],
+                tx: tx
+            ).first!
+            let reference3 = attachmentStore.fetchReferences(
+                owners: [.messageBodyAttachment(messageRowId: messageId3)],
+                tx: tx
+            ).first!
+            return (reference1, reference2, reference3)
+        }
+
+        func checkThreadRowId(of reference: AttachmentReference, matches threadId: Int64) {
+            switch reference.owner {
+            case .message(let messageSource):
+                switch messageSource {
+                case .bodyAttachment(let metadata):
+                    XCTAssertEqual(metadata.threadRowId, threadId)
+                case .oversizeText(let metadata):
+                    XCTAssertEqual(metadata.threadRowId, threadId)
+                case .linkPreview(let metadata):
+                    XCTAssertEqual(metadata.threadRowId, threadId)
+                case .quotedReply(let metadata):
+                    XCTAssertEqual(metadata.threadRowId, threadId)
+                case .sticker(let metadata):
+                    XCTAssertEqual(metadata.threadRowId, threadId)
+                case .contactAvatar(let metadata):
+                    XCTAssertEqual(metadata.threadRowId, threadId)
+                }
+            default:
+                XCTFail("Unexpected reference type")
+            }
+        }
+
+        checkThreadRowId(of: reference1, matches: threadId1)
+        checkThreadRowId(of: reference2, matches: threadId1)
+        checkThreadRowId(of: reference3, matches: threadId2)
+
+        try db.write { tx in
+            // Merge threads
+            try attachmentStore.updateMessageAttachmentThreadRowIdsForThreadMerge(
+                fromThreadRowId: threadId1,
+                intoThreadRowId: threadId3,
+                tx: tx
+            )
+        }
+
+        (reference1, reference2, reference3) = db.read { tx in
+            let reference1 = attachmentStore.fetchReferences(
+                owners: [.messageBodyAttachment(messageRowId: messageId1)],
+                tx: tx
+            ).first!
+            let reference2 = attachmentStore.fetchReferences(
+                owners: [.messageBodyAttachment(messageRowId: messageId2)],
+                tx: tx
+            ).first!
+            let reference3 = attachmentStore.fetchReferences(
+                owners: [.messageBodyAttachment(messageRowId: messageId3)],
+                tx: tx
+            ).first!
+            return (reference1, reference2, reference3)
+        }
+
+        // The ones that were thread 1 are now thread 3.
+        checkThreadRowId(of: reference1, matches: threadId3)
+        checkThreadRowId(of: reference2, matches: threadId3)
+        checkThreadRowId(of: reference3, matches: threadId2)
     }
 
     // MARK: - UInt64 Field verification
@@ -921,7 +1220,8 @@ class AttachmentStoreTests: XCTestCase {
                 sourceMediaWidthPixels: 1,
                 stickerPackId: nil,
                 stickerId: 1,
-                isViewOnce: false
+                isViewOnce: false,
+                ownerIsPastEditRevision: false
             ),
             keyPathNames: [
                 \.receivedAtTimestamp: "receivedAtTimestamp"
@@ -972,13 +1272,13 @@ class AttachmentStoreTests: XCTestCase {
 
     private func insertThread(tx: DBWriteTransaction) -> TSThread {
         let thread = TSThread(uniqueId: UUID().uuidString)
-        try! thread.asRecord().insert(InMemoryDB.shimOnlyBridge(tx).db)
+        try! thread.asRecord().insert(tx.database)
         return thread
     }
 
     private func insertInteraction(thread: TSThread, tx: DBWriteTransaction) -> Int64 {
         let interaction = TSInteraction(timestamp: 0, receivedAtTimestamp: 0, thread: thread)
-        try! interaction.asRecord().insert(InMemoryDB.shimOnlyBridge(tx).db)
+        try! interaction.asRecord().insert(tx.database)
         return interaction.sqliteRowId!
     }
 

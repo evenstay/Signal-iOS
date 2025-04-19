@@ -25,7 +25,7 @@ extension TSInvalidIdentityKeyReceivingErrorMessage {
                 owsFailDebug("Missing envelopeData.")
                 continue
             }
-            messageProcessor.processReceivedEnvelopeData(
+            SSKEnvironment.shared.messageProcessorRef.processReceivedEnvelopeData(
                 envelopeData,
                 serverDeliveryTimestamp: 0,
                 envelopeSource: .identityChangeError
@@ -34,12 +34,12 @@ extension TSInvalidIdentityKeyReceivingErrorMessage {
                 // either
                 //  1.) succeed and create a new successful message in the thread or...
                 //  2.) fail and create a new identical error message in the thread.
-                Self.databaseStorage.write { tx in
+                SSKEnvironment.shared.databaseStorageRef.write { tx in
                     if let existingError = TSInteraction.anyFetch(
                         uniqueId: errorMessage.uniqueId, transaction: tx
                     ) {
                         DependenciesBridge.shared.interactionDeleteManager
-                            .delete(existingError, sideEffects: .default(), tx: tx.asV2Write)
+                            .delete(existingError, sideEffects: .default(), tx: tx)
                     }
                 }
             }

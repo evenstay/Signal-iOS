@@ -11,7 +11,7 @@ import UniformTypeIdentifiers
 
 #if USE_DEBUG_UI
 
-class DebugUIMessages: DebugUIPage, Dependencies {
+class DebugUIMessages: DebugUIPage {
 
     private enum MessageContentType {
         case normal
@@ -27,9 +27,9 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         if let thread {
             items += [
                 OWSTableItem(title: "Delete All Messages in Thread", actionBlock: {
-                    self.databaseStorage.write { transaction in
+                    SSKEnvironment.shared.databaseStorageRef.write { transaction in
                         DependenciesBridge.shared.threadSoftDeleteManager
-                            .removeAllInteractions(thread: thread, sendDeleteForMeSyncMessage: false, tx: transaction.asV2Write)
+                            .removeAllInteractions(thread: thread, sendDeleteForMeSyncMessage: false, tx: transaction)
                     }
                 })
             ]
@@ -561,14 +561,14 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             actions.append(fakeOutgoingTextMessageAction(thread: thread, messageState: .sent, text: "⚠️ Back-Dated ⚠️"))
         }
 
-        actions.append(fakeBackDatedMessageAction(thread: thread, label: "One Minute Ago", dateOffset: -Int64(kMinuteInMs)))
-        actions.append(fakeBackDatedMessageAction(thread: thread, label: "One Hour Ago", dateOffset: -Int64(kHourInMs)))
-        actions.append(fakeBackDatedMessageAction(thread: thread, label: "One Day Ago", dateOffset: -Int64(kDayInMs)))
-        actions.append(fakeBackDatedMessageAction(thread: thread, label: "Two Days Ago", dateOffset: -Int64(kDayInMs) * 2))
-        actions.append(fakeBackDatedMessageAction(thread: thread, label: "Ten Days Ago", dateOffset: -Int64(kDayInMs) * 10))
-        actions.append(fakeBackDatedMessageAction(thread: thread, label: "5 Months Ago", dateOffset: -Int64(kDayInMs) * 30 * 5))
-        actions.append(fakeBackDatedMessageAction(thread: thread, label: "7 Months Ago", dateOffset: -Int64(kDayInMs) * 30 * 7))
-        actions.append(fakeBackDatedMessageAction(thread: thread, label: "400 Days Ago", dateOffset: -Int64(kDayInMs) * 400))
+        actions.append(fakeBackDatedMessageAction(thread: thread, label: "One Minute Ago", dateOffset: -Int64(UInt64.minuteInMs)))
+        actions.append(fakeBackDatedMessageAction(thread: thread, label: "One Hour Ago", dateOffset: -Int64(UInt64.hourInMs)))
+        actions.append(fakeBackDatedMessageAction(thread: thread, label: "One Day Ago", dateOffset: -Int64(UInt64.dayInMs)))
+        actions.append(fakeBackDatedMessageAction(thread: thread, label: "Two Days Ago", dateOffset: -Int64(UInt64.dayInMs) * 2))
+        actions.append(fakeBackDatedMessageAction(thread: thread, label: "Ten Days Ago", dateOffset: -Int64(UInt64.dayInMs) * 10))
+        actions.append(fakeBackDatedMessageAction(thread: thread, label: "5 Months Ago", dateOffset: -Int64(UInt64.dayInMs) * 30 * 5))
+        actions.append(fakeBackDatedMessageAction(thread: thread, label: "7 Months Ago", dateOffset: -Int64(UInt64.dayInMs) * 30 * 7))
+        actions.append(fakeBackDatedMessageAction(thread: thread, label: "400 Days Ago", dateOffset: -Int64(UInt64.dayInMs) * 400))
 
         return actions
     }
@@ -597,7 +597,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
 
     // MARK: Contact Shares
 
-    private typealias CreateContactBlock = (TSMessage, SDSAnyWriteTransaction) -> Void
+    private typealias CreateContactBlock = (TSMessage, DBWriteTransaction) -> Void
 
     private static func fakeAllContactShareAction(thread: TSThread) -> DebugUIMessagesAction {
         return DebugUIMessagesGroupAction.allGroupActionWithLabel(
@@ -1067,19 +1067,19 @@ class DebugUIMessages: DebugUIPage, Dependencies {
     private static func createTimestampMessagesInThread(_ thread: TSThread) {
         let now = Date.ows_millisecondTimestamp()
         let timestamps = [
-            now + 1 * kHourInMs,
+            now + 1 * UInt64.hourInMs,
             now,
-            now - 1 * kHourInMs,
-            now - 12 * kHourInMs,
-            now - 1 * kDayInMs,
-            now - 2 * kDayInMs,
-            now - 3 * kDayInMs,
-            now - 6 * kDayInMs,
-            now - 7 * kDayInMs,
-            now - 8 * kDayInMs,
-            now - 2 * kWeekInMs,
-            now - 1 * 30 * kDayInMs,
-            now - 2 * 30 * kDayInMs
+            now - 1 * UInt64.hourInMs,
+            now - 12 * UInt64.hourInMs,
+            now - 1 * UInt64.dayInMs,
+            now - 2 * UInt64.dayInMs,
+            now - 3 * UInt64.dayInMs,
+            now - 6 * UInt64.dayInMs,
+            now - 7 * UInt64.dayInMs,
+            now - 8 * UInt64.dayInMs,
+            now - 2 * UInt64.weekInMs,
+            now - 1 * 30 * UInt64.dayInMs,
+            now - 2 * 30 * UInt64.dayInMs
         ]
 
         guard let incomingSenderAci = anyIncomingSenderAddress(forThread: thread)?.aci else {
@@ -1087,7 +1087,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             return
         }
 
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             for timestamp in timestamps {
                 let randomText = randomText()
 
@@ -1108,17 +1108,17 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 let outgoingMessage = outgoingMessageBuilder.build(transaction: transaction)
                 outgoingMessage.anyInsert(transaction: transaction)
                 outgoingMessage.updateWithFakeMessageState(.sent, tx: transaction)
-                outgoingMessage.updateWithSentRecipient(incomingSenderAci, wasSentByUD: false, transaction: transaction)
+                outgoingMessage.updateWithSentRecipients([incomingSenderAci], wasSentByUD: false, transaction: transaction)
                 outgoingMessage.update(
                     withDeliveredRecipient: SignalServiceAddress(incomingSenderAci),
-                    deviceId: 0,
+                    deviceId: .primary,
                     deliveryTimestamp: timestamp,
                     context: PassthroughDeliveryReceiptContext(),
                     tx: transaction
                 )
                 outgoingMessage.update(
                     withReadRecipient: SignalServiceAddress(incomingSenderAci),
-                    deviceId: 0,
+                    deviceId: .primary,
                     readTimestamp: timestamp,
                     tx: transaction
                 )
@@ -1154,7 +1154,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         let runner = TestProtocolRunner()
         let fakeService = FakeService(localClient: localClient, runner: runner)
 
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             try! runner.initialize(senderClient: senderClient,
                                    recipientClient: localClient,
                                    transaction: transaction)
@@ -1163,7 +1163,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         let envelopeBuilder = try! fakeService.envelopeBuilder(fromSenderClient: senderClient)
         envelopeBuilder.setSourceServiceID(senderClient.serviceId.serviceIdString)
         let envelopeData = try! envelopeBuilder.buildSerializedData()
-        messageProcessor.processReceivedEnvelopeData(
+        SSKEnvironment.shared.messageProcessorRef.processReceivedEnvelopeData(
             envelopeData,
             serverDeliveryTimestamp: 0,
             envelopeSource: .debugUI
@@ -1191,7 +1191,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         await DebugContactsUtils.createRandomContacts(threadQuantity) { contact, index, stop in
             guard
                 let phoneNumberText = contact.phoneNumbers.first?.value.stringValue,
-                let e164 = phoneNumberUtil.parsePhoneNumber(userSpecifiedText: phoneNumberText)?.e164
+                let e164 = SSKEnvironment.shared.phoneNumberUtilRef.parsePhoneNumber(userSpecifiedText: phoneNumberText)?.e164
             else {
                 owsFailDebug("Invalid phone number")
                 return
@@ -1202,10 +1202,10 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 messageContentType: .longText
             )
 
-            await databaseStorage.awaitableWrite { transaction in
+            await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
                 let address = SignalServiceAddress(phoneNumber: e164)
                 let contactThread = TSContactThread.getOrCreateThread(withContactAddress: address, transaction: transaction)
-                profileManager.addThread(
+                SSKEnvironment.shared.profileManagerRef.addThread(
                     toProfileWhitelist: contactThread,
                     userProfileWriter: .localUser,
                     transaction: transaction
@@ -1219,8 +1219,8 @@ class DebugUIMessages: DebugUIPage, Dependencies {
     private enum FakeMessageContent {
         case incomingTextOnly(String)
         case outgoingTextOnly(String)
-        case outgoingAttachments([TSResourceDataSource])
-        case incomingAttachments([TSResourceDataSource])
+        case outgoingAttachments([AttachmentDataSource])
+        case incomingAttachments([AttachmentDataSource])
     }
 
     private static func createFakeMessageContents(
@@ -1244,32 +1244,28 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             case 1:
                 contents.append(.outgoingTextOnly(randomText))
             case 2:
-                let attachmentDataSource = try DependenciesBridge.shared.tsResourceContentValidator.validateContents(
+                let attachmentDataSource = try DependenciesBridge.shared.attachmentContentValidator.validateContents(
                     data: UIImage.image(color: .blue, size: .square(100)).jpegData(compressionQuality: 0.1)!,
                     mimeType: "image/jpg",
-                    sourceFilename: "test.jpg",
-                    caption: nil,
                     renderingFlag: .default,
-                    ownerType: .message
+                    sourceFilename: "test.jpg"
                 )
-                contents.append(.incomingAttachments([attachmentDataSource]))
+                contents.append(.incomingAttachments([.from(pendingAttachment: attachmentDataSource)]))
             case 3:
                 let attachmentCount = Int.random(in: 0...SignalAttachment.maxAttachmentsAllowed)
-                var attachmentDataSources = [TSResourceDataSource]()
+                var attachmentDataSources = [AttachmentDataSource]()
                 for _ in (0..<attachmentCount) {
-                    let dataSource = try DependenciesBridge.shared.tsResourceContentValidator.validateContents(
+                    let dataSource = try DependenciesBridge.shared.attachmentContentValidator.validateContents(
                         dataSource: DataSourceValue(
                             ImageFactory().buildPNGData(),
                             fileExtension: "png"
                         ),
                         shouldConsume: true,
                         mimeType: "image/png",
-                        sourceFilename: "test.png",
-                        caption: nil,
                         renderingFlag: .default,
-                        ownerType: .message
+                        sourceFilename: "test.png"
                     )
-                    attachmentDataSources.append(dataSource)
+                    attachmentDataSources.append(.from(pendingAttachment: dataSource))
                 }
                 contents.append(.outgoingAttachments(attachmentDataSources))
             default:
@@ -1282,7 +1278,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
     private static func createFakeMessages(
         _ contents: [FakeMessageContent],
         inThread thread: TSThread,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         guard let incomingSenderAci = anyIncomingSenderAddress(forThread: thread)?.aci else {
             owsFailDebug("Missing incomingSenderAci.")
@@ -1319,10 +1315,20 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 message.anyInsert(transaction: transaction)
                 message.debugonly_markAsReadNow(transaction: transaction)
 
-                try? DependenciesBridge.shared.tsResourceManager.createBodyMediaAttachmentStreams(
-                    consuming: dataSources,
-                    message: message,
-                    tx: transaction.asV2Write
+                try? DependenciesBridge.shared.attachmentManager.createAttachmentStreams(
+                    consuming: dataSources.map { dataSource in
+                        return .init(
+                            dataSource: dataSource,
+                            owner: .messageBodyAttachment(.init(
+                                messageRowId: message.sqliteRowId!,
+                                receivedAtTimestamp: message.receivedAtTimestamp,
+                                threadRowId: thread.sqliteRowId!,
+                                isViewOnce: message.isViewOnceMessage,
+                                isPastEditRevision: message.isPastEditRevision()
+                            ))
+                        )
+                    },
+                    tx: transaction
                 )
 
             case .outgoingAttachments(let dataSources):
@@ -1360,7 +1366,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         if let groupThread = thread as? TSGroupThread, groupThread.isGroupV2Thread {
             let groupModel = groupThread.groupModel as! TSGroupModelV2
 
-            let groupContext = try! groupsV2.buildGroupContextV2Proto(groupModel: groupModel, changeActionsProtoData: nil)
+            let groupContext = try! GroupsV2Protos.buildGroupContextProto(groupModel: groupModel, groupChangeProtoData: nil)
             dataMessageBuilder.setGroupV2(groupContext)
         }
 
@@ -1404,7 +1410,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         let message = incomingMessageBuilder.build()
         // private setter to avoid starting expire machinery.
         message.wasRead = true
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             message.anyInsert(transaction: transaction)
         }
     }
@@ -1473,7 +1479,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             "http://foo.кц.рф"
         ]
 
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             for string in strings {
                 // DO NOT log these strings with the debugger attached.
                 //        OWSLogInfo(@"%@", string);
@@ -1499,7 +1505,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             "non-crashing string"
         ]
 
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             for string in strings {
                 // DO NOT log these strings with the debugger attached.
                 //        OWSLogInfo(@"%@", string);
@@ -1524,7 +1530,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             "This is some normal text"
         ]
 
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             for string in strings {
                 Logger.info("sending zalgo")
 
@@ -1586,10 +1592,10 @@ class DebugUIMessages: DebugUIPage, Dependencies {
 
     private static func performRandomActionInThread(_ thread: TSThread, counter: UInt) {
         let numActions = Int.random(in: 1...4)
-        var actions = [(SDSAnyWriteTransaction) -> Void]()
+        var actions = [(DBWriteTransaction) -> Void]()
         for _ in (0..<numActions) {
             let randomAction = Int.random(in: 0...2)
-            let action: (SDSAnyWriteTransaction) -> Void = {
+            let action: (DBWriteTransaction) -> Void = {
                 switch randomAction {
                 case 0:
                     return { transaction in
@@ -1617,7 +1623,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             actions.append(action)
         }
 
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             actions.forEach { $0(transaction) }
         }
     }
@@ -1635,7 +1641,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         contactShareBlock: CreateContactBlock? = nil,
         linkPreview: OWSLinkPreview? = nil,
         messageSticker: MessageSticker? = nil,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> TSOutgoingMessage {
         owsAssertDebug(!messageBody.isEmptyOrNil || contactShareBlock != nil)
 
@@ -1658,9 +1664,10 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             owner: .quotedReplyAttachment(.init(
                 messageRowId: message.sqliteRowId!,
                 receivedAtTimestamp: message.receivedAtTimestamp,
-                threadRowId: thread.sqliteRowId!
+                threadRowId: thread.sqliteRowId!,
+                isPastEditRevision: message.isPastEditRevision()
             )),
-            tx: transaction.asV2Write
+            tx: transaction
         )
 
         if isDelivered {
@@ -1668,7 +1675,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 owsAssertDebug(address.isValid)
                 message.update(
                     withDeliveredRecipient: address,
-                    deviceId: 0,
+                    deviceId: .primary,
                     deliveryTimestamp: Date.ows_millisecondTimestamp(),
                     context: PassthroughDeliveryReceiptContext(),
                     tx: transaction
@@ -1681,7 +1688,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
                 owsAssertDebug(address.isValid)
                 message.update(
                     withReadRecipient: address,
-                    deviceId: 0,
+                    deviceId: .primary,
                     readTimestamp: Date.ows_millisecondTimestamp(),
                     tx: transaction
                 )
@@ -1728,7 +1735,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         filename: String? = nil,
         isAttachmentDownloaded: Bool = false,
         quotedMessage: TSQuotedMessage? = nil,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> TSIncomingMessage {
 
         owsAssertDebug(!messageBody.isEmptyOrNil)
@@ -1754,7 +1761,7 @@ class DebugUIMessages: DebugUIPage, Dependencies {
         messageBody: String?,
         isAttachmentDownloaded: Bool = false,
         quotedMessageBuilder: OwnedAttachmentBuilder<TSQuotedMessage>? = nil,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> TSIncomingMessage {
         owsAssertDebug(!messageBody.isEmptyOrNil)
 
@@ -1774,9 +1781,10 @@ class DebugUIMessages: DebugUIPage, Dependencies {
             owner: .quotedReplyAttachment(.init(
                 messageRowId: message.sqliteRowId!,
                 receivedAtTimestamp: message.receivedAtTimestamp,
-                threadRowId: thread.sqliteRowId!
+                threadRowId: thread.sqliteRowId!,
+                isPastEditRevision: message.isPastEditRevision()
             )),
-            tx: transaction.asV2Write
+            tx: transaction
         )
 
         return message
@@ -1814,14 +1822,14 @@ class DebugUIMessages: DebugUIPage, Dependencies {
     }
 
     private static func processDecryptedEnvelope(_ envelope: SSKProtoEnvelope, plaintextData: Data) {
-        databaseStorage.write { tx in
-            messageReceiver.processEnvelope(
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
+            SSKEnvironment.shared.messageReceiverRef.processEnvelope(
                 envelope,
                 plaintextData: plaintextData,
                 wasReceivedByUD: false,
                 serverDeliveryTimestamp: 0,
                 shouldDiscardVisibleMessages: false,
-                localIdentifiers: DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)!,
+                localIdentifiers: DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx)!,
                 tx: tx
             )
         }

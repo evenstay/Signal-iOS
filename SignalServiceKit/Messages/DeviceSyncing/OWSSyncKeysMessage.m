@@ -10,25 +10,28 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface OWSSyncKeysMessage ()
 
-@property (nonatomic, readonly, nullable) NSData *storageServiceKey;
+@property (nonatomic, readonly, nullable) NSString *accountEntropyPool;
 @property (nonatomic, readonly, nullable) NSData *masterKey;
+@property (nonatomic, readonly, nullable) NSData *mediaRootBackupKey;
 
 @end
 
 @implementation OWSSyncKeysMessage
 
-- (instancetype)initWithThread:(TSThread *)thread
-             storageServiceKey:(nullable NSData *)storageServiceKey
-                     masterKey:(nullable NSData *)masterKey
-                   transaction:(SDSAnyReadTransaction *)transaction
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
+                 accountEntropyPool:(nullable NSString *)accountEntropyPool
+                          masterKey:(nullable NSData *)masterKey
+                 mediaRootBackupKey:(nullable NSData *)mediaRootBackupKey
+                        transaction:(DBReadTransaction *)transaction
 {
-    self = [super initWithThread:thread transaction:transaction];
+    self = [super initWithLocalThread:localThread transaction:transaction];
     if (!self) {
         return nil;
     }
 
-    _storageServiceKey = storageServiceKey;
+    _accountEntropyPool = accountEntropyPool;
     _masterKey = masterKey;
+    _mediaRootBackupKey = mediaRootBackupKey;
 
     return self;
 }
@@ -38,15 +41,18 @@ NS_ASSUME_NONNULL_BEGIN
     return [super initWithCoder:coder];
 }
 
-- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(SDSAnyReadTransaction *)transaction
+- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(DBReadTransaction *)transaction
 {
     SSKProtoSyncMessageKeysBuilder *keysBuilder = [SSKProtoSyncMessageKeys builder];
 
-    if (self.storageServiceKey) {
-        keysBuilder.storageService = self.storageServiceKey;
+    if (self.accountEntropyPool) {
+        keysBuilder.accountEntropyPool = self.accountEntropyPool;
     }
     if (self.masterKey) {
         keysBuilder.master = self.masterKey;
+    }
+    if (self.mediaRootBackupKey) {
+        keysBuilder.mediaRootBackupKey = self.mediaRootBackupKey;
     }
 
     SSKProtoSyncMessageBuilder *builder = [SSKProtoSyncMessage builder];

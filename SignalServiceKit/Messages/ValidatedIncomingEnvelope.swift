@@ -46,13 +46,11 @@ class ValidatedIncomingEnvelope {
             kind = .identifiedSender(.whisper)
         case .prekeyBundle:
             kind = .identifiedSender(.preKey)
-        case .senderkeyMessage:
-            kind = .identifiedSender(.senderKey)
         case .plaintextContent:
             kind = .identifiedSender(.plaintext)
         case .unidentifiedSender:
             kind = .unidentifiedSender
-        case .unknown, .keyExchange, .none:
+        case .unknown, .none:
             throw OWSGenericError("Unsupported type.")
         }
         self.kind = kind
@@ -69,17 +67,17 @@ class ValidatedIncomingEnvelope {
 
     // MARK: - Source
 
-    func validateSource<T: ServiceId>(_ type: T.Type) throws -> (T, UInt32) {
+    func validateSource<T: ServiceId>(_ type: T.Type) throws -> (T, DeviceId) {
         guard
             let sourceServiceIdString = envelope.sourceServiceID,
             let sourceServiceId = try ServiceId.parseFrom(serviceIdString: sourceServiceIdString) as? T
         else {
             throw OWSAssertionError("Invalid source.")
         }
-        guard envelope.hasSourceDevice, envelope.sourceDevice >= 1 else {
+        guard envelope.hasSourceDevice, let sourceDevice = DeviceId(validating: envelope.sourceDevice) else {
             throw OWSAssertionError("Invalid source device.")
         }
-        return (sourceServiceId, envelope.sourceDevice)
+        return (sourceServiceId, sourceDevice)
     }
 
     // MARK: - Destination

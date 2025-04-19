@@ -64,7 +64,7 @@ class ForwardMessageViewController: InteractiveSheetViewController {
                               from fromViewController: UIViewController,
                               delegate: ForwardMessageDelegate) {
         do {
-            let content: Content = try Self.databaseStorage.read { transaction in
+            let content: Content = try SSKEnvironment.shared.databaseStorageRef.read { transaction in
                 try Content.build(itemViewModels: itemViewModels, transaction: transaction)
             }
             present(content: content, from: fromViewController, delegate: delegate)
@@ -78,7 +78,7 @@ class ForwardMessageViewController: InteractiveSheetViewController {
                               from fromViewController: UIViewController,
                               delegate: ForwardMessageDelegate) {
         do {
-            let content: Content = try Self.databaseStorage.read { transaction in
+            let content: Content = try SSKEnvironment.shared.databaseStorageRef.read { transaction in
                 try Content.build(selectionItems: selectionItems, transaction: transaction)
             }
             present(content: content, from: fromViewController, delegate: delegate)
@@ -89,7 +89,7 @@ class ForwardMessageViewController: InteractiveSheetViewController {
     }
 
     public class func present(
-        forAttachmentStreams attachmentStreams: [ReferencedTSResourceStream],
+        forAttachmentStreams attachmentStreams: [ReferencedAttachmentStream],
         fromMessage message: TSMessage,
         from fromViewController: UIViewController,
         delegate: ForwardMessageDelegate
@@ -98,7 +98,7 @@ class ForwardMessageViewController: InteractiveSheetViewController {
             let builder = Item.Builder(interaction: message)
 
             builder.attachments = try attachmentStreams.map { attachmentStream in
-                try DependenciesBridge.shared.tsResourceCloner.cloneAsSignalAttachment(
+                try DependenciesBridge.shared.attachmentCloner.cloneAsSignalAttachment(
                     attachment: attachmentStream
                 )
             }
@@ -125,21 +125,24 @@ class ForwardMessageViewController: InteractiveSheetViewController {
     ) {
         let builder = Item.Builder()
         switch storyMessage.attachment {
-        case .file, .foreignReferenceAttachment:
-            let attachment: ReferencedTSResourceStream? = databaseStorage.read { tx in
+        case .media:
+            let attachment: ReferencedAttachmentStream? = SSKEnvironment.shared.databaseStorageRef.read { tx in
                 guard
-                    let reference = DependenciesBridge.shared.tsResourceStore.mediaAttachment(for: storyMessage, tx: tx.asV2Read),
-                    let attachmentStream = reference.fetch(tx: tx)?.asResourceStream()
+                    let rowId = storyMessage.id,
+                    let referencedStream = DependenciesBridge.shared.attachmentStore.fetchFirstReferencedAttachment(
+                        for: .storyMessageMedia(storyMessageRowId: rowId),
+                        tx: tx
+                    )?.asReferencedStream
                 else {
                     return nil
                 }
-                return .init(reference: reference, attachmentStream: attachmentStream)
+                return referencedStream
             }
             do {
                 guard let attachment else {
                     throw OWSAssertionError("Missing attachment stream for forwarded story message")
                 }
-                let signalAttachment = try DependenciesBridge.shared.tsResourceCloner.cloneAsSignalAttachment(
+                let signalAttachment = try DependenciesBridge.shared.attachmentCloner.cloneAsSignalAttachment(
                     attachment: attachment
                 )
                 builder.attachments = [signalAttachment]
@@ -154,6 +157,27 @@ class ForwardMessageViewController: InteractiveSheetViewController {
             builder.textAttachment = textAttachment
         }
         present(content: .single(item: builder.build()), from: fromViewController, delegate: delegate)
+    }
+
+    public class func present(
+        forMessageBody messageBody: MessageBody,
+        from fromViewController: UIViewController,
+        delegate: ForwardMessageDelegate
+    ) {
+        present(
+            content: .single(item: ForwardMessageItem.Item(
+                interaction: nil,
+                attachments: nil,
+                contactShare: nil,
+                messageBody: messageBody,
+                linkPreviewDraft: nil,
+                stickerMetadata: nil,
+                stickerAttachment: nil,
+                textAttachment: nil
+            )),
+            from: fromViewController,
+            delegate: delegate
+        )
     }
 
     private class func present(content: Content,
@@ -232,16 +256,16 @@ class ForwardMessageViewController: InteractiveSheetViewController {
 
 extension ForwardMessageViewController {
 
-    private static let keyValueStore = SDSKeyValueStore(collection: "ForwardMessageViewController")
+    private static let keyValueStore = KeyValueStore(collection: "ForwardMessageViewController")
     private static let hasForwardedKey = "hasForwardedKey"
 
     private var hasForwardedWithSneakyTransaction: Bool {
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             Self.keyValueStore.getBool(Self.hasForwardedKey, defaultValue: false, transaction: transaction)
         }
     }
     private static func markHasForwardedWithSneakyTransaction() {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             Self.keyValueStore.setBool(true, key: Self.hasForwardedKey, transaction: transaction)
         }
     }
@@ -294,7 +318,7 @@ extension ForwardMessageViewController {
         firstly(on: DispatchQueue.global()) {
             self.outgoingMessageRecipientThreads(for: recipientConversations)
         }.then(on: DispatchQueue.main) { (outgoingMessageRecipientThreads: [TSThread]) -> Promise<Void> in
-            try Self.databaseStorage.write { transaction in
+            try SSKEnvironment.shared.databaseStorageRef.write { transaction in
                 for recipientThread in outgoingMessageRecipientThreads {
                     // We're sending a message to this thread, approve any pending message request
                     ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequest(
@@ -304,7 +328,7 @@ extension ForwardMessageViewController {
                     )
                 }
 
-                func hasRenderableContent(interaction: TSInteraction, tx: SDSAnyReadTransaction) -> Bool {
+                func hasRenderableContent(interaction: TSInteraction, tx: DBReadTransaction) -> Bool {
                     guard let message = interaction as? TSMessage else {
                         return false
                     }
@@ -318,7 +342,8 @@ extension ForwardMessageViewController {
                         let interactionId = item.interaction?.uniqueId,
                         let latestInteraction = TSInteraction.anyFetch(
                             uniqueId: interactionId,
-                            transaction: transaction
+                            transaction: transaction,
+                            ignoreCache: true
                         ),
                         hasRenderableContent(interaction: latestInteraction, tx: transaction)
                     else {
@@ -331,7 +356,7 @@ extension ForwardMessageViewController {
             return firstly { () -> Promise<Void> in
                 // Maintain order of interactions.
                 let sortedItems = content.allItems.sorted { lhs, rhs in
-                    lhs.interaction?.timestamp ?? 0 < rhs.interaction?.timestamp ?? 0
+                    lhs.interaction?.sortId ?? 0 < rhs.interaction?.sortId ?? 0
                 }
                 // _Enqueue_ each item serially.
                 // Each item waits on the previous' enqueue promise, then sets its own
@@ -399,15 +424,15 @@ extension ForwardMessageViewController {
                   !attachments.isEmpty {
             // TODO: What about link previews in this case?
             let conversations = selectedConversations
-            return TSResourceMultisend.sendApprovedMedia(
+            return AttachmentMultisend.sendApprovedMedia(
                 conversations: conversations,
-                approvalMessageBody: item.messageBody,
+                approvedMessageBody: item.messageBody,
                 approvedAttachments: attachments
             ).enqueuedPromise.asVoid()
         } else if let textAttachment = item.textAttachment {
             // TODO: we want to reuse the uploaded link preview image attachment instead of re-uploading
             // if the original was sent recently (if not the image could be stale)
-            return TSResourceMultisend.sendTextAttachment(
+            return AttachmentMultisend.sendTextAttachment(
                 textAttachment.asUnsentAttachment(), to: selectedConversations
             ).enqueuedPromise.asVoid()
         } else if let messageBody = item.messageBody {
@@ -432,8 +457,8 @@ extension ForwardMessageViewController {
     }
 
     fileprivate func send(body: MessageBody, linkPreviewDraft: OWSLinkPreviewDraft? = nil, recipientThread: TSThread) -> Promise<Void> {
-        let body = databaseStorage.read { transaction in
-            return body.forForwarding(to: recipientThread, transaction: transaction.unwrapGrdbRead).asMessageBodyForForwarding()
+        let body = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            return body.forForwarding(to: recipientThread, transaction: transaction).asMessageBodyForForwarding()
         }
         ThreadUtil.enqueueMessage(
             body: body,
@@ -449,8 +474,8 @@ extension ForwardMessageViewController {
     }
 
     fileprivate func send(body: MessageBody, attachment: SignalAttachment, thread: TSThread) -> Promise<Void> {
-        let body = databaseStorage.read { transaction in
-            return body.forForwarding(to: thread, transaction: transaction.unwrapGrdbRead).asMessageBodyForForwarding()
+        let body = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            return body.forForwarding(to: thread, transaction: transaction).asMessageBodyForForwarding()
         }
         ThreadUtil.enqueueMessage(body: body,
                                   mediaAttachments: [attachment],
@@ -481,7 +506,7 @@ extension ForwardMessageViewController {
                 throw OWSAssertionError("No recipients.")
             }
 
-            return try self.databaseStorage.write { transaction in
+            return try SSKEnvironment.shared.databaseStorageRef.write { transaction in
                 try conversationItems.lazy.filter { $0.outgoingMessageType == .message }.map {
                     guard let thread = $0.getOrCreateThread(transaction: transaction) else {
                         throw ForwardError.missingThread
@@ -601,7 +626,7 @@ public struct ForwardMessageItem {
     let messageBody: MessageBody?
     let linkPreviewDraft: OWSLinkPreviewDraft?
     let stickerMetadata: (any StickerMetadata)?
-    let stickerAttachment: TSResourceStream?
+    let stickerAttachment: AttachmentStream?
     let textAttachment: TextAttachment?
 
     fileprivate class Builder {
@@ -612,7 +637,7 @@ public struct ForwardMessageItem {
         var messageBody: MessageBody?
         var linkPreviewDraft: OWSLinkPreviewDraft?
         var stickerMetadata: (any StickerMetadata)?
-        var stickerAttachment: TSResourceStream?
+        var stickerAttachment: AttachmentStream?
         var textAttachment: TextAttachment?
 
         init(interaction: TSInteraction? = nil) {
@@ -661,7 +686,7 @@ public struct ForwardMessageItem {
         interaction: TSInteraction,
         componentState: CVComponentState,
         selectionType: CVSelectionType,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) throws -> Item {
 
         let builder = Builder(interaction: interaction)
@@ -702,7 +727,7 @@ public struct ForwardMessageItem {
                 builder.contactShare = oldContactShare.copyForRendering()
             }
 
-            var attachmentStreams = [ReferencedTSResourceStream]()
+            var attachmentStreams = [ReferencedAttachmentStream]()
             attachmentStreams.append(contentsOf: componentState.bodyMediaAttachmentStreams)
             if let attachmentStream = componentState.audioAttachmentStream {
                 attachmentStreams.append(attachmentStream)
@@ -713,7 +738,7 @@ public struct ForwardMessageItem {
 
             if !attachmentStreams.isEmpty {
                 builder.attachments = try attachmentStreams.map { attachmentStream in
-                    try DependenciesBridge.shared.tsResourceCloner.cloneAsSignalAttachment(
+                    try DependenciesBridge.shared.attachmentCloner.cloneAsSignalAttachment(
                         attachment: attachmentStream
                     )
                 }
@@ -738,7 +763,7 @@ public struct ForwardMessageItem {
     private static func tryToCloneLinkPreview(
         linkPreview: OWSLinkPreview,
         parentMessage: TSMessage,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> OWSLinkPreviewDraft? {
         guard let urlString = linkPreview.urlString,
               let url = URL(string: urlString) else {
@@ -750,13 +775,13 @@ public struct ForwardMessageItem {
             let mimetype: String
 
             static func load(
-                attachmentId: TSResourceId,
-                transaction: SDSAnyReadTransaction
+                attachmentId: Attachment.IDType,
+                transaction: DBReadTransaction
             ) -> LinkPreviewImage? {
                 guard
-                    let attachment = DependenciesBridge.shared.tsResourceStore
-                        .fetch(attachmentId, tx: transaction.asV2Read)?
-                        .asResourceStream()
+                    let attachment = DependenciesBridge.shared.attachmentStore
+                        .fetch(id: attachmentId, tx: transaction)?
+                        .asStream()
                 else {
                     owsFailDebug("Missing attachment.")
                     return nil
@@ -776,10 +801,11 @@ public struct ForwardMessageItem {
         }
         var linkPreviewImage: LinkPreviewImage?
         if
-            let imageAttachmentId = DependenciesBridge.shared.tsResourceStore.linkPreviewAttachment(
-                for: parentMessage,
-                tx: transaction.asV2Read
-            )?.resourceId,
+            let parentMessageRowId = parentMessage.sqliteRowId,
+            let imageAttachmentId = DependenciesBridge.shared.attachmentStore.fetchFirstReference(
+                owner: .messageLinkPreview(messageRowId: parentMessageRowId),
+                tx: transaction
+            )?.attachmentRowId,
             let image = LinkPreviewImage.load(
                 attachmentId: imageAttachmentId,
                 transaction: transaction
@@ -843,7 +869,7 @@ private enum ForwardMessageContent {
 
     fileprivate static func build(
         itemViewModels: [CVItemViewModelImpl],
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) throws -> ForwardMessageContent {
         let items: [Item] = try itemViewModels.map { itemViewModel in
             try Item.build(interaction: itemViewModel.interaction,
@@ -856,7 +882,7 @@ private enum ForwardMessageContent {
 
     fileprivate static func build(
         selectionItems: [CVSelectionItem],
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) throws -> ForwardMessageContent {
         let items: [Item] = try selectionItems.map { selectionItem in
             let interactionId = selectionItem.interactionId
@@ -875,7 +901,7 @@ private enum ForwardMessageContent {
     }
 
     private static func buildComponentState(interaction: TSInteraction,
-                                            transaction: SDSAnyReadTransaction) throws -> CVComponentState {
+                                            transaction: DBReadTransaction) throws -> CVComponentState {
         guard let componentState = CVLoader.buildStandaloneComponentState(
             interaction: interaction,
             spoilerState: SpoilerRenderState(), // Nothing revealed, doesn't matter.

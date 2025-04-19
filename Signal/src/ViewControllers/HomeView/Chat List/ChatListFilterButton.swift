@@ -79,9 +79,10 @@ extension UIButton.Configuration {
         let fontMetrics = UIFontMetrics(forTextStyle: chatListFilterTextStyle)
         var configuration = gray()
         configuration.background.cornerRadius = .greatestFiniteMagnitude // fully rounded / pill-shaped
-        configuration.baseBackgroundColor = .secondarySystemBackground
-        configuration.baseForegroundColor = .label
+        configuration.baseBackgroundColor = .Signal.secondaryBackground
+        configuration.baseForegroundColor = .Signal.label
         configuration.buttonSize = .small
+        configuration.titleLineBreakMode = .byTruncatingMiddle
         let horizontalInset = fontMetrics.scaledValue(for: 12, compatibleWith: traitCollection)
         configuration.contentInsets.leading = horizontalInset
         configuration.contentInsets.trailing = horizontalInset
@@ -98,6 +99,8 @@ extension UIButton.Configuration {
 
     static func chatListRemoveFilter(compatibleWith traitCollection: UITraitCollection? = nil) -> Self {
         var configuration = chatListFilter(compatibleWith: traitCollection)
+        configuration.baseBackgroundColor = .clear
+        configuration.background.visualEffect = UIBlurEffect(style: .systemUltraThinMaterial)
         configuration.image = UIImage(systemName: "xmark", compatibleWith: traitCollection)
         configuration.imageColorTransformer = .monochromeTint
         let font = UIFont.preferredFont(forTextStyle: chatListFilterTextStyle, compatibleWith: traitCollection).semibold()
@@ -113,7 +116,7 @@ struct ChatListFilterButtonPreviews: PreviewProvider {
     static var previews: some View {
         VStack {
             ChatListFilterButton(title: "Filtered by Unread", showsClearIcon: true)
-            ChatListFilterButton(title: "Clear Filter")
+            ChatListFilterButton(title: "Clear Unread Filter")
         }
     }
 

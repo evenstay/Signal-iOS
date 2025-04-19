@@ -4,6 +4,7 @@
 //
 
 import GRDB
+import LibSignalClient
 import XCTest
 
 @testable import SignalServiceKit
@@ -22,7 +23,7 @@ class GRDBSchemaMigratorTest: XCTestCase {
         )
 
         databaseStorage.read { transaction in
-            let db = transaction.unwrapGrdbRead.database
+            let db = transaction.database
             let sql = "SELECT name FROM sqlite_schema WHERE type IS 'table'"
             let allTableNames = (try? String.fetchAll(db, sql: sql)) ?? []
 
@@ -72,7 +73,7 @@ class GRDBSchemaMigratorTest: XCTestCase {
             return try copyResults.removeFirst().get()
         }
         try databaseQueue.write { db in
-            let transaction = GRDBWriteTransaction(database: db)
+            let transaction = DBWriteTransaction(database: db)
             defer { transaction.finalizeTransaction() }
             try GRDBSchemaMigrator.migrateVoiceMessageDrafts(
                 transaction: transaction,
@@ -137,7 +138,7 @@ class GRDBSchemaMigratorTest: XCTestCase {
 
         // Run the test.
         try databaseQueue.write { db in
-            let transaction = GRDBWriteTransaction(database: db)
+            let transaction = DBWriteTransaction(database: db)
             defer { transaction.finalizeTransaction() }
             try GRDBSchemaMigrator.migrateThreadReplyInfos(transaction: transaction)
         }
@@ -181,7 +182,7 @@ class GRDBSchemaMigratorTest: XCTestCase {
         )
 
         try databaseQueue.write { db in
-            let tx = GRDBWriteTransaction(database: db)
+            let tx = DBWriteTransaction(database: db)
             defer { tx.finalizeTransaction() }
             try GRDBSchemaMigrator.migrateEditRecordTable(tx: tx)
         }
@@ -207,7 +208,7 @@ class GRDBSchemaMigratorTest: XCTestCase {
         )
 
         try databaseQueue.write { db in
-            let tx = GRDBWriteTransaction(database: db)
+            let tx = DBWriteTransaction(database: db)
             defer { tx.finalizeTransaction() }
             try GRDBSchemaMigrator.migrateEditRecordTable(tx: tx)
         }
@@ -253,7 +254,7 @@ extension GRDBSchemaMigratorTest {
                 )
             }
 
-            let tx = GRDBWriteTransaction(database: db)
+            let tx = DBWriteTransaction(database: db)
             try GRDBSchemaMigrator.createEditRecordTable(tx: tx)
             tx.finalizeTransaction()
 
@@ -383,7 +384,8 @@ extension GRDBSchemaMigratorTest {
                 "uniqueId" TEXT NOT NULL UNIQUE ON CONFLICT FAIL,
                 "devices" BLOB NOT NULL,
                 "recipientPhoneNumber" TEXT UNIQUE,
-                "recipientUUID" TEXT UNIQUE
+                "recipientUUID" TEXT UNIQUE,
+                "pni" TEXT UNIQUE
             );
 
             INSERT INTO "model_SignalRecipient" (
@@ -438,7 +440,7 @@ extension GRDBSchemaMigratorTest {
             )
 
             do {
-                let tx = GRDBWriteTransaction(database: db)
+                let tx = DBWriteTransaction(database: db)
                 defer { tx.finalizeTransaction() }
                 try GRDBSchemaMigrator.migrateBlockedRecipients(tx: tx)
             }
@@ -453,6 +455,298 @@ extension GRDBSchemaMigratorTest {
                 "00000000-0000-4000-B000-000000000123": 0,
                 "00000000-0000-4000-B000-00000000000C": 1,
             ])
+        }
+    }
+
+    func testMigrateCallRecords() throws {
+        let databaseQueue = DatabaseQueue()
+        try databaseQueue.write { db in
+            try db.execute(sql: """
+            CREATE TABLE "model_TSInteraction"("id" INTEGER PRIMARY KEY);
+            INSERT INTO "model_TSInteraction" VALUES (2), (3);
+
+            CREATE TABLE "model_TSThread"("id" INTEGER PRIMARY KEY);
+            INSERT INTO "model_TSThread" VALUES (4), (5);
+
+            CREATE TABLE IF NOT EXISTS "CallRecord" (
+                "id" INTEGER PRIMARY KEY NOT NULL
+                ,"callId" TEXT NOT NULL
+                ,"interactionRowId" INTEGER NOT NULL UNIQUE REFERENCES "model_TSInteraction"("id") ON DELETE CASCADE
+                ,"threadRowId" INTEGER NOT NULL REFERENCES "model_TSThread"("id") ON DELETE RESTRICT
+                ,"type" INTEGER NOT NULL
+                ,"direction" INTEGER NOT NULL
+                ,"status" INTEGER NOT NULL
+                ,"timestamp" INTEGER NOT NULL
+                ,"groupCallRingerAci" BLOB
+                ,"unreadStatus" INTEGER NOT NULL DEFAULT 0
+                ,"callEndedTimestamp" INTEGER NOT NULL DEFAULT 0
+            );
+            INSERT INTO "CallRecord" VALUES
+                (1, '18446744073709551615', 2, 4, 1, 1, 1, 1727730000000, NULL, 0, 1727740000000),
+                (2, '18446744073709551614', 3, 5, 0, 0, 3, 1727750000000, NULL, 1, 1727760000000);
+
+            CREATE UNIQUE INDEX "index_call_record_on_callId_and_threadId" ON "CallRecord"("callId", "threadRowId");
+            CREATE INDEX "index_call_record_on_timestamp" ON "CallRecord"("timestamp");
+            CREATE INDEX "index_call_record_on_status_and_timestamp" ON "CallRecord"("status", "timestamp");
+            CREATE INDEX "index_call_record_on_threadRowId_and_timestamp" ON "CallRecord"("threadRowId", "timestamp");
+            CREATE INDEX "index_call_record_on_threadRowId_and_status_and_timestamp" ON "CallRecord"("threadRowId", "status", "timestamp");
+            CREATE INDEX "index_call_record_on_callStatus_and_unreadStatus_and_timestamp" ON "CallRecord"("status", "unreadStatus", "timestamp");
+            CREATE INDEX "index_call_record_on_threadRowId_and_callStatus_and_unreadStatus_and_timestamp" ON "CallRecord"("threadRowId", "status", "unreadStatus", "timestamp");
+
+            CREATE TABLE IF NOT EXISTS "DeletedCallRecord" (
+                "id" INTEGER PRIMARY KEY NOT NULL
+                ,"callId" TEXT NOT NULL
+                ,"threadRowId" INTEGER NOT NULL REFERENCES "model_TSThread"("id") ON DELETE RESTRICT
+                ,"deletedAtTimestamp" INTEGER NOT NULL
+            );
+            INSERT INTO "DeletedCallRecord" VALUES
+                (1, '18446744073709551613', 4, 1727770000),
+                (2, '18446744073709551612', 5, 1727780000);
+
+            CREATE UNIQUE INDEX "index_deleted_call_record_on_threadRowId_and_callId" ON "DeletedCallRecord"("threadRowId", "callId");
+            CREATE INDEX "index_deleted_call_record_on_deletedAtTimestamp" ON "DeletedCallRecord"("deletedAtTimestamp");
+            """)
+
+            do {
+                let tx = DBWriteTransaction(database: db)
+                defer { tx.finalizeTransaction() }
+                try GRDBSchemaMigrator.addCallLinkTable(tx: tx)
+            }
+
+            let tableNames = try Row.fetchAll(db, sql: "pragma table_list").map { $0["name"] as String }
+            XCTAssert(tableNames.contains("CallLink"))
+            XCTAssert(tableNames.contains("CallRecord"))
+            XCTAssert(!tableNames.contains("new_CallRecord"))
+            XCTAssert(tableNames.contains("DeletedCallRecord"))
+            XCTAssert(!tableNames.contains("new_DeletedCallRecord"))
+
+            let callRecords = try Row.fetchAll(db, sql: "SELECT * FROM CallRecord")
+            XCTAssertEqual(callRecords[0]["id"], 1)
+            XCTAssertEqual(callRecords[0]["callId"], "18446744073709551615")
+            XCTAssertEqual(callRecords[1]["id"], 2)
+            XCTAssertEqual(callRecords[1]["callId"], "18446744073709551614")
+
+            let deletedCallRecords = try Row.fetchAll(db, sql: "SELECT * FROM DeletedCallRecord")
+            XCTAssertEqual(deletedCallRecords[0]["id"], 1)
+            XCTAssertEqual(deletedCallRecords[0]["callId"], "18446744073709551613")
+            XCTAssertEqual(deletedCallRecords[1]["id"], 2)
+            XCTAssertEqual(deletedCallRecords[1]["callId"], "18446744073709551612")
+        }
+    }
+
+    func testMigrateBlockedGroups() throws {
+        @objc(TSGroupModelMigrateBlockedGroups)
+        class TSGroupModelMigrateBlockedGroups: NSObject, NSSecureCoding {
+            class var supportsSecureCoding: Bool { true }
+            override init() {}
+            required init?(coder: NSCoder) {}
+            func encode(with coder: NSCoder) {}
+        }
+        @objc(TSGroupModelV2MigrateBlockedGroups)
+        class TSGroupModelV2MigrateBlockedGroups: TSGroupModelMigrateBlockedGroups {
+            class override var supportsSecureCoding: Bool { true }
+            override init() { super.init() }
+            required init?(coder: NSCoder) { super.init(coder: coder) }
+        }
+
+        let blockedGroups = [
+            Data(count: 16): TSGroupModelMigrateBlockedGroups(),
+            Data(count: 32): TSGroupModelV2MigrateBlockedGroups(),
+        ]
+
+        let coder = NSKeyedArchiver(requiringSecureCoding: true)
+        coder.setClassName("TSGroupModel", for: TSGroupModelMigrateBlockedGroups.self)
+        coder.setClassName("SignalServiceKit.TSGroupModelV2", for: TSGroupModelV2MigrateBlockedGroups.self)
+        coder.encode(blockedGroups, forKey: NSKeyedArchiveRootObjectKey)
+
+        let groupIds = Set(try GRDBSchemaMigrator.decodeBlockedGroupIds(dataValue: coder.encodedData))
+        XCTAssertEqual(groupIds, [Data(count: 16), Data(count: 32)])
+    }
+
+    func testPopulateDefaultAvatarColorsTable() throws {
+        @objc(TSGroupModelForMigrations)
+        class TSGroupModelForMigrations: NSObject, NSSecureCoding {
+            static var supportsSecureCoding: Bool { true }
+            let groupId: NSData
+            init(groupId: Data) { self.groupId = groupId as NSData }
+            required init?(coder: NSCoder) { owsFail("Don't decode these!") }
+            func encode(with coder: NSCoder) {
+                coder.encode(groupId, forKey: "groupId")
+            }
+        }
+        let coder = NSKeyedArchiver(requiringSecureCoding: true)
+        coder.setClassName("SignalServiceKit.TSGroupModelV2", for: TSGroupModelForMigrations.self)
+        let groupId = Data(repeating: 9, count: 32)
+        let groupModel = TSGroupModelForMigrations(groupId: groupId)
+        coder.encode(groupModel, forKey: NSKeyedArchiveRootObjectKey)
+
+        let databaseQueue = DatabaseQueue()
+        try databaseQueue.write { db in
+            try db.execute(sql: """
+            CREATE TABLE "model_TSThread"(
+                "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+                ,"uniqueId" TEXT NOT NULL UNIQUE ON CONFLICT FAIL
+                ,"groupModel" BLOB
+            );
+            INSERT INTO model_TSThread VALUES
+                (1, 'g\(groupId.base64EncodedString())', X'\(coder.encodedData.hexadecimalString)');
+
+            CREATE TABLE model_SignalRecipient(
+                "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+                ,"recipientPhoneNumber" TEXT
+                ,"recipientUUID" TEXT
+                ,"pni" TEXT
+            );
+            INSERT INTO model_SignalRecipient VALUES
+                (1, '+12135550124', NULL, NULL),
+                (2, NULL, 'A025BF78-653E-44E0-BEB9-DEB14BA32487', NULL),
+                (3, NULL, '+12135550199', 'PNI:11A175E3-FE31-4EDA-87DA-E0BF2A2E250B');
+            """)
+
+            do {
+                let tx = DBWriteTransaction(database: db)
+                defer { tx.finalizeTransaction() }
+                try GRDBSchemaMigrator.createDefaultAvatarColorTable(tx: tx)
+                try GRDBSchemaMigrator.populateDefaultAvatarColorTable(tx: tx)
+            }
+
+            let rows = try Row.fetchAll(db, sql: "SELECT * FROM AvatarDefaultColor")
+            XCTAssertEqual(rows.count, 4)
+            XCTAssertEqual(rows.filter { $0["groupId"] != nil }.count, 1)
+            XCTAssertEqual(rows.filter { $0["recipientRowId"] != nil }.count, 3)
+        }
+    }
+
+    @objc(SampleSignalServiceAddress)
+    private class SampleSignalServiceAddress: NSObject, NSSecureCoding {
+        let serviceId: ServiceId?
+        let phoneNumber: String?
+
+        init(serviceId: ServiceId?, phoneNumber: String?) {
+            self.serviceId = serviceId
+            self.phoneNumber = phoneNumber
+        }
+
+        class var supportsSecureCoding: Bool { true }
+
+        required init?(coder: NSCoder) { fatalError() }
+
+        func encode(with coder: NSCoder) {
+            if let aci = serviceId as? Aci {
+                coder.encode(aci.rawUUID, forKey: "backingUuid")
+            } else {
+                coder.encode(serviceId?.serviceIdBinary.asData, forKey: "backingUuid")
+            }
+            coder.encode(self.phoneNumber, forKey: "backingPhoneNumber")
+        }
+    }
+
+    private static func encodedAddresses(_ addresses: [SampleSignalServiceAddress]) throws -> Data {
+        let coder = NSKeyedArchiver(requiringSecureCoding: true)
+        coder.setClassName("SignalServiceKit.SignalServiceAddress", for: SampleSignalServiceAddress.self)
+        coder.encode(addresses, forKey: NSKeyedArchiveRootObjectKey)
+        return coder.encodedData
+    }
+
+    func testDecodeSignalServiceAddresses() throws {
+        let exampleAddresses: [SampleSignalServiceAddress] = [
+            .init(serviceId: Aci.parseFrom(aciString: "00000000-0000-4000-8000-000000000000")!, phoneNumber: nil),
+            .init(serviceId: Pni.parseFrom(pniString: "00000000-0000-4000-8000-000000000000")!, phoneNumber: nil),
+            .init(serviceId: nil, phoneNumber: "+16505550100"),
+        ]
+
+        let encodedAddresses = try Self.encodedAddresses(exampleAddresses)
+        let decodedAddresses = try GRDBSchemaMigrator.decodeSignalServiceAddresses(dataValue: encodedAddresses)
+        XCTAssertEqual(decodedAddresses.map(\.serviceId), exampleAddresses.map(\.serviceId))
+        XCTAssertEqual(decodedAddresses.map(\.phoneNumber), exampleAddresses.map(\.phoneNumber))
+    }
+
+    func testCreateStoryRecipients() throws {
+        // Set up the database with sample data that may have existed.
+        let databaseQueue = DatabaseQueue()
+        try databaseQueue.write { db in
+            try db.execute(sql: """
+            CREATE TABLE "model_SignalRecipient" (
+                "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                "recordType" INTEGER NOT NULL,
+                "uniqueId" TEXT NOT NULL,
+                "recipientPhoneNumber" TEXT UNIQUE,
+                "recipientUUID" TEXT UNIQUE,
+                "pni" TEXT UNIQUE,
+                "devices" BLOB
+            );
+
+            CREATE TABLE "model_TSThread" (
+                id INTEGER PRIMARY KEY,
+                recordType INTEGER NOT NULL,
+                addresses BLOB
+            );
+
+            INSERT INTO "model_SignalRecipient" (
+                "recordType", "uniqueId", "recipientPhoneNumber", "recipientUUID", "pni"
+            ) VALUES
+                (0, '', '+17635550100', '00000000-0000-4000-A000-000000000000', NULL),
+                (0, '', '+17635550101', NULL, NULL),
+                (0, '', NULL, NULL, 'PNI:00000000-0000-4000-A000-000000000FFF');
+
+            INSERT INTO "model_TSThread" (
+                "id", "recordType", "addresses"
+            ) VALUES
+                (1, 73, X'');
+            """)
+            try db.execute(
+                sql: "INSERT INTO model_TSThread (id, recordType, addresses) VALUES (2, 72, ?)",
+                arguments: [Self.encodedAddresses([])]
+            )
+            try db.execute(
+                sql: "INSERT INTO model_TSThread (id, recordType, addresses) VALUES (3, 72, ?)",
+                arguments: [Self.encodedAddresses([.init(serviceId: Aci.parseFrom(aciString: "00000000-0000-4000-A000-000000000000")!, phoneNumber: nil)])]
+            )
+            try db.execute(
+                sql: "INSERT INTO model_TSThread (id, recordType, addresses) VALUES (4, 72, ?)",
+                arguments: [Self.encodedAddresses([
+                    .init(serviceId: Aci.parseFrom(aciString: "00000000-0000-4000-A000-000000000AAA")!, phoneNumber: nil),
+                    .init(serviceId: Aci.parseFrom(aciString: "00000000-0000-4000-A000-000000000AAA")!, phoneNumber: nil),
+                    .init(serviceId: Pni.parseFrom(pniString: "00000000-0000-4000-A000-000000000BBB")!, phoneNumber: nil),
+                    .init(serviceId: Pni.parseFrom(pniString: "00000000-0000-4000-A000-000000000FFF")!, phoneNumber: nil),
+                    .init(serviceId: nil, phoneNumber: "+17635550100"),
+                    .init(serviceId: nil, phoneNumber: "+17635550142"),
+                ])]
+            )
+            do {
+                let tx = DBWriteTransaction(database: db)
+                defer { tx.finalizeTransaction() }
+                try GRDBSchemaMigrator.createStoryRecipients(tx: tx)
+            }
+
+            let storyRecipients = try Row.fetchAll(
+                db,
+                sql: "SELECT threadId, recipientId FROM StoryRecipient ORDER BY threadId, recipientId"
+            ).map { [$0[0] as Int64, $0[1] as Int64] }
+            XCTAssertEqual(storyRecipients, [[3, 1], [4, 1], [4, 3], [4, 4], [4, 5], [4, 6]])
+
+            let storyAddresses = try (Data?).fetchAll(
+                db,
+                sql: "SELECT addresses FROM model_TSThread ORDER BY id"
+            )
+            XCTAssertEqual(storyAddresses, [Data(), nil, nil, nil])
+
+            let signalRecipients = try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM model_SignalRecipient ORDER BY id"
+            )
+            XCTAssertEqual(signalRecipients.count, 6)
+            XCTAssertEqual(signalRecipients[3]["recipientUUID"], "00000000-0000-4000-A000-000000000AAA")
+            XCTAssertEqual(signalRecipients[3]["recipientPhoneNumber"], nil as String?)
+            XCTAssertEqual(signalRecipients[3]["pni"], nil as String?)
+
+            XCTAssertEqual(signalRecipients[4]["recipientUUID"], nil as String?)
+            XCTAssertEqual(signalRecipients[4]["recipientPhoneNumber"], nil as String?)
+            XCTAssertEqual(signalRecipients[4]["pni"], "PNI:00000000-0000-4000-A000-000000000BBB")
+
+            XCTAssertEqual(signalRecipients[5]["recipientUUID"], nil as String?)
+            XCTAssertEqual(signalRecipients[5]["recipientPhoneNumber"], "+17635550142")
+            XCTAssertEqual(signalRecipients[5]["pni"], nil as String?)
         }
     }
 }

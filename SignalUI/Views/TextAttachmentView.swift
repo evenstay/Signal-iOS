@@ -36,6 +36,7 @@ open class TextAttachmentView: UIView {
             background: attachment.textAttachment.background,
             linkPreview: attachment.textAttachment.preview,
             linkPreviewImageAttachment: attachment.linkPreviewAttachment,
+            isFailedImageAttachmentDownload: attachment.isFailedImageAttachmentDownload,
             interactionIdentifier: interactionIdentifier,
             spoilerState: spoilerState
         )
@@ -49,6 +50,7 @@ open class TextAttachmentView: UIView {
             background: attachment.background,
             linkPreview: nil,
             linkPreviewImageAttachment: nil,
+            isFailedImageAttachmentDownload: false,
             linkPreviewDraft: attachment.linkPreviewDraft,
             interactionIdentifier: nil,
             spoilerState: nil
@@ -71,7 +73,12 @@ open class TextAttachmentView: UIView {
         self.spoilerState = nil
 
         super.init(frame: .zero)
-        performSetup(linkPreview: nil, linkPreviewImageAttachment: nil, linkPreviewDraft: linkPreviewDraft)
+        performSetup(
+            linkPreview: nil,
+            linkPreviewImageAttachment: nil,
+            isFailedImageAttachmentDownload: false,
+            linkPreviewDraft: linkPreviewDraft
+        )
     }
 
     private init(
@@ -80,7 +87,8 @@ open class TextAttachmentView: UIView {
         textBackgroundColor: UIColor?,
         background: TextAttachment.Background,
         linkPreview: OWSLinkPreview?,
-        linkPreviewImageAttachment: TSResource?,
+        linkPreviewImageAttachment: ReferencedAttachment?,
+        isFailedImageAttachmentDownload: Bool,
         linkPreviewDraft: OWSLinkPreviewDraft? = nil,
         interactionIdentifier: InteractionSnapshotIdentifier?,
         spoilerState: SpoilerRenderState?
@@ -96,13 +104,15 @@ open class TextAttachmentView: UIView {
         performSetup(
             linkPreview: linkPreview,
             linkPreviewImageAttachment: linkPreviewImageAttachment,
+            isFailedImageAttachmentDownload: isFailedImageAttachmentDownload,
             linkPreviewDraft: linkPreviewDraft
         )
     }
 
     private func performSetup(
         linkPreview: OWSLinkPreview?,
-        linkPreviewImageAttachment: TSResource?,
+        linkPreviewImageAttachment: ReferencedAttachment?,
+        isFailedImageAttachmentDownload: Bool,
         linkPreviewDraft: OWSLinkPreviewDraft?
     ) {
         clipsToBounds = true
@@ -121,12 +131,13 @@ open class TextAttachmentView: UIView {
             self.linkPreview = LinkPreviewSent(
                 linkPreview: linkPreview,
                 imageAttachment: linkPreviewImageAttachment,
+                isFailedImageAttachmentDownload: isFailedImageAttachmentDownload,
                 conversationStyle: nil
             )
         } else if let linkPreviewDraft = linkPreviewDraft {
             let state: LinkPreviewState
-            if let _ = CallLink(url: linkPreviewDraft.url) {
-                state = LinkPreviewCallLink(previewType: .draft(linkPreviewDraft))
+            if let callLink = CallLink(url: linkPreviewDraft.url) {
+                state = LinkPreviewCallLink(previewType: .draft(linkPreviewDraft), callLink: callLink)
             } else {
                 state = LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft)
             }

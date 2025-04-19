@@ -90,25 +90,28 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark -
 
-- (void)anyDidInsertWithTransaction:(SDSAnyWriteTransaction *)transaction
+- (void)anyDidInsertWithTransaction:(DBWriteTransaction *)transaction
 {
     [super anyDidInsertWithTransaction:transaction];
 
-    [self.modelReadCaches.installedStickerCache didInsertOrUpdateInstalledSticker:self transaction:transaction];
+    [SSKEnvironment.shared.modelReadCachesRef.installedStickerCache didInsertOrUpdateInstalledSticker:self
+                                                                                          transaction:transaction];
 }
 
-- (void)anyDidUpdateWithTransaction:(SDSAnyWriteTransaction *)transaction
+- (void)anyDidUpdateWithTransaction:(DBWriteTransaction *)transaction
 {
     [super anyDidUpdateWithTransaction:transaction];
 
-    [self.modelReadCaches.installedStickerCache didInsertOrUpdateInstalledSticker:self transaction:transaction];
+    [SSKEnvironment.shared.modelReadCachesRef.installedStickerCache didInsertOrUpdateInstalledSticker:self
+                                                                                          transaction:transaction];
 }
 
-- (void)anyDidRemoveWithTransaction:(SDSAnyWriteTransaction *)transaction
+- (void)anyDidRemoveWithTransaction:(DBWriteTransaction *)transaction
 {
     [super anyDidRemoveWithTransaction:transaction];
 
-    [self.modelReadCaches.installedStickerCache didRemoveInstalledSticker:self transaction:transaction];
+    [SSKEnvironment.shared.modelReadCachesRef.installedStickerCache didRemoveInstalledSticker:self
+                                                                                  transaction:transaction];
 }
 
 @end

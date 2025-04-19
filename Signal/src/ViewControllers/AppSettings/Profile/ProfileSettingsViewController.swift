@@ -111,25 +111,25 @@ class ProfileSettingsViewController: OWSTableViewController2 {
 
         defaultSeparatorInsetLeading = Self.cellHInnerMargin + 24 + OWSTableItem.iconSpacing
 
-        let snapshot = profileManagerImpl.localProfileSnapshot(shouldIncludeAvatar: true)
-        allBadges = snapshot.profileBadgeInfo ?? []
-        displayBadgesOnProfile = subscriptionManager.displayBadgesOnProfile
-        // TODO: Use `visibleBadges` when `localProfileSnapshot` is removed.
-        let visibleBadgeIds = allBadges.filter { $0.isVisible ?? true }.map { $0.badgeId }
+        let localProfile = SSKEnvironment.shared.databaseStorageRef.read(block: SSKEnvironment.shared.profileManagerRef.localUserProfile(tx:))!
+
+        allBadges = localProfile.badges
+        displayBadgesOnProfile = DonationSubscriptionManager.displayBadgesOnProfile
+        let visibleBadgeIds = localProfile.visibleBadges.map { $0.badgeId }
         profileValues = ProfileValues(
-            givenName: .init(oldValue: snapshot.givenName, changedValue: .noChange),
-            familyName: .init(oldValue: snapshot.familyName, changedValue: .noChange),
-            bio: .init(oldValue: snapshot.bio, changedValue: .noChange),
-            bioEmoji: .init(oldValue: snapshot.bioEmoji, changedValue: .noChange),
-            avatarData: .init(oldValue: snapshot.avatarData, changedValue: .noChange),
+            givenName: .init(oldValue: localProfile.filteredGivenName, changedValue: .noChange),
+            familyName: .init(oldValue: localProfile.filteredFamilyName, changedValue: .noChange),
+            bio: .init(oldValue: localProfile.bio, changedValue: .noChange),
+            bioEmoji: .init(oldValue: localProfile.bioEmoji, changedValue: .noChange),
+            avatarData: .init(oldValue: localProfile.loadAvatarData(), changedValue: .noChange),
             visibleBadgeIds: .init(oldValue: visibleBadgeIds, changedValue: .noChange)
         )
 
-        databaseStorage.read { tx -> Void in
+        SSKEnvironment.shared.databaseStorageRef.read { tx -> Void in
             localUsernameState = context.localUsernameManager
-                .usernameState(tx: tx.asV2Read)
+                .usernameState(tx: tx)
             shouldShowUsernameLinkTooltip = context.usernameEducationManager
-                .shouldShowUsernameLinkTooltip(tx: tx.asV2Read)
+                .shouldShowUsernameLinkTooltip(tx: tx)
         }
 
         updateTableContents()
@@ -222,7 +222,7 @@ class ProfileSettingsViewController: OWSTableViewController2 {
                 actionBlock: { [weak self] in
                     guard let self = self else { return }
 
-                    let avatarImage = self.databaseStorage.read { self.avatarImage(transaction: $0) }
+                    let avatarImage = SSKEnvironment.shared.databaseStorageRef.read { self.avatarImage(transaction: $0) }
 
                     let vc = BadgeConfigurationViewController(
                         availableBadges: self.allBadges,
@@ -532,10 +532,10 @@ class ProfileSettingsViewController: OWSTableViewController2 {
             isAttemptingRecovery: isAttemptingRecovery,
             usernameChangeDelegate: self,
             context: .init(
-                databaseStorage: databaseStorage,
-                networkManager: networkManager,
+                databaseStorage: SSKEnvironment.shared.databaseStorageRef,
+                networkManager: SSKEnvironment.shared.networkManagerRef,
                 schedulers: context.schedulers,
-                storageServiceManager: storageServiceManager,
+                storageServiceManager: SSKEnvironment.shared.storageServiceManagerRef,
                 usernameEducationManager: context.usernameEducationManager,
                 localUsernameManager: context.localUsernameManager
             )
@@ -570,12 +570,7 @@ class ProfileSettingsViewController: OWSTableViewController2 {
             fromViewController: self,
             canCancel: false
         ) { modal in
-            firstly(on: self.context.schedulers.global()) { () -> Guarantee<Usernames.RemoteMutationResult<Void>> in
-                self.context.db.write { tx in
-                    return self.context.localUsernameManager
-                        .deleteUsername(tx: tx)
-                }
-            }
+            Guarantee.wrapAsync { await self.context.localUsernameManager.deleteUsername() }
             .map(on: self.context.schedulers.main) { remoteMutationResult -> Usernames.RemoteMutationResult<Void> in
                 let newState = self.context.db.read { tx in
                     return self.context.localUsernameManager.usernameState(tx: tx)
@@ -639,9 +634,9 @@ class ProfileSettingsViewController: OWSTableViewController2 {
         if permanently {
             shouldShowUsernameLinkTooltip = false
 
-            databaseStorage.write { tx in
+            SSKEnvironment.shared.databaseStorageRef.write { tx in
                 context.usernameEducationManager
-                    .setShouldShowUsernameLinkTooltip(false, tx: tx.asV2Write)
+                    .setShouldShowUsernameLinkTooltip(false, tx: tx)
             }
         }
     }
@@ -687,7 +682,7 @@ class ProfileSettingsViewController: OWSTableViewController2 {
         let profileValues: ProfileValues = self.profileValues
         let displayBadgesOnProfile = self.displayBadgesOnProfile
 
-        guard reachabilityManager.isReachable else {
+        guard SSKEnvironment.shared.reachabilityManagerRef.isReachable else {
             OWSActionSheets.showErrorAlert(
                 message: OWSLocalizedString(
                     "PROFILE_VIEW_NO_CONNECTION",
@@ -698,51 +693,45 @@ class ProfileSettingsViewController: OWSTableViewController2 {
         }
 
         // Show an activity indicator to block the UI during the profile upload.
-        ModalActivityIndicatorViewController.present(fromViewController: self, canCancel: false) { modalActivityIndicator in
-            Self.databaseStorage.write(.promise) { tx in
-                Self.profileManager.updateLocalProfile(
-                    profileGivenName: profileValues.givenName.changedValue,
-                    profileFamilyName: profileValues.familyName.changedValue,
-                    profileBio: profileValues.bio.changedValue,
-                    profileBioEmoji: profileValues.bioEmoji.changedValue,
-                    profileAvatarData: { () -> OptionalAvatarChange<Data?> in
-                        switch profileValues.avatarData.changedValue {
-                        case .noChange:
-                            return .noChange
-                        case .setTo(let newValue):
-                            return .setTo(newValue)
-                        }
-                    }(),
-                    visibleBadgeIds: profileValues.visibleBadgeIds.changedValue,
-                    unsavedRotatedProfileKey: nil,
-                    userProfileWriter: .localUser,
-                    authedAccount: .implicit(),
-                    tx: tx
-                )
-            }.then(on: SyncScheduler()) { (updatePromise: Promise<Void>) in
-                // Run the Promise returned from databaseStorage.write(...).
-                updatePromise
-            }.then(on: DispatchQueue.global()) { () -> Promise<Void> in
-                Self.databaseStorage.write(.promise) { transaction in
-                    Self.subscriptionManager.setDisplayBadgesOnProfile(
+        ModalActivityIndicatorViewController.present(fromViewController: self, canCancel: false, asyncBlock: { modalActivityIndicator in
+            let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+            do {
+                let updatePromise = await databaseStorage.awaitableWrite { tx in
+                    SSKEnvironment.shared.profileManagerRef.updateLocalProfile(
+                        profileGivenName: profileValues.givenName.changedValue,
+                        profileFamilyName: profileValues.familyName.changedValue,
+                        profileBio: profileValues.bio.changedValue,
+                        profileBioEmoji: profileValues.bioEmoji.changedValue,
+                        profileAvatarData: { () -> OptionalAvatarChange<Data?> in
+                            switch profileValues.avatarData.changedValue {
+                            case .noChange:
+                                return .noChange
+                            case .setTo(let newValue):
+                                return .setTo(newValue)
+                            }
+                        }(),
+                        visibleBadgeIds: profileValues.visibleBadgeIds.changedValue,
+                        unsavedRotatedProfileKey: nil,
+                        userProfileWriter: .localUser,
+                        authedAccount: .implicit(),
+                        tx: tx
+                    )
+                }
+                try await updatePromise.awaitable()
+                await databaseStorage.awaitableWrite { transaction in
+                    DonationSubscriptionManager.setDisplayBadgesOnProfile(
                         displayBadgesOnProfile,
                         updateStorageService: true,
                         transaction: transaction
                     )
                 }
-            }.done(on: DispatchQueue.main) {
-                modalActivityIndicator.dismiss { [weak self] in
-                    AssertIsOnMainThread()
-                    self?.profileCompleted()
-                }
-            }.catch(on: DispatchQueue.main) { error in
-                owsFailDebug("Error: \(error)")
-                modalActivityIndicator.dismiss { [weak self] in
-                    AssertIsOnMainThread()
-                    self?.profileCompleted()
-                }
+            } catch {
+                owsFailDebug("\(error)")
             }
-        }
+            modalActivityIndicator.dismiss { [weak self] in
+                self?.profileCompleted()
+            }
+        })
     }
 
     private func profileCompleted() {
@@ -755,11 +744,11 @@ class ProfileSettingsViewController: OWSTableViewController2 {
 
     private let avatarSizeClass: ConversationAvatarView.Configuration.SizeClass = .eightyEight
 
-    private func avatarImage(transaction tx: SDSAnyReadTransaction) -> UIImage? {
+    private func avatarImage(transaction tx: DBReadTransaction) -> UIImage? {
         if let avatarData = profileValues.avatarData.currentValue {
             return UIImage(data: avatarData)
         } else {
-            return avatarBuilder.defaultAvatarImageForLocalUser(diameterPoints: avatarSizeClass.diameter, transaction: tx)
+            return SSKEnvironment.shared.avatarBuilderRef.defaultAvatarImageForLocalUser(diameterPoints: avatarSizeClass.diameter, transaction: tx)
         }
     }
 
@@ -770,7 +759,7 @@ class ProfileSettingsViewController: OWSTableViewController2 {
 
         let sizeClass = ConversationAvatarView.Configuration.SizeClass.eightyEight
         let badgedAvatarView = ConversationAvatarView(sizeClass: sizeClass, localUserDisplayMode: .asUser)
-        databaseStorage.read { readTx in
+        SSKEnvironment.shared.databaseStorageRef.read { readTx in
             let primaryBadge = allBadges.first
             let badgeAssets = primaryBadge?.badge?.assets
             let badgeImage = badgeAssets.flatMap { sizeClass.fetchImageFromBadgeAssets($0) }

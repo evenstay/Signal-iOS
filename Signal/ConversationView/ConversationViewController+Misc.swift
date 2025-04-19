@@ -4,20 +4,26 @@
 //
 
 import ContactsUI
-public import SignalServiceKit
-public import SignalUI
+import SignalServiceKit
+import SignalUI
 
-public extension ConversationViewController {
+extension ConversationViewController {
 
-    func updateV2GroupIfNecessary() {
+    func updateV2GroupIfNecessary() async {
         AssertIsOnMainThread()
 
-        guard let groupThread = thread as? TSGroupThread, thread.isGroupV2Thread else {
+        guard let groupModel = (thread as? TSGroupThread)?.groupModel as? TSGroupModelV2 else {
             return
         }
-        // Try to update the v2 group to latest from the service.
-        // This will help keep us in sync if we've missed any group updates, etc.
-        groupV2Updates.tryToRefreshV2GroupUpToCurrentRevisionAfterMessageProcessingWithThrottling(groupThread)
+        do {
+            let secretParams = try groupModel.secretParams()
+            // Try to update the v2 group to latest from the service.
+            // This will help keep us in sync if we've missed any group updates, etc.
+            let groupUpdater = SSKEnvironment.shared.groupV2UpdatesRef
+            try await groupUpdater.refreshGroup(secretParams: secretParams, options: [.throttle])
+        } catch {
+            Logger.warn("Couldn't refresh group: \(error)")
+        }
     }
 
     func showUnblockConversationUI(completion: BlockListUIUtils.Completion?) {
@@ -57,13 +63,13 @@ public extension ConversationViewController {
 
     // MARK: - Verification
 
-    func noLongerVerifiedIdentityKeys(tx: SDSAnyReadTransaction) -> [SignalServiceAddress: Data] {
+    func noLongerVerifiedIdentityKeys(tx: DBReadTransaction) -> [SignalServiceAddress: Data] {
         if let groupThread = thread as? TSGroupThread {
             return OWSRecipientIdentity.noLongerVerifiedIdentityKeys(in: groupThread.uniqueId, tx: tx)
         }
         let identityManager = DependenciesBridge.shared.identityManager
         return thread.recipientAddresses(with: tx).reduce(into: [:]) { result, address in
-            guard let recipientIdentity = identityManager.recipientIdentity(for: address, tx: tx.asV2Read) else {
+            guard let recipientIdentity = identityManager.recipientIdentity(for: address, tx: tx) else {
                 return
             }
             guard recipientIdentity.verificationState == .noLongerVerified else {
@@ -76,7 +82,7 @@ public extension ConversationViewController {
     func resetVerificationStateToDefault(noLongerVerifiedIdentityKeys: [SignalServiceAddress: Data]) {
         AssertIsOnMainThread()
 
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             let identityManager = DependenciesBridge.shared.identityManager
             for (address, identityKey) in noLongerVerifiedIdentityKeys {
                 owsAssertDebug(address.isValid)
@@ -85,7 +91,7 @@ public extension ConversationViewController {
                     of: identityKey,
                     for: address,
                     isUserInitiatedChange: true,
-                    tx: transaction.asV2Write
+                    tx: transaction
                 )
             }
         }
@@ -377,7 +383,7 @@ extension ConversationViewController {
         set { viewState.readTimer = newValue }
     }
 
-    public var reloadTimer: Timer? {
+    var reloadTimer: Timer? {
         get { viewState.reloadTimer }
         set { viewState.reloadTimer = newValue }
     }
@@ -452,7 +458,7 @@ extension ConversationViewController {
             return
         }
 
-        guard !WindowManager.shared.shouldShowCallView else {
+        guard !AppEnvironment.shared.windowManagerRef.shouldShowCallView else {
             return
         }
 
@@ -464,7 +470,7 @@ extension ConversationViewController {
         if !self.isMarkingAsRead && isShowingUnreadMessage {
             self.isMarkingAsRead = true
 
-            Self.receiptManager.markAsReadLocally(
+            SSKEnvironment.shared.receiptManagerRef.markAsReadLocally(
                 beforeSortId: lastVisibleSortId,
                 thread: self.thread,
                 hasPendingMessageRequest: self.threadViewModel.hasPendingMessageRequest

@@ -86,7 +86,7 @@ class GroupAttributesEditorHelper: NSObject {
             groupId: groupModel.groupId,
             groupNameOriginal: groupModel.groupName,
             groupDescriptionOriginal: (groupModel as? TSGroupModelV2)?.descriptionText,
-            avatarOriginalData: groupModel.avatarData,
+            avatarOriginalData: groupModel.avatarDataState.dataIfPresent,
             iconViewSize: iconViewSize,
             renderDefaultAvatarWhenCleared: renderDefaultAvatarWhenCleared
         )
@@ -203,7 +203,16 @@ class GroupAttributesEditorHelper: NSObject {
             cameraButton.isHidden = true
             cameraCornerButton.isHidden = false
         } else if renderDefaultAvatarWhenCleared {
-            avatarImageView.image = avatarBuilder.avatarImage(forGroupId: groupId, diameterPoints: iconViewSize)
+            let avatarBuilder = SSKEnvironment.shared.avatarBuilderRef
+            let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+
+            avatarImageView.image = databaseStorage.read { tx in
+                avatarBuilder.defaultAvatarImage(
+                    forGroupId: groupId,
+                    diameterPoints: iconViewSize,
+                    transaction: tx
+                )
+            }
             avatarImageView.layer.borderWidth = 0
             avatarImageView.layer.borderColor = nil
             cameraButton.isHidden = true
@@ -289,16 +298,16 @@ class GroupAttributesEditorHelper: NSObject {
 
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: fromViewController,
-            updateDescription: self.logTag,
+            updateDescription: "[\(type(of: self))]",
             updateBlock: {
-                _ = try await GroupManager.updateGroupAttributes(
+                try await GroupManager.updateGroupAttributes(
                     title: currentTitle,
                     description: currentDescription,
                     avatarData: currentAvatarData,
                     inExistingGroup: oldGroupModel
                 )
             },
-            completion: { _ in completion() }
+            completion: completion
         )
     }
 }
@@ -343,12 +352,21 @@ struct GroupAvatar {
 extension GroupAttributesEditorHelper: UITextFieldDelegate {
     public func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString: String) -> Bool {
         // Truncate the replacement to fit.
-        return TextFieldHelper.textField(
+        let isValidChange = TextFieldHelper.textField(
             textField,
             shouldChangeCharactersInRange: range,
             replacementString: replacementString.withoutBidiControlCharacters(),
             maxGlyphCount: GroupManager.maxGroupNameGlyphCount
         )
+
+        if
+            replacementString.glyphCount > GroupManager.maxGroupNameGlyphCount,
+            textField.text?.isEmpty == false
+        {
+            textFieldDidChange(textField)
+        }
+
+        return isValidChange
     }
 }
 

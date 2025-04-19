@@ -56,20 +56,20 @@ final class OutgoingCallEventSyncMessageSerializationTest: SSKBaseTest {
     /// ``OutgoingCallEventSyncMessage`` will continue to serialize/deserialize
     /// correctly. This should be trivial, but Mantle makes me nervous.
     func testCallEventRoundTrip() throws {
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: .init(
                     aci: .init(fromUUID: UUID()),
                     pni: .init(fromUUID: UUID()),
                     e164: .init("+17735550199")!
                 ),
-                tx: tx.asV2Write
+                tx: tx
             )
         }
 
         let syncMessage: OutgoingCallEventSyncMessage = write { tx in
             return OutgoingCallEventSyncMessage(
-                thread: ContactThreadFactory().create(transaction: tx),
+                localThread: ContactThreadFactory().create(transaction: tx),
                 event: OutgoingCallEvent(
                     timestamp: 98765,
                     conversationId: Aci.randomForTesting().serviceIdBinary.asData,

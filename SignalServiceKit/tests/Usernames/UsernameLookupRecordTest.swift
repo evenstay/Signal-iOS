@@ -18,13 +18,14 @@ final class UsernameLookupRecordTest: XCTestCase {
     }
 
     func testRoundTrip() throws {
+        let store = UsernameLookupRecordStoreImpl()
         for (idx, (constant, _)) in UsernameLookupRecord.constants.enumerated() {
             inMemoryDB.insert(record: constant)
 
             let deserialized = inMemoryDB.read { tx in
-                return UsernameLookupRecordStoreImpl._fetchOne(
+                return store.fetchOne(
                     forAci: Aci(fromUUID: constant.aci),
-                    database: InMemoryDB.shimOnlyBridge(tx).db
+                    tx: tx
                 )
             }
 
@@ -42,16 +43,16 @@ final class UsernameLookupRecordTest: XCTestCase {
             }
 
             inMemoryDB.write { tx in
-                UsernameLookupRecordStoreImpl._deleteOne(
+                store.deleteOne(
                     forAci: Aci(fromUUID: constant.aci),
-                    database: InMemoryDB.shimOnlyBridge(tx).db
+                    tx: tx
                 )
             }
 
             XCTAssertNil(inMemoryDB.read { tx in
-                return UsernameLookupRecordStoreImpl._fetchOne(
+                return store.fetchOne(
                     forAci: Aci(fromUUID: constant.aci),
-                    database: InMemoryDB.shimOnlyBridge(tx).db
+                    tx: tx
                 )
             })
         }
@@ -90,10 +91,10 @@ final class UsernameLookupRecordTest: XCTestCase {
 }
 
 extension UsernameLookupRecord: ValidatableModel {
-    static var constants: [(UsernameLookupRecord, base64JsonData: Data)] = [
+    static var constants: [(UsernameLookupRecord, jsonData: Data)] = [
         (
             UsernameLookupRecord(aci: Aci.constantForTesting("effc880f-8b41-4985-9bf6-3c4f0231a959"), username: "boba_fett.42"),
-            Data(base64Encoded: "eyJhY2kiOiJFRkZDODgwRi04QjQxLTQ5ODUtOUJGNi0zQzRGMDIzMUE5NTkiLCJ1c2VybmFtZSI6ImJvYmFfZmV0dC40MiJ9")!
+            Data(#"{"aci":"EFFC880F-8B41-4985-9BF6-3C4F0231A959","username":"boba_fett.42"}"#.utf8)
         )
     ]
 

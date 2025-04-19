@@ -46,12 +46,11 @@ public class OWSUserProfileBadgeInfo: NSObject, Codable {
     }
 
     @objc
-    public func loadBadge(transaction: SDSAnyReadTransaction) {
-        badge = profileManager.badgeStore.fetchBadgeWithId(badgeId, readTx: transaction)
+    public func loadBadge(transaction: DBReadTransaction) {
+        badge = SSKEnvironment.shared.profileManagerRef.badgeStore.fetchBadgeWithId(badgeId, readTx: transaction)
     }
 
-    @objc
-    public func fetchBadgeContent(transaction: SDSAnyReadTransaction) -> ProfileBadge? {
+    public func fetchBadgeContent(transaction: DBReadTransaction) -> ProfileBadge? {
         return badge ?? {
             loadBadge(transaction: transaction)
             return badge
@@ -544,7 +543,7 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
     /// that are about to be referenced.
     static func consumeTemporaryAvatarFileUrl(
         _ avatarFileUrl: OptionalChange<URL?>,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) throws -> OptionalChange<String?> {
         switch avatarFileUrl {
         case .noChange:
@@ -559,12 +558,40 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
         }
     }
 
-    @objc
+    public func hasAvatarData() -> Bool {
+        guard let avatarFileName = avatarFileName?.nilIfEmpty else {
+            return false
+        }
+        return FileManager.default.fileExists(atPath: Self.profileAvatarFilePath(for: avatarFileName))
+    }
+
+    public func loadAvatarData() -> Data? {
+        guard let avatarFileName else {
+            return nil
+        }
+        let avatarFileUrl = URL(fileURLWithPath: Self.profileAvatarFilePath(for: avatarFileName))
+        guard let avatarData = try? Data(contentsOf: avatarFileUrl), avatarData.ows_isValidImage else {
+            Logger.warn("Couldn't load or validate avatar image data")
+            return nil
+        }
+        return avatarData
+    }
+
+    public func loadAvatarImage() -> UIImage? {
+        guard let avatarData = loadAvatarData() else {
+            return nil
+        }
+        guard let avatarImage = UIImage(data: avatarData) else {
+            Logger.warn("Couldn't decode avatar image data")
+            return nil
+        }
+        return avatarImage
+    }
+
     public static var legacyProfileAvatarsDirPath: String {
         return OWSFileSystem.appDocumentDirectoryPath().appendingPathComponent("ProfileAvatars")
     }
 
-    @objc
     public static var sharedDataProfileAvatarsDirPath: String {
         return OWSFileSystem.appSharedDataDirectoryPath().appendingPathComponent("ProfileAvatars")
     }
@@ -587,17 +614,8 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
 
     // TODO: We may want to clean up this directory in the "orphan cleanup" logic.
 
-    public static func resetProfileStorage() {
-        AssertIsOnMainThread()
-        do {
-            try FileManager.default.removeItem(atPath: profileAvatarsDirPath)
-        } catch {
-            Logger.error("Failed to delete database: \(error)")
-        }
-    }
-
     @objc
-    public static func allProfileAvatarFilePaths(tx: SDSAnyReadTransaction) -> Set<String> {
+    public static func allProfileAvatarFilePaths(tx: DBReadTransaction) -> Set<String> {
         var result = Set<String>()
         Self.anyEnumerate(transaction: tx, batchingPreference: .batched(Batching.kDefaultBatchSize)) { userProfile, _ in
             if let avatarFileName = userProfile.avatarFileName {
@@ -609,6 +627,10 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
 
     // MARK: - Badges
 
+    public var hasBadge: Bool {
+        return !badges.isEmpty
+    }
+
     public var visibleBadges: [OWSUserProfileBadgeInfo] {
         return badges.filter { $0.isVisible ?? true }
     }
@@ -617,11 +639,15 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
         return visibleBadges.first
     }
 
-    func loadBadgeContent(tx: SDSAnyReadTransaction) {
+    func loadBadgeContent(tx: DBReadTransaction) {
         badges.forEach({ $0.loadBadge(transaction: tx) })
     }
 
     // MARK: - Bio
+
+    public var bioForDisplay: String? {
+        return Self.bioForDisplay(bio: bio, bioEmoji: bioEmoji)
+    }
 
     private static let bioComponentCache = LRUCache<String, String>(maxSize: 256)
     private static let unfairLock = UnfairLock()
@@ -644,7 +670,6 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
 
     /// Joins the two bio components into a single string ready for display. It
     /// filters and enforces length limits on the components.
-    @objc
     public static func bioForDisplay(bio: String?, bioEmoji: String?) -> String? {
         var components = [String]()
         // TODO: We could use EmojiWithSkinTones to check for availability of the emoji.
@@ -670,6 +695,14 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
 
     // MARK: - Name
 
+    public var filteredGivenName: String? { givenName?.filterForDisplay }
+
+    public var hasNonEmptyFilteredGivenName: Bool {
+        return filteredGivenName?.nilIfEmpty != nil
+    }
+
+    public var filteredFamilyName: String? { familyName?.filterForDisplay }
+
     public var nameComponents: PersonNameComponents? {
         guard let givenName = self.givenName?.strippedOrNil else {
             return nil
@@ -680,13 +713,6 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
         return result
     }
 
-    @objc
-    public var filteredGivenName: String? { givenName?.filterForDisplay }
-
-    @objc
-    public var filteredFamilyName: String? { familyName?.filterForDisplay }
-
-    @objc
     public var filteredNameComponents: PersonNameComponents? {
         guard let givenName = self.filteredGivenName?.nilIfEmpty else {
             return nil
@@ -697,7 +723,6 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
         return result
     }
 
-    @objc
     public var filteredFullName: String? {
         return filteredNameComponents.map(OWSFormat.formatNameComponents(_:))?.filterForDisplay
     }
@@ -708,8 +733,8 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
         return try Aes256GcmEncryptedData.encrypt(profileData, key: profileKey.keyData).concatenate()
     }
 
-    public class func decrypt(profileData: Data, profileKey: Aes256Key) throws -> Data {
-        return try Aes256GcmEncryptedData(concatenated: profileData).decrypt(key: profileKey.keyData)
+    public class func decrypt(profileData: Data, profileKey: ProfileKey) throws -> Data {
+        return try Aes256GcmEncryptedData(concatenated: profileData).decrypt(key: profileKey.serialize().asData)
     }
 
     enum DecryptionError: Error {
@@ -717,7 +742,7 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
         case malformedValue
     }
 
-    class func decrypt(profileNameData: Data, profileKey: Aes256Key) throws -> (givenName: String, familyName: String?) {
+    class func decrypt(profileNameData: Data, profileKey: ProfileKey) throws -> (givenName: String, familyName: String?) {
         let decryptedData = try decrypt(profileData: profileNameData, profileKey: profileKey)
 
         func parseNameSegment(_ nameSegment: Data) throws -> String? {
@@ -738,7 +763,7 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
         return (givenName, try familyName.flatMap(parseNameSegment(_:)))
     }
 
-    class func decrypt(profileStringData: Data, profileKey: Aes256Key) throws -> String? {
+    class func decrypt(profileStringData: Data, profileKey: ProfileKey) throws -> String? {
         let decryptedData = try decrypt(profileData: profileStringData, profileKey: profileKey)
 
         // Remove padding.
@@ -749,7 +774,7 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
         return value.nilIfEmpty
     }
 
-    class func decrypt(profileBooleanData: Data, profileKey: Aes256Key) throws -> Bool {
+    class func decrypt(profileBooleanData: Data, profileKey: ProfileKey) throws -> Bool {
         switch try decrypt(profileData: profileBooleanData, profileKey: profileKey) {
         case Data([1]):
             return true
@@ -788,23 +813,17 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
 
     // MARK: - Fetching & Creating
 
-    @objc
-    public static func getUserProfileForLocalUser(tx: SDSAnyReadTransaction) -> OWSUserProfile? {
+    public static func getUserProfileForLocalUser(tx: DBReadTransaction) -> OWSUserProfile? {
         return getUserProfile(for: .localUser, tx: tx)
     }
 
-    public static func getUserProfile(for address: Address, tx: SDSAnyReadTransaction) -> OWSUserProfile? {
+    public static func getUserProfile(for address: Address, tx: DBReadTransaction) -> OWSUserProfile? {
         return UserProfileFinder().userProfile(for: address, transaction: tx)
-    }
-
-    @objc
-    public static func doesLocalProfileExist(transaction tx: SDSAnyReadTransaction) -> Bool {
-        return UserProfileFinder().userProfile(for: .localUser, transaction: tx) != nil
     }
 
     public class func getOrBuildUserProfileForLocalUser(
         userProfileWriter: UserProfileWriter,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> OWSUserProfile {
         return getOrBuildUserProfile(
             for: .localUser,
@@ -816,7 +835,7 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
     public class func getOrBuildUserProfile(
         for insertableAddress: InsertableAddress,
         userProfileWriter: UserProfileWriter,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> OWSUserProfile {
         // If we already have a profile for this address, return it.
         if let userProfile = fetchAndExpungeUserProfiles(for: insertableAddress, tx: tx) {
@@ -839,8 +858,7 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
             userProfile.update(
                 profileKey: .setTo(Aes256Key.generateRandom()),
                 userProfileWriter: userProfileWriter,
-                transaction: tx,
-                completion: nil
+                transaction: tx
             )
         }
         return userProfile
@@ -853,7 +871,7 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
     /// remove duplicates.
     private class func fetchAndExpungeUserProfiles(
         for insertableAddress: InsertableAddress,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> OWSUserProfile? {
         let userProfiles: [OWSUserProfile]
         switch insertableAddress {
@@ -878,14 +896,14 @@ public final class OWSUserProfile: NSObject, NSCopying, SDSCodableModel, Decodab
         self.id = rowID
     }
 
-    public func anyDidInsert(transaction: SDSAnyWriteTransaction) {
+    public func anyDidInsert(transaction: DBWriteTransaction) {
         let searchableNameIndexer = DependenciesBridge.shared.searchableNameIndexer
-        searchableNameIndexer.insert(self, tx: transaction.asV2Write)
+        searchableNameIndexer.insert(self, tx: transaction)
     }
 
-    public func anyDidUpdate(transaction: SDSAnyWriteTransaction) {
+    public func anyDidUpdate(transaction: DBWriteTransaction) {
         let searchableNameIndexer = DependenciesBridge.shared.searchableNameIndexer
-        searchableNameIndexer.update(self, tx: transaction.asV2Write)
+        searchableNameIndexer.update(self, tx: transaction)
     }
 
     // MARK: - ObjC Compability
@@ -929,9 +947,7 @@ extension OWSUserProfile {
             guard let strippedTruncatedString = StrippedNonEmptyString(rawValue: truncatedString) else {
                 return nil
             }
-            guard let dataValue = strippedTruncatedString.rawValue.data(using: .utf8) else {
-                return nil
-            }
+            let dataValue = Data(strippedTruncatedString.rawValue.utf8)
             return (
                 NameComponent(stringValue: strippedTruncatedString, dataValue: dataValue),
                 didTruncate: truncatedString != strippedString
@@ -1019,6 +1035,7 @@ extension OWSUserProfile {
                 case .messageBackupRestore: fallthrough
                 case .registration: fallthrough
                 case .storageService: fallthrough
+                case .reupload: fallthrough
                 case .tests:
                     return true
 
@@ -1027,7 +1044,6 @@ extension OWSUserProfile {
                 case .linking: fallthrough
                 case .metadataUpdate: fallthrough
                 case .profileFetch: fallthrough
-                case .reupload: fallthrough
                 case .syncMessage:
                     return false
 
@@ -1054,7 +1070,7 @@ extension OWSUserProfile {
         }
 
         // We special-case avatar changes in a few places.
-        let canUpdateAvatarUrlPath = canModifyStorageServiceProperties || userProfileWriter == .reupload
+        let canUpdateAvatarUrlPath = canModifyStorageServiceProperties
         let canUpdateAvatarFileName = canUpdateAvatarUrlPath || userProfileWriter == .avatarDownload
         let didChangeAvatar = updateAvatar(
             avatarUrlPath: canUpdateAvatarUrlPath ? changes.avatarUrlPath : .noChange,
@@ -1101,10 +1117,9 @@ extension OWSUserProfile {
     private func applyChanges(
         _ changes: UserProfileChanges,
         userProfileWriter: UserProfileWriter,
-        tx: SDSAnyWriteTransaction,
-        completion: (() -> Void)?
+        tx: DBWriteTransaction
     ) {
-        let displayNameBeforeLearningProfileName = displayNameBeforeLearningProfileNameIfNecessary(tx: tx.asV2Read)
+        let displayNameBeforeLearningProfileName = displayNameBeforeLearningProfileNameIfNecessary(tx: tx)
 
         let internalAddress = self.internalAddress
 
@@ -1158,16 +1173,8 @@ extension OWSUserProfile {
             Logger.info("Updated \(internalAddress): \(changeSummaries.joined(separator: ", "))")
         }
 
-        if let completion {
-            tx.addAsyncCompletionOffMain(completion)
-        }
-
-        if case .localUser = internalAddress {
-            profileManager.localProfileWasUpdated(self)
-        }
-
         if case .localUser = internalAddress, case .setTo = changes.badges {
-            subscriptionManager.reconcileBadgeStates(transaction: tx)
+            DonationSubscriptionManager.reconcileBadgeStates(transaction: tx)
         }
 
         if let oldInstance {
@@ -1181,7 +1188,7 @@ extension OWSUserProfile {
 
         if
             let displayNameBeforeLearningProfileName,
-            displayNameBeforeLearningProfileNameIfNecessary(tx: tx.asV2Read) == nil
+            displayNameBeforeLearningProfileNameIfNecessary(tx: tx) == nil
         {
             /// We didn't have a pre-profile-key display name for this profile
             /// before applying changes, but we do know. Insert an info message
@@ -1189,14 +1196,14 @@ extension OWSUserProfile {
             TSInfoMessage.insertLearnedProfileNameMessage(
                 serviceId: displayNameBeforeLearningProfileName.serviceId,
                 displayNameBefore: displayNameBeforeLearningProfileName.displayName,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
 
         updatePhoneNumberVisibilityIfNeeded(
             oldUserProfile: oldInstance,
             newUserProfile: newInstance,
-            tx: tx.asV2Write
+            tx: tx
         )
 
         if changeResult == .nothing {
@@ -1207,7 +1214,7 @@ extension OWSUserProfile {
         // avatar information on the service except for the local user.
         let shouldUpdateStorageService: Bool = {
             let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-            guard tsAccountManager.registrationState(tx: tx.asV2Read).isRegistered else {
+            guard tsAccountManager.registrationState(tx: tx).isRegistered else {
                 return false
             }
             guard userProfileWriter.shouldUpdateStorageService else {
@@ -1224,12 +1231,12 @@ extension OWSUserProfile {
         }()
 
         if shouldUpdateStorageService {
-            tx.addAsyncCompletionOffMain {
+            tx.addSyncCompletion {
                 switch internalAddress {
                 case .localUser:
-                    self.storageServiceManager.recordPendingLocalAccountUpdates()
+                    SSKEnvironment.shared.storageServiceManagerRef.recordPendingLocalAccountUpdates()
                 case .otherUser(let address):
-                    self.storageServiceManager.recordPendingUpdates(updatedAddresses: [address])
+                    SSKEnvironment.shared.storageServiceManagerRef.recordPendingUpdates(updatedAddresses: [address])
                 }
             }
         }
@@ -1237,16 +1244,16 @@ extension OWSUserProfile {
         let oldProfileKey = oldInstance?.profileKey
         let newProfileKey = newInstance.profileKey
 
-        tx.addAsyncCompletionOnMain {
+        tx.addSyncCompletion {
             switch internalAddress {
             case .localUser:
                 if oldProfileKey != newProfileKey {
-                    NotificationCenter.default.postNotificationNameAsync(UserProfileNotifications.localProfileKeyDidChange, object: nil)
+                    NotificationCenter.default.postOnMainThread(name: UserProfileNotifications.localProfileKeyDidChange, object: nil)
                 }
-                NotificationCenter.default.postNotificationNameAsync(UserProfileNotifications.localProfileDidChange, object: nil)
+                NotificationCenter.default.postOnMainThread(name: UserProfileNotifications.localProfileDidChange, object: nil)
             case .otherUser(let address):
-                NotificationCenter.default.postNotificationNameAsync(
-                    UserProfileNotifications.otherUsersProfileDidChange,
+                NotificationCenter.default.postOnMainThread(
+                    name: UserProfileNotifications.otherUsersProfileDidChange,
                     object: nil,
                     userInfo: [UserProfileNotifications.profileAddressKey: address]
                 )
@@ -1266,7 +1273,7 @@ extension OWSUserProfile {
     /// This implementation deliberately avoids the typical `DisplayName`
     /// calculation in `ContactManager`. See comments inline.
     private func displayNameBeforeLearningProfileNameIfNecessary(
-        tx: any DBReadTransaction
+        tx: DBReadTransaction
     ) -> DisplayNameBeforeLearningProfileName? {
         guard givenName == nil else {
             return nil
@@ -1342,7 +1349,7 @@ extension OWSUserProfile {
         // Tell the cache to refresh its state for this recipient. It will check
         // whether or not the number should be visible based on this state and the
         // state of system contacts.
-        signalServiceAddressCache.updateRecipient(recipient, tx: tx)
+        SSKEnvironment.shared.signalServiceAddressCacheRef.updateRecipient(recipient, tx: tx)
     }
 
     /// Applies changes specified by the properties.
@@ -1359,8 +1366,7 @@ extension OWSUserProfile {
         badges: OptionalChange<[OWSUserProfileBadgeInfo]> = .noChange,
         isPhoneNumberShared: OptionalChange<Bool?> = .noChange,
         userProfileWriter: UserProfileWriter,
-        transaction: SDSAnyWriteTransaction,
-        completion: (() -> Void)?
+        transaction: DBWriteTransaction
     ) {
         applyChanges(
             UserProfileChanges(
@@ -1377,34 +1383,9 @@ extension OWSUserProfile {
                 isPhoneNumberShared: isPhoneNumberShared
             ),
             userProfileWriter: userProfileWriter,
-            tx: transaction,
-            completion: completion
+            tx: transaction
         )
     }
-
-    #if USE_DEBUG_UI
-    public func clearProfile(
-        profileKey: Aes256Key,
-        userProfileWriter: UserProfileWriter,
-        transaction: SDSAnyWriteTransaction,
-        completion: (() -> Void)?
-    ) {
-        // This is only used for debugging.
-        owsAssertDebug(userProfileWriter == .debugging)
-        update(
-            givenName: .setTo(nil),
-            familyName: .setTo(nil),
-            bio: .setTo(nil),
-            bioEmoji: .setTo(nil),
-            avatarUrlPath: .setTo(nil),
-            avatarFileName: .setTo(nil),
-            profileKey: .setTo(profileKey),
-            userProfileWriter: userProfileWriter,
-            transaction: transaction,
-            completion: completion
-        )
-    }
-    #endif
 }
 
 // MARK: - Update without side effects
@@ -1422,26 +1403,11 @@ extension OWSUserProfile {
         familyName: String?,
         avatarUrlPath: String?,
         profileKey: Aes256Key?,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         self.givenName = givenName
         self.familyName = familyName
         self.avatarUrlPath = avatarUrlPath
-        self.profileKey = profileKey
-
-        anyUpsert(transaction: tx)
-    }
-
-    /// Updates the profile key for this model on disk with no other
-    /// side-effects, such as triggering profile fetches, updating storage
-    /// service, or posting local notifications.
-    ///
-    /// - Important
-    /// Only callers who are updating the profile in a vacuum should call this.
-    public func upsertProfileKeyWithNoSideEffects(
-        _ profileKey: Aes256Key,
-        tx: SDSAnyWriteTransaction
-    ) {
         self.profileKey = profileKey
 
         anyUpsert(transaction: tx)
@@ -1451,7 +1417,7 @@ extension OWSUserProfile {
 // MARK: -
 
 extension OWSUserProfile {
-    static func getUserProfiles(for addresses: [Address], tx: SDSAnyReadTransaction) -> [OWSUserProfile?] {
+    static func getUserProfiles(for addresses: [Address], tx: DBReadTransaction) -> [OWSUserProfile?] {
         return UserProfileFinder().userProfiles(for: addresses, tx: tx)
     }
 }

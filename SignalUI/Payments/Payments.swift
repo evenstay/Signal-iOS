@@ -11,28 +11,26 @@ public protocol Payments: AnyObject {
 
     func walletAddressBase58() -> String?
 
-    func walletAddressQRUrl() -> URL?
-
     var shouldShowPaymentsUI: Bool { get }
 
     var paymentsEntropy: Data? { get }
 
     func isValidMobileCoinPublicAddress(_ publicAddressData: Data) -> Bool
 
-    func scheduleReconciliationNow(transaction: SDSAnyWriteTransaction)
+    func scheduleReconciliationNow(transaction: DBWriteTransaction)
 
     func replaceAsUnidentified(paymentModel oldPaymentModel: TSPaymentModel,
-                               transaction: SDSAnyWriteTransaction)
+                               transaction: DBWriteTransaction)
 
     func findPaymentModels(withMCLedgerBlockIndex mcLedgerBlockIndex: UInt64,
                            mcIncomingTransactionPublicKey: Data,
-                           transaction: SDSAnyReadTransaction) -> [TSPaymentModel]
+                           transaction: DBReadTransaction) -> [TSPaymentModel]
 
     func didReceiveMCAuthError()
 
     var isKillSwitchActive: Bool { get }
 
-    func clearState(transaction: SDSAnyWriteTransaction)
+    func clearState(transaction: DBWriteTransaction)
 }
 
 // MARK: -
@@ -82,7 +80,7 @@ extension PaymentsPassphrase {
         }
         if validateWords {
             for word in words {
-                guard Self.paymentsSwift.isValidPassphraseWord(word) else {
+                guard SUIEnvironment.shared.paymentsSwiftRef.isValidPassphraseWord(word) else {
                     Logger.warn("Invalid passphrase word.")
                     throw PaymentsError.invalidPassphrase
                 }
@@ -140,17 +138,13 @@ extension MockPayments: PaymentsSwift {
         owsFail("Not implemented.")
     }
 
-    public func walletAddressQRUrl() -> URL? {
-        owsFail("Not implemented.")
-    }
-
     public var isKillSwitchActive: Bool { false }
 
     public func warmCaches() {
         // Do nothing.
     }
 
-    public func clearState(transaction: SDSAnyWriteTransaction) {
+    public func clearState(transaction: DBWriteTransaction) {
         owsFail("Not implemented.")
     }
 
@@ -192,18 +186,18 @@ extension MockPayments: PaymentsSwift {
         owsFail("Not implemented.")
     }
 
-    public func scheduleReconciliationNow(transaction: SDSAnyWriteTransaction) {
+    public func scheduleReconciliationNow(transaction: DBWriteTransaction) {
         owsFail("Not implemented.")
     }
 
     public func replaceAsUnidentified(paymentModel oldPaymentModel: TSPaymentModel,
-                                      transaction: SDSAnyWriteTransaction) {
+                                      transaction: DBWriteTransaction) {
         owsFail("Not implemented.")
     }
 
     public func findPaymentModels(withMCLedgerBlockIndex mcLedgerBlockIndex: UInt64,
                                   mcIncomingTransactionPublicKey: Data,
-                                  transaction: SDSAnyReadTransaction) -> [TSPaymentModel] {
+                                  transaction: DBReadTransaction) -> [TSPaymentModel] {
         owsFail("Not implemented.")
     }
 

@@ -6,8 +6,7 @@
 import Foundation
 import GRDB
 
-/// Fulfills the contract of MediaGalleryResourceFinder for v2 attachments only.,
-/// driven entirely by the AttachmentReferences table.
+/// Fulfills the contract of MediaGallery, driven entirely by the AttachmentReferences table.
 ///
 /// Even this is still a stepping stone. The API contract for the MediaGalleryFinder
 /// classes as written assumes that the thing being iterated over (MediaGalleryRecord)
@@ -22,25 +21,14 @@ import GRDB
 /// That is left as an exercise for some future developer.
 public struct MediaGalleryAttachmentFinder {
 
-    public let thread: TSThread
+    public let threadId: Int64
 
     /// Media will be restricted to this type. Otherwise there is no filtering.
     public var filter: AllMediaFilter
 
-    public init(thread: TSThread, filter: AllMediaFilter) {
-        owsAssertDebug(thread.grdbId != 0, "only supports GRDB")
-        self.thread = thread
+    public init(threadId: Int64, filter: AllMediaFilter) {
+        self.threadId = threadId
         self.filter = filter
-    }
-
-    // MARK: -
-
-    public var threadId: Int64 {
-        guard let rowId = thread.grdbId else {
-            owsFailDebug("thread.grdbId was unexpectedly nil")
-            return 0
-        }
-        return rowId.int64Value
     }
 
     // MARK: - Public Methods
@@ -61,7 +49,7 @@ public struct MediaGalleryAttachmentFinder {
 
         do {
             return try query
-                .fetchAll(SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database)
+                .fetchAll(tx.database)
                 .map { (record) -> AttachmentReferenceId in
                     let reference = try AttachmentReference(record: record)
                     return .init(
@@ -91,7 +79,7 @@ public struct MediaGalleryAttachmentFinder {
 
         do {
             return try query
-                .fetchAll(SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database)
+                .fetchAll(tx.database)
                 .map { (record) -> DatedAttachmentReferenceId in
                     let reference = try AttachmentReference(record: record)
                     return .init(
@@ -111,7 +99,7 @@ public struct MediaGalleryAttachmentFinder {
     public func recentMediaAttachments(limit: Int, tx: DBReadTransaction) -> [ReferencedAttachment] {
         do {
             let references = try recentMediaAttachmentsQuery(limit: limit)
-                .fetchAll(SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database)
+                .fetchAll(tx.database)
                 .map(AttachmentReference.init(record:))
 
             let attachments = DependenciesBridge.shared.attachmentStore.fetch(
@@ -146,7 +134,7 @@ public struct MediaGalleryAttachmentFinder {
 
         do {
             let cursor = try query
-                .fetchCursor(SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database)
+                .fetchCursor(tx.database)
 
             var index = range.lowerBound
             while let referenceRecord = try cursor.next() {
@@ -229,7 +217,7 @@ public struct MediaGalleryAttachmentFinder {
 
         do {
             let cursor = try query
-                .fetchCursor(SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database)
+                .fetchCursor(tx.database)
 
             var countSoFar = 0
             while let record = try cursor.next() {
@@ -290,6 +278,7 @@ public struct MediaGalleryAttachmentFinder {
         let contentTypeColumn = Column(RecordType.CodingKeys.contentType)
         let ownerTypeColumn = Column(RecordType.CodingKeys.ownerType)
         let isViewOnceColumn = Column(RecordType.CodingKeys.isViewOnce)
+        let isPastEditRevisionColumn = Column(RecordType.CodingKeys.ownerIsPastEditRevision)
 
         var query: QueryInterfaceRequest<RecordType> = RecordType
             // All finders are thread-scoped; filter to this thread.
@@ -298,6 +287,8 @@ public struct MediaGalleryAttachmentFinder {
             .filter(ownerTypeColumn == AttachmentReference.MessageOwnerTypeRaw.bodyAttachment.rawValue)
             // Never show view once media in the gallery
             .filter(isViewOnceColumn == false)
+            // Never show past edit revisions in the gallery
+            .filter(isPastEditRevisionColumn == false)
 
         switch filter {
         case .allPhotoVideoCategory:
@@ -305,9 +296,20 @@ public struct MediaGalleryAttachmentFinder {
         case .allAudioCategory:
             query = query
                 .filter(contentTypeColumn == AttachmentReference.ContentType.audio.rawValue)
+        case .otherFiles:
+            query = query.filter(literal: "isInvalidOrFileContentType = \(true)")
         case .gifs:
+            // NOTE: this query will not make complete use of an index; it has to combine the results
+            // of two indexes and use a temp b-tree for sorting. This is suboptimal but fine in practice
+            // as it will use two indexes to filter to only gifs/looping videos within the thread.
             query = query
-                .filter(contentTypeColumn == AttachmentReference.ContentType.animatedImage.rawValue)
+                .filter(
+                    contentTypeColumn == AttachmentReference.ContentType.animatedImage.rawValue
+                    || (
+                        contentTypeColumn == AttachmentReference.ContentType.video.rawValue
+                        && renderingFlagColumn == AttachmentReference.RenderingFlag.shouldLoop.rawValue
+                    )
+                )
         case .videos:
             query = query
                 .filter(contentTypeColumn == AttachmentReference.ContentType.video.rawValue)

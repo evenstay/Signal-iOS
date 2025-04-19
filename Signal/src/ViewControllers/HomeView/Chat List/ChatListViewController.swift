@@ -8,7 +8,6 @@ public import SignalUI
 import StoreKit
 
 public class ChatListViewController: OWSViewController, HomeTabViewController {
-
     let appReadiness: AppReadinessSetter
 
     init(
@@ -35,7 +34,9 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
 
     // MARK: View Lifecycle
 
-    private lazy var filterControl = ChatListFilterControl()
+    public override func loadView() {
+        view = containerView
+    }
 
     public override func viewDidLoad() {
         super.viewDidLoad()
@@ -54,15 +55,16 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         }
 
         // Table View
-        view.addSubview(tableView)
-        tableView.autoPinEdgesToSuperviewEdges()
         tableView.accessibilityIdentifier = "ChatListViewController.tableView"
         tableView.rowHeight = UITableView.automaticDimension
         tableView.estimatedRowHeight = 60
         tableView.allowsSelectionDuringEditing = true
         tableView.allowsMultipleSelectionDuringEditing = true
-        tableView.tableHeaderView = filterControl
-        filterControl.delegate = self
+
+        if let filterControl {
+            filterControl.clearAction = .disableChatListFilter(target: self)
+            filterControl.delegate = self
+        }
 
         // Empty Inbox
         view.addSubview(emptyInboxView)
@@ -85,7 +87,12 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         searchResultsController.delegate = self
 
         updateBarButtonItems()
-        updateReminderViews()
+        updateArchiveReminderView()
+        updateRegistrationReminderView()
+        updateOutageDetectionReminderView()
+        updateExpirationReminderView()
+        updatePaymentReminderView()
+        updateUsernameReminderView()
         applyTheme()
         observeNotifications()
     }
@@ -108,7 +115,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
 
         if isSearching {
             scrollSearchBarToTop(animated: false)
-        } else if let lastViewedThread {
+        } else if let lastViewedThreadUniqueId {
             owsAssertDebug((searchBar.text ?? "").stripped.isEmpty)
 
             // When returning to conversation list, try to ensure that the "last" thread is still
@@ -116,7 +123,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
             // to incoming & outgoing messages. Reload to ensure we have this latest ordering
             // before we find the index path we want to scroll to.
             loadCoordinator.loadIfNecessary(suppressAnimations: true, shouldForceLoad: true)
-            if let indexPathOfLastThread = renderState.indexPath(forUniqueId: lastViewedThread.uniqueId) {
+            if let indexPathOfLastThread = renderState.indexPath(forUniqueId: lastViewedThreadUniqueId) {
                 tableView.scrollToRow(at: indexPathOfLastThread, at: .none, animated: false)
             }
         }
@@ -145,14 +152,17 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
             ensureCellAnimations()
         }
 
-        if let selectedIndexPath = tableView.indexPathForSelectedRow, let selectedThread = renderState.thread(forIndexPath: selectedIndexPath) {
-            if viewState.lastSelectedThreadId != selectedThread.uniqueId {
+        let isCollapsed = splitViewController?.isCollapsed ?? true
+        if
+            let selectedIndexPath = tableView.indexPathForSelectedRow,
+            let selectedThreadUniqueId = renderState.threadUniqueId(forIndexPath: selectedIndexPath)
+        {
+            if viewState.lastSelectedThreadId != selectedThreadUniqueId {
                 owsFailDebug("viewState.lastSelectedThreadId out of sync with table view")
-                viewState.lastSelectedThreadId = selectedThread.uniqueId
+                viewState.lastSelectedThreadId = selectedThreadUniqueId
                 updateShouldBeUpdatingView()
             }
 
-            let isCollapsed = splitViewController?.isCollapsed ?? true
             if isCollapsed {
                 if animated, let transitionCoordinator {
                     transitionCoordinator.animate { [self] _ in
@@ -162,18 +172,25 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
                             tableView.selectRow(at: selectedIndexPath, animated: false, scrollPosition: .none)
                         } else {
                             viewState.lastSelectedThreadId = nil
-                            loadCoordinator.scheduleLoad(updatedThreadIds: [selectedThread.uniqueId], animated: true)
+                            loadCoordinator.scheduleLoad(updatedThreadIds: [selectedThreadUniqueId], animated: true)
                         }
                     }
                 } else {
                     // No animated transition, so just update the state immediately.
                     viewState.lastSelectedThreadId = nil
                     tableView.deselectRow(at: selectedIndexPath, animated: false)
-                    loadCoordinator.scheduleLoad(updatedThreadIds: [selectedThread.uniqueId], animated: false)
+                    loadCoordinator.scheduleLoad(updatedThreadIds: [selectedThreadUniqueId], animated: false)
                 }
             }
+        } else if isCollapsed, let threadId = viewState.lastSelectedThreadId {
+            // If there is no currently selected table row, clean up the
+            // lastSelectedThreadId viewState and reload that item
+            viewState.lastSelectedThreadId = nil
+            loadCoordinator.scheduleLoad(updatedThreadIds: [threadId], animated: animated)
         }
     }
+
+    private var hasPresentedBackupErrors = false
 
     public override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -184,6 +201,11 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
             hasEverPresentedExperienceUpgrade = true
         } else if !hasEverAppeared {
             presentGetStartedBannerIfNecessary()
+        }
+
+        if !hasPresentedBackupErrors {
+            hasPresentedBackupErrors = true
+            DependenciesBridge.shared.messageBackupErrorPresenter.presentOverTopmostViewController(completion: {})
         }
 
         // Whether or not the theme has changed, always ensure
@@ -232,6 +254,12 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         searchResultsController.viewDidDisappear(animated)
     }
 
+    public override func viewIsAppearing(_ animated: Bool) {
+        super.viewIsAppearing(animated)
+
+        updateFilterControl(animated: false)
+    }
+
     public override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
 
@@ -241,13 +269,8 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
             CGFloat(0.0)
         }
 
-        if !hasEverAppeared {
-            filterControl.sizeToFit()
-            updateFilterControl(animated: false)
-        }
-
         if tableView.contentInset.bottom != bottomInset {
-            UIView.animate(withDuration: 0.25) {
+            UIView.animate(withDuration: CATransaction.animationDuration()) {
                 self.tableView.contentInset.bottom = bottomInset
             }
         }
@@ -279,6 +302,8 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         super.viewWillTransition(to: size, with: coordinator)
 
         guard isViewLoaded else { return }
+
+        containerView.willTransition(to: size, with: coordinator)
 
         // There is a subtle difference in when the split view controller
         // transitions between collapsed and expanded state on iPad vs
@@ -389,19 +414,17 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
 
     private func settingsBarButtonItem() -> UIBarButtonItem {
         let barButtonItem = createSettingsBarButtonItem(
-            databaseStorage: databaseStorage,
+            databaseStorage: SSKEnvironment.shared.databaseStorageRef,
             shouldShowUnreadPaymentBadge: viewState.settingsButtonCreator.hasUnreadPaymentNotification,
             buildActions: { settingsAction -> [UIAction] in
                 var contextMenuActions: [UIAction] = []
 
-                if FeatureFlags.chatListFilter {
-                    // FIXME: combine viewState.inboxFilter and renderState.viewInfo.inboxFilter to avoid bugs with them getting out of sync
-                    switch viewState.inboxFilter {
-                    case .unread:
-                        contextMenuActions.append(.disableChatListFilter(target: self))
-                    case .none?, nil:
-                        contextMenuActions.append(.enableChatListFilter(target: self))
-                    }
+                // FIXME: combine viewState.inboxFilter and renderState.viewInfo.inboxFilter to avoid bugs with them getting out of sync
+                switch viewState.inboxFilter {
+                case .unread:
+                    contextMenuActions.append(.disableChatListFilter(target: self))
+                case .none?, nil:
+                    contextMenuActions.append(.enableChatListFilter(target: self))
                 }
 
                 if viewState.settingsButtonCreator.hasInboxChats {
@@ -441,7 +464,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
                 self?.showAppSettings()
             }
         )
-        barButtonItem.accessibilityLabel = CommonStrings.openSettingsButton
+        barButtonItem.accessibilityLabel = CommonStrings.openAppSettingsButton
         barButtonItem.accessibilityIdentifier = "ChatListViewController.settingsButton"
         return barButtonItem
     }
@@ -461,24 +484,22 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         reloadTableData()
     }
 
-    func reloadTableData(withSelection previousSelection: [TSThread]? = nil) {
+    func reloadTableData(previouslySelectedThreadUniqueIds: [String] = []) {
         AssertIsOnMainThread()
 
-        let selectedThreadIds: Set<String>
-        if let previousSelection {
-            selectedThreadIds = Set(previousSelection.lazy.map(\.uniqueId))
-        } else {
-            selectedThreadIds = []
-        }
-
         tableView.reloadData()
+
+        let selectedThreadIds: Set<String> = Set(previouslySelectedThreadUniqueIds)
 
         if !selectedThreadIds.isEmpty {
             var threadIdsToBeSelected = selectedThreadIds
             for section in 0..<tableDataSource.numberOfSections(in: tableView) {
                 for row in 0..<tableDataSource.tableView(tableView, numberOfRowsInSection: section) {
                     let indexPath = IndexPath(row: row, section: section)
-                    if let key = renderState.thread(forIndexPath: indexPath)?.uniqueId, threadIdsToBeSelected.contains(key) {
+                    if
+                        let key = renderState.threadUniqueId(forIndexPath: indexPath),
+                        threadIdsToBeSelected.contains(key)
+                    {
                         tableView.selectRow(at: indexPath, animated: false, scrollPosition: .none)
                         threadIdsToBeSelected.remove(key)
                         if threadIdsToBeSelected.isEmpty {
@@ -520,13 +541,11 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
 
     // MARK: UI Helpers
 
-    private var inviteFlow: InviteFlow?
-
     private var getStartedBanner: GetStartedBannerViewController?
 
     private var hasEverPresentedExperienceUpgrade = false
 
-    var lastViewedThread: TSThread?
+    var lastViewedThreadUniqueId: String?
 
     func updateBarButtonItems() {
         updateLeftBarButtonItem()
@@ -590,7 +609,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         conversationSplitViewController?.selectedConversationViewController?.dismissMessageContextMenu(animated: true)
 
         let viewController = ComposeViewController()
-        contactsManagerImpl.requestSystemContactsOnce { error in
+        SSKEnvironment.shared.contactManagerImplRef.requestSystemContactsOnce { error in
             if let error {
                 Logger.error("Error when requesting contacts: \(error)")
             }
@@ -614,7 +633,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         conversationSplitViewController?.selectedConversationViewController?.dismissMessageContextMenu(animated: true)
 
         let newGroupViewController = NewGroupMembersViewController()
-        contactsManagerImpl.requestSystemContactsOnce { error in
+        SSKEnvironment.shared.contactManagerImplRef.requestSystemContactsOnce { error in
             if let error {
                 Logger.error("Error when requesting contacts: \(error)")
             }
@@ -688,7 +707,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
     let viewState: CLVViewState
 
     private func shouldShowFirstConversationCue() -> Bool {
-        return shouldShowEmptyInboxView && !databaseStorage.read(block: SSKPreferences.hasSavedThread(transaction:))
+        return shouldShowEmptyInboxView && !SSKEnvironment.shared.databaseStorageRef.read(block: SSKPreferences.hasSavedThread(transaction:))
     }
 
     private var shouldShowEmptyInboxView: Bool {
@@ -712,10 +731,10 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         }
     }
 
-    // MARK: Badge Sheets
+    // MARK: -
 
-    var receiptCredentialResultStore: ReceiptCredentialResultStore {
-        DependenciesBridge.shared.receiptCredentialResultStore
+    private var donationReceiptCredentialResultStore: DonationReceiptCredentialResultStore {
+        DependenciesBridge.shared.donationReceiptCredentialResultStore
     }
 
     @objc
@@ -725,8 +744,8 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         }
 
         let (
-            oneTimeBoostReceiptCredentialRedemptionSuccess,
-            recurringSubscriptionInitiationReceiptCredentialRedemptionSuccess,
+            oneTimeBoostDonationReceiptCredentialRedemptionSuccess,
+            recurringSubscriptionInitiationDonationReceiptCredentialRedemptionSuccess,
 
             oneTimeBoostSuccessHasBeenPresented,
             recurringSubscriptionInitiationSuccessHasBeenPresented,
@@ -739,47 +758,47 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
             recurringSubscriptionInitiationErrorHasBeenPresented,
             recurringSubscriptionRenewalErrorHasBeenPresented,
 
-            subscriberID,
+            donationSubscriberID,
             expiredBadgeID,
             shouldShowExpirySheet,
             mostRecentSubscriptionPaymentMethod,
-            hasCurrentSubscription
-        ) = databaseStorage.read { transaction in (
-            receiptCredentialResultStore.getRedemptionSuccess(successMode: .oneTimeBoost, tx: transaction.asV2Read),
-            receiptCredentialResultStore.getRedemptionSuccess(successMode: .recurringSubscriptionInitiation, tx: transaction.asV2Read),
+            probablyHasCurrentSubscription
+        ) = SSKEnvironment.shared.databaseStorageRef.read { transaction in (
+            donationReceiptCredentialResultStore.getRedemptionSuccess(successMode: .oneTimeBoost, tx: transaction),
+            donationReceiptCredentialResultStore.getRedemptionSuccess(successMode: .recurringSubscriptionInitiation, tx: transaction),
 
-            receiptCredentialResultStore.hasPresentedSuccess(successMode: .oneTimeBoost, tx: transaction.asV2Read),
-            receiptCredentialResultStore.hasPresentedSuccess(successMode: .recurringSubscriptionInitiation, tx: transaction.asV2Read),
+            donationReceiptCredentialResultStore.hasPresentedSuccess(successMode: .oneTimeBoost, tx: transaction),
+            donationReceiptCredentialResultStore.hasPresentedSuccess(successMode: .recurringSubscriptionInitiation, tx: transaction),
 
-            receiptCredentialResultStore.getRequestError(errorMode: .oneTimeBoost, tx: transaction.asV2Read),
-            receiptCredentialResultStore.getRequestError(errorMode: .recurringSubscriptionInitiation, tx: transaction.asV2Read),
-            receiptCredentialResultStore.getRequestError(errorMode: .recurringSubscriptionRenewal, tx: transaction.asV2Read),
+            donationReceiptCredentialResultStore.getRequestError(errorMode: .oneTimeBoost, tx: transaction),
+            donationReceiptCredentialResultStore.getRequestError(errorMode: .recurringSubscriptionInitiation, tx: transaction),
+            donationReceiptCredentialResultStore.getRequestError(errorMode: .recurringSubscriptionRenewal, tx: transaction),
 
-            receiptCredentialResultStore.hasPresentedError(errorMode: .oneTimeBoost, tx: transaction.asV2Read),
-            receiptCredentialResultStore.hasPresentedError(errorMode: .recurringSubscriptionInitiation, tx: transaction.asV2Read),
-            receiptCredentialResultStore.hasPresentedError(errorMode: .recurringSubscriptionRenewal, tx: transaction.asV2Read),
+            donationReceiptCredentialResultStore.hasPresentedError(errorMode: .oneTimeBoost, tx: transaction),
+            donationReceiptCredentialResultStore.hasPresentedError(errorMode: .recurringSubscriptionInitiation, tx: transaction),
+            donationReceiptCredentialResultStore.hasPresentedError(errorMode: .recurringSubscriptionRenewal, tx: transaction),
 
-            SubscriptionManagerImpl.getSubscriberID(transaction: transaction),
-            SubscriptionManagerImpl.mostRecentlyExpiredBadgeID(transaction: transaction),
-            SubscriptionManagerImpl.showExpirySheetOnHomeScreenKey(transaction: transaction),
-            SubscriptionManagerImpl.getMostRecentSubscriptionPaymentMethod(transaction: transaction),
-            subscriptionManager.hasCurrentSubscription(transaction: transaction)
+            DonationSubscriptionManager.getSubscriberID(transaction: transaction),
+            DonationSubscriptionManager.mostRecentlyExpiredBadgeID(transaction: transaction),
+            DonationSubscriptionManager.showExpirySheetOnHomeScreenKey(transaction: transaction),
+            DonationSubscriptionManager.getMostRecentSubscriptionPaymentMethod(transaction: transaction),
+            DonationSubscriptionManager.probablyHasCurrentSubscription(tx: transaction)
         )}
 
         if
-            let oneTimeBoostReceiptCredentialRedemptionSuccess,
+            let oneTimeBoostDonationReceiptCredentialRedemptionSuccess,
             !oneTimeBoostSuccessHasBeenPresented
         {
             BadgeThanksSheetPresenter.load(
-                redemptionSuccess: oneTimeBoostReceiptCredentialRedemptionSuccess,
+                redemptionSuccess: oneTimeBoostDonationReceiptCredentialRedemptionSuccess,
                 successMode: .oneTimeBoost
             ).presentBadgeThanksAndClearSuccess(fromViewController: self)
         } else if
-            let recurringSubscriptionInitiationReceiptCredentialRedemptionSuccess,
+            let recurringSubscriptionInitiationDonationReceiptCredentialRedemptionSuccess,
             !recurringSubscriptionInitiationSuccessHasBeenPresented
         {
             BadgeThanksSheetPresenter.load(
-                redemptionSuccess: recurringSubscriptionInitiationReceiptCredentialRedemptionSuccess,
+                redemptionSuccess: recurringSubscriptionInitiationDonationReceiptCredentialRedemptionSuccess,
                 successMode: .recurringSubscriptionInitiation
             ).presentBadgeThanksAndClearSuccess(fromViewController: self)
         } else if
@@ -806,14 +825,18 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
                 receiptCredentialRequestError: recurringSubscriptionRenewalReceiptCredentialRequestError,
                 errorMode: .recurringSubscriptionRenewal
             )
-        } else {
-            showBadgeExpirationSheetIfNeeded(
-                subscriberID: subscriberID,
-                expiredBadgeID: expiredBadgeID,
-                shouldShowExpirySheet: shouldShowExpirySheet,
-                mostRecentSubscriptionPaymentMethod: mostRecentSubscriptionPaymentMethod,
-                hasCurrentSubscription: hasCurrentSubscription
-            )
+        } else if
+            let expiredBadgeID,
+            shouldShowExpirySheet
+        {
+            Task {
+                await showBadgeExpirationSheetIfNeeded(
+                    donationSubscriberID: donationSubscriberID,
+                    expiredBadgeID: expiredBadgeID,
+                    mostRecentSubscriptionPaymentMethod: mostRecentSubscriptionPaymentMethod,
+                    probablyHasCurrentSubscription: probablyHasCurrentSubscription
+                )
+            }
         }
     }
 
@@ -827,8 +850,8 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
     /// of days) to process. If one eventually fails, and we find ourselves with
     /// an error for a failed bank payment, we should present a sheet for it.
     private func showBadgeIssueSheetIfNeeded(
-        receiptCredentialRequestError: ReceiptCredentialRequestError,
-        errorMode: ReceiptCredentialResultStore.Mode
+        receiptCredentialRequestError: DonationReceiptCredentialRequestError,
+        errorMode: DonationReceiptCredentialResultStore.Mode
     ) {
         /// Record that we've presented this error. Important to do even for
         /// errors that don't merit presentation – otherwise, as long as this
@@ -836,10 +859,10 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         /// declining to present it. That'd be bad if it prevented us from
         /// presenting a different error.
         func hasPresentedError() {
-            self.databaseStorage.write { tx in
-                self.receiptCredentialResultStore.setHasPresentedError(
+            SSKEnvironment.shared.databaseStorageRef.write { tx in
+                self.donationReceiptCredentialResultStore.setHasPresentedError(
                     errorMode: errorMode,
-                    tx: tx.asV2Write
+                    tx: tx
                 )
             }
         }
@@ -887,8 +910,8 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
 
         let logger = PrefixedLogger(prefix: "[Donations]", suffix: "\(errorMode)")
 
-        firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
-            self.profileManager.badgeStore.populateAssetsOnBadge(badge)
+        Promise.wrapAsync {
+            try await SSKEnvironment.shared.profileManagerRef.badgeStore.populateAssetsOnBadge(badge)
         }.done(on: DispatchQueue.main) {
             guard self.isChatListTopmostViewController() else {
                 logger.info("Not presenting error – no longer the top view controller.")
@@ -924,47 +947,38 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
     }
 
     private func showBadgeExpirationSheetIfNeeded(
-        subscriberID: Data?,
-        expiredBadgeID: String?,
-        shouldShowExpirySheet: Bool,
+        donationSubscriberID: Data?,
+        expiredBadgeID: String,
         mostRecentSubscriptionPaymentMethod: DonationPaymentMethod?,
-        hasCurrentSubscription: Bool
-    ) {
-        guard let expiredBadgeID else {
-            return
-        }
-
-        guard shouldShowExpirySheet else {
-            return
-        }
-
-        Logger.info("[Donations] showing expiry sheet for expired badge \(expiredBadgeID)")
+        probablyHasCurrentSubscription: Bool
+    ) async {
+        let db = DependenciesBridge.shared.db
+        let networkManager = SSKEnvironment.shared.networkManagerRef
+        let profileManager = SSKEnvironment.shared.profileManagerRef
 
         if BoostBadgeIds.contains(expiredBadgeID) {
-            firstly {
-                SubscriptionManagerImpl.getBoostBadge()
-            }.done(on: DispatchQueue.global()) { boostBadge in
-                firstly {
-                    self.profileManager.badgeStore.populateAssetsOnBadge(boostBadge)
-                }.done(on: DispatchQueue.main) {
-                    // Make sure we're still the active VC
-                    guard UIApplication.shared.frontmostViewController == self.conversationSplitViewController,
-                          self.conversationSplitViewController?.selectedThread == nil else { return }
+            Logger.info("[Donations] Showing expiry sheet for expired boost badge.")
 
-                    let badgeSheet = BadgeIssueSheet(
-                        badge: boostBadge,
-                        mode: .boostExpired(hasCurrentSubscription: hasCurrentSubscription)
-                    )
-                    badgeSheet.delegate = self
-                    self.present(badgeSheet, animated: true)
-                    self.databaseStorage.write { transaction in
-                        SubscriptionManagerImpl.setShowExpirySheetOnHomeScreenKey(show: false, transaction: transaction)
-                    }
-                }.catch { error in
-                    owsFailDebug("Failed to fetch boost badge assets for expiry \(error)")
+            do {
+                let boostBadge = try await DonationSubscriptionManager.getBoostBadge()
+                try await profileManager.badgeStore.populateAssetsOnBadge(boostBadge)
+
+                // Make sure we're still the active VC
+                guard UIApplication.shared.frontmostViewController == self.conversationSplitViewController,
+                      self.conversationSplitViewController?.selectedThread == nil else { return }
+
+                let badgeSheet = BadgeIssueSheet(
+                    badge: boostBadge,
+                    mode: .boostExpired(hasCurrentSubscription: probablyHasCurrentSubscription)
+                )
+                badgeSheet.delegate = self
+                self.present(badgeSheet, animated: true)
+
+                await db.awaitableWrite { tx in
+                    DonationSubscriptionManager.setShowExpirySheetOnHomeScreenKey(show: false, transaction: tx)
                 }
-            }.catch { error in
-                owsFailDebug("Failed to fetch boost badge for expiry \(error)")
+            } catch {
+                Logger.warn("[Donations] Failed to fetch expired boost badge assets! \(error)")
             }
         } else if SubscriptionBadgeIds.contains(expiredBadgeID) {
             /// We expect to show an error sheet when the subscription fails to
@@ -983,28 +997,25 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
             /// We'll still fetch the subscription, but just for logging
             /// purposes.
 
-            firstly(on: DispatchQueue.global()) { () -> Promise<Subscription?> in
-                guard let subscriberID else {
-                    return .value(nil)
-                }
+            Logger.info("[Donations] Handling expired subscription badge.")
 
-                return SubscriptionManagerImpl.getCurrentSubscriptionStatus(
-                    for: subscriberID
-                )
-            }.done(on: DispatchQueue.global()) { currentSubscription in
-                defer {
-                    self.databaseStorage.write { transaction in
-                        SubscriptionManagerImpl.setShowExpirySheetOnHomeScreenKey(show: false, transaction: transaction)
-                    }
-                }
-
-                guard let currentSubscription else {
-                    // If the subscription is missing entirely, it presumably
-                    // expired due to inactivity.
-                    Logger.warn("[Donations] Missing subscription for expired badge. It probably expired due to inactivity and was deleted.")
+            let currentSubscription: Subscription?
+            if let donationSubscriberID {
+                do {
+                    currentSubscription = try await SubscriptionFetcher(networkManager: networkManager)
+                        .fetch(subscriberID: donationSubscriberID)
+                } catch {
+                    Logger.warn("[Donations] Failed to get subscription during badge expiration!")
                     return
                 }
+            } else {
+                currentSubscription = nil
+            }
 
+            if
+                donationSubscriberID != nil,
+                let currentSubscription
+            {
                 owsAssertDebug(
                     currentSubscription.status == .canceled,
                     "[Donations] Current subscription is not canceled, but the badge expired!"
@@ -1015,11 +1026,21 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
                 } else {
                     Logger.warn("[Donations] Badge expired for subscription without charge failure. It probably expired due to inactivity, but hasn't yet been deleted.")
                 }
-            }.catch(on: SyncScheduler()) { _ in
-                owsFailDebug("[Donations] Failed to get subscription during badge expiration!")
+            } else if donationSubscriberID != nil {
+                // If the subscription is missing entirely, it presumably
+                // expired due to inactivity.
+                Logger.warn("[Donations] Missing subscription for expired badge. It probably expired due to inactivity and was deleted.")
+            } else {
+                Logger.warn("[Donations] Missing subscriber ID for expired subscription badge.")
+            }
+
+            await db.awaitableWrite { tx in
+                DonationSubscriptionManager.setShowExpirySheetOnHomeScreenKey(show: false, transaction: tx)
             }
         }
     }
+
+    // MARK: -
 
     private func isChatListTopmostViewController() -> Bool {
         guard
@@ -1035,7 +1056,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
 
     func configureUnreadPaymentsBannerSingle(_ paymentsReminderView: UIView,
                                              paymentModel: TSPaymentModel,
-                                             transaction: SDSAnyReadTransaction) {
+                                             transaction: DBReadTransaction) {
 
         guard paymentModel.isIncoming,
               !paymentModel.isUnidentified,
@@ -1051,7 +1072,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
             return
         }
 
-        let shortName = contactsManager.displayName(for: address, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
+        let shortName = SSKEnvironment.shared.contactManagerRef.displayName(for: address, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
         let formattedAmount = PaymentsFormat.format(paymentAmount: paymentAmount,
                                                     isShortForm: true,
                                                     withCurrencyCode: true,
@@ -1212,7 +1233,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
             return
         }
 
-        await messageProcessor.waitForFetchingAndProcessing().awaitable()
+        await SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing().awaitable()
 
         let notificationSettings = await UNUserNotificationCenter.current().notificationSettings()
         guard notificationSettings.authorizationStatus == .authorized else {
@@ -1233,7 +1254,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         }
 
         // Has it been at least an hour since we upgraded?
-        guard -upgradeDate.timeIntervalSinceNow > kHourInterval else {
+        guard -upgradeDate.timeIntervalSinceNow > .hour else {
             return
         }
 
@@ -1254,11 +1275,11 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
             return
         }
 
-        let keyValueStore = SDSKeyValueStore(collection: "FailedNSELaunches")
+        let keyValueStore = KeyValueStore(collection: "FailedNSELaunches")
         let mostRecentDateKey = "mostRecentPromptDate"
         let promptCountKey = "promptCount"
 
-        let shouldShowPrompt = databaseStorage.read { tx in
+        let shouldShowPrompt = SSKEnvironment.shared.databaseStorageRef.read { tx in
             // If we've shown the prompt recently, don't show it again.
             let promptCount = keyValueStore.getInt(promptCountKey, defaultValue: 0, transaction: tx)
             let promptBackoff: TimeInterval = {
@@ -1266,13 +1287,13 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
                 case 0:
                     return 0
                 case 1, 2:
-                    return 24*kHourInterval
+                    return 24 * .hour
                 case 3:
-                    return 48*kHourInterval
+                    return 48 * .hour
                 case 4:
-                    return 72*kHourInterval
+                    return 72 * .hour
                 default:
-                    return 96*kHourInterval
+                    return 96 * .hour
                 }
             }()
             let mostRecentDate = keyValueStore.getDate(mostRecentDateKey, transaction: tx)
@@ -1315,7 +1336,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
             title: CommonStrings.contactSupport,
             handler: { [weak self] _ in
                 guard let self else { return }
-                ContactSupportAlert.presentStep2(emailSupportFilter: "NotLaunchingNSE", fromViewController: self)
+                ContactSupportActionSheet.present(emailFilter: .custom("NotLaunchingNSE"), fromViewController: self)
             }
         ))
         actionSheet.addAction(ActionSheetAction(title: CommonStrings.okButton))
@@ -1323,7 +1344,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         let promptDate = Date()
         self.present(actionSheet, animated: true)
 
-        await databaseStorage.awaitableWrite { tx in
+        await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             keyValueStore.setDate(promptDate, key: mostRecentDateKey, transaction: tx)
             keyValueStore.setInt(
                 keyValueStore.getInt(promptCountKey, defaultValue: 0, transaction: tx) + 1,
@@ -1341,13 +1362,13 @@ extension ChatListViewController {
         updateChatListFilter(.unread)
         updateBarButtonItems()
 
-        if filterControl.isFiltering {
+        if filterControl?.isFiltering == true {
             // No need to update the filter control if it's already in the
             // filtering state.
             loadCoordinator.loadIfNecessary()
         } else {
-            tableView.performBatchUpdates { [self] in
-                filterControl.startFiltering(animated: true)
+            tableView.performBatchUpdates {
+                filterControl?.startFiltering(animated: true)
                 loadCoordinator.loadIfNecessary()
             }
         }
@@ -1356,13 +1377,15 @@ extension ChatListViewController {
     func disableChatListFilter(_ sender: AnyObject?) {
         updateChatListFilter(.none)
         updateBarButtonItems()
-        tableView.performBatchUpdates { [self] in
-            filterControl.stopFiltering(animated: true)
+
+        tableView.performBatchUpdates {
+            filterControl?.stopFiltering(animated: true)
             loadCoordinator.loadIfNecessary()
         }
     }
 
     private func updateFilterControl(animated: Bool) {
+        guard let filterControl else { return }
         if viewState.inboxFilter == .unread {
             filterControl.startFiltering(animated: animated)
         } else {
@@ -1373,6 +1396,7 @@ extension ChatListViewController {
     private func updateChatListFilter(_ inboxFilter: InboxFilter) {
         viewState.inboxFilter = inboxFilter
         loadCoordinator.saveInboxFilter(inboxFilter)
+        updateBarButtonItems()
     }
 }
 
@@ -1405,6 +1429,7 @@ extension ChatListViewController {
         case corruptedUsernameResolution
         case corruptedUsernameLinkResolution
         case donate(donateMode: DonateViewController.DonateMode)
+        case linkedDevices
         case proxy
     }
 
@@ -1507,6 +1532,8 @@ extension ChatListViewController {
                 }
             }
             viewControllers += [donate]
+        case .linkedDevices:
+            viewControllers += [ LinkedDevicesHostingController() ]
         case .proxy:
             viewControllers += [ PrivacySettingsViewController(), AdvancedPrivacySettingsViewController(), ProxySettingsViewController() ]
         }
@@ -1555,8 +1582,8 @@ extension ChatListViewController: GetStartedBannerViewControllerDelegate {
     }
 
     func getStartedBannerDidTapInviteFriends(_ banner: GetStartedBannerViewController) {
-        inviteFlow = InviteFlow(presentingViewController: self)
-        inviteFlow?.present(isAnimated: true, completion: nil)
+        let inviteFlow = InviteFlow(presentingViewController: self)
+        inviteFlow.present(isAnimated: true, completion: nil)
     }
 
     func getStartedBannerDidTapCreateGroup(_ banner: GetStartedBannerViewController) {
@@ -1592,13 +1619,13 @@ extension ChatListViewController: GetStartedBannerViewControllerDelegate {
 
 extension ChatListViewController {
     func updateFirstConversationLabel() {
-        let contactNames = databaseStorage.read { tx -> [ComparableDisplayName] in
-            let comparableNames = contactsManager.sortedComparableNames(
-                for: profileManager.allWhitelistedRegisteredAddresses(tx: tx),
+        let contactNames = SSKEnvironment.shared.databaseStorageRef.read { tx -> [ComparableDisplayName] in
+            let comparableNames = SSKEnvironment.shared.contactManagerRef.sortedComparableNames(
+                for: SSKEnvironment.shared.profileManagerRef.allWhitelistedRegisteredAddresses(tx: tx),
                 tx: tx
             )
             let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-            guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx.asV2Read) else {
+            guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) else {
                 return []
             }
             return Array(
@@ -1651,24 +1678,42 @@ extension ChatListViewController {
 
 extension ChatListViewController: UIScrollViewDelegate {
     public func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        filterControl?.draggingWillBegin(in: scrollView)
         cancelSearch()
     }
 
-    public func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        filterControl.updateScrollPosition(in: scrollView)
+    public func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+        filterControl?.draggingWillEnd(in: scrollView)
     }
 
-    public func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
-        filterControl.draggingWillEnd(in: scrollView)
+    public func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate: Bool) {
+        filterControl?.draggingDidEnd(in: scrollView)
+    }
+
+    public func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        filterControl?.scrollingDidStop(in: scrollView)
+    }
+
+    public func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        filterControl?.scrollingDidStop(in: scrollView)
     }
 }
 
 extension ChatListViewController: ChatListFilterControlDelegate {
-    func filterControlDidStartFiltering() {
-        // Perform using the default run loop mode so that scroll view decelaration
-        // can finish gracefully before updating table content.
-        RunLoop.current.perform { [self] in
-            enableChatListFilter(filterControl)
+    func filterControlWillChangeState(to state: ChatListFilterControl.FilterState) {
+        switch state {
+        case .on:
+            updateChatListFilter(.unread)
+        case .off:
+            updateChatListFilter(.none)
+        }
+
+        // Because this happens in response to an interactive gesture, it feels
+        // better to go a little slower than the default animation duration (0.25 sec).
+        UIView.animate(withDuration: 0.4) { [self] in
+            tableView.performBatchUpdates {
+                loadCoordinator.loadIfNecessary()
+            }
         }
     }
 }

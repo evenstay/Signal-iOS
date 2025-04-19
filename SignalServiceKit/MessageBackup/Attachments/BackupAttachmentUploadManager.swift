@@ -41,7 +41,7 @@ public protocol BackupAttachmentUploadManager {
 public class BackupAttachmentUploadManagerImpl: BackupAttachmentUploadManager {
 
     private let backupAttachmentUploadStore: BackupAttachmentUploadStore
-    private let db: DB
+    private let db: any DB
     private let taskQueue: TaskQueueLoader<TaskRunner>
 
     public init(
@@ -49,7 +49,7 @@ public class BackupAttachmentUploadManagerImpl: BackupAttachmentUploadManager {
         attachmentUploadManager: AttachmentUploadManager,
         backupAttachmentUploadStore: BackupAttachmentUploadStore,
         dateProvider: @escaping DateProvider,
-        db: DB,
+        db: any DB,
         messageBackupRequestManager: MessageBackupRequestManager,
         tsAccountManager: TSAccountManager
     ) {
@@ -66,6 +66,7 @@ public class BackupAttachmentUploadManagerImpl: BackupAttachmentUploadManager {
         )
         self.taskQueue = TaskQueueLoader(
             maxConcurrentTasks: Constants.numParallelUploads,
+            dateProvider: dateProvider,
             db: db,
             runner: taskRunner
         )
@@ -76,6 +77,12 @@ public class BackupAttachmentUploadManagerImpl: BackupAttachmentUploadManager {
         currentUploadEra: String,
         tx: DBWriteTransaction
     ) throws {
+        guard FeatureFlags.MessageBackup.fileAlpha else {
+            return
+        }
+        if MessageBackupMessageAttachmentArchiver.isFreeTierBackup() {
+            return
+        }
         guard let referencedStream = referencedAttachment.asReferencedStream else {
             // We only upload streams
             return
@@ -95,6 +102,9 @@ public class BackupAttachmentUploadManagerImpl: BackupAttachmentUploadManager {
     }
 
     public func backUpAllAttachments() async throws {
+        if MessageBackupMessageAttachmentArchiver.isFreeTierBackup() {
+            return
+        }
         try await taskQueue.loadAndRunTasks()
     }
 
@@ -113,7 +123,7 @@ public class BackupAttachmentUploadManagerImpl: BackupAttachmentUploadManager {
         private let attachmentUploadManager: AttachmentUploadManager
         private let backupAttachmentUploadStore: BackupAttachmentUploadStore
         private let dateProvider: DateProvider
-        private let db: DB
+        private let db: any DB
         private let messageBackupRequestManager: MessageBackupRequestManager
         private let tsAccountManager: TSAccountManager
 
@@ -124,7 +134,7 @@ public class BackupAttachmentUploadManagerImpl: BackupAttachmentUploadManager {
             attachmentUploadManager: AttachmentUploadManager,
             backupAttachmentUploadStore: BackupAttachmentUploadStore,
             dateProvider: @escaping DateProvider,
-            db: DB,
+            db: any DB,
             messageBackupRequestManager: MessageBackupRequestManager,
             tsAccountManager: TSAccountManager
         ) {
@@ -152,6 +162,9 @@ public class BackupAttachmentUploadManagerImpl: BackupAttachmentUploadManager {
         private let errorCounts = ErrorCounts()
 
         func runTask(record: Store.Record, loader: TaskQueueLoader<TaskRunner>) async -> TaskRecordResult {
+            guard FeatureFlags.MessageBackup.fileAlpha else {
+                return .cancelled
+            }
             let attachment = db.read { tx in
                 return self.attachmentStore.fetch(id: record.record.attachmentRowId, tx: tx)
             }
@@ -172,7 +185,7 @@ public class BackupAttachmentUploadManagerImpl: BackupAttachmentUploadManager {
             // TODO: [Backups] get the real upload era
             let currentUploadEra: String
             do {
-                currentUploadEra = try MessageBackupMessageAttachmentArchiver.uploadEra()
+                currentUploadEra = try MessageBackupMessageAttachmentArchiver.currentUploadEra()
             } catch let error {
                 try? await loader.stop(reason: error)
                 return .unretryableError(OWSAssertionError("Unable to get current upload era: \(error)"))
@@ -197,6 +210,7 @@ public class BackupAttachmentUploadManagerImpl: BackupAttachmentUploadManager {
             let messageBackupAuth: MessageBackupServiceAuth
             do {
                 messageBackupAuth = try await messageBackupRequestManager.fetchBackupServiceAuth(
+                    for: .media,
                     localAci: localAci,
                     auth: .implicit()
                 )
@@ -262,15 +276,15 @@ public class BackupAttachmentUploadManagerImpl: BackupAttachmentUploadManager {
             return .success
         }
 
-        func didSucceed(record: Store.Record, tx: any DBWriteTransaction) throws {
+        func didSucceed(record: Store.Record, tx: DBWriteTransaction) throws {
             Logger.info("Finished backing up attachment \(record.id)")
         }
 
-        func didFail(record: Store.Record, error: any Error, isRetryable: Bool, tx: any DBWriteTransaction) throws {
+        func didFail(record: Store.Record, error: any Error, isRetryable: Bool, tx: DBWriteTransaction) throws {
             Logger.warn("Failed backing up attachment \(record.id), isRetryable: \(isRetryable), error: \(error)")
         }
 
-        func didCancel(record: Store.Record, tx: any DBWriteTransaction) throws {
+        func didCancel(record: Store.Record, tx: DBWriteTransaction) throws {
             Logger.warn("Cancelled backing up attachment \(record.id)")
         }
     }
@@ -323,8 +337,7 @@ fileprivate extension AttachmentStream {
         if let thumbnailMediaTierInfo = attachment.thumbnailMediaTierInfo {
             return thumbnailMediaTierInfo.uploadEra != currentUploadEra
         } else {
-            // We only generate thumbnails for visual media.
-            return contentType.isVisualMedia
+            return AttachmentBackupThumbnail.canBeThumbnailed(self.attachment)
         }
     }
 }

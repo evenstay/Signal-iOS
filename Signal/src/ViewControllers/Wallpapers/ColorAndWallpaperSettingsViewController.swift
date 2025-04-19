@@ -29,21 +29,22 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
     private var wallpaperViewBuilder: WallpaperViewBuilder?
 
     private func updateWallpaperViewBuilder() {
-        wallpaperViewBuilder = databaseStorage.read { tx in Wallpaper.viewBuilder(for: thread, tx: tx) }
+        wallpaperViewBuilder = SSKEnvironment.shared.databaseStorageRef.read { tx in Wallpaper.viewBuilder(for: thread, tx: tx) }
     }
 
     @objc
     private func wallpaperDidChange(notification: Notification) {
         guard notification.object == nil || (notification.object as? String) == thread?.uniqueId else { return }
         updateWallpaperViewBuilder()
+        updateChatColor()
         updateTableContents()
     }
 
     private var chatColor: ColorOrGradientSetting!
 
     private func updateChatColor() {
-        chatColor = databaseStorage.read { tx in
-            DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(for: thread, tx: tx.asV2Read)
+        chatColor = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(for: thread, tx: tx)
         }
     }
 
@@ -101,7 +102,7 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
                 accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "set_chat_color")
             ) { [weak self] in
                 guard let self = self else { return }
-                let viewController = self.databaseStorage.read { tx in
+                let viewController = SSKEnvironment.shared.databaseStorageRef.read { tx in
                     ChatColorViewController.load(thread: self.thread, tx: tx)
                 }
                 self.navigationController?.pushViewController(viewController, animated: true)
@@ -142,7 +143,7 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
             )
         ) { [weak self] in
             guard let self = self else { return }
-            let viewController = self.databaseStorage.read { tx in
+            let viewController = SSKEnvironment.shared.databaseStorageRef.read { tx in
                 SetWallpaperViewController.load(thread: self.thread, tx: tx)
             }
             self.navigationController?.pushViewController(viewController, animated: true)
@@ -153,18 +154,18 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
                                         comment: "Dim wallpaper action in wallpaper settings view."),
             accessibilityIdentifier: UIView.accessibilityIdentifier(in: self, name: "dim_wallpaper"),
             isOn: { () -> Bool in
-                self.databaseStorage.read {
+                SSKEnvironment.shared.databaseStorageRef.read {
                     return DependenciesBridge.shared.wallpaperStore.fetchDimInDarkMode(
                         for: self.thread?.uniqueId,
-                        tx: $0.asV2Read
+                        tx: $0
                     )
                 }
             },
             isEnabled: {
-                self.databaseStorage.read {
+                SSKEnvironment.shared.databaseStorageRef.read {
                     DependenciesBridge.shared.wallpaperStore.fetchWallpaperForRendering(
                         for: self.thread?.uniqueId,
-                        tx: $0.asV2Read
+                        tx: $0
                     ) != nil
                 }
             },
@@ -201,9 +202,9 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
 
     @objc
     func updateWallpaperDimming(_ sender: UISwitch) {
-        databaseStorage.asyncWrite { tx in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { tx in
             let wallpaperStore = DependenciesBridge.shared.wallpaperStore
-            wallpaperStore.setDimInDarkMode(sender.isOn, for: self.thread?.uniqueId, tx: tx.asV2Write)
+            wallpaperStore.setDimInDarkMode(sender.isOn, for: self.thread?.uniqueId, tx: tx)
         }
     }
 
@@ -280,11 +281,11 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
     }
 
     private func resetAllWallpapers() {
-        databaseStorage.asyncWrite { tx in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { tx in
             do {
                 let wallpaperStore = DependenciesBridge.shared.wallpaperStore
-                try wallpaperStore.resetAll(tx: tx.asV2Write)
-                try DependenciesBridge.shared.wallpaperImageStore.resetAllWallpaperImages(tx: tx.asV2Write)
+                try wallpaperStore.resetAll(tx: tx)
+                try DependenciesBridge.shared.wallpaperImageStore.resetAllWallpaperImages(tx: tx)
             } catch {
                 owsFailDebug("Failed to reset all wallpapers with error: \(error)")
                 DispatchQueue.main.async {
@@ -294,8 +295,10 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
                     )
                 }
             }
-            tx.addAsyncCompletionOnMain {
-                self.updateTableContents()
+            tx.addSyncCompletion {
+                Task { @MainActor in
+                    self.updateTableContents()
+                }
             }
         }
     }
@@ -344,18 +347,18 @@ public class ColorAndWallpaperSettingsViewController: OWSTableViewController2 {
     }
 
     func resetChatColor() {
-        databaseStorage.asyncWrite { [thread] tx in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { [thread] tx in
             DependenciesBridge.shared.chatColorSettingStore.setChatColorSetting(
                 .auto,
                 for: thread,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
     }
 
     private func resetAllChatColors() {
-        databaseStorage.asyncWrite { tx in
-            DependenciesBridge.shared.chatColorSettingStore.resetAllSettings(tx: tx.asV2Write)
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { tx in
+            DependenciesBridge.shared.chatColorSettingStore.resetAllSettings(tx: tx)
         }
     }
 }

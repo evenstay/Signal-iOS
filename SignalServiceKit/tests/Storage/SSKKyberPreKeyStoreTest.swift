@@ -11,28 +11,26 @@ import XCTest
 //
 
 class KyberPreKeyStoreTest: XCTestCase {
-    var keyValueStoreFactory: KeyValueStoreFactory!
     var dateProvider: DateProvider!
     var currentDate = Date()
-    var db = MockDB()
+    var db = InMemoryDB()
 
     var identityKey: ECKeyPair!
     var kyberPreKeyStore: SSKKyberPreKeyStore!
 
     override func setUp() {
-        keyValueStoreFactory = InMemoryKeyValueStoreFactory()
         dateProvider = { return self.currentDate }
         identityKey = ECKeyPair.generateKeyPair()
         kyberPreKeyStore = SSKKyberPreKeyStore(
             for: .aci,
-            keyValueStoreFactory: keyValueStoreFactory,
-            dateProvider: dateProvider
+            dateProvider: dateProvider,
+            remoteConfigProvider: MockRemoteConfigProvider()
         )
     }
 
     func testCreate() {
-        let key = try! self.db.write { tx in
-            try self.kyberPreKeyStore.generateLastResortKyberPreKey(
+        let key = self.db.write { tx in
+            self.kyberPreKeyStore.generateLastResortKyberPreKey(
                 signedBy: self.identityKey,
                 tx: tx
             )
@@ -48,8 +46,8 @@ class KyberPreKeyStoreTest: XCTestCase {
     }
 
     func testEncodeDecode() {
-        let record = try! self.db.write { tx in
-            try self.kyberPreKeyStore.generateLastResortKyberPreKey(
+        let record = self.db.write { tx in
+            self.kyberPreKeyStore.generateLastResortKyberPreKey(
                 signedBy: self.identityKey,
                 tx: tx
             )
@@ -70,7 +68,7 @@ class KyberPreKeyStoreTest: XCTestCase {
     }
 
     func testGenerateIncrementsNextId() {
-        let metadataStore = keyValueStoreFactory.keyValueStore(
+        let metadataStore = KeyValueStore(
             collection: SSKKyberPreKeyStore.Constants.ACI.metadataStoreCollection
         )
 
@@ -78,8 +76,8 @@ class KyberPreKeyStoreTest: XCTestCase {
             metadataStore.setInt32(500, key: SSKKyberPreKeyStore.Constants.lastKeyId, transaction: tx)
         }
 
-        let records = try! self.db.write { tx in
-            try self.kyberPreKeyStore.generateKyberPreKeyRecords(
+        let records = self.db.write { tx in
+            self.kyberPreKeyStore.generateKyberPreKeyRecords(
                 count: 25,
                 signedBy: self.identityKey,
                 tx: tx
@@ -96,7 +94,7 @@ class KyberPreKeyStoreTest: XCTestCase {
     }
 
     func testLastResortId() {
-        let metadataStore = keyValueStoreFactory.keyValueStore(
+        let metadataStore = KeyValueStore(
             collection: SSKKyberPreKeyStore.Constants.ACI.metadataStoreCollection
         )
 
@@ -108,14 +106,14 @@ class KyberPreKeyStoreTest: XCTestCase {
             )
         }
 
-        let record1 = try! self.db.write { tx in
-            try self.kyberPreKeyStore.generateLastResortKyberPreKey(signedBy: identityKey, tx: tx)
+        let record1 = self.db.write { tx in
+            self.kyberPreKeyStore.generateLastResortKyberPreKey(signedBy: identityKey, tx: tx)
         }
 
         XCTAssertEqual(record1.id, 0xFFFFFF)
 
-        let record2 = try! self.db.write { tx in
-            try self.kyberPreKeyStore.generateLastResortKyberPreKey(signedBy: identityKey, tx: tx)
+        let record2 = self.db.write { tx in
+            self.kyberPreKeyStore.generateLastResortKyberPreKey(signedBy: identityKey, tx: tx)
         }
 
         XCTAssertEqual(record2.id, 1)
@@ -123,7 +121,7 @@ class KyberPreKeyStoreTest: XCTestCase {
 
     // check that prekeyIds overflow in batches
     func testPreKeyIdOverFlow() {
-        let metadataStore = keyValueStoreFactory.keyValueStore(
+        let metadataStore = KeyValueStore(
             collection: SSKKyberPreKeyStore.Constants.ACI.metadataStoreCollection
         )
 
@@ -133,8 +131,8 @@ class KyberPreKeyStoreTest: XCTestCase {
             metadataStore.setInt32(lastKeyId, key: SSKKyberPreKeyStore.Constants.lastKeyId, transaction: tx)
         }
 
-        let records = try! self.db.write { tx in
-            try self.kyberPreKeyStore.generateKyberPreKeyRecords(
+        let records = self.db.write { tx in
+            self.kyberPreKeyStore.generateKyberPreKeyRecords(
                 count: 50,
                 signedBy: self.identityKey,
                 tx: tx
@@ -154,8 +152,8 @@ class KyberPreKeyStoreTest: XCTestCase {
 
    // Ensure that keys aren't marked as last resort
     func testOneTimeKeysNotMarkedAsLastResort() {
-        let key = try! self.db.write { tx in
-            try self.kyberPreKeyStore.generateKyberPreKeyRecords(
+        let key = self.db.write { tx in
+            self.kyberPreKeyStore.generateKyberPreKeyRecords(
                 count: 1,
                 signedBy: self.identityKey,
                 tx: tx
@@ -173,31 +171,24 @@ class KyberPreKeyStoreTest: XCTestCase {
     }
 
     func testGenerateDoesNotStore() {
-        let key = try! self.db.write { tx in
-            try self.kyberPreKeyStore.generateKyberPreKeyRecords(
+        let key = self.db.write { tx in
+            self.kyberPreKeyStore.generateKyberPreKeyRecords(
                 count: 1,
                 signedBy: self.identityKey,
                 tx: tx
             ).first
         }
 
-        let keyStore = keyValueStoreFactory.keyValueStore(
-            collection: SSKKyberPreKeyStore.Constants.ACI.keyStoreCollection
-        )
-
         let fetchedKey = self.db.read { tx in
-            keyStore.getObject(
-                forKey: kyberPreKeyStore.key(for: key!.id),
-                transaction: tx
-            )
+            return kyberPreKeyStore.loadKyberPreKey(id: key!.id, tx: tx)
         }
         XCTAssertNil(fetchedKey)
     }
 
     // test that storing a batch of keys is reflected in storage
     func testGenerateAndStoreBatch() {
-        let records = try! self.db.write { tx in
-            let records = try self.kyberPreKeyStore.generateKyberPreKeyRecords(
+        let records = self.db.write { tx in
+            let records = self.kyberPreKeyStore.generateKyberPreKeyRecords(
                 count: 5,
                 signedBy: self.identityKey,
                 tx: tx
@@ -208,16 +199,9 @@ class KyberPreKeyStoreTest: XCTestCase {
             return records
         }
 
-        let keyStore = keyValueStoreFactory.keyValueStore(
-            collection: SSKKyberPreKeyStore.Constants.ACI.keyStoreCollection
-        )
-
         self.db.read { tx in
             for record in records {
-                let fetchedRecord = keyStore.getObject(
-                    forKey: kyberPreKeyStore.key(for: record.id),
-                    transaction: tx
-                )
+                let fetchedRecord = kyberPreKeyStore.loadKyberPreKey(id: record.id, tx: tx)
                 XCTAssertNotNil(fetchedRecord)
             }
         }
@@ -226,8 +210,8 @@ class KyberPreKeyStoreTest: XCTestCase {
     // MARK: - LastResort
     func testMarkedAsLastResort() {
         // test that storing a batch of keys is reflected in storage
-        let lastResortKey = try! self.db.write { tx in
-            try self.kyberPreKeyStore.generateLastResortKyberPreKey(
+        let lastResortKey = self.db.write { tx in
+            self.kyberPreKeyStore.generateLastResortKyberPreKey(
                 signedBy: self.identityKey,
                 tx: tx
             )
@@ -236,23 +220,16 @@ class KyberPreKeyStoreTest: XCTestCase {
         XCTAssertNotNil(lastResortKey)
         XCTAssertTrue(lastResortKey.isLastResort)
 
-        let keyStore = keyValueStoreFactory.keyValueStore(
-            collection: SSKKyberPreKeyStore.Constants.ACI.keyStoreCollection
-        )
-
         let fetchedKey = self.db.read { tx in
-            keyStore.getObject(
-                forKey: kyberPreKeyStore.key(for: lastResortKey.id),
-                transaction: tx
-            )
+            return kyberPreKeyStore.loadKyberPreKey(id: lastResortKey.id, tx: tx)
         }
         XCTAssertNil(fetchedKey)
     }
 
     // test that storing a batch of keys is reflected in storage
     func testLastResortFetching() {
-        let lastResortKey = try! self.db.write { tx in
-            let lastResortKey = try self.kyberPreKeyStore.generateLastResortKyberPreKey(
+        let lastResortKey = self.db.write { tx in
+            let lastResortKey = self.kyberPreKeyStore.generateLastResortKyberPreKey(
                 signedBy: self.identityKey,
                 tx: tx
             )
@@ -265,18 +242,7 @@ class KyberPreKeyStoreTest: XCTestCase {
             return lastResortKey
         }
 
-        let keyStore = keyValueStoreFactory.keyValueStore(
-            collection: SSKKyberPreKeyStore.Constants.ACI.keyStoreCollection
-        )
-
         self.db.read { tx in
-            // Check the raw record was stored
-            let fetchedRecord = keyStore.getObject(
-                forKey: kyberPreKeyStore.key(for: lastResortKey.id),
-                transaction: tx
-            )
-            XCTAssertNotNil(fetchedRecord)
-
             // Check the record deserializes correctly
             let fetchedKey = self.kyberPreKeyStore.loadKyberPreKey(id: lastResortKey.id, tx: tx)
             XCTAssertNotNil(fetchedKey)
@@ -285,9 +251,9 @@ class KyberPreKeyStoreTest: XCTestCase {
         }
     }
 
-    func testMarkAsUsedOneTime () {
-        let records = try! self.db.write { tx in
-            let records = try self.kyberPreKeyStore.generateKyberPreKeyRecords(
+    func testMarkAsUsedOneTime() {
+        let records = self.db.write { tx in
+            let records = self.kyberPreKeyStore.generateKyberPreKeyRecords(
                 count: 5,
                 signedBy: self.identityKey,
                 tx: tx
@@ -303,16 +269,9 @@ class KyberPreKeyStoreTest: XCTestCase {
             try self.kyberPreKeyStore.markKyberPreKeyUsed(id: firstRecord.id, tx: tx)
         }
 
-        let keyStore = keyValueStoreFactory.keyValueStore(
-            collection: SSKKyberPreKeyStore.Constants.ACI.keyStoreCollection
-        )
-
         self.db.read { tx in
             for record in records {
-                let fetchedRecord = keyStore.getObject(
-                    forKey: kyberPreKeyStore.key(for: record.id),
-                    transaction: tx
-                )
+                let fetchedRecord = kyberPreKeyStore.loadKyberPreKey(id: record.id, tx: tx)
                 if record.id == firstRecord.id {
                     XCTAssertNil(fetchedRecord)
                 } else {
@@ -323,8 +282,8 @@ class KyberPreKeyStoreTest: XCTestCase {
     }
 
     func testMarkAsUsedLastResort() {
-        let lastResortKey = try! self.db.write { tx in
-            let lastResortKey = try self.kyberPreKeyStore.generateLastResortKyberPreKey(
+        let lastResortKey = self.db.write { tx in
+            let lastResortKey = self.kyberPreKeyStore.generateLastResortKyberPreKey(
                 signedBy: self.identityKey,
                 tx: tx
             )
@@ -352,13 +311,13 @@ class KyberPreKeyStoreTest: XCTestCase {
         let pniIdentityKey = ECKeyPair.generateKeyPair()
         let pniKyberPreKeyStore = SSKKyberPreKeyStore(
             for: .pni,
-            keyValueStoreFactory: keyValueStoreFactory,
-            dateProvider: dateProvider
+            dateProvider: dateProvider,
+            remoteConfigProvider: MockRemoteConfigProvider()
         )
 
         func generateKeys(keyStore: SSKKyberPreKeyStore, identityKey: ECKeyPair) -> ([KyberPreKeyRecord], KyberPreKeyRecord) {
-            return try! self.db.write { tx in
-                let records = try keyStore.generateKyberPreKeyRecords(
+            return self.db.write { tx in
+                let records = keyStore.generateKyberPreKeyRecords(
                     count: 10,
                     signedBy: identityKey,
                     tx: tx
@@ -366,7 +325,7 @@ class KyberPreKeyStoreTest: XCTestCase {
 
                 try! keyStore.storeKyberPreKeyRecords(records: records, tx: tx)
 
-                let lastResort = try keyStore.generateLastResortKyberPreKey(
+                let lastResort = keyStore.generateLastResortKyberPreKey(
                     signedBy: identityKey,
                     tx: tx)
 
@@ -379,20 +338,12 @@ class KyberPreKeyStoreTest: XCTestCase {
         let (aciRecords, aciLastResort) = generateKeys(keyStore: kyberPreKeyStore, identityKey: identityKey)
         let (pniRecords, pniLastResort) = generateKeys(keyStore: pniKyberPreKeyStore, identityKey: pniIdentityKey)
 
-        let aciKeyStore = keyValueStoreFactory.keyValueStore(
-            collection: SSKKyberPreKeyStore.Constants.ACI.keyStoreCollection
-        )
-
-        let pniKeyStore = keyValueStoreFactory.keyValueStore(
-            collection: SSKKyberPreKeyStore.Constants.PNI.keyStoreCollection
-        )
-
         self.db.read { tx in
 
             // make sure no PNI one-time keys in ACI store
             for record in aciRecords {
-                let aciRecord = aciKeyStore.getObject(forKey: kyberPreKeyStore.key(for: record.id), transaction: tx)
-                let pniRecord = pniKeyStore.getObject(forKey: kyberPreKeyStore.key(for: record.id), transaction: tx)
+                let aciRecord = kyberPreKeyStore.loadKyberPreKey(id: record.id, tx: tx)
+                let pniRecord = pniKyberPreKeyStore.loadKyberPreKey(id: record.id, tx: tx)
 
                 XCTAssertNotNil(aciRecord)
                 XCTAssertNil(pniRecord)
@@ -400,24 +351,24 @@ class KyberPreKeyStoreTest: XCTestCase {
 
             // make sure no ACI one-time keys in PNI store
             for record in pniRecords {
-                let aciRecord = aciKeyStore.getObject(forKey: kyberPreKeyStore.key(for: record.id), transaction: tx)
-                let pniRecord = pniKeyStore.getObject(forKey: kyberPreKeyStore.key(for: record.id), transaction: tx)
+                let aciRecord = kyberPreKeyStore.loadKyberPreKey(id: record.id, tx: tx)
+                let pniRecord = pniKyberPreKeyStore.loadKyberPreKey(id: record.id, tx: tx)
 
                 XCTAssertNil(aciRecord)
                 XCTAssertNotNil(pniRecord)
             }
 
             // make sure no PNI last resort keys in ACI store
-            let aciLastResortRecord1 = aciKeyStore.getObject(forKey: kyberPreKeyStore.key(for: aciLastResort.id), transaction: tx)
-            let pniLastResortRecord1 = pniKeyStore.getObject(forKey: kyberPreKeyStore.key(for: aciLastResort.id), transaction: tx)
-                XCTAssertNotNil(aciLastResortRecord1)
-                XCTAssertNil(pniLastResortRecord1)
+            let aciLastResortRecord1 = kyberPreKeyStore.loadKyberPreKey(id: aciLastResort.id, tx: tx)
+            let pniLastResortRecord1 = pniKyberPreKeyStore.loadKyberPreKey(id: aciLastResort.id, tx: tx)
+            XCTAssertNotNil(aciLastResortRecord1)
+            XCTAssertNil(pniLastResortRecord1)
 
             // make sure no ACI last resort keys in PNI store
-            let aciLastResortRecord2 = aciKeyStore.getObject(forKey: kyberPreKeyStore.key(for: pniLastResort.id), transaction: tx)
-            let pniLastResortRecord2 = pniKeyStore.getObject(forKey: kyberPreKeyStore.key(for: pniLastResort.id), transaction: tx)
-                XCTAssertNil(aciLastResortRecord2)
-                XCTAssertNotNil(pniLastResortRecord2)
+            let aciLastResortRecord2 = kyberPreKeyStore.loadKyberPreKey(id: pniLastResort.id, tx: tx)
+            let pniLastResortRecord2 = pniKyberPreKeyStore.loadKyberPreKey(id: pniLastResort.id, tx: tx)
+            XCTAssertNil(aciLastResortRecord2)
+            XCTAssertNotNil(pniLastResortRecord2)
         }
     }
 
@@ -426,7 +377,7 @@ class KyberPreKeyStoreTest: XCTestCase {
             timeIntervalSinceNow: -(SSKKyberPreKeyStore.Constants.oneTimeKeyExpirationInterval + 1)
         )
         try! self.db.write { tx in
-            let records = try self.kyberPreKeyStore.generateKyberPreKeyRecords(
+            let records = self.kyberPreKeyStore.generateKyberPreKeyRecords(
                 count: 5,
                 signedBy: self.identityKey,
                 tx: tx
@@ -437,7 +388,7 @@ class KyberPreKeyStoreTest: XCTestCase {
         currentDate = Date()
 
         let currentRecords = try! self.db.write { tx in
-            let records = try self.kyberPreKeyStore.generateKyberPreKeyRecords(
+            let records = self.kyberPreKeyStore.generateKyberPreKeyRecords(
                 count: 5,
                 signedBy: self.identityKey,
                 tx: tx
@@ -447,7 +398,7 @@ class KyberPreKeyStoreTest: XCTestCase {
             return records
         }
 
-        let keyStore = keyValueStoreFactory.keyValueStore(
+        let keyStore = KeyValueStore(
             collection: SSKKyberPreKeyStore.Constants.ACI.keyStoreCollection
         )
 
@@ -475,37 +426,39 @@ class KyberPreKeyStoreTest: XCTestCase {
     }
 
     func testCullLastResortKeys() {
+        let lastResortKeyExpirationInterval = MockRemoteConfigProvider().currentConfig().messageQueueTime
+
         currentDate = Date(
-            timeIntervalSinceNow: -(SSKKyberPreKeyStore.Constants.lastResortKeyExpirationInterval + 1)
+            timeIntervalSinceNow: -(lastResortKeyExpirationInterval + 1)
         )
 
         _ = try! self.db.write { tx in
-            let record = try self.kyberPreKeyStore.generateLastResortKyberPreKey(signedBy: self.identityKey, tx: tx)
+            let record = self.kyberPreKeyStore.generateLastResortKyberPreKey(signedBy: self.identityKey, tx: tx)
             try self.kyberPreKeyStore.storeLastResortPreKey(record: record, tx: tx)
             return record
         }
 
         currentDate = Date(
-            timeIntervalSinceNow: -(SSKKyberPreKeyStore.Constants.lastResortKeyExpirationInterval - 1)
+            timeIntervalSinceNow: -(lastResortKeyExpirationInterval - 1)
         )
 
         let oldUnexpiredLastResort = try! self.db.write { tx in
-            let record = try self.kyberPreKeyStore.generateLastResortKyberPreKey(signedBy: self.identityKey, tx: tx)
+            let record = self.kyberPreKeyStore.generateLastResortKyberPreKey(signedBy: self.identityKey, tx: tx)
             try self.kyberPreKeyStore.storeLastResortPreKey(record: record, tx: tx)
             return record
         }
 
         currentDate = Date(
-            timeIntervalSinceNow: -(SSKKyberPreKeyStore.Constants.lastResortKeyExpirationInterval + 1)
+            timeIntervalSinceNow: -(lastResortKeyExpirationInterval + 1)
         )
 
         let currentLastResort = try! self.db.write { tx in
-            let record = try self.kyberPreKeyStore.generateLastResortKyberPreKey(signedBy: self.identityKey, tx: tx)
+            let record = self.kyberPreKeyStore.generateLastResortKyberPreKey(signedBy: self.identityKey, tx: tx)
             try self.kyberPreKeyStore.storeLastResortPreKey(record: record, tx: tx)
             return record
         }
 
-        let keyStore = keyValueStoreFactory.keyValueStore(
+        let keyStore = KeyValueStore(
             collection: SSKKyberPreKeyStore.Constants.ACI.keyStoreCollection
         )
 

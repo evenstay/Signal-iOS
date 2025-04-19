@@ -27,24 +27,24 @@ public class UserNotificationConfig {
         )
     }
 
-    class func notificationAction(_ action: AppNotificationAction) -> UNNotificationAction? {
+    class func notificationAction(_ action: AppNotificationAction) -> UNNotificationAction {
         switch action {
         case .callBack:
             return UNNotificationAction(
-                identifier: action.identifier,
+                identifier: action.rawValue,
                 title: CallStrings.callBackButtonTitle,
                 options: .foreground,
                 icon: UNNotificationActionIcon(systemImageName: "phone")
             )
         case .markAsRead:
             return UNNotificationAction(
-                identifier: action.identifier,
+                identifier: action.rawValue,
                 title: MessageStrings.markAsReadNotificationAction,
                 icon: UNNotificationActionIcon(systemImageName: "message")
             )
         case .reply:
             return UNTextInputNotificationAction(
-                identifier: action.identifier,
+                identifier: action.rawValue,
                 title: MessageStrings.replyNotificationAction,
                 icon: UNNotificationActionIcon(systemImageName: "arrowshape.turn.up.left"),
                 textInputButtonTitle: MessageStrings.sendButton,
@@ -52,47 +52,23 @@ public class UserNotificationConfig {
             )
         case .showThread:
             return UNNotificationAction(
-                identifier: action.identifier,
+                identifier: action.rawValue,
                 title: CallStrings.showThreadButtonTitle,
                 icon: UNNotificationActionIcon(systemImageName: "bubble.left.and.bubble.right")
             )
-        case .showMyStories:
-            // Currently, .showMyStories is only used as a default action.
-            owsFailDebug("Show my stories not supported as a UNNotificationAction")
-            return nil
         case .reactWithThumbsUp:
             return UNNotificationAction(
-                identifier: action.identifier,
+                identifier: action.rawValue,
                 title: MessageStrings.reactWithThumbsUpNotificationAction,
                 icon: UNNotificationActionIcon(systemImageName: "hand.thumbsup")
             )
-        case .showCallLobby:
-            // Currently, .showCallLobby is only used as a default action.
-            owsFailDebug("Show call lobby not supported as a UNNotificationAction")
-            return nil
-        case .submitDebugLogs:
-            // Currently, .submitDebugLogs is only used as a default action.
-            owsFailDebug("Show submit debug logs not supported as a UNNotificationAction")
-            return nil
-        case .reregister:
-            // Currently, .reregister is only used as a default action.
-            owsFailDebug("Reregister is not supported as a UNNotificationAction")
-            return nil
-        case .showChatList:
-            // Currently, .showChatList is only used as a default action.
-            owsFailDebug("ShowChatList is not supported as a UNNotificationAction")
-            return nil
         }
-    }
-
-    public class func action(identifier: String) -> AppNotificationAction? {
-        return AppNotificationAction.allCases.first { notificationAction($0)?.identifier == identifier }
     }
 }
 
 // MARK: -
 
-class UserNotificationPresenter: Dependencies {
+class UserNotificationPresenter {
     private static var notificationCenter: UNUserNotificationCenter { UNUserNotificationCenter.current() }
 
     // Delay notification of incoming messages when it's likely to be read by a linked device to
@@ -129,7 +105,7 @@ class UserNotificationPresenter: Dependencies {
         title: String?,
         body: String,
         threadIdentifier: String?,
-        userInfo: [AnyHashable: Any],
+        userInfo: AppNotificationUserInfo,
         interaction: INInteraction?,
         sound: Sound?,
         replacingIdentifier: String? = nil,
@@ -150,7 +126,7 @@ class UserNotificationPresenter: Dependencies {
 
         let content = UNMutableNotificationContent()
         content.categoryIdentifier = category.identifier
-        content.userInfo = userInfo
+        content.userInfo = userInfo.build()
         if let sound, sound != .standard(.none) {
             content.sound = sound.notificationSound(isQuiet: isMainAppAndActive)
         }
@@ -170,9 +146,26 @@ class UserNotificationPresenter: Dependencies {
             || category == .incomingReactionWithActions_CanReply
             || category == .incomingReactionWithActions_CannotReply
         )
-        if checkForCancel && hasReceivedSyncMessageRecentlyWithSneakyTransaction {
-            assert(userInfo[AppNotificationUserInfoKey.threadId] != nil)
+        if checkForCancel, !isMainAppAndActive, hasReceivedSyncMessageRecentlyWithSneakyTransaction {
+            assert(userInfo.threadId != nil)
             trigger = UNTimeIntervalNotificationTrigger(timeInterval: kNotificationDelayForRemoteRead, repeats: false)
+        } else if category == .newDeviceLinked {
+            let db = DependenciesBridge.shared.db
+            let deviceStore = DependenciesBridge.shared.deviceStore
+            let linkedDeviceDetails = db.read { tx in
+                try? deviceStore.mostRecentlyLinkedDeviceDetails(tx: tx)
+            }
+
+            let delay = {
+                if let linkedDeviceDetails {
+                    return linkedDeviceDetails.notificationDelay
+                } else {
+                    owsFailDebug("mostRecentlyLinkedDeviceDetails should be set before scheduling notification")
+                    return TimeInterval.random(in: .hour...(3 * .hour))
+                }
+            }()
+
+            trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
         } else {
             trigger = nil
         }
@@ -216,31 +209,9 @@ class UserNotificationPresenter: Dependencies {
         }
     }
 
-    // This method is thread-safe.
-    func postGenericIncomingMessageNotification() async {
-        let content = UNMutableNotificationContent()
-        content.categoryIdentifier = AppNotificationCategory.incomingMessageGeneric.identifier
-        content.userInfo = [:]
-        // We use a fixed identifier so that if we post multiple "generic"
-        // notifications, they replace each other.
-        let notificationIdentifier = "org.signal.genericIncomingMessageNotification"
-        content.body = NotificationStrings.genericIncomingMessageNotification
-        let request = UNNotificationRequest(identifier: notificationIdentifier, content: content, trigger: nil)
-
-        Logger.info("Presenting generic incoming message notification with identifier \(notificationIdentifier)")
-
-        do {
-            try await Self.notificationCenter.add(request)
-        } catch {
-            owsFailDebug("Error presenting generic incoming message notification with identifier \(notificationIdentifier): \(error)")
-        }
-
-        Logger.info("Presented notification with identifier \(notificationIdentifier)")
-    }
-
     private func shouldPresentNotification(
         category: AppNotificationCategory,
-        userInfo: [AnyHashable: Any],
+        userInfo: AppNotificationUserInfo,
         notificationSuppressionRule: NotificationSuppressionRule
     ) -> Bool {
         switch category {
@@ -249,7 +220,8 @@ class UserNotificationPresenter: Dependencies {
              .missedCallWithoutActions,
              .missedCallFromNoLongerVerifiedIdentity,
              .transferRelaunch,
-             .deregistration:
+             .deregistration,
+             .newDeviceLinked:
             // Always show these notifications
             return true
 
@@ -265,7 +237,7 @@ class UserNotificationPresenter: Dependencies {
              .infoOrErrorMessage:
             // Don't show these notifications when the thread is visible.
             if
-                let notificationThreadUniqueId = userInfo[AppNotificationUserInfoKey.threadId] as? String,
+                let notificationThreadUniqueId = userInfo.threadId,
                 case .messagesInThread(let suppressedThreadUniqueId) = notificationSuppressionRule,
                 suppressedThreadUniqueId == notificationThreadUniqueId
             {
@@ -276,8 +248,8 @@ class UserNotificationPresenter: Dependencies {
         case .incomingGroupStoryReply:
             // Show notifications any time we're not currently showing the group reply sheet for that story
             if
-                let notificationThreadUniqueId = userInfo[AppNotificationUserInfoKey.threadId] as? String,
-                let notificationStoryTimestamp = userInfo[AppNotificationUserInfoKey.storyTimestamp] as? UInt64,
+                let notificationThreadUniqueId = userInfo.threadId,
+                let notificationStoryTimestamp = userInfo.storyTimestamp,
                 case .groupStoryReplies(let suppressedThreadUniqueId, let suppressedStoryTimestamp) = notificationSuppressionRule,
                 suppressedThreadUniqueId == notificationThreadUniqueId,
                 suppressedStoryTimestamp == notificationStoryTimestamp
@@ -290,10 +262,6 @@ class UserNotificationPresenter: Dependencies {
             if case .failedStorySends = notificationSuppressionRule {
                 return false
             }
-            return true
-
-        case .incomingMessageGeneric:
-            owsFailDebug(".incomingMessageGeneric should never check shouldPresentNotification().")
             return true
         }
     }
@@ -336,6 +304,39 @@ class UserNotificationPresenter: Dependencies {
         Self.notificationCenter.removeAllDeliveredNotifications()
     }
 
+    static func clearAllNotificationsExceptNewLinkedDevices() {
+        Logger.info("Clearing all notifications except new linked device notifications")
+
+        Task {
+            let pendingNotificationIDs = await Self.notificationCenter.pendingNotificationRequests()
+                .filter { notificationRequest in
+                    notificationRequest.content.categoryIdentifier != AppNotificationCategory.newDeviceLinked.identifier
+                }
+                .map(\.identifier)
+            let deliveredNotificationIDs = await Self.notificationCenter.deliveredNotifications()
+                .filter { notification in
+                    notification.request.content.categoryIdentifier != AppNotificationCategory.newDeviceLinked.identifier
+                }
+                .map(\.request.identifier)
+
+            Self.notificationCenter.removePendingNotificationRequests(withIdentifiers: pendingNotificationIDs)
+            Self.notificationCenter.removeDeliveredNotifications(withIdentifiers: deliveredNotificationIDs)
+        }
+    }
+
+    static func clearDeliveredNewLinkedDevicesNotifications() {
+        Logger.info("Clearing delivered new linked device notifications")
+        Task {
+            let pendingNotificationRequestIDs = await Self.notificationCenter.deliveredNotifications()
+                .filter { notification in
+                    notification.request.content.categoryIdentifier == AppNotificationCategory.newDeviceLinked.identifier
+                }
+                .map(\.request.identifier)
+
+            Self.notificationCenter.removeDeliveredNotifications(withIdentifiers: pendingNotificationRequestIDs)
+        }
+    }
+
     private enum CancellationType: Equatable, Hashable {
         case threadId(String)
         case messageIds(Set<String>)
@@ -361,41 +362,26 @@ class UserNotificationPresenter: Dependencies {
         matching cancellationType: CancellationType
     ) -> Bool {
         let requestMatchesPredicate: (UNNotificationRequest) -> Bool = { request in
+            let userInfo = AppNotificationUserInfo(request.content.userInfo)
             switch cancellationType {
             case .threadId(let threadId):
-                if
-                    let requestThreadId = request.content.userInfo[AppNotificationUserInfoKey.threadId] as? String,
-                    requestThreadId == threadId
-                {
+                if let requestThreadId = userInfo.threadId, requestThreadId == threadId {
                     return true
                 }
             case .messageIds(let messageIds):
-                if
-                    let requestMessageId = request.content.userInfo[AppNotificationUserInfoKey.messageId] as? String,
-                    messageIds.contains(requestMessageId)
-                {
+                if let requestMessageId = userInfo.messageId, messageIds.contains(requestMessageId) {
                     return true
                 }
             case .reactionId(let reactionId):
-                if
-                    let requestReactionId = request.content.userInfo[AppNotificationUserInfoKey.reactionId] as? String,
-                    requestReactionId == reactionId
-                {
+                if let requestReactionId = userInfo.reactionId, requestReactionId == reactionId {
                     return true
                 }
             case .missedCalls(let threadUniqueId):
-                if
-                    (request.content.userInfo[AppNotificationUserInfoKey.isMissedCall] as? Bool) == true,
-                    let requestThreadId = request.content.userInfo[AppNotificationUserInfoKey.threadId] as? String,
-                    threadUniqueId == requestThreadId
-                {
+                if userInfo.isMissedCall == true, let requestThreadId = userInfo.threadId, threadUniqueId == requestThreadId {
                     return true
                 }
             case .storyMessage(let storyMessageUniqueId):
-                if
-                    let requestStoryMessageId = request.content.userInfo[AppNotificationUserInfoKey.storyMessageId] as? String,
-                    requestStoryMessageId == storyMessageUniqueId
-                {
+                if let requestStoryMessageId = userInfo.storyMessageId, requestStoryMessageId == storyMessageUniqueId {
                     return true
                 }
             }
@@ -443,6 +429,10 @@ public protocol StoryGroupReplier: UIViewController {
     var threadUniqueId: String? { get }
 }
 
+public protocol LinkAndSyncProgressUI {
+    var shouldSuppressNotifications: Bool { get }
+}
+
 extension Sound {
     func notificationSound(isQuiet: Bool) -> UNNotificationSound {
         guard let filename = filename(quiet: isQuiet) else {
@@ -456,20 +446,5 @@ extension Sound {
             Logger.info("[Notification Sounds] sound file doesn't exist!")
         }
         return UNNotificationSound(named: UNNotificationSoundName(rawValue: filename))
-    }
-}
-
-extension UNAuthorizationStatus: CustomStringConvertible {
-    public var description: String {
-        switch self {
-        case .notDetermined: return "Not Determined"
-        case .denied: return "Denied"
-        case .authorized: return "Authorized"
-        case .provisional: return "Provisional"
-        case .ephemeral: return "Ephemeral"
-        @unknown default:
-            owsFailDebug("New case! Please update the method")
-            return "Raw value: \(rawValue)"
-        }
     }
 }

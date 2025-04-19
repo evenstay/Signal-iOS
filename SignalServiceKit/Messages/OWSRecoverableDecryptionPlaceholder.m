@@ -14,7 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable instancetype)initWithFailedEnvelopeTimestamp:(uint64_t)timestamp
                                                sourceAci:(AciObjC *)sourceAci
                                         untrustedGroupId:(nullable NSData *)untrustedGroupId
-                                             transaction:(SDSAnyWriteTransaction *)writeTx
+                                             transaction:(DBWriteTransaction *)writeTx
 {
     SignalServiceAddress *sender = [[SignalServiceAddress alloc] initWithServiceIdObjC:sourceAci];
     TSThread *thread;
@@ -52,10 +52,10 @@ NS_ASSUME_NONNULL_BEGIN
                             sortId:(uint64_t)sortId
                          timestamp:(uint64_t)timestamp
                     uniqueThreadId:(NSString *)uniqueThreadId
-                     attachmentIds:(NSArray<NSString *> *)attachmentIds
                               body:(nullable NSString *)body
                         bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                       contactShare:(nullable OWSContact *)contactShare
+          deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                          editState:(TSEditState)editState
                    expireStartedAt:(uint64_t)expireStartedAt
                 expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -86,10 +86,10 @@ NS_ASSUME_NONNULL_BEGIN
                                 sortId:sortId
                              timestamp:timestamp
                         uniqueThreadId:uniqueThreadId
-                         attachmentIds:attachmentIds
                                   body:body
                             bodyRanges:bodyRanges
                           contactShare:contactShare
+              deprecated_attachmentIds:deprecated_attachmentIds
                              editState:editState
                        expireStartedAt:expireStartedAt
                     expireTimerVersion:expireTimerVersion
@@ -132,11 +132,12 @@ NS_ASSUME_NONNULL_BEGIN
     return [self.expirationDate isAfterNow] && !self.wasRead;
 }
 
-- (NSString *)previewTextWithTransaction:(SDSAnyReadTransaction *)transaction
+- (NSString *)previewTextWithTransaction:(DBReadTransaction *)transaction
 {
     NSString *_Nullable senderName = nil;
     if (self.sender) {
-        senderName = [self.contactManagerObjC shortDisplayNameStringForAddress:self.sender transaction:transaction];
+        senderName = [SSKEnvironment.shared.contactManagerObjcRef shortDisplayNameStringForAddress:self.sender
+                                                                                       transaction:transaction];
     }
 
     if (senderName) {
@@ -157,7 +158,7 @@ NS_ASSUME_NONNULL_BEGIN
                        thread:(TSThread *)thread
                  circumstance:(OWSReceiptCircumstance)circumstance
      shouldClearNotifications:(BOOL)shouldClearNotifications
-                  transaction:(SDSAnyWriteTransaction *)transaction
+                  transaction:(DBWriteTransaction *)transaction
 {
     OWSLogInfo(@"Marking placeholder as read. No longer eligible for inline replacement.");
     [super markAsReadAtTimestamp:readTimestamp

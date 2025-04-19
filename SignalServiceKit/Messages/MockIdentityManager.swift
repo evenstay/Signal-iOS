@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+#if TESTABLE_BUILD
+
 import Foundation
 public import LibSignalClient
-
-#if TESTABLE_BUILD
 
 open class MockIdentityManager: OWSIdentityManager {
     private let recipientIdFinder: RecipientIdFinder
@@ -47,7 +47,7 @@ open class MockIdentityManager: OWSIdentityManager {
         }
         if recipientIdentities[targetRecipient.uniqueId] == nil {
             recipientIdentities[targetRecipient.uniqueId] = OWSRecipientIdentity(
-                recipientUniqueId: targetRecipient.uniqueId,
+                uniqueId: targetRecipient.uniqueId,
                 identityKey: fromValue.identityKey,
                 isFirstKnownKey: fromValue.isFirstKnownKey,
                 createdAt: fromValue.createdAt,
@@ -67,6 +67,9 @@ open class MockIdentityManager: OWSIdentityManager {
     }
     open func setIdentityKeyPair(_ keyPair: ECKeyPair?, for identity: OWSIdentity, tx: DBWriteTransaction) {
         identityKeyPairs[identity] = keyPair
+    }
+    open func wipeIdentityKeysFromFailedProvisioning(tx: DBWriteTransaction) {
+        identityKeyPairs = [:]
     }
     open func identityKey(for address: SignalServiceAddress, tx: DBReadTransaction) -> Data? { fatalError() }
     open func saveIdentityKey(_ identityKey: Data, for serviceId: ServiceId, tx: DBWriteTransaction) -> Result<Bool, RecipientIdError> { fatalError() }

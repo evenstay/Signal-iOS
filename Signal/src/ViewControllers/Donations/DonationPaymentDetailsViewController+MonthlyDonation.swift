@@ -12,8 +12,8 @@ extension DonationPaymentDetailsViewController {
     /// See also: code for other payment methods, such as Apple Pay.
     func monthlyDonation(
         with validForm: FormState.ValidForm,
-        newSubscriptionLevel: SubscriptionLevel,
-        priorSubscriptionLevel: SubscriptionLevel?,
+        newSubscriptionLevel: DonationSubscriptionLevel,
+        priorSubscriptionLevel: DonationSubscriptionLevel?,
         subscriberID existingSubscriberId: Data?
     ) {
         let currencyCode = self.donationAmount.currencyCode
@@ -27,7 +27,9 @@ extension DonationPaymentDetailsViewController {
                 if let existingSubscriberId {
                     Logger.info("[Donations] Cancelling existing subscription")
 
-                    return SubscriptionManagerImpl.cancelSubscription(for: existingSubscriberId)
+                    return Promise.wrapAsync {
+                        try await DonationSubscriptionManager.cancelSubscription(for: existingSubscriberId)
+                    }
                 } else {
                     Logger.info("[Donations] No existing subscription to cancel")
 
@@ -36,19 +38,22 @@ extension DonationPaymentDetailsViewController {
             }.then(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Data> in
                 Logger.info("[Donations] Preparing new monthly subscription")
 
-                return SubscriptionManagerImpl.prepareNewSubscription(currencyCode: currencyCode)
-            }.then(on: DispatchQueue.sharedUserInitiated) { subscriberId -> Promise<(Data, SubscriptionManagerImpl.RecurringSubscriptionPaymentType)> in
-                firstly { () -> Promise<String> in
+                return Promise.wrapAsync {
+                    try await DonationSubscriptionManager.prepareNewSubscription(currencyCode: currencyCode)
+                }
+            }.then(on: DispatchQueue.sharedUserInitiated) { subscriberId -> Promise<(Data, DonationSubscriptionManager.RecurringSubscriptionPaymentType)> in
+                Promise.wrapAsync { () -> String in
                     Logger.info("[Donations] Creating Signal payment method for new monthly subscription")
-
-                    return Stripe.createSignalPaymentMethodForSubscription(subscriberId: subscriberId)
-                }.then(on: DispatchQueue.sharedUserInitiated) { clientSecret -> Promise<SubscriptionManagerImpl.RecurringSubscriptionPaymentType> in
+                    return try await Stripe.createSignalPaymentMethodForSubscription(subscriberId: subscriberId)
+                }.then(on: DispatchQueue.sharedUserInitiated) { clientSecret -> Promise<DonationSubscriptionManager.RecurringSubscriptionPaymentType> in
                     Logger.info("[Donations] Authorizing payment for new monthly subscription")
 
-                    return Stripe.setupNewSubscription(
-                        clientSecret: clientSecret,
-                        paymentMethod: validForm.stripePaymentMethod
-                    ).then(on: DispatchQueue.sharedUserInitiated) { confirmedIntent -> Promise<Stripe.ConfirmedSetupIntent> in
+                    return Promise.wrapAsync {
+                        return try await Stripe.setupNewSubscription(
+                            clientSecret: clientSecret,
+                            paymentMethod: validForm.stripePaymentMethod
+                        )
+                    }.then(on: DispatchQueue.sharedUserInitiated) { confirmedIntent -> Promise<Stripe.ConfirmedSetupIntent> in
                         if let redirectToUrl = confirmedIntent.redirectToUrl {
                             if case .ideal = validForm.donationPaymentMethod {
                                 Logger.info("[Donations] Subscription requires iDEAL authentication. Presenting...")
@@ -60,9 +65,9 @@ extension DonationPaymentDetailsViewController {
                                     oldSubscriptionLevel: priorSubscriptionLevel,
                                     amount: self.donationAmount
                                 )
-                                self.databaseStorage.write { tx in
+                                SSKEnvironment.shared.databaseStorageRef.write { tx in
                                     do {
-                                        try donationStore.setPendingSubscription(donation: confirmedDonation, tx: tx.asV2Write)
+                                        try donationStore.setPendingSubscription(donation: confirmedDonation, tx: tx)
                                     } catch {
                                         owsFailDebug("[Donations] Failed to persist pending iDEAL subscription.")
                                     }
@@ -87,18 +92,20 @@ extension DonationPaymentDetailsViewController {
                             return .ideal(setupIntentId: confirmedIntent.setupIntentId)
                         }
                     }
-                }.map(on: DispatchQueue.sharedUserInitiated) { paymentType -> (Data, SubscriptionManagerImpl.RecurringSubscriptionPaymentType) in
+                }.map(on: DispatchQueue.sharedUserInitiated) { paymentType -> (Data, DonationSubscriptionManager.RecurringSubscriptionPaymentType) in
                     (subscriberId, paymentType)
                 }
             }.then(on: DispatchQueue.sharedUserInitiated) { (subscriberId, paymentType) in
-                return DonationViewsUtil.completeMonthlyDonations(
-                    subscriberId: subscriberId,
-                    paymentType: paymentType,
-                    newSubscriptionLevel: newSubscriptionLevel,
-                    priorSubscriptionLevel: priorSubscriptionLevel,
-                    currencyCode: currencyCode,
-                    databaseStorage: self.databaseStorage
-                )
+                return Promise.wrapAsync {
+                    try await DonationViewsUtil.completeMonthlyDonations(
+                        subscriberId: subscriberId,
+                        paymentType: paymentType,
+                        newSubscriptionLevel: newSubscriptionLevel,
+                        priorSubscriptionLevel: priorSubscriptionLevel,
+                        currencyCode: currencyCode,
+                        databaseStorage: SSKEnvironment.shared.databaseStorageRef
+                    )
+                }
             }
         ).done(on: DispatchQueue.main) { [weak self] in
             Logger.info("[Donations] Monthly donation finished")

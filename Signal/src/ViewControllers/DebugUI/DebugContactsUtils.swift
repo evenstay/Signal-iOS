@@ -9,7 +9,7 @@ import SignalUI
 
 #if USE_DEBUG_UI
 
-class DebugContactsUtils: Dependencies {
+class DebugContactsUtils {
 
     // MARK: Random Contacts
 
@@ -114,9 +114,6 @@ class DebugContactsUtils: Dependencies {
             }
         } catch {
             owsFailDebug("Error saving fake contacts: \(error)")
-            DispatchQueue.main.async {
-                OWSActionSheets.showErrorAlert(message: error.userErrorDescription)
-            }
         }
     }
 
@@ -133,7 +130,6 @@ class DebugContactsUtils: Dependencies {
             try deleteContactsWithFilter { _ in return true }
         } catch {
             Logger.error("\(error)")
-            OWSActionSheets.showErrorAlert(message: error.userErrorDescription)
         }
     }
 
@@ -150,7 +146,6 @@ class DebugContactsUtils: Dependencies {
             }
         } catch {
             Logger.error("\(error)")
-            OWSActionSheets.showErrorAlert(message: error.userErrorDescription)
         }
     }
 

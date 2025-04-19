@@ -8,7 +8,7 @@ import GRDB
 import SignalServiceKit
 
 final class FullTextSearchOptimizer {
-    private let db: DB
+    private let db: any DB
     private let keyValueStore: KeyValueStore
     private let preconditions: Preconditions
 
@@ -23,9 +23,9 @@ final class FullTextSearchOptimizer {
         static let currentVersion = 1
     }
 
-    init(appContext: AppContext, db: DB, keyValueStoreFactory: KeyValueStoreFactory) {
+    init(appContext: AppContext, db: any DB) {
         self.db = db
-        self.keyValueStore = keyValueStoreFactory.keyValueStore(collection: "FullTextSearchOptimizer")
+        self.keyValueStore = KeyValueStore(collection: "FullTextSearchOptimizer")
         self.preconditions = Preconditions([AppActivePrecondition(appContext: appContext)])
     }
 
@@ -70,7 +70,7 @@ final class FullTextSearchOptimizer {
 
         let mergeResult = try await db.awaitableWrite { tx -> SqliteUtil.Fts5.MergeResult in
             return try SqliteUtil.Fts5.merge(
-                db: SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite.database,
+                db: SDSDB.shimOnlyBridge(tx).database,
                 ftsTableName: FullTextSearchIndexer.ftsTableName,
                 numberOfPages: Constants.numberOfPagesToMergeAtATime,
                 isFirstBatch: isFirstBatch

@@ -4,30 +4,27 @@
 //
 
 import Foundation
+public import LibSignalClient
 
 extension Notification.Name {
-    public static var isCensorshipCircumventionActiveDidChange: Self {
-        return .init(rawValue: OWSSignalServiceObjC.isCensorshipCircumventionActiveDidChangeNotificationName)
-    }
+    public static let isCensorshipCircumventionActiveDidChange = Notification.Name("NSNotificationNameIsCensorshipCircumventionActiveDidChange")
 }
 
-public class OWSSignalServiceObjC: NSObject {
-    @objc
-    public static var isCensorshipCircumventionActiveDidChangeNotificationName: String {
-        return "NSNotificationNameIsCensorshipCircumventionActiveDidChange"
-    }
-}
-
-public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
-    private let keyValueStore = SDSKeyValueStore(collection: "kTSStorageManager_OWSSignalService")
+public class OWSSignalService: OWSSignalServiceProtocol {
+    private let keyValueStore = KeyValueStore(collection: "kTSStorageManager_OWSSignalService")
+    private let libsignalNet: Net?
 
     @Atomic public private(set) var isCensorshipCircumventionActive: Bool = false {
         didSet {
             guard isCensorshipCircumventionActive != oldValue else {
                 return
             }
-            NotificationCenter.default.postNotificationNameAsync(
-                .isCensorshipCircumventionActiveDidChange,
+
+            // Update libsignal's Net instance first, so that connections can be recreated by notification observers.
+            libsignalNet?.setCensorshipCircumventionEnabled(isCensorshipCircumventionActive)
+
+            NotificationCenter.default.postOnMainThread(
+                name: .isCensorshipCircumventionActiveDidChange,
                 object: nil,
                 userInfo: nil
             )
@@ -114,7 +111,7 @@ public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
         // circumvention is enabled, `buildCensorshipConfiguration()` will crash.
         // Add a database read here so that we crash in both `if` branches.
         assert({
-            databaseStorage.read { _ in }
+            SSKEnvironment.shared.databaseStorageRef.read { _ in }
             return true
         }(), "Must not have open transaction.")
 
@@ -122,13 +119,7 @@ public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
         if isCensorshipCircumventionActive && signalServiceInfo.censorshipCircumventionSupported {
             let censorshipConfiguration = buildCensorshipConfiguration()
             let frontingURLWithoutPathPrefix = censorshipConfiguration.domainFrontBaseUrl
-            let frontingURLWithPathPrefix = {
-                if censorshipConfiguration.requiresPathPrefix {
-                    return frontingURLWithoutPathPrefix.appendingPathComponent(signalServiceInfo.censorshipCircumventionPathPrefix)
-                } else {
-                    return frontingURLWithoutPathPrefix
-                }
-            }()
+            let frontingURLWithPathPrefix = frontingURLWithoutPathPrefix.appendingPathComponent(signalServiceInfo.censorshipCircumventionPathPrefix)
             let unfrontedBaseUrl = signalServiceInfo.baseUrl
             let frontingInfo = OWSUrlFrontingInfo(
                 frontingURLWithoutPathPrefix: frontingURLWithoutPathPrefix,
@@ -137,8 +128,7 @@ public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
             )
             let baseUrl = frontingURLWithPathPrefix
             let securityPolicy = censorshipConfiguration.domainFrontSecurityPolicy
-            let extraHeaders = ["Host": censorshipConfiguration.hostHeader(signalServiceInfo.type) ?? TSConstants.censorshipReflectorHost]
-            Logger.debug("baseUrl (fronting): \(baseUrl)")
+            let extraHeaders: HttpHeaders = ["Host": censorshipConfiguration.reflectorHost()]
             return OWSURLSessionEndpoint(
                 baseUrl: baseUrl,
                 frontingInfo: frontingInfo,
@@ -153,7 +143,6 @@ public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
             } else {
                 securityPolicy = OWSURLSession.defaultSecurityPolicy
             }
-            Logger.debug("baseUrl (no fronting): \(baseUrl)")
             return OWSURLSessionEndpoint(
                 baseUrl: baseUrl,
                 frontingInfo: nil,
@@ -181,7 +170,8 @@ public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
 
     // MARK: - Internal Implementation
 
-    public init() {
+    public init(libsignalNet: Net?) {
+        self.libsignalNet = libsignalNet
         observeNotifications()
     }
 
@@ -220,6 +210,11 @@ public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
         updateHasCensoredPhoneNumber(e164.stringValue)
     }
 
+    public func resetHasCensoredPhoneNumberFromProvisioning() {
+        self.hasCensoredPhoneNumber = false
+        updateIsCensorshipCircumventionActive()
+    }
+
     private func updateHasCensoredPhoneNumber(_ localNumber: String?) {
         if let localNumber {
             self.hasCensoredPhoneNumber = OWSCensorshipConfiguration.isCensored(e164: localNumber)
@@ -247,7 +242,7 @@ public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
     // MARK: - Database operations
 
     private func readIsCensorshipCircumventionManuallyActivated() -> Bool {
-        return self.databaseStorage.read { transaction in
+        return SSKEnvironment.shared.databaseStorageRef.read { transaction in
             return self.keyValueStore.getBool(
                 Constants.isCensorshipCircumventionManuallyActivatedKey,
                 defaultValue: false,
@@ -257,7 +252,7 @@ public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
     }
 
     private func writeIsCensorshipCircumventionManuallyActivated(_ value: Bool) {
-        self.databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             self.keyValueStore.setBool(
                 value,
                 key: Constants.isCensorshipCircumventionManuallyActivatedKey,
@@ -267,7 +262,7 @@ public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
     }
 
     private func readIsCensorshipCircumventionManuallyDisabled() -> Bool {
-        return self.databaseStorage.read { transaction in
+        return SSKEnvironment.shared.databaseStorageRef.read { transaction in
             return self.keyValueStore.getBool(
                 Constants.isCensorshipCircumventionManuallyDisabledKey,
                 defaultValue: false,
@@ -277,7 +272,7 @@ public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
     }
 
     private func writeIsCensorshipCircumventionManuallyDisabled(_ value: Bool) {
-        self.databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             self.keyValueStore.setBool(
                 value,
                 key: Constants.isCensorshipCircumventionManuallyDisabledKey,
@@ -287,7 +282,7 @@ public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
     }
 
     private func readCensorshipCircumventionCountryCode() -> String? {
-        return self.databaseStorage.read { transaction in
+        return SSKEnvironment.shared.databaseStorageRef.read { transaction in
             return self.keyValueStore.getString(
                 Constants.manualCensorshipCircumventionCountryCodeKey,
                 transaction: transaction
@@ -296,7 +291,7 @@ public class OWSSignalService: OWSSignalServiceProtocol, Dependencies {
     }
 
     private func writeManualCensorshipCircumventionCountryCode(_ value: String?) {
-        self.databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             self.keyValueStore.setString(
                 value,
                 key: Constants.manualCensorshipCircumventionCountryCodeKey,

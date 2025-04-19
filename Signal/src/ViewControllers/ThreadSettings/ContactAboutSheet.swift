@@ -17,7 +17,7 @@ class ContactAboutSheet: StackSheetViewController {
         let nicknameManager: any NicknameManager
 
         static let `default` = Context(
-            contactManager: NSObject.contactsManager,
+            contactManager: SSKEnvironment.shared.contactManagerRef,
             identityManager: DependenciesBridge.shared.identityManager,
             recipientDatabaseTable: DependenciesBridge.shared.recipientDatabaseTable,
             nicknameManager: DependenciesBridge.shared.nicknameManager
@@ -39,7 +39,7 @@ class ContactAboutSheet: StackSheetViewController {
         self.spoilerState = spoilerState
         self.context = context
         super.init()
-        databaseStorage.appendDatabaseChangeDelegate(self)
+        DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
     }
 
     private weak var fromViewController: UIViewController?
@@ -122,14 +122,14 @@ class ContactAboutSheet: StackSheetViewController {
 
     /// Updates the contents with a database read and reloads the view.
     private func updateContents() {
-        databaseStorage.read { tx in
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
             updateContactNames(tx: tx)
-            updateIsVerified(tx: tx.asV2Read)
+            updateIsVerified(tx: tx)
             updateProfileBio(tx: tx)
             updateConnectionState(tx: tx)
             updateIsInSystemContacts(tx: tx)
             updateMutualGroupThreadCount(tx: tx)
-            updateNote(tx: tx.asV2Read)
+            updateNote(tx: tx)
         }
 
         loadContents()
@@ -178,6 +178,17 @@ class ContactAboutSheet: StackSheetViewController {
         }
         self.nameLabel = nameLabel
         stackView.addArrangedSubview(nameLabel)
+
+        if !isInSystemContacts, !isVerified {
+            let label = ProfileDetailLabel.profileNameEducation { [weak fromViewController, weak dismissalDelegate] in
+                let sheet = NameEducationSheet(type: .contact)
+                sheet.dismissalDelegate = dismissalDelegate
+                fromViewController?.dismiss(animated: true) {
+                    fromViewController?.present(sheet, animated: true)
+                }
+            }
+            stackView.addArrangedSubview(label)
+        }
 
         if isVerified {
             stackView.addArrangedSubview(ProfileDetailLabel.verified())
@@ -238,10 +249,11 @@ class ContactAboutSheet: StackSheetViewController {
     /// A secondary name to show after the primary name. Used to show a
     /// contact's profile name when it is overridden by a nickname.
     private var secondaryName: String?
-    private func updateContactNames(tx: SDSAnyReadTransaction) {
+    private func updateContactNames(tx: DBReadTransaction) {
         if isLocalUser {
-            let snapshot = profileManagerImpl.localProfileSnapshot(shouldIncludeAvatar: false)
-            self.displayName = snapshot.fullName ?? ""
+            let profileManager = SSKEnvironment.shared.profileManagerRef
+            let localUserProfile = profileManager.localUserProfile(tx: tx)
+            self.displayName = localUserProfile?.filteredFullName ?? ""
             // contactShortName not needed for local user
             return
         }
@@ -257,7 +269,7 @@ class ContactAboutSheet: StackSheetViewController {
         switch displayName {
         case .nickname:
             guard
-                let profile = profileManager.fetchUserProfiles(
+                let profile = SSKEnvironment.shared.profileManagerRef.fetchUserProfiles(
                     for: [thread.contactAddress],
                     tx: tx
                 ).first,
@@ -299,8 +311,10 @@ class ContactAboutSheet: StackSheetViewController {
     // MARK: Bio
 
     private var profileBio: String?
-    private func updateProfileBio(tx: SDSAnyReadTransaction) {
-        profileBio = profileManagerImpl.profileBioForDisplay(for: thread.contactAddress, transaction: tx)
+    private func updateProfileBio(tx: DBReadTransaction) {
+        let profileManager = SSKEnvironment.shared.profileManagerRef
+        let userProfile = profileManager.userProfile(for: thread.contactAddress, tx: tx)
+        profileBio = userProfile?.bioForDisplay
     }
 
     // MARK: Connection
@@ -313,12 +327,12 @@ class ContactAboutSheet: StackSheetViewController {
     }
 
     private var connectionState: ConnectionState?
-    private func updateConnectionState(tx: SDSAnyReadTransaction) {
+    private func updateConnectionState(tx: DBReadTransaction) {
         if isLocalUser {
             connectionState = nil
-        } else if profileManager.isThread(inProfileWhitelist: thread, transaction: tx) {
+        } else if SSKEnvironment.shared.profileManagerRef.isThread(inProfileWhitelist: thread, transaction: tx) {
             connectionState = .connection
-        } else if blockingManager.isAddressBlocked(thread.contactAddress, transaction: tx) {
+        } else if SSKEnvironment.shared.blockingManagerRef.isAddressBlocked(thread.contactAddress, transaction: tx) {
             connectionState = .blocked
         } else if thread.hasPendingMessageRequest(transaction: tx) {
             connectionState = .pending
@@ -330,7 +344,7 @@ class ContactAboutSheet: StackSheetViewController {
     // MARK: System contacts
 
     private var isInSystemContacts = false
-    private func updateIsInSystemContacts(tx: SDSAnyReadTransaction) {
+    private func updateIsInSystemContacts(tx: DBReadTransaction) {
         if isLocalUser {
             isInSystemContacts = false
             return
@@ -341,7 +355,7 @@ class ContactAboutSheet: StackSheetViewController {
     // MARK: Threads
 
     private var mutualGroupThreads: [TSGroupThread]?
-    private func updateMutualGroupThreadCount(tx: SDSAnyReadTransaction) {
+    private func updateMutualGroupThreadCount(tx: DBReadTransaction) {
         if isLocalUser {
             mutualGroupThreads = nil
             return
@@ -409,7 +423,7 @@ extension ContactAboutSheet: ConversationAvatarViewDelegate {
     func presentAvatarViewController() {
         guard
             avatarView.primaryImage != nil,
-            let vc = databaseStorage.read(block: { tx in
+            let vc = SSKEnvironment.shared.databaseStorageRef.read(block: { tx in
                 AvatarViewController(
                     thread: self.thread,
                     renderLocalUserAsNoteToSelf: false,

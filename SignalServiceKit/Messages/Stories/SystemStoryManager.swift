@@ -8,8 +8,7 @@ import GRDB
 
 // TODO: Support stubbing out OWSFileSystem more generally. This is a temporary
 // SystemStoryManager-scoped wrapper to avoid refactoring all usages of OWSFileSystem.
-@objc
-public class OnboardingStoryManagerFilesystem: NSObject {
+public class OnboardingStoryManagerFilesystem {
 
     public class func fileOrFolderExists(url: URL) -> Bool {
         return OWSFileSystem.fileOrFolderExists(url: url)
@@ -33,13 +32,12 @@ public class OnboardingStoryManagerFilesystem: NSObject {
 }
 
 // TODO: Support stubbing out StoryMessage init more generally.
-@objc
-public class OnboardingStoryManagerStoryMessageFactory: NSObject {
+public class OnboardingStoryManagerStoryMessageFactory {
 
     public class func createFromSystemAuthor(
-        attachmentSource: TSResourceDataSource,
+        attachmentSource: AttachmentDataSource,
         timestamp: UInt64,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) throws -> StoryMessage {
         return try StoryMessage.createFromSystemAuthor(
             attachmentSource: attachmentSource,
@@ -51,38 +49,36 @@ public class OnboardingStoryManagerStoryMessageFactory: NSObject {
     public class func validateAttachmentContents(
         dataSource: DataSource,
         mimeType: String
-    ) throws -> TSResourceDataSource {
-        return try DependenciesBridge.shared.tsResourceContentValidator.validateContents(
+    ) throws -> AttachmentDataSource {
+        return try DependenciesBridge.shared.attachmentContentValidator.validateContents(
             dataSource: dataSource,
             shouldConsume: true,
             mimeType: mimeType,
-            sourceFilename: nil,
-            caption: nil,
             renderingFlag: .default,
-            ownerType: .story
+            sourceFilename: nil
         )
     }
 }
 
-@objc
-public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProtocol {
+public class SystemStoryManager: SystemStoryManagerProtocol {
 
     private let fileSystem: OnboardingStoryManagerFilesystem.Type
+    private let messageProcessor: any Shims.MessageProcessor
     private let schedulers: Schedulers
     private let storyMessageFactory: OnboardingStoryManagerStoryMessageFactory.Type
 
-    private let kvStore = SDSKeyValueStore(collection: "OnboardingStory")
-    private let overlayKvStore = SDSKeyValueStore(collection: "StoryViewerOnboardingOverlay")
-    private let groupStoryEducationStore = SDSKeyValueStore(collection: "GroupStoryEducation")
+    private let kvStore = KeyValueStore(collection: "OnboardingStory")
+    private let overlayKvStore = KeyValueStore(collection: "StoryViewerOnboardingOverlay")
+    private let groupStoryEducationStore = KeyValueStore(collection: "GroupStoryEducation")
 
-    private lazy var queue = schedulers.queue(label: "org.signal.story.onboarding", qos: .utility)
+    private let queue: Scheduler
+    internal let chainedPromise: ChainedPromise<Void>
 
-    private lazy var chainedPromise = ChainedPromise<Void>(scheduler: queue)
-
-    public convenience init(appReadiness: AppReadiness) {
+    public convenience init(appReadiness: AppReadiness, messageProcessor: MessageProcessor) {
         self.init(
             appReadiness: appReadiness,
             fileSystem: OnboardingStoryManagerFilesystem.self,
+            messageProcessor: Wrappers.MessageProcessor(messageProcessor),
             schedulers: DispatchQueueSchedulers(),
             storyMessageFactory: OnboardingStoryManagerStoryMessageFactory.self
         )
@@ -91,13 +87,16 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
     init(
         appReadiness: AppReadiness,
         fileSystem: OnboardingStoryManagerFilesystem.Type,
+        messageProcessor: any Shims.MessageProcessor,
         schedulers: Schedulers,
         storyMessageFactory: OnboardingStoryManagerStoryMessageFactory.Type
     ) {
         self.fileSystem = fileSystem
+        self.messageProcessor = messageProcessor
         self.schedulers = schedulers
         self.storyMessageFactory = storyMessageFactory
-        super.init()
+        self.queue = schedulers.queue(label: "org.signal.story.onboarding", qos: .utility)
+        self.chainedPromise = ChainedPromise<Void>(scheduler: self.queue)
 
         if CurrentAppContext().isMainApp {
             appReadiness.runNowOrWhenMainAppDidBecomeReadyAsync { [weak self] in
@@ -120,7 +119,9 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
     @discardableResult
     public func enqueueOnboardingStoryDownload() -> Promise<Void> {
         return chainedPromise.enqueue { [weak self] in
-            return self?.downloadOnboardingStoryIfNeeded() ?? .init(error: OWSAssertionError("SystemStoryManager unretained"))
+            return (self?.downloadOnboardingStoryIfNeeded() ?? .init(error: OWSAssertionError("SystemStoryManager unretained"))).catch(on: DispatchQueue.global()) { error in
+                Logger.warn("\(error)")
+            }
         }
     }
 
@@ -131,7 +132,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
         }.asVoid()
     }
 
-    public func isOnboardingStoryRead(transaction: SDSAnyReadTransaction) -> Bool {
+    public func isOnboardingStoryRead(transaction: DBReadTransaction) -> Bool {
         if onboardingStoryReadStatus(transaction: transaction) {
             return true
         }
@@ -139,7 +140,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
         return isOnboardingStoryViewed(transaction: transaction)
     }
 
-    public func isOnboardingStoryViewed(transaction: SDSAnyReadTransaction) -> Bool {
+    public func isOnboardingStoryViewed(transaction: DBReadTransaction) -> Bool {
         let status = onboardingStoryViewStatus(transaction: transaction)
         switch status.status {
         case .notViewed:
@@ -149,13 +150,13 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
         }
     }
 
-    public func setHasReadOnboardingStory(transaction: SDSAnyWriteTransaction, updateStorageService: Bool) {
+    public func setHasReadOnboardingStory(transaction: DBWriteTransaction, updateStorageService: Bool) {
         try? setOnboardingStoryRead(transaction: transaction, updateStorageService: updateStorageService)
     }
 
     public func setHasViewedOnboardingStory(
         source: OnboardingStoryViewSource,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) throws {
         switch source {
         case .local(let timestamp, let updateStorageService):
@@ -169,21 +170,21 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
         }
     }
 
-    private func setHasViewedOnboardingStoryOnAnotherDevice(transaction: SDSAnyWriteTransaction) {
+    private func setHasViewedOnboardingStoryOnAnotherDevice(transaction: DBWriteTransaction) {
         try? setOnboardingStoryViewedOnAnotherDevice(transaction: transaction)
         self.cleanUpOnboardingStoryIfNeeded()
     }
 
     // MARK: Group story education
 
-    public func isGroupStoryEducationSheetViewed(tx: SDSAnyReadTransaction) -> Bool {
+    public func isGroupStoryEducationSheetViewed(tx: DBReadTransaction) -> Bool {
         return groupStoryEducationStore.hasValue(
             Constants.kvStoreGroupStoryEducationSheetViewedKey,
-            transaction: tx.asV2Read
+            transaction: tx
         )
     }
 
-    public func setGroupStoryEducationSheetViewed(tx: SDSAnyWriteTransaction) {
+    public func setGroupStoryEducationSheetViewed(tx: DBWriteTransaction) {
         groupStoryEducationStore.setBool(
             true,
             key: Constants.kvStoreGroupStoryEducationSheetViewedKey,
@@ -193,7 +194,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
 
     // MARK: OnboardingOverlay state
 
-    public func isOnboardingOverlayViewed(transaction: SDSAnyReadTransaction) -> Bool {
+    public func isOnboardingOverlayViewed(transaction: DBReadTransaction) -> Bool {
         if overlayKvStore.getBool(Constants.kvStoreOnboardingOverlayViewedKey, defaultValue: false, transaction: transaction) {
             return true
         }
@@ -207,7 +208,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
         return false
     }
 
-    public func setOnboardingOverlayViewed(value: Bool, transaction: SDSAnyWriteTransaction) {
+    public func setOnboardingOverlayViewed(value: Bool, transaction: DBWriteTransaction) {
         overlayKvStore.setBool(value, key: Constants.kvStoreOnboardingOverlayViewedKey, transaction: transaction)
     }
 
@@ -223,7 +224,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
         stateChangeObservers.removeAll(where: { $0 == observer })
     }
 
-    public func setSystemStoriesHidden(_ hidden: Bool, transaction: SDSAnyWriteTransaction) {
+    public func setSystemStoriesHidden(_ hidden: Bool, transaction: DBWriteTransaction) {
         var changedRowIds = [Int64]()
         defer {
             schedulers.main.async {
@@ -285,7 +286,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
             return
         }
 
-        let viewStatus = Self.databaseStorage.read {
+        let viewStatus = SSKEnvironment.shared.databaseStorageRef.read {
             self.onboardingStoryViewStatus(transaction: $0)
         }
         switch viewStatus.status {
@@ -317,7 +318,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
         var hasEmitted = false
         storyMessagesObservation?.cancel()
         storyMessagesObservation = observation.start(
-            in: databaseStorage.grdbStorage.pool,
+            in: SSKEnvironment.shared.databaseStorageRef.grdbStorage.pool,
             onError: { error in
                 owsFailDebug("Failed to observe story view state: \(error))")
             }, onChange: { [weak self] changedModels in
@@ -334,7 +335,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
                     return
                 }
                 do {
-                    try Self.databaseStorage.write {
+                    try SSKEnvironment.shared.databaseStorageRef.write {
                         try self?.setOnboardingStoryViewedOnThisDevice(
                             atTimestamp: viewedTimstamp,
                             shouldUpdateStorageService: true,
@@ -365,7 +366,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
     // MARK: - Implementation
 
     private func downloadOnboardingStoryIfNeeded() -> Promise<Void> {
-        let knownViewStatus = Self.databaseStorage.read {
+        let knownViewStatus = SSKEnvironment.shared.databaseStorageRef.read {
             self.onboardingStoryViewStatus(transaction: $0)
         }
         switch knownViewStatus.status {
@@ -397,7 +398,12 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
     }
 
     private func syncOnboardingStoryViewStatus() -> Promise<OnboardingStoryViewStatus> {
-        Self.storageServiceManager.restoreOrCreateManifestIfNecessary(authedDevice: .implicit)
+        messageProcessor.waitForFetchingAndProcessing()
+            .then(on: queue) {
+                Promise.wrapAsync {
+                    try await SSKEnvironment.shared.storageServiceManagerRef.waitForPendingRestores()
+                }
+            }
             .then(on: queue) { [weak self] _ -> Promise<OnboardingStoryViewStatus> in
                 guard let strongSelf = self else {
                     return .init(error: OWSAssertionError("SystemStoryManager unretained"))
@@ -405,7 +411,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
                 // At this point, we will have synced the AccountRecord, which would call
                 // `SystemStoryManager.setHasViewedOnboardingStoryOnAnotherDevice()` and write
                 // to the database. Read from the database to get whatever the latest value is.
-                return .value(Self.databaseStorage.read { transaction in
+                return .value(SSKEnvironment.shared.databaseStorageRef.read { transaction in
                     return strongSelf.onboardingStoryViewStatus(transaction: transaction)
                 })
             }
@@ -422,20 +428,20 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
                 guard let strongSelf = self else {
                     return .init(error: OWSAssertionError("SystemStoryManager unretained"))
                 }
-                let urlSession = Self.signalService.urlSessionForUpdates2()
+                let urlSession = SSKEnvironment.shared.signalServiceRef.urlSessionForUpdates2()
                 return strongSelf.fetchFilenames(urlSession: urlSession)
-                    .then(on: queue) { [weak self] (fileNames: [String]) -> Promise<[TSResourceDataSource]> in
+                    .then(on: queue) { [weak self] (fileNames: [String]) -> Promise<[AttachmentDataSource]> in
                         let promises = fileNames.compactMap {
                             self?.downloadOnboardingAsset(urlSession: urlSession, url: $0)
                         }
                         return Promise.when(on: SyncScheduler(), fulfilled: promises)
                     }
-                    .then(on: queue) { [weak self] (attachmentSources: [TSResourceDataSource]) -> Promise<Void> in
+                    .then(on: queue) { [weak self] (attachmentSources: [AttachmentDataSource]) -> Promise<Void> in
                         guard let strongSelf = self else {
                             return .init(error: OWSAssertionError("SystemStoryManager unretained"))
                         }
                         do {
-                            return .value(try strongSelf.databaseStorage.write { transaction in
+                            return .value(try SSKEnvironment.shared.databaseStorageRef.write { transaction in
                                 let uniqueIds = try strongSelf.createStoryMessages(
                                     attachmentSources: attachmentSources,
                                     transaction: transaction
@@ -453,7 +459,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
     }
 
     private func checkOnboardingStoryDownloadStatus(forceDeletingIfDownloaded: Bool = false) -> Promise<OnboardingStoryDownloadStatus> {
-        let status = databaseStorage.write { transaction -> OnboardingStoryDownloadStatus in
+        let status = SSKEnvironment.shared.databaseStorageRef.write { transaction -> OnboardingStoryDownloadStatus in
             let status = self.onboardingStoryDownloadStatus(transaction: transaction)
             if status.isDownloaded {
                 // clean up opportunistically.
@@ -477,7 +483,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
     private func cleanUpOnboardingStoriesIfNeeded(
         messageUniqueIds: [String]?,
         forceDeleteIfDownloaded: Bool,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) throws {
         var forceDelete = forceDeleteIfDownloaded
 
@@ -540,11 +546,9 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
     private func fetchFilenames(
         urlSession: OWSURLSessionProtocol
     ) -> Promise<[String]> {
-        return urlSession.dataTaskPromise(
-            on: schedulers.global(),
-            Constants.manifestPath,
-            method: .get
-        ).map(on: queue) { (response: HTTPResponse) throws -> [String] in
+        return Promise.wrapAsync {
+            return try await urlSession.performRequest(Constants.manifestPath, method: .get)
+        }.map(on: queue) { (response: HTTPResponse) throws -> [String] in
             guard
                 let json = response.responseBodyJson,
                 let responseDictionary = json as? [String: AnyObject],
@@ -569,12 +573,10 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
     private func downloadOnboardingAsset(
         urlSession: OWSURLSessionProtocol,
         url: String
-    ) -> Promise<TSResourceDataSource> {
-        return urlSession.downloadTaskPromise(
-            on: schedulers.global(),
-            url,
-            method: .get
-        ).map(on: self.queue) { [fileSystem, storyMessageFactory] result in
+    ) -> Promise<AttachmentDataSource> {
+        return Promise.wrapAsync {
+            return try await urlSession.performDownload(url, method: .get)
+        }.map(on: self.queue) { [fileSystem, storyMessageFactory] result in
             let resultUrl = result.downloadUrl
 
             guard fileSystem.fileOrFolderExists(url: resultUrl) else {
@@ -598,8 +600,8 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
 
     /// Returns unique Ids for the created messages. Fails if any one message creation fails.
     private func createStoryMessages(
-        attachmentSources: [TSResourceDataSource],
-        transaction: SDSAnyWriteTransaction
+        attachmentSources: [AttachmentDataSource],
+        transaction: DBWriteTransaction
     ) throws -> [String] {
         let baseTimestamp = Date().ows_millisecondsSince1970
         let ids = try attachmentSources.lazy.enumerated().map { (i, attachmentSource) throws -> String in
@@ -618,19 +620,19 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
 
     // MARK: Onboarding Story Read Status
 
-    private func onboardingStoryReadStatus(transaction: SDSAnyReadTransaction) -> Bool {
+    private func onboardingStoryReadStatus(transaction: DBReadTransaction) -> Bool {
         return kvStore.getBool(Constants.kvStoreOnboardingStoryIsReadKey, defaultValue: false, transaction: transaction)
     }
 
-    private func setOnboardingStoryRead(transaction: SDSAnyWriteTransaction, updateStorageService: Bool) throws {
+    private func setOnboardingStoryRead(transaction: DBWriteTransaction, updateStorageService: Bool) throws {
         guard !onboardingStoryReadStatus(transaction: transaction) else {
             return
         }
         kvStore.setBool(true, key: Constants.kvStoreOnboardingStoryIsReadKey, transaction: transaction)
         if updateStorageService {
-            Self.storageServiceManager.recordPendingLocalAccountUpdates()
+            SSKEnvironment.shared.storageServiceManagerRef.recordPendingLocalAccountUpdates()
         }
-        NotificationCenter.default.postNotificationNameAsync(.onboardingStoryStateDidChange, object: nil)
+        NotificationCenter.default.postOnMainThread(name: .onboardingStoryStateDidChange, object: nil)
     }
 
     // MARK: Onboarding Story View Status
@@ -647,7 +649,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
         let viewedTimestamp: UInt64?
     }
 
-    private func onboardingStoryViewStatus(transaction: SDSAnyReadTransaction) -> OnboardingStoryViewStatus {
+    private func onboardingStoryViewStatus(transaction: DBReadTransaction) -> OnboardingStoryViewStatus {
         guard
             let rawStatus = kvStore.getData(Constants.kvStoreOnboardingStoryViewStatusKey, transaction: transaction),
             let status = try? JSONDecoder().decode(OnboardingStoryViewStatus.self, from: rawStatus)
@@ -657,19 +659,19 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
         return status
     }
 
-    private func setOnboardingStoryViewedOnAnotherDevice(transaction: SDSAnyWriteTransaction) throws {
+    private func setOnboardingStoryViewedOnAnotherDevice(transaction: DBWriteTransaction) throws {
         try kvStore.setData(
             JSONEncoder().encode(OnboardingStoryViewStatus(status: .viewedOnAnotherDevice, viewedTimestamp: nil)),
             key: Constants.kvStoreOnboardingStoryViewStatusKey,
             transaction: transaction
         )
-        NotificationCenter.default.postNotificationNameAsync(.onboardingStoryStateDidChange, object: nil)
+        NotificationCenter.default.postOnMainThread(name: .onboardingStoryStateDidChange, object: nil)
     }
 
     private func setOnboardingStoryViewedOnThisDevice(
         atTimestamp timestamp: UInt64,
         shouldUpdateStorageService: Bool,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) throws {
         let oldStatus = onboardingStoryViewStatus(transaction: transaction)
         guard oldStatus.status == .notViewed else {
@@ -681,9 +683,9 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
             transaction: transaction
         )
         if shouldUpdateStorageService {
-            Self.storageServiceManager.recordPendingLocalAccountUpdates()
+            SSKEnvironment.shared.storageServiceManagerRef.recordPendingLocalAccountUpdates()
         }
-        NotificationCenter.default.postNotificationNameAsync(.onboardingStoryStateDidChange, object: nil)
+        NotificationCenter.default.postOnMainThread(name: .onboardingStoryStateDidChange, object: nil)
     }
 
     // MARK: Onboarding Story Download Status
@@ -696,7 +698,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
         static var requiresDownload: Self { return .init(messageUniqueIds: nil) }
     }
 
-    private func onboardingStoryDownloadStatus(transaction: SDSAnyReadTransaction) -> OnboardingStoryDownloadStatus {
+    private func onboardingStoryDownloadStatus(transaction: DBReadTransaction) -> OnboardingStoryDownloadStatus {
         guard
             let rawStatus = kvStore.getData(Constants.kvStoreOnboardingStoryDownloadStatusKey, transaction: transaction),
             let status = try? JSONDecoder().decode(OnboardingStoryDownloadStatus.self, from: rawStatus)
@@ -708,7 +710,7 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
 
     internal func markOnboardingStoryDownloaded(
         messageUniqueIds: [String],
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) throws {
         let status = OnboardingStoryDownloadStatus(messageUniqueIds: messageUniqueIds)
         try kvStore.setData(
@@ -724,14 +726,14 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
 
     // MARK: System Story Hidden Status
 
-    public func areSystemStoriesHidden(transaction: SDSAnyReadTransaction) -> Bool {
+    public func areSystemStoriesHidden(transaction: DBReadTransaction) -> Bool {
         // No need to make this serial with the other calls, db transactions cover us.
         kvStore.getBool(Constants.kvStoreHiddenStateKey, defaultValue: false, transaction: transaction)
     }
 
-    private func setSystemStoryHidden(_ hidden: Bool, transaction: SDSAnyWriteTransaction) {
+    private func setSystemStoryHidden(_ hidden: Bool, transaction: DBWriteTransaction) {
         kvStore.setBool(hidden, key: Constants.kvStoreHiddenStateKey, transaction: transaction)
-        NotificationCenter.default.postNotificationNameAsync(.onboardingStoryStateDidChange, object: nil)
+        NotificationCenter.default.postOnMainThread(name: .onboardingStoryStateDidChange, object: nil)
     }
 
     internal enum Constants {
@@ -759,5 +761,36 @@ public class SystemStoryManager: NSObject, Dependencies, SystemStoryManagerProto
         static let imageHeight = 1998
 
         static let postViewingTimeout: TimeInterval = 24 /* hrs */ * 60 * 60
+    }
+}
+
+// MARK: - Shims
+
+extension SystemStoryManager {
+    public enum Shims {
+        public typealias MessageProcessor = _SystemStoryManager_MessageProcessorShim
+    }
+
+    public enum Wrappers {
+        public typealias MessageProcessor = _SystemStoryManager_MessageProcessorWrapper
+    }
+}
+
+// MARK: MessageProcessor
+
+public protocol _SystemStoryManager_MessageProcessorShim {
+    func waitForFetchingAndProcessing() -> Guarantee<Void>
+}
+
+public class _SystemStoryManager_MessageProcessorWrapper: _SystemStoryManager_MessageProcessorShim {
+
+    private let messageProcessor: MessageProcessor
+
+    public init(_ messageProcessor: MessageProcessor) {
+        self.messageProcessor = messageProcessor
+    }
+
+    public func waitForFetchingAndProcessing() -> Guarantee<Void> {
+        return self.messageProcessor.waitForFetchingAndProcessing()
     }
 }

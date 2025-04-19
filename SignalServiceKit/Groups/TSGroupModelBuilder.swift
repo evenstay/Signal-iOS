@@ -6,12 +6,12 @@
 import Foundation
 import LibSignalClient
 
-public struct TSGroupModelBuilder: Dependencies {
+public struct TSGroupModelBuilder {
 
     public var groupId: Data?
     public var name: String?
     public var descriptionText: String?
-    public var avatarData: Data?
+    public var avatarDataState: TSGroupModel.AvatarDataState = .missing
     public var groupMembership = GroupMembership()
     public var groupAccess: GroupAccess?
     public var groupsVersion: GroupsVersion?
@@ -26,7 +26,6 @@ public struct TSGroupModelBuilder: Dependencies {
     public var addedByAddress: SignalServiceAddress?
     public var wasJustMigrated: Bool = false
     public var didJustAddSelfViaGroupLink: Bool = false
-    public var droppedMembers = [SignalServiceAddress]()
 
     public init() {}
 
@@ -36,7 +35,7 @@ public struct TSGroupModelBuilder: Dependencies {
         self.groupId = try groupV2Snapshot.groupSecretParams.getPublicParams().getGroupIdentifier().serialize().asData
         self.name = groupV2Snapshot.title
         self.descriptionText = groupV2Snapshot.descriptionText
-        self.avatarData = groupV2Snapshot.avatarData
+        self.avatarDataState = groupV2Snapshot.avatarDataState
         self.groupMembership = groupV2Snapshot.groupMembership
         self.groupAccess = groupV2Snapshot.groupAccess
         self.groupsVersion = GroupsVersion.V2
@@ -50,23 +49,8 @@ public struct TSGroupModelBuilder: Dependencies {
         self.didJustAddSelfViaGroupLink = false
     }
 
-    public
-    static func builderForSnapshot(groupV2Snapshot: GroupV2Snapshot,
-                                   transaction: SDSAnyWriteTransaction) throws -> TSGroupModelBuilder {
-
-        var builder = try TSGroupModelBuilder(groupV2Snapshot: groupV2Snapshot)
-
-        guard let groupId = builder.groupId else {
-            owsFailDebug("Missing groupId.")
-            return builder
-        }
-        guard let oldGroupThread = TSGroupThread.fetch(groupId: groupId, transaction: transaction) else {
-            // Group not yet in db.
-            return builder
-        }
-        let oldGroupModel = oldGroupThread.groupModel
-        builder.droppedMembers = oldGroupModel.asBuilder.droppedMembers
-        return builder
+    static func builderForSnapshot(groupV2Snapshot: GroupV2Snapshot, transaction: DBWriteTransaction) throws -> TSGroupModelBuilder {
+        return try TSGroupModelBuilder(groupV2Snapshot: groupV2Snapshot)
     }
 
     public mutating func apply(options: TSGroupModelOptions) {
@@ -84,46 +68,34 @@ public struct TSGroupModelBuilder: Dependencies {
         }
     }
 
-    public func buildForMinorChanges() throws -> TSGroupModel {
-
-        try checkUsers()
-
-        guard let groupsVersion = self.groupsVersion else {
-            throw OWSAssertionError("Missing groupsVersion.")
-        }
-        guard let groupId = self.groupId else {
-            throw OWSAssertionError("Missing groupId.")
-        }
-
-        var groupSecretParams: GroupSecretParams?
-        if groupsVersion == .V2 {
-            guard let groupSecretParamsData = self.groupSecretParamsData else {
-                throw OWSAssertionError("Missing groupSecretParamsData.")
-            }
-            groupSecretParams = try GroupSecretParams(contents: [UInt8](groupSecretParamsData))
-        }
-
-        return try build(
-            groupsVersion: groupsVersion,
-            groupId: groupId,
-            groupSecretParams: groupSecretParams
-        )
-    }
-
     public func build() throws -> TSGroupModel {
-
         try checkUsers()
 
         let groupsVersion = self.groupsVersion ?? .V2
-
         let newGroupSeed = self.newGroupSeed ?? NewGroupSeed()
 
-        let groupId = try buildGroupId(groupsVersion: groupsVersion,
-                                       newGroupSeed: newGroupSeed)
+        let groupId: Data
+        if let builderValue = self.groupId {
+            groupId = builderValue
+        } else {
+            switch groupsVersion {
+            case .V1:
+                groupId = newGroupSeed.groupIdV1
+            case .V2:
+                groupId = newGroupSeed.groupIdV2
+            }
+        }
 
-        var groupSecretParams: GroupSecretParams?
-        if groupsVersion == .V2 {
-            groupSecretParams = try buildGroupSecretParams(newGroupSeed: newGroupSeed)
+        let groupSecretParams: GroupSecretParams?
+        switch groupsVersion {
+        case .V1:
+            groupSecretParams = nil
+        case .V2:
+            if let builderValue = groupSecretParamsData {
+                groupSecretParams = try GroupSecretParams(contents: [UInt8](builderValue))
+            } else {
+                groupSecretParams = newGroupSeed.groupSecretParams
+            }
         }
 
         return try build(
@@ -157,42 +129,25 @@ public struct TSGroupModelBuilder: Dependencies {
 
         switch groupsVersion {
         case .V1:
-            if !groupMembership.invitedMembers.isEmpty {
-                owsFailDebug("v1 group has pending profile key members.")
-            }
-            if !groupMembership.requestingMembers.isEmpty {
-                owsFailDebug("v1 group has pending request members.")
-            }
-            owsAssertDebug(!isJoinRequestPlaceholder)
-            return TSGroupModel(groupId: groupId,
-                                name: name,
-                                avatarData: avatarData,
-                                members: Array(groupMembership.fullMembers),
-                                addedBy: addedByAddress)
+            return TSGroupModel(
+                groupId: groupId,
+                name: name,
+                avatarData: avatarDataState.dataIfPresent,
+                members: Array(groupMembership.fullMembers),
+                addedBy: addedByAddress
+            )
         case .V2:
-            owsAssertDebug(addedByAddress == nil)
-
-            var descriptionText: String?
-            if let strippedDescriptionText = self.descriptionText?.stripped.nilIfEmpty {
-                descriptionText = strippedDescriptionText
-            }
-
-            let groupAccess = buildGroupAccess(groupsVersion: groupsVersion)
-            guard let groupSecretParams = groupSecretParams else {
+            guard let groupSecretParams else {
                 throw OWSAssertionError("Missing groupSecretParamsData.")
             }
-            // Don't set avatarUrlPath unless we have avatarData.
-            let avatarUrlPath = avatarData != nil ? self.avatarUrlPath : nil
 
-            // Update droppedMembers, removing any current members.
-            let droppedMembers = Array(Set(self.droppedMembers).subtracting(groupMembership.allMembersOfAnyKind))
             return TSGroupModelV2(
                 groupId: groupId,
                 name: name,
-                descriptionText: descriptionText,
-                avatarData: avatarData,
+                descriptionText: descriptionText?.stripped.nilIfEmpty,
+                avatarDataState: avatarDataState,
                 groupMembership: groupMembership,
-                groupAccess: groupAccess,
+                groupAccess: buildGroupAccess(groupsVersion: groupsVersion),
                 revision: groupV2Revision,
                 secretParamsData: groupSecretParams.serialize().asData,
                 avatarUrlPath: avatarUrlPath,
@@ -201,8 +156,7 @@ public struct TSGroupModelBuilder: Dependencies {
                 isJoinRequestPlaceholder: isJoinRequestPlaceholder,
                 wasJustMigrated: wasJustMigrated,
                 didJustAddSelfViaGroupLink: didJustAddSelfViaGroupLink,
-                addedByAddress: addedByAddress,
-                droppedMembers: droppedMembers
+                addedByAddress: addedByAddress
             )
         }
     }
@@ -212,28 +166,6 @@ public struct TSGroupModelBuilder: Dependencies {
             throw OWSAssertionError("[GV1] Should be impossible to create a V1 group!")
         }
         return model
-    }
-
-    private func buildGroupId(groupsVersion: GroupsVersion,
-                              newGroupSeed: NewGroupSeed) throws -> Data {
-        if let value = groupId {
-            return value
-        }
-
-        switch groupsVersion {
-        case .V1:
-            return newGroupSeed.groupIdV1
-        case .V2:
-            return newGroupSeed.groupIdV2
-        }
-    }
-
-    private func buildGroupSecretParams(newGroupSeed: NewGroupSeed) throws -> GroupSecretParams {
-        if let groupSecretParamsData {
-            return try GroupSecretParams(contents: [UInt8](groupSecretParamsData))
-        }
-
-        return newGroupSeed.groupSecretParams
     }
 
     private func buildGroupAccess(groupsVersion: GroupsVersion) -> GroupAccess {
@@ -257,7 +189,7 @@ public extension TSGroupModel {
         var builder = TSGroupModelBuilder()
         builder.groupId = self.groupId
         builder.name = self.groupName
-        builder.avatarData = self.avatarData
+        builder.avatarDataState = self.avatarDataState
         builder.groupMembership = self.groupMembership
         builder.groupsVersion = self.groupsVersion
         builder.addedByAddress = self.addedByAddress
@@ -269,7 +201,6 @@ public extension TSGroupModel {
             builder.avatarUrlPath = v2.avatarUrlPath
             builder.inviteLinkPassword = v2.inviteLinkPassword
             builder.isAnnouncementsOnly = v2.isAnnouncementsOnly
-            builder.droppedMembers = v2.droppedMembers
             builder.descriptionText = v2.descriptionText
 
             // Do not copy transient properties:
@@ -289,7 +220,9 @@ public extension TSGroupModel {
 
 public struct TSGroupModelOptions: OptionSet {
     public let rawValue: Int
-    public static let didJustAddSelfViaGroupLink  = TSGroupModelOptions(rawValue: 1 << 0)
+
+    public static let didJustAddSelfViaGroupLink = TSGroupModelOptions(rawValue: 1 << 0)
+    public static let throttle = TSGroupModelOptions(rawValue: 1 << 1)
 
     public init(rawValue: Int) {
         self.rawValue = rawValue

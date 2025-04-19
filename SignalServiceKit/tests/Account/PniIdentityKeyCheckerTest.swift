@@ -9,20 +9,19 @@ import XCTest
 @testable import SignalServiceKit
 
 final class PniIdentityKeyCheckerTest: XCTestCase {
-    private var db: MockDB!
+    private var db: InMemoryDB!
     private var identityManagerMock: IdentityManagerMock!
     private var profileFetcherMock: ProfileFetcherMock!
     private var pniIdentityKeyChecker: PniIdentityKeyCheckerImpl!
 
     override func setUp() {
-        db = MockDB()
+        db = InMemoryDB()
         identityManagerMock = IdentityManagerMock()
         profileFetcherMock = ProfileFetcherMock()
         pniIdentityKeyChecker = PniIdentityKeyCheckerImpl(
             db: db,
             identityManager: identityManagerMock,
-            profileFetcher: profileFetcherMock,
-            schedulers: DispatchQueueSchedulers()
+            profileFetcher: profileFetcherMock
         )
     }
 
@@ -35,16 +34,11 @@ final class PniIdentityKeyCheckerTest: XCTestCase {
     /// Whether or not the checker found a match. Throws if there was an error
     /// while running the checker.
     private func checkForMatch() async throws -> Bool {
-        let promise = db.read { tx -> Promise<Bool> in
-            return pniIdentityKeyChecker.serverHasSameKeyAsLocal(
-                localPni: Pni.randomForTesting(),
-                tx: tx
-            )
-        }
-        return try await promise.awaitable()
+        return try await pniIdentityKeyChecker.serverHasSameKeyAsLocal(localPni: Pni.randomForTesting())
     }
 
     func testDoesNotMatchIfLocalPniIdentityKeyMissing() async throws {
+        profileFetcherMock.profileFetchResult = .value(nil)
         let result = try await checkForMatch()
         XCTAssertFalse(result)
     }

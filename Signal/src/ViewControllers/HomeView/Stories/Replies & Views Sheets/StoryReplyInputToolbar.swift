@@ -102,7 +102,7 @@ class StoryReplyInputToolbar: UIView {
             blurEffectView.autoPinEdge(toSuperviewEdge: .bottom, withInset: -backgroundExtension)
         }
 
-        textView.mentionDelegate = self
+        textView.bodyRangesDelegate = self
 
         // The input toolbar should *always* be laid out left-to-right, even when using
         // a right-to-left language. The convention for messaging apps is for the send
@@ -195,7 +195,7 @@ class StoryReplyInputToolbar: UIView {
     private lazy var textView: BodyRangesTextView = {
         let textView = buildTextView()
         textView.scrollIndicatorInsets = UIEdgeInsets(top: 5, left: 0, bottom: 5, right: 3)
-        textView.mentionDelegate = self
+        textView.bodyRangesDelegate = self
         return textView
     }()
 
@@ -225,8 +225,8 @@ class StoryReplyInputToolbar: UIView {
                     "STORY_REPLY_TO_PRIVATE_TEXT_FIELD_PLACEHOLDER",
                     comment: "placeholder text for replying to a private story. Embeds {{author name}}"
                 )
-                let authorName = databaseStorage.read { tx in
-                    return contactsManager.displayName(for: quotedReplyModel.originalMessageAuthorAddress, tx: tx).resolvedValue()
+                let authorName = SSKEnvironment.shared.databaseStorageRef.read { tx in
+                    return SSKEnvironment.shared.contactManagerRef.displayName(for: quotedReplyModel.originalMessageAuthorAddress, tx: tx).resolvedValue()
                 }
                 return String(format: format, authorName)
             } else {
@@ -237,7 +237,7 @@ class StoryReplyInputToolbar: UIView {
             }
         }()
 
-        placeholderTextView.setMessageBody(.init(text: placeholderText, ranges: .empty), txProvider: databaseStorage.readTxProvider)
+        placeholderTextView.setMessageBody(.init(text: placeholderText, ranges: .empty), txProvider: SSKEnvironment.shared.databaseStorageRef.readTxProvider)
         placeholderTextView.isEditable = false
         placeholderTextView.textContainer.maximumNumberOfLines = 1
         placeholderTextView.textContainer.lineBreakMode = .byTruncatingTail

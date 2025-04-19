@@ -14,7 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
                                                        amount:(nullable NSString *)amount
                                                           fee:(nullable NSString *)fee
                                                          note:(nullable NSString *)note
-                                                  transaction:(SDSAnyReadTransaction *)transaction
+                                                  transaction:(DBReadTransaction *)transaction
 {
     self = [super initOutgoingMessageWithBuilder:messageBuilder
                             additionalRecipients:@[]
@@ -61,10 +61,10 @@ NS_ASSUME_NONNULL_BEGIN
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -102,10 +102,10 @@ NS_ASSUME_NONNULL_BEGIN
                             sortId:sortId
                          timestamp:timestamp
                     uniqueThreadId:uniqueThreadId
-                     attachmentIds:attachmentIds
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+          deprecated_attachmentIds:deprecated_attachmentIds
                          editState:editState
                    expireStartedAt:expireStartedAt
                 expireTimerVersion:expireTimerVersion

@@ -15,11 +15,10 @@ import LibSignalClient
 //
 extension PreKey {
     enum Mocks {
-        typealias AccountServiceClient = _PreKey_AccountServiceClientMock
+        typealias APIClient = _PreKey_APIClientMock
         typealias DateProvider = _PreKey_DateProviderMock
         typealias IdentityManager = _PreKey_IdentityManagerMock
         typealias LinkedDevicePniKeyManager = _PreKey_LinkedDevicePniKeyManagerMock
-        typealias MessageProcessor = _PreKey_MessageProcessorMock
     }
 }
 
@@ -62,12 +61,7 @@ class _PreKey_LinkedDevicePniKeyManagerMock: LinkedDevicePniKeyManager {
         hasSuspectedIssue = true
     }
 
-    func validateLocalPniIdentityKeyIfNecessary(tx: DBReadTransaction) { owsFail("Not implemented!") }
-}
-
-struct _PreKey_MessageProcessorMock: PreKey.Shims.MessageProcessor {
-    func waitForFetchingAndProcessing() -> Guarantee<Void> {
-        return Guarantee<Void>.value(())
+    func validateLocalPniIdentityKeyIfNecessary() async {
     }
 }
 
@@ -76,7 +70,7 @@ class _PreKey_DateProviderMock {
     func targetDate() -> Date { return currentDate }
 }
 
-class _PreKey_AccountServiceClientMock: FakeAccountServiceClient {
+class _PreKey_APIClientMock: PreKeyTaskAPIClient {
     var currentPreKeyCount: Int?
     var currentPqPreKeyCount: Int?
 
@@ -88,25 +82,25 @@ class _PreKey_AccountServiceClientMock: FakeAccountServiceClient {
     var pqPreKeyRecords: [SignalServiceKit.KyberPreKeyRecord]?
     var auth: ChatServiceAuth?
 
-    override func getPreKeysCount(for identity: OWSIdentity) -> Promise<(ecCount: Int, pqCount: Int)> {
-        return Promise.value((currentPreKeyCount!, currentPqPreKeyCount!))
+    func getAvailablePreKeys(for identity: OWSIdentity) async throws -> (ecCount: Int, pqCount: Int) {
+        return (currentPreKeyCount!, currentPqPreKeyCount!)
     }
 
-    override func setPreKeys(
+    func registerPreKeys(
         for identity: OWSIdentity,
         signedPreKeyRecord: SignalServiceKit.SignedPreKeyRecord?,
         preKeyRecords: [SignalServiceKit.PreKeyRecord]?,
         pqLastResortPreKeyRecord: SignalServiceKit.KyberPreKeyRecord?,
         pqPreKeyRecords: [SignalServiceKit.KyberPreKeyRecord]?,
         auth: ChatServiceAuth
-    ) -> Promise<Void> {
-        return setPreKeysResult.consumeIntoPromise().map(on: SyncScheduler()) {
-            self.identity = identity
-            self.signedPreKeyRecord = signedPreKeyRecord
-            self.preKeyRecords = preKeyRecords
-            self.pqLastResortPreKeyRecord = pqLastResortPreKeyRecord
-            self.pqPreKeyRecords = pqPreKeyRecords
-            self.auth = auth
-        }
+    ) async throws {
+        try await setPreKeysResult.consumeIntoPromise().awaitable()
+
+        self.identity = identity
+        self.signedPreKeyRecord = signedPreKeyRecord
+        self.preKeyRecords = preKeyRecords
+        self.pqLastResortPreKeyRecord = pqLastResortPreKeyRecord
+        self.pqPreKeyRecords = pqPreKeyRecords
+        self.auth = auth
     }
 }

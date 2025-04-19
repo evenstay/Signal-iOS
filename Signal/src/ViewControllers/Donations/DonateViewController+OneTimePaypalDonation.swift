@@ -20,20 +20,23 @@ extension DonateViewController {
             guard let self else { throw OWSAssertionError("[Donations] Missing self!") }
 
             Logger.info("[Donations] Creating one-time PayPal payment")
-            return DonationViewsUtil.Paypal.createPaypalPaymentBehindActivityIndicator(
-                amount: amount,
-                level: .boostBadge,
-                fromViewController: self
-            )
+            return Promise.wrapAsync {
+                try await DonationViewsUtil.Paypal.createPaypalPaymentBehindActivityIndicator(
+                    amount: amount,
+                    level: .boostBadge,
+                    fromViewController: self
+                )
+            }
         }.then(on: DispatchQueue.main) { [weak self] (approvalUrl, paymentId) -> Promise<(Paypal.OneTimePaymentWebAuthApprovalParams, String)> in
             guard let self else { throw OWSAssertionError("[Donations] Missing self!") }
 
             Logger.info("[Donations] Presenting PayPal web UI for user approval of one-time donation")
-            return Paypal.presentExpectingApprovalParams(
-                approvalUrl: approvalUrl,
-                withPresentationContext: self
-            ).map { approvalParams in
-                (approvalParams, paymentId)
+            return Promise.wrapAsync {
+                let approvalParams: Paypal.OneTimePaymentWebAuthApprovalParams = try await Paypal.presentExpectingApprovalParams(
+                    approvalUrl: approvalUrl,
+                    withPresentationContext: self
+                )
+                return (approvalParams, paymentId)
             }
         }.then(on: DispatchQueue.main) { [weak self] (approvalParams, paymentId) -> Promise<Void> in
             guard let self else { return .value(()) }
@@ -41,11 +44,13 @@ extension DonateViewController {
             Logger.info("[Donations] Creating and redeeming one-time boost receipt for PayPal donation")
             return DonationViewsUtil.wrapPromiseInProgressView(
                 from: self,
-                promise: self.confirmPaypalPaymentAndRedeemBoost(
-                    amount: amount,
-                    paymentId: paymentId,
-                    approvalParams: approvalParams
-                )
+                promise: Promise.wrapAsync {
+                    try await self.confirmPaypalPaymentAndRedeemBoost(
+                        amount: amount,
+                        paymentId: paymentId,
+                        approvalParams: approvalParams
+                    )
+                }
             )
         }.done(on: DispatchQueue.main) { [weak self] in
             guard let self else { return }
@@ -79,23 +84,21 @@ extension DonateViewController {
         amount: FiatMoney,
         paymentId: String,
         approvalParams: Paypal.OneTimePaymentWebAuthApprovalParams
-    ) -> Promise<Void> {
-        firstly { () -> Promise<String> in
-            Paypal.confirmOneTimePayment(
-                amount: amount,
-                level: .boostBadge,
-                paymentId: paymentId,
-                approvalParams: approvalParams
-            )
-        }.then(on: DispatchQueue.main) { (paymentIntentId: String) -> Promise<Void> in
-            let redemptionJob = SubscriptionManagerImpl.requestAndRedeemReceipt(
+    ) async throws {
+        let paymentIntentId = try await Paypal.confirmOneTimePayment(
+            amount: amount,
+            level: .boostBadge,
+            paymentId: paymentId,
+            approvalParams: approvalParams
+        )
+
+        try await DonationViewsUtil.waitForRedemption(paymentMethod: .paypal) {
+            try await DonationSubscriptionManager.requestAndRedeemReceipt(
                 boostPaymentIntentId: paymentIntentId,
                 amount: amount,
                 paymentProcessor: .braintree,
                 paymentMethod: .paypal
             )
-
-            return DonationViewsUtil.waitForRedemptionJob(redemptionJob, paymentMethod: .paypal)
         }
     }
 }

@@ -15,7 +15,7 @@ public protocol PrivateStoryThreadDeletionManager {
     /// Storage Service) before being purged from disk.
     func deletedAtTimestamp(
         forDistributionListIdentifier identifier: Data,
-        tx: any DBReadTransaction
+        tx: DBReadTransaction
     ) -> UInt64?
 
     /// Marks the story distribution list with the given identifier as deleted
@@ -28,41 +28,39 @@ public protocol PrivateStoryThreadDeletionManager {
     func recordDeletedAtTimestamp(
         _ timestamp: UInt64,
         forDistributionListIdentifier identifier: Data,
-        tx: any DBWriteTransaction
+        tx: DBWriteTransaction
     )
 
     /// All distribution list identifiers currently marked as deleted.
-    func allDeletedIdentifiers(tx: any DBReadTransaction) -> [Data]
+    func allDeletedIdentifiers(tx: DBReadTransaction) -> [Data]
 
     /// Purges any distribution list identifiers marked as deleted sufficiently
     /// long ago.
-    func cleanUpDeletedTimestamps(tx: any DBWriteTransaction)
+    func cleanUpDeletedTimestamps(tx: DBWriteTransaction)
 }
 
 // MARK: -
 
 final class PrivateStoryThreadDeletionManagerImpl: PrivateStoryThreadDeletionManager {
-    private enum Constants {
-        static let deletedPrivateStoryThreadLifetime: TimeInterval = kMonthInterval
-    }
-
     private let logger = PrefixedLogger(prefix: "PvtStoryThreadDelMgr")
 
     private let dateProvider: DateProvider
-    private let deletedAtTimestampStore: any KeyValueStore
+    private let deletedAtTimestampStore: KeyValueStore
+    private let remoteConfigProvider: any RemoteConfigProvider
     private let storageServiceManager: any StorageServiceManager
     private let threadRemover: any ThreadRemover
     private let threadStore: any ThreadStore
 
     init(
         dateProvider: @escaping DateProvider,
-        keyValueStoreFactory: KeyValueStoreFactory,
+        remoteConfigProvider: any RemoteConfigProvider,
         storageServiceManager: any StorageServiceManager,
         threadRemover: any ThreadRemover,
         threadStore: any ThreadStore
     ) {
         self.dateProvider = dateProvider
-        self.deletedAtTimestampStore = keyValueStoreFactory.keyValueStore(collection: "TSPrivateStoryThread+DeletedAtTimestamp")
+        self.deletedAtTimestampStore = KeyValueStore(collection: "TSPrivateStoryThread+DeletedAtTimestamp")
+        self.remoteConfigProvider = remoteConfigProvider
         self.storageServiceManager = storageServiceManager
         self.threadRemover = threadRemover
         self.threadStore = threadStore
@@ -70,7 +68,7 @@ final class PrivateStoryThreadDeletionManagerImpl: PrivateStoryThreadDeletionMan
 
     func deletedAtTimestamp(
         forDistributionListIdentifier identifier: Data,
-        tx: any DBReadTransaction
+        tx: DBReadTransaction
     ) -> UInt64? {
         guard let uniqueId = identifier.uuidString else { return nil }
         return deletedAtTimestampStore.getUInt64(uniqueId, transaction: tx)
@@ -79,9 +77,9 @@ final class PrivateStoryThreadDeletionManagerImpl: PrivateStoryThreadDeletionMan
     func recordDeletedAtTimestamp(
         _ timestamp: UInt64,
         forDistributionListIdentifier identifier: Data,
-        tx: any DBWriteTransaction
+        tx: DBWriteTransaction
     ) {
-        guard timeInterval(sinceTimestamp: timestamp) < Constants.deletedPrivateStoryThreadLifetime else {
+        guard timeInterval(sinceTimestamp: timestamp) < remoteConfigProvider.currentConfig().messageQueueTime else {
             logger.warn("Ignorning stale deleted at timestamp.")
             return
         }
@@ -90,11 +88,11 @@ final class PrivateStoryThreadDeletionManagerImpl: PrivateStoryThreadDeletionMan
         deletedAtTimestampStore.setUInt64(timestamp, key: uniqueId, transaction: tx)
     }
 
-    func allDeletedIdentifiers(tx: any DBReadTransaction) -> [Data] {
+    func allDeletedIdentifiers(tx: DBReadTransaction) -> [Data] {
         deletedAtTimestampStore.allKeys(transaction: tx).compactMap { UUID(uuidString: $0)?.data }
     }
 
-    func cleanUpDeletedTimestamps(tx: any DBWriteTransaction) {
+    func cleanUpDeletedTimestamps(tx: DBWriteTransaction) {
         var deletedIdentifiers = [Data]()
         for identifier in deletedAtTimestampStore.allKeys(transaction: tx) {
             guard
@@ -102,7 +100,7 @@ final class PrivateStoryThreadDeletionManagerImpl: PrivateStoryThreadDeletionMan
                     identifier,
                     transaction: tx
                 ),
-                timeInterval(sinceTimestamp: timestamp) > Constants.deletedPrivateStoryThreadLifetime
+                timeInterval(sinceTimestamp: timestamp) > remoteConfigProvider.currentConfig().messageQueueTime
             else { continue }
 
             deletedAtTimestampStore.removeValue(forKey: identifier, transaction: tx)

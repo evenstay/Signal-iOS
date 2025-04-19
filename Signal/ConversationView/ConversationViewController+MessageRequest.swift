@@ -56,8 +56,8 @@ extension ConversationViewController: MessageRequestDelegate {
             message = OWSLocalizedString(
                 "BLOCK_LIST_UNBLOCK_GROUP_MESSAGE", comment: "An explanation of what unblocking a group means.")
         } else if let contactThread = thread as? TSContactThread {
-            threadName = databaseStorage.read { tx in
-                return contactsManager.displayName(for: contactThread.contactAddress, tx: tx).resolvedValue()
+            threadName = SSKEnvironment.shared.databaseStorageRef.read { tx in
+                return SSKEnvironment.shared.contactManagerRef.displayName(for: contactThread.contactAddress, tx: tx).resolvedValue()
             }
             message = OWSLocalizedString(
                 "BLOCK_LIST_UNBLOCK_CONTACT_MESSAGE",
@@ -103,8 +103,8 @@ extension ConversationViewController: MessageRequestDelegate {
 private extension ConversationViewController {
     func blockThread() {
         // Leave the group while blocking the thread.
-        databaseStorage.write { transaction in
-            blockingManager.addBlockedThread(thread,
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
+            SSKEnvironment.shared.blockingManagerRef.addBlockedThread(thread,
                                              blockMode: .localShouldLeaveGroups,
                                              transaction: transaction)
         }
@@ -116,8 +116,8 @@ private extension ConversationViewController {
         // Do not leave the group while blocking the thread; we'll
         // that below so that we can surface an error to the user
         // if leaving the group fails.
-        databaseStorage.write { transaction in
-            blockingManager.addBlockedThread(thread,
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
+            SSKEnvironment.shared.blockingManagerRef.addBlockedThread(thread,
                                              blockMode: .localShouldNotLeaveGroups,
                                              transaction: transaction)
         }
@@ -125,7 +125,7 @@ private extension ConversationViewController {
     }
 
     func blockThreadAndReportSpam(in thread: TSThread) {
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             ReportSpamUIUtils.blockAndReport(in: thread, tx: tx)
         }
 
@@ -139,7 +139,7 @@ private extension ConversationViewController {
     }
 
     func reportSpamInThread() {
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             ReportSpamUIUtils.report(in: thread, tx: tx)
         }
 
@@ -156,34 +156,34 @@ private extension ConversationViewController {
         // Do not leave the group while blocking the thread; we'll
         // that below so that we can surface an error to the user
         // if leaving the group fails.
-        databaseStorage.write { transaction in
-            blockingManager.addBlockedAci(
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
+            SSKEnvironment.shared.blockingManagerRef.addBlockedAci(
                 aci,
                 blockMode: .localShouldNotLeaveGroups,
-                tx: transaction.asV2Write
+                tx: transaction
             )
         }
         leaveAndSoftDeleteThread(messageRequestResponseType: .delete)
     }
 
     func blockUserAndGroupAndDelete(_ aci: Aci) {
-        ConversationViewController.databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             if let groupThread = self.thread as? TSGroupThread {
                 // Do not leave the group while blocking the thread; we'll
                 // that below so that we can surface an error to the user
                 // if leaving the group fails.
-                self.blockingManager.addBlockedGroup(
-                    groupModel: groupThread.groupModel,
+                SSKEnvironment.shared.blockingManagerRef.addBlockedGroupId(
+                    groupThread.groupId,
                     blockMode: .localShouldNotLeaveGroups,
                     transaction: transaction
                 )
             } else {
                 owsFailDebug("Invalid thread.")
             }
-            self.blockingManager.addBlockedAci(
+            SSKEnvironment.shared.blockingManagerRef.addBlockedAci(
                 aci,
                 blockMode: .localShouldNotLeaveGroups,
-                tx: transaction.asV2Write
+                tx: transaction
             )
         }
         leaveAndSoftDeleteThread(messageRequestResponseType: .blockAndDelete)
@@ -200,12 +200,12 @@ private extension ConversationViewController {
         )
 
         let completion = {
-            ConversationViewController.databaseStorage.write { transaction in
+            SSKEnvironment.shared.databaseStorageRef.write { transaction in
                 DependenciesBridge.shared.threadSoftDeleteManager.softDelete(
                     threads: [self.thread],
                     // We're already sending a sync message about this above!
                     sendDeleteForMeSyncMessage: false,
-                    tx: transaction.asV2Write
+                    tx: transaction
                 )
             }
             self.conversationSplitViewController?.closeSelectedConversation(animated: true)
@@ -252,9 +252,9 @@ private extension ConversationViewController {
                 return
             }
         }
-        await databaseStorage.awaitableWrite { transaction in
+        await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
             if unblockThread {
-                self.blockingManager.removeBlockedThread(
+                SSKEnvironment.shared.blockingManagerRef.removeBlockedThread(
                     thread,
                     wasLocallyInitiated: true,
                     transaction: transaction
@@ -262,11 +262,15 @@ private extension ConversationViewController {
             }
 
             if unhideRecipient, let thread = thread as? TSContactThread {
-                DependenciesBridge.shared.recipientHidingManager.removeHiddenRecipient(
-                    thread.contactAddress,
-                    wasLocallyInitiated: true,
-                    tx: transaction.asV2Write
-                )
+                do {
+                    try DependenciesBridge.shared.recipientHidingManager.removeHiddenRecipient(
+                        thread.contactAddress,
+                        wasLocallyInitiated: true,
+                        tx: transaction
+                    )
+                } catch {
+                    owsFailDebug("Couldn't unhide recipient")
+                }
             }
 
             /// If we're not in "unblock" mode, we should take "accept message
@@ -278,7 +282,7 @@ private extension ConversationViewController {
                         thread: thread,
                         messageType: .acceptedMessageRequest
                     ),
-                    tx: transaction.asV2Write
+                    tx: transaction
                 )
 
                 /// Send a sync message telling our other devices that we
@@ -291,7 +295,7 @@ private extension ConversationViewController {
             }
 
             // Whitelist the thread
-            self.profileManager.addThread(
+            SSKEnvironment.shared.profileManagerRef.addThread(
                 toProfileWhitelist: thread,
                 userProfileWriter: .localUser,
                 transaction: transaction
@@ -300,7 +304,12 @@ private extension ConversationViewController {
             if !thread.isGroupThread {
                 // If this is a contact thread, we should give the
                 // now-unblocked contact our profile key.
-                let profileKeyMessage = OWSProfileKeyMessage(thread: thread, transaction: transaction)
+                let profileManager = SSKEnvironment.shared.profileManagerRef
+                let profileKeyMessage = OWSProfileKeyMessage(
+                    thread: thread,
+                    profileKey: profileManager.localProfileKey(tx: transaction)!.serialize().asData,
+                    transaction: transaction
+                )
                 let preparedMessage = PreparedOutgoingMessage.preprepared(
                     transientMessageWithoutAttachments: profileKeyMessage
                 )
@@ -351,8 +360,8 @@ extension ConversationViewController {
         })
 
         if let addedByAci = groupMembership.addedByAci(forInvitedMember: invitedAtServiceId) {
-            let addedByName = databaseStorage.read { tx in
-                return contactsManager.displayName(for: SignalServiceAddress(addedByAci), tx: tx).resolvedValue()
+            let addedByName = SSKEnvironment.shared.databaseStorageRef.read { tx in
+                return SSKEnvironment.shared.contactManagerRef.displayName(for: SignalServiceAddress(addedByAci), tx: tx).resolvedValue()
             }
 
             actionSheet.addAction(ActionSheetAction(
@@ -411,8 +420,8 @@ extension ConversationViewController {
             )
         }
 
-        let (threadName, hasReportedSpam) = databaseStorage.read { tx in
-            let threadName = contactsManager.displayName(for: thread, transaction: tx)
+        let (threadName, hasReportedSpam) = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            let threadName = SSKEnvironment.shared.contactManagerRef.displayName(for: thread, transaction: tx)
             let finder = InteractionFinder(threadUniqueId: thread.uniqueId)
             let hasReportedSpam = finder.hasUserReportedSpam(transaction: tx)
             return (threadName, hasReportedSpam)

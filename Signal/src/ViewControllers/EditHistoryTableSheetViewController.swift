@@ -21,6 +21,7 @@ class EditHistoryTableSheetViewController: OWSTableSheetViewController {
 
     var parentRenderItems: [CVRenderItem]?
     var renderItems = [CVRenderItem]()
+    let threadViewModel: ThreadViewModel
     let spoilerState: SpoilerRenderState
     private var message: TSMessage
     private let database: SDSDatabaseStorage
@@ -28,17 +29,20 @@ class EditHistoryTableSheetViewController: OWSTableSheetViewController {
 
     init(
         message: TSMessage,
+        threadViewModel: ThreadViewModel,
         spoilerState: SpoilerRenderState,
         editManager: EditManager,
-        database: SDSDatabaseStorage
+        database: SDSDatabaseStorage,
+        databaseChangeObserver: DatabaseChangeObserver
     ) {
+        self.threadViewModel = threadViewModel
         self.spoilerState = spoilerState
         self.message = message
         self.database = database
         self.editManager = editManager
         super.init()
 
-        database.appendDatabaseChangeDelegate(self)
+        databaseChangeObserver.appendDatabaseChangeDelegate(self)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -54,7 +58,7 @@ class EditHistoryTableSheetViewController: OWSTableSheetViewController {
                 try self.editManager.markEditRevisionsAsRead(
                     for: self.message,
                     thread: thread,
-                    tx: tx.asV2Write
+                    tx: tx
                 )
             }
         } catch {
@@ -73,7 +77,7 @@ class EditHistoryTableSheetViewController: OWSTableSheetViewController {
 
             let edits: [TSMessage] = try DependenciesBridge.shared.editMessageStore.findEditHistory(
                 for: message,
-                tx: tx.asV2Read
+                tx: tx
             ).compactMap { $0.message }
 
             guard let thread = TSThread.anyFetch(
@@ -153,11 +157,18 @@ class EditHistoryTableSheetViewController: OWSTableSheetViewController {
         return OWSTableItem { [weak self] in
             guard let self = self else { return UITableViewCell() }
 
-            let views = items.map { item in
+            let views = items.enumerated().map { (index, item) in
                 let cellView = CVCellView()
                 cellView.configure(renderItem: item, componentDelegate: self)
                 cellView.isCellVisible = true
                 cellView.autoSetDimension(.height, toSize: item.cellSize.height)
+
+                // Its not 100% ideal to use an alternate mechanism to handle taps, but
+                // hooking up full cell tap handling is a larger effort and for now
+                // we just want to handle long text taps on this view.
+                cellView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(self.didTapCell)))
+                cellView.tag = index
+
                 return cellView
             }
 
@@ -175,13 +186,33 @@ class EditHistoryTableSheetViewController: OWSTableSheetViewController {
         }
     }
 
+    @objc
+    func didTapCell(_ recognizer: UITapGestureRecognizer) {
+        guard
+            let view = recognizer.view as? CVCellView,
+            let item = view.renderItem,
+            item.itemModel.componentState.displayableBodyText?.isTextTruncated == true
+        else {
+            return
+        }
+        let itemViewModel = CVItemViewModelImpl(renderItem: item)
+        let longTextVC = LongTextViewController(
+            itemViewModel: itemViewModel,
+            threadViewModel: threadViewModel,
+            spoilerState: spoilerState
+        )
+        longTextVC.delegate = self
+        let navVc = OWSNavigationController(rootViewController: longTextVC)
+        self.present(navVc, animated: true)
+    }
+
     var currentDaysBefore: Int = -1
     private func buildRenderItem(
         thread: TSThread,
         threadAssociatedData: ThreadAssociatedData,
         message interaction: TSMessage,
         forceDateHeader: Bool = false,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> [CVRenderItem] {
         var results = [CVRenderItem]()
         let cellInsets = tableViewController.cellOuterInsets
@@ -194,7 +225,7 @@ class EditHistoryTableSheetViewController: OWSTableSheetViewController {
             isWallpaperPhoto: false,
             chatColor: DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(
                 for: thread,
-                tx: tx.asV2Read
+                tx: tx
             )
         )
 
@@ -234,8 +265,6 @@ class EditHistoryTableSheetViewController: OWSTableSheetViewController {
 
 extension EditHistoryTableSheetViewController: DatabaseChangeDelegate {
     func databaseChangesDidUpdate(databaseChanges: SignalServiceKit.DatabaseChanges) {
-        AssertIsOnMainThread()
-
         guard databaseChanges.didUpdate(interaction: self.message) else {
             return
         }
@@ -244,14 +273,10 @@ extension EditHistoryTableSheetViewController: DatabaseChangeDelegate {
     }
 
     func databaseChangesDidUpdateExternally() {
-        AssertIsOnMainThread()
-
         updateTableContents()
     }
 
     func databaseChangesDidReset() {
-        AssertIsOnMainThread()
-
         updateTableContents()
     }
 }
@@ -312,6 +337,14 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
 
     // MARK: -
 
+    func willBecomeVisibleWithFailedOrPendingDownloads(_ message: TSMessage) {}
+
+    func didTapFailedOrPendingDownloads(_ message: TSMessage) {}
+
+    func didCancelDownload(_ message: TSMessage, attachmentId: Attachment.IDType) {}
+
+    // MARK: -
+
     func didTapReplyToItem(_ itemViewModel: CVItemViewModelImpl) {}
 
     func didTapSenderAvatar(_ interaction: TSInteraction) {}
@@ -328,13 +361,21 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
 
     var hasPendingMessageRequest: Bool { false }
 
-    func didTapFailedOrPendingDownloads(_ message: TSMessage) {}
+    func didTapUndownloadableMedia() {}
+
+    func didTapUndownloadableGenericFile() {}
+
+    func didTapUndownloadableOversizeText() {}
+
+    func didTapUndownloadableAudio() {}
+
+    func didTapUndownloadableSticker() {}
 
     func didTapBrokenVideo() {}
 
     func didTapBodyMedia(
         itemViewModel: CVItemViewModelImpl,
-        attachmentStream: ReferencedTSResourceStream,
+        attachmentStream: ReferencedAttachmentStream,
         imageView: UIView
     ) {}
 
@@ -416,6 +457,8 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
 
     func didTapViewGroupDescription(newGroupDescription: String) {}
 
+    func didTapNameEducation(type: SafetyTipsType) {}
+
     func didTapShowConversationSettings() {}
 
     func didTapShowConversationSettingsAndShowMemberRequests() {}
@@ -451,4 +494,12 @@ extension EditHistoryTableSheetViewController: CVComponentDelegate {
     func didTapReportSpamLearnMore() {}
 
     func didTapMessageRequestAcceptedOptions() {}
+
+    func didTapJoinCallLinkCall(callLink: CallLink) {}
+}
+
+extension EditHistoryTableSheetViewController: LongTextViewDelegate {
+    func longTextViewMessageWasDeleted(_ longTextViewController: LongTextViewController) {
+        self.dismiss(animated: true)
+    }
 }

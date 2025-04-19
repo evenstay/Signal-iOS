@@ -16,10 +16,9 @@ public final class SSKSessionStore: SignalSessionStore {
 
     public init(
         for identity: OWSIdentity,
-        keyValueStoreFactory: KeyValueStoreFactory,
         recipientIdFinder: RecipientIdFinder
     ) {
-        self.keyValueStore = keyValueStoreFactory.keyValueStore(collection: {
+        self.keyValueStore = KeyValueStore(collection: {
             switch identity {
             case .aci:
                 return "TSStorageManagerSessionStoreCollection"
@@ -239,38 +238,18 @@ public final class SSKSessionStore: SignalSessionStore {
         keyValueStore.removeAll(transaction: tx)
     }
 
-    public func printAll(tx: DBReadTransaction) {
-        Logger.debug("All Sessions.")
-        keyValueStore.enumerateKeysAndObjects(transaction: tx) { key, value, _ in
-            guard let deviceSessions = value as? NSDictionary else {
-                owsFailDebug("Unexpected type: \(type(of: value)) in collection.")
-                return
-            }
-
-            Logger.debug("     Sessions for recipient: \(key)")
-            deviceSessions.enumerateKeysAndObjects { key, value, _ in
-                guard let data = self.serializedSession(fromDatabaseRepresentation: value) else {
-                    // We've already logged an error here, just move on.
-                    return
-                }
-                do {
-                    let sessionRecord = try SessionRecord(bytes: data)
-                    Logger.debug("         Device: \(key) hasCurrentState: \(sessionRecord.hasCurrentState)")
-                } catch {
-                    owsFailDebug("invalid session record: \(error)")
-                }
-            }
-        }
+    public func removeAll(tx: DBWriteTransaction) {
+        keyValueStore.removeAll(transaction: tx)
     }
 }
 
 extension SSKSessionStore {
     public func loadSession(
         for serviceId: ServiceId,
-        deviceId: UInt32,
+        deviceId: DeviceId,
         tx: DBReadTransaction
     ) throws -> SessionRecord? {
-        guard let serializedData = try loadSerializedSession(for: serviceId, deviceId: deviceId, tx: tx) else {
+        guard let serializedData = try loadSerializedSession(for: serviceId, deviceId: deviceId.uint32Value, tx: tx) else {
             return nil
         }
         return try SessionRecord(bytes: serializedData)
@@ -285,13 +264,13 @@ extension SSKSessionStore {
         try storeSerializedSession(Data(record.serialize()), for: serviceId, deviceId: deviceId, tx: tx)
     }
 
-    public func archiveSession(for serviceId: ServiceId, deviceId: UInt32, tx: DBWriteTransaction) {
+    public func archiveSession(for serviceId: ServiceId, deviceId: DeviceId, tx: DBWriteTransaction) {
         do {
             guard let session = try loadSession(for: serviceId, deviceId: deviceId, tx: tx) else {
                 return
             }
             session.archiveCurrentState()
-            try storeSession(session, for: serviceId, deviceId: deviceId, tx: tx)
+            try storeSession(session, for: serviceId, deviceId: deviceId.uint32Value, tx: tx)
         } catch {
             owsFailDebug("\(error)")
         }
@@ -300,7 +279,7 @@ extension SSKSessionStore {
 
 extension SSKSessionStore: LibSignalClient.SessionStore {
     public func loadSession(for address: ProtocolAddress, context: StoreContext) throws -> SessionRecord? {
-        return try loadSession(for: address.serviceId, deviceId: address.deviceId, tx: context.asTransaction.asV2Read)
+        return try loadSession(for: address.serviceId, deviceId: address.deviceIdObj, tx: context.asTransaction)
     }
 
     public func loadExistingSessions(
@@ -314,7 +293,7 @@ extension SSKSessionStore: LibSignalClient.SessionStore {
     }
 
     public func storeSession(_ record: SessionRecord, for address: ProtocolAddress, context: StoreContext) throws {
-        try storeSession(record, for: address.serviceId, deviceId: address.deviceId, tx: context.asTransaction.asV2Write)
+        try storeSession(record, for: address.serviceId, deviceId: address.deviceId, tx: context.asTransaction)
     }
 }
 
@@ -324,10 +303,6 @@ extension SSKSessionStore {
     // Available through `@testable import`
     internal var keyValueStoreForTesting: KeyValueStore {
         self.keyValueStore
-    }
-
-    public func removeAll(tx: DBWriteTransaction) {
-        keyValueStore.removeAll(transaction: tx)
     }
 }
 

@@ -17,10 +17,10 @@ public enum ProfileRequestError: Error {
 
 public class ProfileFetcherJob {
     private let serviceId: ServiceId
+    private let groupIdContext: GroupIdentifier?
     private let authedAccount: AuthedAccount
 
     private let db: any DB
-    private let deleteForMeSyncMessageSettingsStore: any DeleteForMeSyncMessageSettingsStore
     private let disappearingMessagesConfigurationStore: any DisappearingMessagesConfigurationStore
     private let identityManager: any OWSIdentityManager
     private let paymentsHelper: any PaymentsHelper
@@ -28,16 +28,18 @@ public class ProfileFetcherJob {
     private let recipientDatabaseTable: any RecipientDatabaseTable
     private let recipientManager: any SignalRecipientManager
     private let recipientMerger: any RecipientMerger
+    private let storageServiceRecordIkmCapabilityStore: any StorageServiceRecordIkmCapabilityStore
+    private let storageServiceRecordIkmMigrator: any StorageServiceRecordIkmMigrator
     private let syncManager: any SyncManagerProtocol
     private let tsAccountManager: any TSAccountManager
     private let udManager: any OWSUDManager
-    private let versionedProfiles: any VersionedProfilesSwift
+    private let versionedProfiles: any VersionedProfiles
 
     init(
         serviceId: ServiceId,
+        groupIdContext: GroupIdentifier?,
         authedAccount: AuthedAccount,
         db: any DB,
-        deleteForMeSyncMessageSettingsStore: any DeleteForMeSyncMessageSettingsStore,
         disappearingMessagesConfigurationStore: any DisappearingMessagesConfigurationStore,
         identityManager: any OWSIdentityManager,
         paymentsHelper: any PaymentsHelper,
@@ -45,15 +47,17 @@ public class ProfileFetcherJob {
         recipientDatabaseTable: any RecipientDatabaseTable,
         recipientManager: any SignalRecipientManager,
         recipientMerger: any RecipientMerger,
+        storageServiceRecordIkmCapabilityStore: any StorageServiceRecordIkmCapabilityStore,
+        storageServiceRecordIkmMigrator: any StorageServiceRecordIkmMigrator,
         syncManager: any SyncManagerProtocol,
         tsAccountManager: any TSAccountManager,
         udManager: any OWSUDManager,
-        versionedProfiles: any VersionedProfilesSwift
+        versionedProfiles: any VersionedProfiles
     ) {
         self.serviceId = serviceId
+        self.groupIdContext = groupIdContext
         self.authedAccount = authedAccount
         self.db = db
-        self.deleteForMeSyncMessageSettingsStore = deleteForMeSyncMessageSettingsStore
         self.disappearingMessagesConfigurationStore = disappearingMessagesConfigurationStore
         self.identityManager = identityManager
         self.paymentsHelper = paymentsHelper
@@ -61,6 +65,8 @@ public class ProfileFetcherJob {
         self.recipientDatabaseTable = recipientDatabaseTable
         self.recipientManager = recipientManager
         self.recipientMerger = recipientMerger
+        self.storageServiceRecordIkmCapabilityStore = storageServiceRecordIkmCapabilityStore
+        self.storageServiceRecordIkmMigrator = storageServiceRecordIkmMigrator
         self.syncManager = syncManager
         self.tsAccountManager = tsAccountManager
         self.udManager = udManager
@@ -103,108 +109,176 @@ public class ProfileFetcherJob {
     }
 
     private func requestProfile(localIdentifiers: LocalIdentifiers) async throws -> FetchedProfile {
-        return try await requestProfileWithRetries(localIdentifiers: localIdentifiers)
-    }
-
-    private func requestProfileWithRetries(localIdentifiers: LocalIdentifiers, retryCount: Int = 0) async throws -> FetchedProfile {
         do {
-            return try await requestProfileAttempt(localIdentifiers: localIdentifiers)
+            return try await Retry.performWithBackoff(maxAttempts: 3) {
+                return try await requestProfileAttempt(localIdentifiers: localIdentifiers)
+            }
         } catch where error.httpStatusCode == 401 {
             throw ProfileRequestError.notAuthorized
         } catch where error.httpStatusCode == 404 {
             throw ProfileRequestError.notFound
-        } catch where error.httpStatusCode == 413 || error.httpStatusCode == 429 {
+        } catch where error.httpStatusCode == 429 {
             throw ProfileRequestError.rateLimit
-        } catch where error.isRetryable && retryCount < 3 {
-            return try await requestProfileWithRetries(localIdentifiers: localIdentifiers, retryCount: retryCount + 1)
         }
     }
 
     private func requestProfileAttempt(localIdentifiers: LocalIdentifiers) async throws -> FetchedProfile {
         let serviceId = self.serviceId
+        let versionedProfiles = self.versionedProfiles
 
-        let udAccess: OWSUDAccess?
-        if localIdentifiers.contains(serviceId: serviceId) {
-            // Don't use UD for "self" profile fetches.
-            udAccess = nil
-        } else {
-            udAccess = db.read { tx in udManager.udAccess(for: serviceId, tx: SDSDB.shimOnlyBridge(tx)) }
+        let versionedFetchParameters = try db.read { tx in
+            return try self.readVersionedFetchParameters(localIdentifiers: localIdentifiers, tx: tx)
+        }
+        if let versionedFetchParameters {
+            let versionedProfileRequest = try versionedProfiles.versionedProfileRequest(
+                for: versionedFetchParameters.aci,
+                profileKey: versionedFetchParameters.profileKey,
+                shouldRequestCredential: versionedFetchParameters.shouldRequestCredential,
+                udAccessKey: versionedFetchParameters.auth?.key,
+                auth: self.authedAccount.chatServiceAuth
+            )
+            do {
+                let response = try await makeRequest(versionedProfileRequest.request)
+                let profile = try SignalServiceProfile.fromResponse(
+                    serviceId: serviceId,
+                    responseObject: response.responseBodyJson
+                )
+
+                await versionedProfiles.didFetchProfile(profile: profile, profileRequest: versionedProfileRequest)
+
+                return FetchedProfile(profile: profile, profileKey: versionedProfileRequest.profileKey)
+            } catch where versionedFetchParameters.auth != nil && error.httpStatusCode == 401 {
+                // Fall back to an unversioned fetch...
+            }
         }
 
-        var currentVersionedProfileRequest: VersionedProfileRequest?
+        // If we can't fetch a versioned profile, or if we run into an auth error
+        // when using an access key, fall back to an unversioned profile fetch.
+
+        let endorsement = { () -> GroupSendFullTokenBuilder? in
+            guard let groupId = self.groupIdContext else {
+                return nil
+            }
+            do {
+                return try db.read { tx in try readGroupSendEndorsement(groupId: groupId, tx: tx) }
+            } catch {
+                owsFailDebug("Couldn't fetch GSE for profile fetch: \(error)")
+                return nil
+            }
+        }()
+
         let requestMaker = RequestMaker(
             label: "Profile Fetch",
-            requestFactoryBlock: { (udAccessKeyForRequest) -> TSRequest? in
-                // Clear out any existing request.
-                currentVersionedProfileRequest = nil
-
-                switch serviceId {
-                case let aci as Aci:
-                    do {
-                        let request = try self.versionedProfiles.versionedProfileRequest(
-                            for: aci,
-                            udAccessKey: udAccessKeyForRequest,
-                            auth: self.authedAccount.chatServiceAuth
-                        )
-                        currentVersionedProfileRequest = request
-                        return request.request
-                    } catch {
-                        owsFailDebug("Error: \(error)")
-                        return nil
-                    }
-                default:
-                    Logger.info("Unversioned profile fetch.")
-                    return OWSRequestFactory.getUnversionedProfileRequest(
-                        serviceId: serviceId,
-                        udAccessKey: udAccessKeyForRequest,
-                        auth: self.authedAccount.chatServiceAuth
-                    )
-                }
-            },
             serviceId: serviceId,
-            udAccess: udAccess,
+            canUseStoryAuth: false,
+            accessKey: nil,
+            endorsement: endorsement,
             authedAccount: self.authedAccount,
             options: [.allowIdentifiedFallback, .isProfileFetch]
         )
 
-        let result = try await requestMaker.makeRequest().awaitable()
+        let result = try await requestMaker.makeRequest { sealedSenderAuth in
+            return OWSRequestFactory.getUnversionedProfileRequest(
+                serviceId: serviceId,
+                auth: sealedSenderAuth.map({ .sealedSender($0) }) ?? .identified(self.authedAccount.chatServiceAuth)
+            )
+        }
 
-        let profile: SignalServiceProfile = try .fromResponse(
+        let profile = try SignalServiceProfile.fromResponse(
             serviceId: serviceId,
             responseObject: result.responseJson
         )
 
-        // If we sent a versioned request, store the credential that was returned.
-        if let versionedProfileRequest = currentVersionedProfileRequest {
-            // This calls databaseStorage.write { }
-            await versionedProfiles.didFetchProfile(profile: profile, profileRequest: versionedProfileRequest)
-        }
+        return FetchedProfile(profile: profile, profileKey: nil)
+    }
 
-        return fetchedProfile(
-            for: profile,
-            profileKeyFromVersionedRequest: currentVersionedProfileRequest?.profileKey
+    private struct VersionedFetchParameters {
+        var aci: Aci
+        var profileKey: ProfileKey
+        var shouldRequestCredential: Bool
+        var auth: OWSUDAccess?
+    }
+
+    private func readVersionedFetchParameters(
+        localIdentifiers: LocalIdentifiers,
+        tx: DBReadTransaction
+    ) throws -> VersionedFetchParameters? {
+        switch self.serviceId.concreteType {
+        case .pni(_):
+            return nil
+        case .aci(let aci):
+            let profileKey = self.profileManager.userProfile(
+                for: SignalServiceAddress(aci),
+                tx: SDSDB.shimOnlyBridge(tx)
+            )?.profileKey
+            guard let profileKey else {
+                return nil
+            }
+            let profileKeyCredential = try versionedProfiles.validProfileKeyCredential(for: aci, transaction: SDSDB.shimOnlyBridge(tx))
+            let auth: OWSUDAccess?
+            if localIdentifiers.aci == aci {
+                // Don't use UD for "self" profile fetches.
+                auth = nil
+            } else if let udAccess = udManager.udAccess(for: aci, tx: SDSDB.shimOnlyBridge(tx)) {
+                auth = udAccess
+            } else {
+                // We probably have the wrong profile key. Fall back to an unversioned
+                // fetch; that'll allow us to check if we know the profile key or not.
+                return nil
+            }
+
+            return VersionedFetchParameters(
+                aci: aci,
+                profileKey: ProfileKey(profileKey),
+                shouldRequestCredential: profileKeyCredential == nil,
+                auth: auth
+            )
+        }
+    }
+
+    private func readGroupSendEndorsement(groupId: GroupIdentifier, tx: DBReadTransaction) throws -> GroupSendFullTokenBuilder? {
+        let threadStore = DependenciesBridge.shared.threadStore
+        guard let groupThread = threadStore.fetchGroupThread(groupId: groupId, tx: tx) else {
+            throw OWSAssertionError("Can't find group that should exist.")
+        }
+        guard let groupModel = groupThread.groupModel as? TSGroupModelV2 else {
+            throw OWSAssertionError("Can't access v2 model for group with v2 identifier.")
+        }
+        let endorsementStore = DependenciesBridge.shared.groupSendEndorsementStore
+        let combinedEndorsement = try endorsementStore.fetchCombinedEndorsement(groupThreadId: groupThread.sqliteRowId!, tx: tx)
+        guard let combinedEndorsement else {
+            // Perhaps we haven't fetched it or it expired.
+            return nil
+        }
+        guard
+            let recipient = recipientDatabaseTable.fetchRecipient(serviceId: serviceId, transaction: tx),
+            let individualEndorsement = try endorsementStore.fetchIndividualEndorsement(
+                groupThreadId: groupThread.sqliteRowId!,
+                recipientId: recipient.id!,
+                tx: tx
+            )
+        else {
+            throw OWSAssertionError("Can't find GSE for group member that should have one.")
+        }
+        return GroupSendFullTokenBuilder(
+            secretParams: try groupModel.secretParams(),
+            expiration: combinedEndorsement.expiration,
+            endorsement: try GroupSendEndorsement(contents: [UInt8](individualEndorsement.endorsement))
         )
     }
 
-    private func fetchedProfile(
-        for profile: SignalServiceProfile,
-        profileKeyFromVersionedRequest: Aes256Key?
-    ) -> FetchedProfile {
-        let profileKey: Aes256Key?
-        if let profileKeyFromVersionedRequest {
-            // We sent a versioned request, so use the corresponding profile key for
-            // decryption. If we don't, we might try to decrypt an old profile with a
-            // new key, and that won't work.
-            profileKey = profileKeyFromVersionedRequest
+    private func makeRequest(_ request: TSRequest) async throws -> any HTTPResponse {
+        // TODO: WebSockets: Inline this method once it doesn't need to branch.
+        let connectionType = try request.auth.connectionType
+        let shouldUseWebSocket: Bool = (
+            OWSChatConnection.canAppUseSocketsToMakeRequests
+            && DependenciesBridge.shared.chatConnectionManager.shouldWaitForSocketToMakeRequest(connectionType: connectionType)
+        )
+        if shouldUseWebSocket {
+            return try await DependenciesBridge.shared.chatConnectionManager.makeRequest(request)
         } else {
-            // We sent an unversioned request, so just use any profile key that's
-            // available. If we explicitly sent an unversioned request, we may have a
-            // key available locally. If we wanted a versioned request but ended up
-            // with an unversioned request, we may have received a key while the
-            // profile fetch was in flight.
-            profileKey = db.read { profileManager.profileKey(for: SignalServiceAddress(profile.serviceId), transaction: SDSDB.shimOnlyBridge($0)) }
+            return try await SSKEnvironment.shared.networkManagerRef.asyncRequest(request, canUseWebSocket: false)
         }
-        return FetchedProfile(profile: profile, profileKey: profileKey)
     }
 
     private func updateProfile(
@@ -246,18 +320,27 @@ public class ProfileFetcherJob {
         }
         let profileAddress = SignalServiceAddress(fetchedProfile.profile.serviceId)
         let didAlreadyDownloadAvatar = db.read { tx -> Bool in
-            let oldAvatarUrlPath = profileManager.profileAvatarURLPath(
-                for: profileAddress,
-                transaction: SDSDB.shimOnlyBridge(tx)
-            )
-            return (
-                oldAvatarUrlPath == newAvatarUrlPath
-                && profileManager.hasProfileAvatarData(profileAddress, transaction: SDSDB.shimOnlyBridge(tx))
-            )
+            let userProfile = profileManager.userProfile(for: profileAddress, tx: SDSDB.shimOnlyBridge(tx))
+            guard let userProfile else {
+                return false
+            }
+            return userProfile.avatarUrlPath == newAvatarUrlPath && userProfile.hasAvatarData()
         }
         if didAlreadyDownloadAvatar {
             return AvatarDownloadResult(remoteRelativePath: .noChange, localFileUrl: .noChange)
         }
+
+        let shouldPreventDownload = db.read { tx -> Bool in
+            SSKEnvironment.shared.contactManagerImplRef.shouldBlockAvatarDownload(
+                address: profileAddress,
+                tx: tx
+            )
+        }
+
+        if shouldPreventDownload {
+            return AvatarDownloadResult(remoteRelativePath: .setTo(newAvatarUrlPath), localFileUrl: .setTo(nil))
+        }
+
         let temporaryAvatarUrl: URL?
         do {
             temporaryAvatarUrl = try await profileManager.downloadAndDecryptAvatar(
@@ -266,12 +349,6 @@ public class ProfileFetcherJob {
             )
         } catch {
             Logger.warn("Error: \(error)")
-            if error.isNetworkFailureOrTimeout, localIdentifiers.contains(serviceId: fetchedProfile.profile.serviceId) {
-                // Fetches and local profile updates can conflict. To avoid these conflicts
-                // we treat "partial" profile fetches (where we download the profile but
-                // not the associated avatar) as failures.
-                throw SSKUnretryableError.partialLocalProfileFetch
-            }
             // Reaching this point with anything other than a network failure or
             // timeout should be very rare. It might reflect:
             //
@@ -362,7 +439,7 @@ public class ProfileFetcherJob {
 
             let paymentAddress = fetchedProfile.decryptedProfile?.paymentAddress(identityKey: fetchedProfile.identityKey)
             self.paymentsHelper.setArePaymentsEnabled(
-                for: ServiceIdObjC.wrapValue(serviceId),
+                for: serviceId,
                 hasPaymentsEnabled: paymentAddress != nil,
                 transaction: SDSDB.shimOnlyBridge(transaction)
             )
@@ -407,31 +484,37 @@ public class ProfileFetcherJob {
         localIdentifiers: LocalIdentifiers,
         tx: DBWriteTransaction
     ) {
+        let registrationState = tsAccountManager.registrationState(tx: tx)
+
         var shouldSendProfileSync = false
+
         if
             localIdentifiers.contains(serviceId: serviceId),
-            fetchedCapabilities.deleteSync,
-            !deleteForMeSyncMessageSettingsStore.isSendingEnabled(tx: tx)
+            fetchedCapabilities.storageServiceRecordIkm
         {
-            deleteForMeSyncMessageSettingsStore.enableSending(tx: tx)
+            if !storageServiceRecordIkmCapabilityStore.isRecordIkmCapable(tx: tx) {
+                storageServiceRecordIkmCapabilityStore.setIsRecordIkmCapable(tx: tx)
 
-            shouldSendProfileSync = true
-        }
-
-        if
-            fetchedCapabilities.versionedExpireTimer,
-            !disappearingMessagesConfigurationStore.isVersionedDMTimerCapable(serviceId: serviceId, tx: tx)
-        {
-            disappearingMessagesConfigurationStore.setIsVersionedTimerCapable(serviceId: serviceId, tx: tx)
-
-            if localIdentifiers.contains(serviceId: serviceId) {
                 shouldSendProfileSync = true
+            }
+
+            if registrationState.isRegisteredPrimaryDevice {
+                /// Only primary devices should perform the `recordIkm`
+                /// migration, since only primaries can create a Storage Service
+                /// manifest.
+                ///
+                /// We want to do this in a transaction completion block, since
+                /// it'll read from the database and we want to ensure this
+                /// write has completed.
+                tx.addSyncCompletion { [storageServiceRecordIkmMigrator] in
+                    storageServiceRecordIkmMigrator.migrateToManifestRecordIkmIfNecessary()
+                }
             }
         }
 
         if
             shouldSendProfileSync,
-            DependenciesBridge.shared.tsAccountManager.registrationState(tx: tx).isRegistered
+            registrationState.isRegistered
         {
             /// If some capability is newly enabled, we want all devices to be aware.
             /// This would happen automatically the next time those devices
@@ -482,18 +565,18 @@ public struct DecryptedProfile {
 
 public struct FetchedProfile {
     let profile: SignalServiceProfile
-    let profileKey: Aes256Key?
+    let profileKey: ProfileKey?
     public let decryptedProfile: DecryptedProfile?
     public let identityKey: IdentityKey
 
-    init(profile: SignalServiceProfile, profileKey: Aes256Key?) {
+    init(profile: SignalServiceProfile, profileKey: ProfileKey?) {
         self.profile = profile
         self.profileKey = profileKey
         self.decryptedProfile = Self.decrypt(profile: profile, profileKey: profileKey)
         self.identityKey = profile.identityKey
     }
 
-    private static func decrypt(profile: SignalServiceProfile, profileKey: Aes256Key?) -> DecryptedProfile? {
+    private static func decrypt(profile: SignalServiceProfile, profileKey: ProfileKey?) -> DecryptedProfile? {
         guard let profileKey else {
             return nil
         }

@@ -13,6 +13,7 @@ import LibSignalClient
 /// thread. Its just that our group thread contains all the metadata
 /// corresponding to both the Chat and Recipient parts of the Backup proto.
 public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
+    typealias GroupId = MessageBackup.GroupId
     typealias RecipientId = MessageBackup.RecipientId
     typealias RecipientAppId = MessageBackup.RecipientArchivingContext.Address
 
@@ -22,21 +23,30 @@ public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
     typealias RestoreFrameResult = MessageBackup.RestoreFrameResult<RecipientId>
     private typealias RestoreFrameError = MessageBackup.RestoreFrameError<RecipientId>
 
+    private let avatarDefaultColorManager: AvatarDefaultColorManager
+    private let avatarFetcher: MessageBackupAvatarFetcher
+    private let blockingManager: MessageBackup.Shims.BlockingManager
     private let disappearingMessageConfigStore: DisappearingMessagesConfigurationStore
     private let groupsV2: GroupsV2
     private let profileManager: MessageBackup.Shims.ProfileManager
-    private let storyStore: StoryStore
-    private let threadStore: ThreadStore
+    private let storyStore: MessageBackupStoryStore
+    private let threadStore: MessageBackupThreadStore
 
     private var logger: MessageBackupLogger { .shared }
 
     public init(
+        avatarDefaultColorManager: AvatarDefaultColorManager,
+        avatarFetcher: MessageBackupAvatarFetcher,
+        blockingManager: MessageBackup.Shims.BlockingManager,
         disappearingMessageConfigStore: DisappearingMessagesConfigurationStore,
         groupsV2: GroupsV2,
         profileManager: MessageBackup.Shims.ProfileManager,
-        storyStore: StoryStore,
-        threadStore: ThreadStore
+        storyStore: MessageBackupStoryStore,
+        threadStore: MessageBackupThreadStore
     ) {
+        self.avatarDefaultColorManager = avatarDefaultColorManager
+        self.avatarFetcher = avatarFetcher
+        self.blockingManager = blockingManager
         self.disappearingMessageConfigStore = disappearingMessageConfigStore
         self.groupsV2 = groupsV2
         self.profileManager = profileManager
@@ -47,20 +57,37 @@ public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
     func archiveAllGroupRecipients(
         stream: MessageBackupProtoOutputStream,
         context: MessageBackup.RecipientArchivingContext
-    ) -> ArchiveMultiFrameResult {
+    ) throws(CancellationError) -> ArchiveMultiFrameResult {
         var errors = [ArchiveFrameError]()
 
+        let blockedGroupIds: Set<Data>
         do {
-            try threadStore.enumerateGroupThreads(tx: context.tx) { groupThread in
-                self.archiveGroupThread(
-                    groupThread,
-                    stream: stream,
-                    context: context,
-                    errors: &errors
-                )
+            blockedGroupIds = Set(try blockingManager.blockedGroupIds(tx: context.tx))
+        } catch {
+            return .completeFailure(.fatalArchiveError(.blockedGroupFetchError(error)))
+        }
+
+        do {
+            try context.bencher.wrapEnumeration(
+                threadStore.enumerateGroupThreads(tx:block:),
+                tx: context.tx
+            ) { groupThread, frameBencher in
+                try Task.checkCancellation()
+                autoreleasepool {
+                    self.archiveGroupThread(
+                        groupThread,
+                        blockedGroupIds: blockedGroupIds,
+                        stream: stream,
+                        frameBencher: frameBencher,
+                        context: context,
+                        errors: &errors
+                    )
+                }
 
                 return true
             }
+        } catch let error as CancellationError {
+            throw error
         } catch {
             // The enumeration of threads failed, not the processing of one single thread.
             return .completeFailure(.fatalArchiveError(.threadIteratorError(error)))
@@ -75,7 +102,9 @@ public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
 
     private func archiveGroupThread(
         _ groupThread: TSGroupThread,
+        blockedGroupIds: Set<Data>,
         stream: MessageBackupProtoOutputStream,
+        frameBencher: MessageBackup.Bencher.FrameBencher,
         context: MessageBackup.RecipientArchivingContext,
         errors: inout [ArchiveFrameError]
     ) {
@@ -84,11 +113,10 @@ public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
             return
         }
 
-        let groupId = groupModel.groupId
+        let groupId = GroupId(groupModel: groupModel)
         let groupMembership = groupModel.groupMembership
 
         let groupAppId: RecipientAppId = .group(groupId)
-        let recipientId = context.assignRecipientId(to: groupAppId)
 
         let groupMasterKey: Data
         do {
@@ -101,12 +129,19 @@ public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
 
         var group = BackupProto_Group()
         group.masterKey = groupMasterKey
-        group.whitelisted = profileManager.isThread(
-            inProfileWhitelist: groupThread, tx: context.tx
+        group.whitelisted = profileManager.isGroupId(
+            inProfileWhitelist: groupId.value,
+            tx: context.tx
         )
-        group.hideStory = storyStore.getOrCreateStoryContextAssociatedData(
-            forGroupThread: groupThread, tx: context.tx
-        ).isHidden
+        group.blocked = blockedGroupIds.contains(groupId.value)
+        do {
+            group.hideStory = try storyStore.getOrCreateStoryContextAssociatedData(
+                for: groupThread,
+                context: context
+            ).isHidden
+        } catch let error {
+            errors.append(.archiveFrameError(.unableToReadStoryContextAssociatedData(error), groupAppId))
+        }
         group.storySendMode = { () -> BackupProto_Group.StorySendMode in
             switch groupThread.storyViewMode {
             case .disabled: return .disabled
@@ -114,6 +149,10 @@ public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
             case .default: return .default
             }
         }()
+        group.avatarColor = avatarDefaultColorManager.defaultColor(
+            useCase: .group(groupId: groupId.value),
+            tx: context.tx
+        ).asBackupProtoAvatarColor
         group.snapshot = { () -> BackupProto_Group.GroupSnapshot in
             var groupSnapshot = BackupProto_Group.GroupSnapshot()
             groupSnapshot.avatarURL = groupModel.avatarUrlPath ?? ""
@@ -194,8 +233,10 @@ public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
         Self.writeFrameToStream(
             stream,
             objectId: groupAppId,
+            frameBencher: frameBencher,
             frameBuilder: {
                 var recipient = BackupProto_Recipient()
+                let recipientId = context.assignRecipientId(to: groupAppId)
                 recipient.id = recipientId.value
                 recipient.destination = .group(group)
 
@@ -233,15 +274,15 @@ public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
         let groupSnapshot = groupProto.snapshot
 
         var groupMembershipBuilder = GroupMembership.Builder()
+        var fullGroupMemberAcis = Set<Aci>()
         for fullMember in groupSnapshot.members {
             guard let aci = try? Aci.parseFrom(serviceIdBinary: fullMember.userID) else {
                 return restoreFrameError(.invalidProtoData(.invalidAci(protoClass: BackupProto_Group.Member.self)))
             }
-            guard let role = TSGroupMemberRole(backupProtoRole: fullMember.role) else {
-                return restoreFrameError(.invalidProtoData(.unrecognizedGV2MemberRole(protoClass: BackupProto_Group.Member.self)))
-            }
+            let role = TSGroupMemberRole(backupProtoRole: fullMember.role)
 
             groupMembershipBuilder.addFullMember(aci, role: role)
+            fullGroupMemberAcis.insert(aci)
         }
         for invitedMember in groupSnapshot.membersPendingProfileKey {
             guard invitedMember.hasMember else {
@@ -251,9 +292,7 @@ public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
             guard let serviceId = try? ServiceId.parseFrom(serviceIdBinary: memberDetails.userID) else {
                 return restoreFrameError(.invalidProtoData(.invalidServiceId(protoClass: BackupProto_Group.MemberPendingProfileKey.self)))
             }
-            guard let role = TSGroupMemberRole(backupProtoRole: memberDetails.role) else {
-                return restoreFrameError(.invalidProtoData(.unrecognizedGV2MemberRole(protoClass: BackupProto_Group.MemberPendingProfileKey.self)))
-            }
+            let role = TSGroupMemberRole(backupProtoRole: memberDetails.role)
             guard let addedByAci = try? Aci.parseFrom(serviceIdBinary: invitedMember.addedByUserID) else {
                 return restoreFrameError(.invalidProtoData(.invalidAci(protoClass: BackupProto_Group.MemberPendingProfileKey.self)))
             }
@@ -290,8 +329,8 @@ public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
         groupModelBuilder.groupV2Revision = groupSnapshot.version
         groupModelBuilder.name = groupSnapshot.extractTitle
         groupModelBuilder.descriptionText = groupSnapshot.extractDescriptionText
-        // We'll try and download the avatar later. For now, put in dummy data.
-        groupModelBuilder.avatarData = Data()
+        // We'll try and download the avatar later. For now, leave it explicitly missing.
+        groupModelBuilder.avatarDataState = .missing
         groupModelBuilder.avatarUrlPath = groupSnapshot.avatarURL.nilIfEmpty
         groupModelBuilder.groupMembership = groupMembershipBuilder.build()
         groupModelBuilder.groupAccess = GroupAccess(backupProtoAccessControl: groupSnapshot.accessControl)
@@ -304,11 +343,40 @@ public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
 
         // MARK: Use the group model to create a group thread
 
-        let groupThread = threadStore.createGroupThread(
-            groupModel: groupModel, tx: context.tx
-        )
+        let isStorySendEnabled: Bool? = {
+            switch groupProto.storySendMode {
+            case .default, .UNRECOGNIZED:
+                // No explicit setting.
+                return nil
+            case .disabled:
+                return false
+            case .enabled:
+                return true
+            }
+        }()
+
+        let groupThread: TSGroupThread
+        do {
+            groupThread = try threadStore.createGroupThread(
+                groupModel: groupModel,
+                isStorySendEnabled: isStorySendEnabled,
+                context: context
+            )
+        } catch let error {
+            return restoreFrameError(.databaseInsertionFailed(error))
+        }
 
         // MARK: Store group properties that live outside the group model
+
+        do {
+            try threadStore.insertFullGroupMemberRecords(
+                acis: fullGroupMemberAcis,
+                groupThread: groupThread,
+                context: context
+            )
+        } catch let error {
+            return restoreFrameError(.databaseInsertionFailed(error))
+        }
 
         if let disappearingMessageTimer = groupSnapshot.extractDisappearingMessageTimer {
             disappearingMessageConfigStore.set(
@@ -324,46 +392,53 @@ public class MessageBackupGroupRecipientArchiver: MessageBackupProtoArchiver {
             profileManager.addToWhitelist(groupThread, tx: context.tx)
         }
 
-        let isStorySendEnabled: Bool? = {
-            switch groupProto.storySendMode {
-            case .default, .UNRECOGNIZED:
-                // No explicit setting.
-                return nil
-            case .disabled:
-                return false
-            case .enabled:
-                return true
-            }
-        }()
-        if let isStorySendEnabled {
-            threadStore.update(
-                groupThread: groupThread,
-                withStorySendEnabled: isStorySendEnabled,
-                updateStorageService: false,
-                tx: context.tx
-            )
-        }
-        if groupProto.hideStory {
-            // We only need to actively hide, since unhidden is the default.
-            let storyContext = storyStore.getOrCreateStoryContextAssociatedData(
-                forGroupThread: groupThread, tx: context.tx
-            )
-            storyStore.updateStoryContext(
-                storyContext,
-                updateStorageService: false,
-                isHidden: true,
-                tx: context.tx
-            )
+        if groupProto.blocked {
+            blockingManager.addBlockedGroupId(groupContextInfo.groupId, tx: context.tx)
         }
 
-        if groupModel.avatarUrlPath != nil {
-            // TODO: [Backups] Enqueue download of the group avatar.
+        var partialErrors = [MessageBackup.RestoreFrameError<RecipientId>]()
+
+        if
+            groupProto.hasAvatarColor,
+            let defaultAvatarColor: AvatarTheme = .from(backupProtoAvatarColor: groupProto.avatarColor)
+        {
+            do {
+                try avatarDefaultColorManager.persistDefaultColor(
+                    defaultAvatarColor,
+                    groupId: groupContextInfo.groupId,
+                    tx: context.tx
+                )
+            } catch {
+                // Don't fail entirely; colors aren't that important.
+                partialErrors.append(.restoreFrameError(.databaseInsertionFailed(error), recipient.recipientId))
+            }
+        }
+
+        if groupProto.hideStory {
+            // We only need to actively hide, since unhidden is the default.
+            do {
+                try storyStore.createStoryContextAssociatedData(
+                    for: groupThread,
+                    isHidden: true,
+                    context: context
+                )
+            } catch let error {
+                // Don't fail entirely; the story will just be unhidden.
+                partialErrors.append(.restoreFrameError(.databaseInsertionFailed(error), recipient.recipientId))
+            }
         }
 
         // MARK: Return successfully!
 
-        context[recipient.recipientId] = .group(groupModel.groupId)
-        return .success
+        let groupId = GroupId(groupModel: groupModel)
+        context[recipient.recipientId] = .group(groupId)
+        context[groupId] = groupThread
+
+        if partialErrors.isEmpty {
+            return .success
+        } else {
+            return .partialRestore(partialErrors)
+        }
     }
 }
 
@@ -446,9 +521,11 @@ private extension BackupProto_Group.Member {
 // MARK: -
 
 private extension TSGroupMemberRole {
-    init?(backupProtoRole: BackupProto_Group.Member.Role) {
+    init(backupProtoRole: BackupProto_Group.Member.Role) {
         switch backupProtoRole {
-        case .unknown, .UNRECOGNIZED: return nil
+        case .unknown, .UNRECOGNIZED:
+            // Fallback to normal (default)
+            self = .normal
         case .default: self = .normal
         case .administrator: self = .administrator
         }

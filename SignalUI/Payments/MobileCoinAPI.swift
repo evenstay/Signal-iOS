@@ -7,7 +7,7 @@ import Foundation
 import MobileCoin
 public import SignalServiceKit
 
-public class MobileCoinAPI: Dependencies {
+public class MobileCoinAPI {
 
     // MARK: - Passphrases & Entropy
 
@@ -69,7 +69,7 @@ public class MobileCoinAPI: Dependencies {
             throw PaymentsError.invalidEntropy
         }
 
-        owsAssertDebug(Self.paymentsHelper.arePaymentsEnabled)
+        owsAssertDebug(SSKEnvironment.shared.paymentsHelperRef.arePaymentsEnabled)
 
         self.paymentsEntropy = paymentsEntropy
         self.localAccount = localAccount
@@ -106,7 +106,7 @@ public class MobileCoinAPI: Dependencies {
         }
         return firstly(on: DispatchQueue.global()) { () -> Promise<SignalServiceKit.HTTPResponse> in
             let request = OWSRequestFactory.paymentsAuthenticationCredentialRequest()
-            return Self.networkManager.makePromise(request: request)
+            return SSKEnvironment.shared.networkManagerRef.makePromise(request: request)
         }.map(on: DispatchQueue.global()) { response -> OWSAuthorization in
             guard let json = response.responseBodyJson else {
                 throw OWSAssertionError("Missing or invalid JSON")
@@ -437,7 +437,7 @@ public class MobileCoinAPI: Dependencies {
                 switch result {
                 case .success(let transactionStatus):
                     future.resolve(MCOutgoingTransactionStatus(transactionStatus: transactionStatus))
-                    Self.paymentsSwift.clearCurrentPaymentBalance()
+                    SUIEnvironment.shared.paymentsSwiftRef.clearCurrentPaymentBalance()
                 case .failure(let error):
                     let error = Self.convertMCError(error: error)
                     future.reject(error)
@@ -605,7 +605,7 @@ extension MobileCoinAPI {
                 owsFailDebug("Error: \(error), reason: \(reason)")
 
                 // Immediately discard the SDK client instance; the auth token may be stale.
-                SSKEnvironment.shared.payments.didReceiveMCAuthError()
+                SUIEnvironment.shared.paymentsRef.didReceiveMCAuthError()
 
                 return PaymentsError.authorizationFailure
             case .invalidServerResponse(let reason):
@@ -834,7 +834,7 @@ public func owsFailDebugUnlessMCNetworkFailure(_ error: Error,
         } else {
             owsFailDebug("Error: \(error)", file: file, function: function, line: line)
         }
-    } else if nil != error as? OWSAssertionError {
+    } else if error is OWSAssertionError {
         owsFailDebug("Unexpected error: \(error)")
     } else {
         owsFailDebugUnlessNetworkFailure(error)
@@ -846,10 +846,6 @@ public func owsFailDebugUnlessMCNetworkFailure(_ error: Error,
 extension MobileCoinAPI {
     static func formatAsBase58(publicAddress: MobileCoin.PublicAddress) -> String {
         return Base58Coder.encode(publicAddress)
-    }
-
-    static func formatAsUrl(publicAddress: MobileCoin.PublicAddress) -> String {
-        MobUri.encode(publicAddress)
     }
 
     static func parseAsPublicAddress(url: URL) -> MobileCoin.PublicAddress? {

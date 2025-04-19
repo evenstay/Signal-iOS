@@ -4,7 +4,6 @@
 //
 
 #import "OWSOutgoingPaymentMessage.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -18,7 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
            paymentNotification:(TSPaymentNotification *)paymentNotification
               expiresInSeconds:(uint32_t)expiresInSeconds
             expireTimerVersion:(nullable NSNumber *)expireTimerVersion
-                   transaction:(SDSAnyReadTransaction *)transaction
+                   transaction:(DBReadTransaction *)transaction
 {
     OWSAssertDebug(paymentNotification != nil);
 
@@ -55,10 +54,10 @@ NS_ASSUME_NONNULL_BEGIN
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -98,10 +97,10 @@ NS_ASSUME_NONNULL_BEGIN
                             sortId:sortId
                          timestamp:timestamp
                     uniqueThreadId:uniqueThreadId
-                     attachmentIds:attachmentIds
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+          deprecated_attachmentIds:deprecated_attachmentIds
                          editState:editState
                    expireStartedAt:expireStartedAt
                 expireTimerVersion:expireTimerVersion
@@ -162,7 +161,7 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 - (nullable SSKProtoDataMessageBuilder *)dataMessageBuilderWithThread:(TSThread *)thread
-                                                          transaction:(SDSAnyReadTransaction *)transaction
+                                                          transaction:(DBReadTransaction *)transaction
 {
     if (self.paymentNotification == nil) {
         OWSFailDebug(@"Missing payload.");
@@ -179,11 +178,7 @@ NS_ASSUME_NONNULL_BEGIN
     }
 
     [builder setExpireTimer:self.expiresInSeconds];
-    if (self.expireTimerVersion) {
-        [builder setExpireTimerVersion:[self.expireTimerVersion unsignedIntValue]];
-    } else {
-        [builder setExpireTimerVersion:0];
-    }
+    [builder setExpireTimerVersion:[self.expireTimerVersion unsignedIntValue]];
 
     [builder setRequiredProtocolVersion:(uint32_t)SSKProtoDataMessageProtocolVersionPayments];
     return builder;

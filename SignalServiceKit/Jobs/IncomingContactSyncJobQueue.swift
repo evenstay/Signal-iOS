@@ -7,7 +7,7 @@ public extension Notification.Name {
     static let incomingContactSyncDidComplete = Notification.Name("IncomingContactSyncDidComplete")
 }
 
-public class IncomingContactSyncJobQueue: NSObject {
+public class IncomingContactSyncJobQueue {
     public enum Constants {
         public static let insertedThreads = "insertedThreads"
     }
@@ -16,15 +16,15 @@ public class IncomingContactSyncJobQueue: NSObject {
         JobRecordFinderImpl<IncomingContactSyncJobRecord>,
         IncomingContactSyncJobRunnerFactory
     >
+    private var jobSerializer = CompletionSerializer()
 
-    public init(appReadiness: AppReadiness, db: DB, reachabilityManager: SSKReachabilityManager) {
+    public init(appReadiness: AppReadiness, db: any DB, reachabilityManager: SSKReachabilityManager) {
         self.jobQueueRunner = JobQueueRunner(
             canExecuteJobsConcurrently: false,
             db: db,
             jobFinder: JobRecordFinderImpl(db: db),
             jobRunnerFactory: IncomingContactSyncJobRunnerFactory(appReadiness: appReadiness)
         )
-        super.init()
         self.jobQueueRunner.listenForReachabilityChanges(reachabilityManager: reachabilityManager)
     }
 
@@ -39,7 +39,7 @@ public class IncomingContactSyncJobQueue: NSObject {
         digest: Data,
         plaintextLength: UInt32?,
         isComplete: Bool,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         let jobRecord = IncomingContactSyncJobRecord(
             cdnNumber: cdnNumber,
@@ -50,7 +50,9 @@ public class IncomingContactSyncJobQueue: NSObject {
             isCompleteContactSync: isComplete
         )
         jobRecord.anyInsert(transaction: tx)
-        tx.addSyncCompletion { self.jobQueueRunner.addPersistedJob(jobRecord) }
+        jobSerializer.addOrderedSyncCompletion(tx: tx) {
+            self.jobQueueRunner.addPersistedJob(jobRecord)
+        }
     }
 }
 
@@ -67,7 +69,7 @@ private class IncomingContactSyncJobRunnerFactory: JobRunnerFactory {
     }
 }
 
-private class IncomingContactSyncJobRunner: JobRunner, Dependencies {
+private class IncomingContactSyncJobRunner: JobRunner {
     private enum Constants {
         static let maxRetries: UInt = 4
     }
@@ -91,50 +93,23 @@ private class IncomingContactSyncJobRunner: JobRunner, Dependencies {
 
     private func _runJob(_ jobRecord: IncomingContactSyncJobRecord) async throws {
         let fileUrl: URL
-        let legacyAttachmentId: String?
         switch jobRecord.downloadInfo {
         case .invalid:
             owsFailDebug("Invalid contact sync job!")
-            await databaseStorage.awaitableWrite { tx in
+            await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
                 jobRecord.anyRemove(transaction: tx)
             }
             return
-        case .legacy(let attachmentId):
-            guard let attachment = (databaseStorage.read { transaction in
-                return TSAttachment.anyFetch(uniqueId: attachmentId, transaction: transaction)
-            }) else {
-                throw OWSAssertionError("missing attachment")
-            }
-
-            let attachmentStream: TSAttachmentStream
-            switch attachment {
-            case let attachmentPointer as TSAttachmentPointer:
-                attachmentStream = try await TSAttachmentDownloadManager(appReadiness: appReadiness)
-                    .enqueueContactSyncDownload(attachmentPointer: attachmentPointer)
-            case let attachmentStreamValue as TSAttachmentStream:
-                attachmentStream = attachmentStreamValue
-            default:
-                throw OWSAssertionError("unexpected attachment type: \(attachment)")
-            }
-            guard let url = attachmentStream.originalMediaURL else {
-                throw OWSAssertionError("fileUrl was unexpectedly nil")
-            }
-            fileUrl = url
-            legacyAttachmentId = attachmentStream.uniqueId
         case .transient(let downloadMetadata):
             fileUrl = try await DependenciesBridge.shared.attachmentDownloadManager.downloadTransientAttachment(
                 metadata: downloadMetadata
             ).awaitable()
-            legacyAttachmentId = nil
         }
 
         let insertedThreads = try await firstly(on: DispatchQueue.global()) {
             try self.processContactSync(decryptedFileUrl: fileUrl, isComplete: jobRecord.isCompleteContactSync)
         }.awaitable()
-        await databaseStorage.awaitableWrite { tx in
-            if let legacyAttachmentId {
-                TSAttachmentStream.anyFetch(uniqueId: legacyAttachmentId, transaction: tx)?.anyRemove(transaction: tx)
-            }
+        await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             jobRecord.anyRemove(transaction: tx)
         }
         NotificationCenter.default.post(name: .incomingContactSyncDidComplete, object: self, userInfo: [
@@ -169,12 +144,12 @@ private class IncomingContactSyncJobRunner: JobRunner, Dependencies {
                     try pruneContacts(exceptThoseReceivedFromCompleteSync: allPhoneNumbers)
                 }
 
-                databaseStorage.write { transaction in
+                SSKEnvironment.shared.databaseStorageRef.write { transaction in
                     // Always fire just one identity change notification, rather than potentially
                     // once per contact. It's possible that *no* identities actually changed,
                     // but we have no convenient way to track that.
                     let identityManager = DependenciesBridge.shared.identityManager
-                    identityManager.fireIdentityStateChangeNotification(after: transaction.asV2Write)
+                    identityManager.fireIdentityStateChangeNotification(after: transaction)
                 }
             }
         }
@@ -196,7 +171,7 @@ private class IncomingContactSyncJobRunner: JobRunner, Dependencies {
                 owsFailDebug("Empty batch.")
                 return false
             }
-            try databaseStorage.write { tx in
+            try SSKEnvironment.shared.databaseStorageRef.write { tx in
                 for contact in contactBatch {
                     if let phoneNumber = try processContactDetails(contact, insertedThreads: &insertedThreads, tx: tx) {
                         processedPhoneNumbers.append(phoneNumber)
@@ -222,10 +197,10 @@ private class IncomingContactSyncJobRunner: JobRunner, Dependencies {
     private func processContactDetails(
         _ contactDetails: ContactDetails,
         insertedThreads: inout [(threadUniqueId: String, sortOrder: UInt32)],
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) throws -> E164? {
         let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-        guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx.asV2Read) else {
+        guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) else {
             throw OWSGenericError("Not registered.")
         }
 
@@ -239,13 +214,13 @@ private class IncomingContactSyncJobRunner: JobRunner, Dependencies {
                 localIdentifiers: localIdentifiers,
                 aci: aci,
                 phoneNumber: contactDetails.phoneNumber,
-                tx: tx.asV2Write
+                tx: tx
             )
             // Mark as registered only if we have a UUID (we always do in this branch).
             // If we don't have a UUID, contacts can't be registered.
-            recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: false, tx: tx.asV2Write)
+            recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: false, tx: tx)
         } else if let phoneNumber = contactDetails.phoneNumber {
-            recipient = recipientFetcher.fetchOrCreate(phoneNumber: phoneNumber, tx: tx.asV2Write)
+            recipient = recipientFetcher.fetchOrCreate(phoneNumber: phoneNumber, tx: tx)
         } else {
             throw OWSAssertionError("No identifier in ContactDetails.")
         }
@@ -299,12 +274,12 @@ private class IncomingContactSyncJobRunner: JobRunner, Dependencies {
     /// future, if you're removing this method, you should first ensure that
     /// periodic full syncs of contact details happen with StorageService.
     private func pruneContacts(exceptThoseReceivedFromCompleteSync phoneNumbers: [E164]) throws {
-        try self.databaseStorage.write { transaction in
+        try SSKEnvironment.shared.databaseStorageRef.write { transaction in
             // Every contact sync includes your own address. However, we shouldn't
             // create a SignalAccount for your own address. (If you're a primary, this
             // is handled by FetchedSystemContacts.phoneNumbers(…).)
             let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-            guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: transaction.asV2Read) else {
+            guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: transaction) else {
                 throw OWSGenericError("Not registered.")
             }
             let setOfPhoneNumbers = Set(phoneNumbers.lazy.filter { !localIdentifiers.contains(phoneNumber: $0) })
@@ -330,7 +305,7 @@ private class IncomingContactSyncJobRunner: JobRunner, Dependencies {
                 }
             }
             if !uniqueIdsToRemove.isEmpty {
-                contactsManagerImpl.didUpdateSignalAccounts(transaction: transaction)
+                SSKEnvironment.shared.contactManagerImplRef.didUpdateSignalAccounts(transaction: transaction)
             }
         }
     }

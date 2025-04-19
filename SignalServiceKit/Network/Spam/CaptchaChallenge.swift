@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-class CaptchaChallenge: SpamChallenge, Dependencies {
+class CaptchaChallenge: SpamChallenge {
     let token: String
     var captchaToken: String? {
         didSet {
@@ -33,8 +33,8 @@ class CaptchaChallenge: SpamChallenge, Dependencies {
     }
 
     private func requestCaptchaFromUser() {
-        NotificationCenter.default.postNotificationNameAsync(
-            SpamChallengeResolver.NeedsCaptchaNotification, object: nil)
+        NotificationCenter.default.postOnMainThread(
+            name: SpamChallengeResolver.NeedsCaptchaNotification, object: nil)
     }
 
     private func notifyServerOfCompletedCaptcha() {
@@ -50,7 +50,7 @@ class CaptchaChallenge: SpamChallenge, Dependencies {
         )
 
         firstly(on: workQueue) {
-            self.networkManager.makePromise(request: request)
+            SSKEnvironment.shared.networkManagerRef.makePromise(request: request)
 
         }.done(on: workQueue) { _ in
             self.state = .complete

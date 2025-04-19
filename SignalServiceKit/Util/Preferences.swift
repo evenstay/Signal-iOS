@@ -40,8 +40,7 @@ public enum NotificationType: UInt {
     }
 }
 
-@objc(OWSPreferences)
-public class Preferences: NSObject {
+public class Preferences {
 
     private enum Key: String {
         case screenSecurity = "Screen Security Key"
@@ -50,7 +49,6 @@ public class Preferences: NSObject {
         case lastRecordedPushToken = "LastRecordedPushToken"
         case callsHideIPAddress = "CallsHideIPAddress"
         case hasDeclinedNoContactsView = "hasDeclinedNoContactsView"
-        case hasGeneratedThumbnails = "OWSPreferencesKeyHasGeneratedThumbnails"
         case shouldShowUnidentifiedDeliveryIndicators = "OWSPreferencesKeyShouldShowUnidentifiedDeliveryIndicators"
         case shouldNotifyOfNewAccountKey = "OWSPreferencesKeyShouldNotifyOfNewAccountKey"
         case iOSUpgradeNagDate = "iOSUpgradeNagDate"
@@ -69,14 +67,13 @@ public class Preferences: NSObject {
     private enum UserDefaultsKeys {
         static let deviceScale = "OWSPreferencesKeyDeviceScale"
         static let isAudibleErrorLoggingEnabled = "IsAudibleErrorLoggingEnabled"
-        static let enableDebugLog = "Debugging Log Enabled Key"
+        static let isFailDebugEnabled = "IsFailDebugEnabled"
     }
 
     private static let preferencesCollection = "SignalPreferences"
-    private let keyValueStore = SDSKeyValueStore(collection: Preferences.preferencesCollection)
+    private let keyValueStore = KeyValueStore(collection: Preferences.preferencesCollection)
 
-    public override init() {
-        super.init()
+    public init() {
         if CurrentAppContext().hasUI {
             CurrentAppContext().appUserDefaults().set(UIScreen.main.scale, forKey: UserDefaultsKeys.deviceScale)
         }
@@ -93,97 +90,87 @@ public class Preferences: NSObject {
     }
 
     private func hasValue(forKey key: Key) -> Bool {
-        let result = databaseStorage.read { transaction in
-            return keyValueStore.hasValue(forKey: key.rawValue, transaction: transaction)
+        let result = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            return keyValueStore.hasValue(key.rawValue, transaction: transaction)
         }
         return result
     }
 
     private func removeValue(forKey key: Key) {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             keyValueStore.removeValue(forKey: key.rawValue, transaction: transaction)
         }
     }
 
     private func bool(forKey key: Key, defaultValue: Bool) -> Bool {
-        let result = databaseStorage.read { transaction in
+        let result = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             keyValueStore.getBool(key.rawValue, defaultValue: defaultValue, transaction: transaction)
         }
         return result
     }
 
     private func setBool(_ value: Bool, forKey key: Key) {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             setBool(value, forKey: key, tx: transaction)
         }
     }
 
-    private func setBool(_ value: Bool, forKey key: Key, tx: SDSAnyWriteTransaction) {
+    private func setBool(_ value: Bool, forKey key: Key, tx: DBWriteTransaction) {
         keyValueStore.setBool(value, key: key.rawValue, transaction: tx)
     }
 
     private func uint(forKey key: Key, defaultValue: UInt) -> UInt {
-        let result = databaseStorage.read { transaction in
+        let result = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             keyValueStore.getUInt(key.rawValue, defaultValue: defaultValue, transaction: transaction)
         }
         return result
     }
 
     private func setUInt(_ value: UInt, forKey key: Key) {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             keyValueStore.setUInt(value, key: key.rawValue, transaction: transaction)
         }
     }
 
     private func date(forKey key: Key) -> Date? {
-        let date = databaseStorage.read { transaction in
+        let date = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             keyValueStore.getDate(key.rawValue, transaction: transaction)
         }
         return date
     }
 
     private func setDate(_ value: Date, forKey key: Key) {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             keyValueStore.setDate(value, key: key.rawValue, transaction: transaction)
         }
     }
 
     private func string(forKey key: Key) -> String? {
-        return databaseStorage.read { tx in getString(for: key, tx: tx) }
+        return SSKEnvironment.shared.databaseStorageRef.read { tx in getString(for: key, tx: tx) }
     }
 
-    private func getString(for key: Key, tx: SDSAnyReadTransaction) -> String? {
+    private func getString(for key: Key, tx: DBReadTransaction) -> String? {
         return keyValueStore.getString(key.rawValue, transaction: tx)
     }
 
     private func setString(_ value: String?, forKey key: Key) {
-        databaseStorage.write { tx in setString(value, for: key, tx: tx) }
+        SSKEnvironment.shared.databaseStorageRef.write { tx in setString(value, for: key, tx: tx) }
     }
 
-    private func setString(_ value: String?, for key: Key, tx: SDSAnyWriteTransaction) {
+    private func setString(_ value: String?, for key: Key, tx: DBWriteTransaction) {
         keyValueStore.setString(value, key: key.rawValue, transaction: tx)
     }
 
     // MARK: Logging
 
-    public static var isLoggingEnabled: Bool {
-        // See: setIsLoggingEnabled.
-        if let preference = UserDefaults.app.object(forKey: UserDefaultsKeys.enableDebugLog) as? Bool {
-            return preference
-        }
-        return true
+    public static var isFailDebugEnabled: Bool {
+        return FeatureFlags.failDebug && UserDefaults.app.bool(forKey: UserDefaultsKeys.isFailDebugEnabled)
     }
 
-    public static func setIsLoggingEnabled(_ value: Bool) {
-        owsAssertDebug(CurrentAppContext().isMainApp)
-
-        // Logging preferences are stored in UserDefaults instead of the database, so that we can (optionally) start
-        // logging before the database is initialized. This is important because sometimes there are problems *with* the
-        // database initialization, and without logging it would be hard to track down.
-        UserDefaults.app.set(value, forKey: UserDefaultsKeys.enableDebugLog)
+    public static func setIsFailDebugEnabled(_ value: Bool) {
+        UserDefaults.app.set(value, forKey: UserDefaultsKeys.isFailDebugEnabled)
     }
 
-    @objc
     public static var isAudibleErrorLoggingEnabled: Bool {
         UserDefaults.app.bool(forKey: UserDefaultsKeys.isAudibleErrorLoggingEnabled) && FeatureFlags.choochoo
     }
@@ -210,14 +197,6 @@ public class Preferences: NSObject {
         setBool(value, forKey: .hasDeclinedNoContactsView)
     }
 
-    public var hasGeneratedThumbnails: Bool {
-        bool(forKey: .hasGeneratedThumbnails, defaultValue: false)
-    }
-
-    public func setHasGeneratedThumbnails(_ value: Bool) {
-        setBool(value, forKey: .hasGeneratedThumbnails)
-    }
-
     public var iOSUpgradeNagDate: Date? {
         date(forKey: .iOSUpgradeNagDate)
     }
@@ -231,7 +210,7 @@ public class Preferences: NSObject {
         bool(forKey: .shouldShowUnidentifiedDeliveryIndicators, defaultValue: false)
     }
 
-    public func shouldShowUnidentifiedDeliveryIndicators(transaction: SDSAnyReadTransaction) -> Bool {
+    public func shouldShowUnidentifiedDeliveryIndicators(transaction: DBReadTransaction) -> Bool {
         keyValueStore.getBool(
             Key.shouldShowUnidentifiedDeliveryIndicators.rawValue,
             defaultValue: false,
@@ -242,20 +221,20 @@ public class Preferences: NSObject {
     public func setShouldShowUnidentifiedDeliveryIndicatorsAndSendSyncMessage(_ value: Bool) {
         setBool(value, forKey: .shouldShowUnidentifiedDeliveryIndicators)
 
-        SSKEnvironment.shared.syncManager.sendConfigurationSyncMessage()
+        SSKEnvironment.shared.syncManagerRef.sendConfigurationSyncMessage()
         SSKEnvironment.shared.storageServiceManagerRef.recordPendingLocalAccountUpdates()
     }
 
     @objc
-    public func setShouldShowUnidentifiedDeliveryIndicators(_ value: Bool, transaction: SDSAnyWriteTransaction) {
+    public func setShouldShowUnidentifiedDeliveryIndicators(_ value: Bool, transaction: DBWriteTransaction) {
         keyValueStore.setBool(value, key: Key.shouldShowUnidentifiedDeliveryIndicators.rawValue, transaction: transaction)
     }
 
-    public func shouldNotifyOfNewAccounts(transaction: SDSAnyReadTransaction) -> Bool {
+    public func shouldNotifyOfNewAccounts(transaction: DBReadTransaction) -> Bool {
         keyValueStore.getBool(Key.shouldNotifyOfNewAccountKey.rawValue, defaultValue: false, transaction: transaction)
     }
 
-    public func setShouldNotifyOfNewAccounts(_ value: Bool, transaction: SDSAnyWriteTransaction) {
+    public func setShouldNotifyOfNewAccounts(_ value: Bool, transaction: DBWriteTransaction) {
         keyValueStore.setBool(value, key: Key.shouldNotifyOfNewAccountKey.rawValue, transaction: transaction)
     }
 
@@ -271,7 +250,7 @@ public class Preferences: NSObject {
 
     // MARK: Calls
 
-    public func isSystemCallLogEnabled(tx: SDSAnyReadTransaction) -> Bool {
+    public func isSystemCallLogEnabled(tx: DBReadTransaction) -> Bool {
         return keyValueStore.getBool(Key.systemCallLogEnabled.rawValue, defaultValue: true, transaction: tx)
     }
 
@@ -298,7 +277,7 @@ public class Preferences: NSObject {
         setBool(true, forKey: .wasViewOnceTooltipShown)
     }
 
-    public func wasGroupCallTooltipShown(withTransaction transaction: SDSAnyReadTransaction) -> Bool {
+    public func wasGroupCallTooltipShown(withTransaction transaction: DBReadTransaction) -> Bool {
         keyValueStore.getBool(Key.wasGroupCallTooltipShown.rawValue, defaultValue: false, transaction: transaction)
     }
 
@@ -308,13 +287,13 @@ public class Preferences: NSObject {
 
         // If we have shown the tooltip more than 3 times, don't show it again.
         if incrementedCount > 3 {
-            databaseStorage.write(block: setWasGroupCallTooltipShown(tx:))
+            SSKEnvironment.shared.databaseStorageRef.write(block: setWasGroupCallTooltipShown(tx:))
         } else {
             setUInt(incrementedCount, forKey: .wasGroupCallTooltipShownCount)
         }
     }
 
-    public func setWasGroupCallTooltipShown(tx: SDSAnyWriteTransaction) {
+    public func setWasGroupCallTooltipShown(tx: DBWriteTransaction) {
         setBool(true, forKey: .wasGroupCallTooltipShown, tx: tx)
     }
 
@@ -344,7 +323,7 @@ public class Preferences: NSObject {
         setBool(value, forKey: .playSoundInForeground)
     }
 
-    public func notificationPreviewType(tx: SDSAnyReadTransaction) -> NotificationType {
+    public func notificationPreviewType(tx: DBReadTransaction) -> NotificationType {
         let rawValue = keyValueStore.getUInt(
             Key.notificationPreviewType.rawValue,
             transaction: tx
@@ -362,11 +341,11 @@ public class Preferences: NSObject {
         string(forKey: .lastRecordedPushToken)
     }
 
-    public func getPushToken(tx: SDSAnyReadTransaction) -> String? {
+    public func getPushToken(tx: DBReadTransaction) -> String? {
         return getString(for: .lastRecordedPushToken, tx: tx)
     }
 
-    public func setPushToken(_ value: String, tx: SDSAnyWriteTransaction) {
+    public func setPushToken(_ value: String, tx: DBWriteTransaction) {
         setString(value, for: .lastRecordedPushToken, tx: tx)
     }
 

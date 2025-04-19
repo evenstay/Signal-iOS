@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import SignalUI
 import SignalServiceKit
 import SignalRingRTC
@@ -11,9 +12,8 @@ import SignalRingRTC
 /// checks are performed. See ``startCall(from:)`` for details of those checks.
 struct CallStarter {
     private enum Recipient {
-        // [CallLink] TODO: Rename these to avoid ambiguity with group calls.
-        case contact(thread: TSContactThread, withVideo: Bool)
-        case group(thread: TSGroupThread)
+        case contactThread(TSContactThread, withVideo: Bool)
+        case groupThread(GroupIdentifier)
         case callLink(CallLinkRootKey)
     }
 
@@ -45,12 +45,12 @@ struct CallStarter {
     private var context: Context
 
     init(contactThread: TSContactThread, withVideo: Bool, context: Context) {
-        self.recipient = .contact(thread: contactThread, withVideo: withVideo)
+        self.recipient = .contactThread(contactThread, withVideo: withVideo)
         self.context = context
     }
 
-    init(groupThread: TSGroupThread, context: Context) {
-        self.recipient = .group(thread: groupThread)
+    init(groupId: GroupIdentifier, context: Context) {
+        self.recipient = .groupThread(groupId)
         self.context = context
     }
 
@@ -75,18 +75,19 @@ struct CallStarter {
     /// - Returns: A result of the attempt to start a call.
     /// See ``StartCallResult``.
     @discardableResult
+    @MainActor
     func startCall(from viewController: UIViewController) -> StartCallResult {
         let callTarget: CallTarget
         let callThread: TSThread?
         let isVideoCall: Bool
         switch recipient {
-        case .contact(let thread, let withVideo):
+        case .contactThread(let thread, let withVideo):
             callTarget = .individual(thread)
             callThread = thread
             isVideoCall = withVideo
-        case .group(let thread):
-            callTarget = .groupThread(thread)
-            callThread = thread
+        case .groupThread(let groupId):
+            callTarget = .groupThread(groupId)
+            callThread = context.databaseStorage.read { tx in TSGroupThread.fetch(forGroupId: groupId, tx: tx)! }
             isVideoCall = true
         case .callLink(let rootKey):
             callTarget = .callLink(CallLink(rootKey: rootKey))
@@ -105,29 +106,30 @@ struct CallStarter {
         }
 
         if let currentCall = context.callService.callServiceState.currentCall, currentCall.mode.matches(callTarget) {
-            WindowManager.shared.returnToCallView()
+            AppEnvironment.shared.windowManagerRef.returnToCallView()
             return .callStarted
         }
 
-        switch callTarget {
-        case .individual(let thread):
-            guard thread.canCall else {
+        if let thread = callThread as? TSGroupThread, thread.isBlockedByAnnouncementOnly {
+            Self.showBlockedByAnnouncementOnlySheet(from: viewController)
+            return .callNotStarted
+        }
+
+        if let thread = callThread {
+            let canCall = {
+                switch thread {
+                case let thread as TSContactThread: return thread.canCall
+                case let thread as TSGroupThread: return thread.canCall
+                default: return false
+                }
+            }()
+            guard canCall else {
                 owsFailDebug("Shouldn't be able to startCall if canCall is false")
                 return .callNotStarted
             }
             self.whitelistThread(thread)
-        case .groupThread(let thread):
-            guard !thread.isBlockedByAnnouncementOnly else {
-                Self.showBlockedByAnnouncementOnlySheet(from: viewController)
-                return .callNotStarted
-            }
-            guard thread.canCall else {
-                return .callNotStarted
-            }
-            self.whitelistThread(thread)
-        case .callLink:
-            break
         }
+
         context.callService.initiateCall(to: callTarget, isVideo: isVideoCall)
         return .callStarted
     }
@@ -150,30 +152,38 @@ struct CallStarter {
         )
     }
 
+    struct PrepareToStartCallResult {
+        var localDeviceId: DeviceId
+    }
+
     @MainActor
-    static func prepareToStartCall(from viewController: UIViewController, shouldAskForCameraPermission: Bool) async -> Bool {
-        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
+    static func prepareToStartCall(from viewController: UIViewController, shouldAskForCameraPermission: Bool) async -> PrepareToStartCallResult? {
+        let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+        guard
+            tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered,
+            let localDeviceId = tsAccountManager.storedDeviceIdWithMaybeTransaction.ifValid
+        else {
             Logger.warn("Can't start a call unless you're registered")
             OWSActionSheets.showActionSheet(title: OWSLocalizedString(
                 "YOU_MUST_COMPLETE_ONBOARDING_BEFORE_PROCEEDING",
                 comment: "alert body shown when trying to use features in the app before completing registration-related setup."
             ))
-            return false
+            return nil
         }
 
         guard await viewController.askForMicrophonePermissions() else {
             Logger.warn("aborting due to missing microphone permissions.")
             viewController.ows_showNoMicrophonePermissionActionSheet()
-            return false
+            return nil
         }
 
         if shouldAskForCameraPermission {
             guard await viewController.askForCameraPermissions() else {
                 Logger.warn("aborting due to missing camera permissions.")
-                return false
+                return nil
             }
         }
 
-        return true
+        return PrepareToStartCallResult(localDeviceId: localDeviceId)
     }
 }

@@ -411,8 +411,10 @@ class ChatListCell: UITableViewCell, ReusableTableViewCell {
             !DateUtil.dateIsOlderThanToday(date)
         {
             let (formattedDate, nextRefreshTime) = DateUtil.formatDynamicDateShort(date)
+            let accessibilityLabel = DateUtil.formatMessageTimestampForCVC(date.ows_millisecondsSince1970, shouldUseLongFormat: true)
 
             self.dateTimeLabel.text = formattedDate
+            self.dateTimeLabel.accessibilityLabel = accessibilityLabel
             self.nextUpdateTimestamp = nextRefreshTime
         }
 
@@ -950,7 +952,7 @@ class ChatListCell: UITableViewCell, ReusableTableViewCell {
         let thread = cellContentToken.configuration.thread
         guard
             !cellContentToken.configuration.hasOverrideSnippet,
-            typingIndicatorsImpl.typingAddress(forThread: thread) != nil
+            SSKEnvironment.shared.typingIndicatorsRef.typingAddress(forThread: thread) != nil
         else {
             return false
         }
@@ -1072,8 +1074,7 @@ class CLVCellContentToken {
         guard let lastReloadDate = configuration.lastReloadDate else {
             return true
         }
-        let avatarAsyncLoadInterval = kSecondInterval * 1
-        return abs(lastReloadDate.timeIntervalSinceNow) > avatarAsyncLoadInterval
+        return abs(lastReloadDate.timeIntervalSinceNow) > .second
     }
 
     fileprivate init(configuration: CLVCellContentConfiguration, measurements: CLVCellContentMeasurements) {

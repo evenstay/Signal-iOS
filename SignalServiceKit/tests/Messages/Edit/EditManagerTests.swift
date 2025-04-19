@@ -9,13 +9,13 @@ import XCTest
 @testable import SignalServiceKit
 
 class EditManagerTests: SSKBaseTest {
-    var db: DB!
+    var db: (any DB)!
     var authorAci: Aci!
     var thread: TSThread!
 
     override func setUp() {
         super.setUp()
-        db = MockDB()
+        db = InMemoryDB()
         authorAci = Aci.constantForTesting("00000000-0000-4000-8000-000000000000")
         thread = TSThread.init(
             grdbId: 1,
@@ -51,11 +51,11 @@ class EditManagerTests: SSKBaseTest {
         let editMessageStoreMock = EditMessageStoreMock()
         let editManager = EditManagerImpl(context:
             .init(
+                attachmentStore: AttachmentStoreMock(),
                 dataStore: dataStoreMock,
-                editManagerAttachments: MockEditManagerTSResources(),
+                editManagerAttachments: MockEditManagerAttachments(),
                 editMessageStore: editMessageStoreMock,
-                receiptManagerShim: ReceiptManagerMock(),
-                tsResourceStore: TSResourceStoreMock()
+                receiptManagerShim: ReceiptManagerMock()
             )
         )
 
@@ -98,11 +98,11 @@ class EditManagerTests: SSKBaseTest {
         let editMessageStoreMock = EditMessageStoreMock()
         let editManager = EditManagerImpl(context:
             .init(
+                attachmentStore: AttachmentStoreMock(),
                 dataStore: dataStoreMock,
-                editManagerAttachments: MockEditManagerTSResources(),
+                editManagerAttachments: MockEditManagerAttachments(),
                 editMessageStore: editMessageStoreMock,
-                receiptManagerShim: ReceiptManagerMock(),
-                tsResourceStore: TSResourceStoreMock()
+                receiptManagerShim: ReceiptManagerMock()
             )
         )
 
@@ -142,11 +142,11 @@ class EditManagerTests: SSKBaseTest {
         let editMessageStoreMock = EditMessageStoreMock()
         let editManager = EditManagerImpl(context:
             .init(
+                attachmentStore: AttachmentStoreMock(),
                 dataStore: dataStoreMock,
-                editManagerAttachments: MockEditManagerTSResources(),
+                editManagerAttachments: MockEditManagerAttachments(),
                 editMessageStore: editMessageStoreMock,
-                receiptManagerShim: ReceiptManagerMock(),
-                tsResourceStore: TSResourceStoreMock()
+                receiptManagerShim: ReceiptManagerMock()
             )
         )
 
@@ -188,11 +188,11 @@ class EditManagerTests: SSKBaseTest {
 
         let editManager = EditManagerImpl(context:
             .init(
+                attachmentStore: AttachmentStoreMock(),
                 dataStore: dataStoreMock,
-                editManagerAttachments: MockEditManagerTSResources(),
+                editManagerAttachments: MockEditManagerAttachments(),
                 editMessageStore: editMessageStoreMock,
-                receiptManagerShim: ReceiptManagerMock(),
-                tsResourceStore: TSResourceStoreMock()
+                receiptManagerShim: ReceiptManagerMock()
             )
         )
 
@@ -236,11 +236,11 @@ class EditManagerTests: SSKBaseTest {
 
         let editManager = EditManagerImpl(context:
             .init(
+                attachmentStore: AttachmentStoreMock(),
                 dataStore: dataStoreMock,
-                editManagerAttachments: MockEditManagerTSResources(),
+                editManagerAttachments: MockEditManagerAttachments(),
                 editMessageStore: editMessageStoreMock,
-                receiptManagerShim: ReceiptManagerMock(),
-                tsResourceStore: TSResourceStoreMock()
+                receiptManagerShim: ReceiptManagerMock()
             )
         )
 
@@ -273,8 +273,8 @@ class EditManagerTests: SSKBaseTest {
     func testEditSendWindowString() {
         let errorMessage = EditSendValidationError.editWindowClosed.localizedDescription
         let editMilliseconds = EditManagerImpl.Constants.editSendWindowMilliseconds
-        XCTAssertEqual(editMilliseconds % UInt64(kHourInMs), 0)
-        XCTAssert(errorMessage.range(of: " \(editMilliseconds / UInt64(kHourInMs)) ") != nil)
+        XCTAssertEqual(editMilliseconds % UInt64.hourInMs, 0)
+        XCTAssert(errorMessage.range(of: " \(editMilliseconds / UInt64.hourInMs) ") != nil)
     }
 
     // MARK: - Test Validation Helper
@@ -497,7 +497,7 @@ class EditManagerTests: SSKBaseTest {
         "wasRemotelyDeleted": .unchanged,
         "storyReactionEmoji": .unchanged,
         "storedShouldStartExpireTimer": .unchanged,
-        "attachmentIds": .unchanged,
+        "deprecated_attachmentIds": .unchanged,
         "expiresAt": .unchanged,
         "hasPerConversationExpiration": .unchanged,
         "hasPerConversationExpirationStarted": .unchanged,
@@ -534,7 +534,7 @@ class EditManagerTests: SSKBaseTest {
         "wasRemotelyDeleted": .unchanged,
         "storyReactionEmoji": .unchanged,
         "storedShouldStartExpireTimer": .unchanged,
-        "attachmentIds": .unchanged,
+        "deprecated_attachmentIds": .unchanged,
         "expiresAt": .unchanged,
         "hasPerConversationExpiration": .unchanged,
         "hasPerConversationExpirationStarted": .unchanged,

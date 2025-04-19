@@ -3,136 +3,244 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import SafariServices
 import SignalServiceKit
 import SignalUI
+import SwiftUI
 
-public class ProvisioningQRCodeViewController: ProvisioningBaseViewController {
+class ProvisioningQRCodeViewController: ProvisioningBaseViewController, ProvisioningSocketManagerUIDelegate {
+    private let provisioningQRCodeViewModel: ProvisioningQRCodeView.Model
+    private let provisioningSocketManager: ProvisioningSocketManager
 
-    let qrCodeView = QRCodeView()
+    init(
+        provisioningController: ProvisioningController,
+        provisioningSocketManager: ProvisioningSocketManager
+    ) {
+        provisioningQRCodeViewModel = ProvisioningQRCodeView.Model(urlDisplayMode: .loading)
+        self.provisioningSocketManager = provisioningSocketManager
 
-    override public func loadView() {
-        view = UIView()
+        super.init(provisioningController: provisioningController)
+
+        provisioningSocketManager.delegate = self
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        view.backgroundColor = .Signal.background
+
         view.addSubview(primaryView)
         primaryView.autoPinEdgesToSuperviewEdges()
 
-        view.backgroundColor = Theme.backgroundColor
+        let qrCodeViewHostingContainer = HostingContainer(wrappedView: ProvisioningQRCodeView(
+            model: provisioningQRCodeViewModel,
+            onRefreshButtonPressed: { [weak self] in
+                self?.provisioningSocketManager.reset()
+            }
+        ))
 
-        let titleLabel = self.createTitleLabel(text: OWSLocalizedString("SECONDARY_ONBOARDING_SCAN_CODE_TITLE", comment: "header text while displaying a QR code which, when scanned, will link this device."))
-        primaryView.addSubview(titleLabel)
-        titleLabel.accessibilityIdentifier = "onboarding.linking.titleLabel"
-        titleLabel.setContentHuggingHigh()
+        addChild(qrCodeViewHostingContainer)
+        primaryView.addSubview(qrCodeViewHostingContainer.view)
+        qrCodeViewHostingContainer.view.autoPinEdgesToSuperviewMargins()
+        qrCodeViewHostingContainer.didMove(toParent: self)
 
-        let bodyLabel = self.createTitleLabel(text: OWSLocalizedString("SECONDARY_ONBOARDING_SCAN_CODE_BODY", comment: "body text while displaying a QR code which, when scanned, will link this device."))
-        bodyLabel.font = UIFont.dynamicTypeBody
-        bodyLabel.numberOfLines = 0
-        primaryView.addSubview(bodyLabel)
-        bodyLabel.accessibilityIdentifier = "onboarding.linking.bodyLabel"
-        bodyLabel.setContentHuggingHigh()
-
-        qrCodeView.setContentHuggingVerticalLow()
-
-        let explanationLabel = UILabel()
-        explanationLabel.text = OWSLocalizedString("SECONDARY_ONBOARDING_SCAN_CODE_HELP_TEXT",
-                                                  comment: "Link text for page with troubleshooting info shown on the QR scanning screen")
-        explanationLabel.textColor = Theme.accentBlueColor
-        explanationLabel.font = UIFont.dynamicTypeSubheadlineClamped
-        explanationLabel.numberOfLines = 0
-        explanationLabel.textAlignment = .center
-        explanationLabel.lineBreakMode = .byWordWrapping
-        explanationLabel.isUserInteractionEnabled = true
-        explanationLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(didTapExplanationLabel)))
-        explanationLabel.accessibilityIdentifier = "onboarding.linking.helpLink"
-        explanationLabel.setContentHuggingHigh()
-
-#if TESTABLE_BUILD
-        let shareURLButton = UIButton(type: .system)
-        shareURLButton.setTitle(LocalizationNotNeeded("Debug only: Share URL"), for: .normal)
-        shareURLButton.addTarget(self, action: #selector(didTapShareURL), for: .touchUpInside)
-#endif
-
-        let stackView = UIStackView(arrangedSubviews: [
-            titleLabel,
-            bodyLabel,
-            qrCodeView,
-            explanationLabel
-            ])
-#if TESTABLE_BUILD
-        stackView.addArrangedSubview(shareURLButton)
-#endif
-        stackView.axis = .vertical
-        stackView.alignment = .fill
-        stackView.spacing = 12
-        primaryView.addSubview(stackView)
-        stackView.autoPinEdgesToSuperviewMargins()
+        provisioningQRCodeViewModel.updateURLDisplayMode(.loading)
+        provisioningSocketManager.start()
     }
 
-    override public func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        fetchAndSetQRCode()
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        provisioningSocketManager.stop()
     }
-
-    // MARK: - Events
-
-    override func shouldShowBackButton() -> Bool {
-        // Never show the back button here
-        // TODO: Linked phones, clean up state to allow backing out
-        return false
-    }
-
-    @objc
-    func didTapExplanationLabel(sender: UIGestureRecognizer) {
-        guard sender.state == .recognized else {
-            owsFailDebug("unexpected state: \(sender.state)")
-            return
-        }
-
-        UIApplication.shared.open(URL(string: "https://support.signal.org/hc/articles/360007320451")!)
-    }
-
-#if TESTABLE_BUILD
-    @IBAction func didTapShareURL(_ sender: UIButton) {
-        if let qrCodeURL = self.qrCodeURL {
-            UIPasteboard.general.url = qrCodeURL
-            // If we share the plain url and airdrop it to a mac, it will just open the url,
-            // and fail because signal desktop can't open it.
-            // Share some text instead so we can open it on mac and copy paste into
-            // a primary device simulator.
-            let activityVC = UIActivityViewController(
-                activityItems: ["Provisioning URL: " + qrCodeURL.absoluteString],
-                applicationActivities: nil
-            )
-            activityVC.popoverPresentationController?.sourceView = sender
-            self.present(activityVC, animated: true)
-        } else {
-            UIPasteboard.general.string = LocalizationNotNeeded("URL NOT READY YET")
-        }
-    }
-#endif
 
     // MARK: -
 
-    private var hasFetchedAndSetQRCode = false
-    private var qrCodeURL: URL?
-    public func fetchAndSetQRCode() {
-        guard !hasFetchedAndSetQRCode else { return }
-        hasFetchedAndSetQRCode = true
+    override func shouldShowBackButton() -> Bool {
+        // Never show the back button here
+        return false
+    }
 
-        provisioningController.getProvisioningURL().done { url in
-            self.qrCodeURL = url
-            self.qrCodeView.setQR(url: url)
-        }.catch { error in
-            let title = OWSLocalizedString("SECONDARY_DEVICE_ERROR_FETCHING_LINKING_CODE", comment: "alert title")
-            let alert = ActionSheetController(title: title, message: error.userErrorDescription)
+    func reset() {
+        provisioningSocketManager.stop()
+        provisioningQRCodeViewModel.updateURLDisplayMode(.loading)
+        provisioningSocketManager.start()
+    }
 
-            let retryAction = ActionSheetAction(title: CommonStrings.retryButton,
-                                            accessibilityIdentifier: "alert.retry",
-                                            style: .default) { _ in
-                                                self.provisioningController.resetPromises()
-                                                self.fetchAndSetQRCode()
+    func provisioningSocketManager(_ provisioningSocketManager: ProvisioningSocketManager, didUpdateProvisioningURL url: URL) {
+        provisioningQRCodeViewModel.updateURLDisplayMode(.loaded(url))
+    }
+
+    public func provisioningSocketManagerDidPauseQRRotation(_ provisioningSocketManager: ProvisioningSocketManager) {
+        provisioningQRCodeViewModel.updateURLDisplayMode(.refreshButton)
+    }
+}
+
+// MARK: -
+
+private struct ProvisioningQRCodeView: View {
+    class Model: ObservableObject {
+        enum URLDisplayMode {
+            case loading
+            case loaded(URL)
+            case refreshButton
+        }
+
+        @Published
+        private(set) var urlDisplayMode: URLDisplayMode
+
+        let qrCodeViewModel: QRCodeViewRepresentable.Model
+
+        init(urlDisplayMode: URLDisplayMode) {
+            self.urlDisplayMode = .loading
+            self.qrCodeViewModel = QRCodeViewRepresentable.Model(qrCodeURL: nil)
+
+            updateURLDisplayMode(urlDisplayMode)
+        }
+
+        func updateURLDisplayMode(_ newValue: URLDisplayMode) {
+            urlDisplayMode = newValue
+
+            qrCodeViewModel.qrCodeURL = switch urlDisplayMode {
+            case .loaded(let url): url
+            case .loading, .refreshButton: nil
             }
-            alert.addAction(retryAction)
-            self.present(alert, animated: true)
         }
     }
+
+    @ObservedObject
+    private var model: Model
+
+    private let onRefreshButtonPressed: () -> Void
+
+    init(model: Model, onRefreshButtonPressed: @escaping () -> Void) {
+        self.model = model
+        self.onRefreshButtonPressed = onRefreshButtonPressed
+    }
+
+    var body: some View {
+        GeometryReader { overallGeometry in
+            VStack(spacing: 12) {
+                Text(OWSLocalizedString(
+                    "SECONDARY_ONBOARDING_SCAN_CODE_TITLE",
+                    comment: "header text while displaying a QR code which, when scanned, will link this device."
+                ))
+                .font(.title)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.Signal.label)
+
+                Text(OWSLocalizedString(
+                    "SECONDARY_ONBOARDING_SCAN_CODE_BODY",
+                    comment: "body text while displaying a QR code which, when scanned, will link this device."
+                ))
+                .font(.body)
+                .foregroundStyle(Color.Signal.label)
+
+                Spacer()
+                    .frame(height: overallGeometry.size.height * 0.05)
+
+                GeometryReader { qrCodeGeometry in
+                    ZStack {
+                        Color(UIColor.ows_gray02)
+                            .cornerRadius(24)
+
+                        switch model.urlDisplayMode {
+                        case .loading, .loaded:
+                            QRCodeViewRepresentable(model: model.qrCodeViewModel)
+                                .padding(qrCodeGeometry.size.height * 0.1)
+                        case .refreshButton:
+                            Button(action: onRefreshButtonPressed) {
+                                HStack {
+                                    Image("refresh")
+
+                                    Text(OWSLocalizedString(
+                                        "SECONDARY_ONBOARDING_SCAN_CODE_REFRESH_CODE_BUTTON",
+                                        comment: "Text for a button offering to refresh the QR code to link an iPad."
+                                    ))
+                                    .font(.body)
+                                    .fontWeight(.bold)
+                                }
+                                .foregroundStyle(Color.black)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 8)
+                            }
+                            .background {
+                                Capsule().fill(Color.white)
+                            }
+                        }
+                    }
+                }
+                .aspectRatio(1, contentMode: .fit)
+
+                Spacer()
+                    .frame(height: overallGeometry.size.height * (overallGeometry.size.isLandscape ? 0.05 : 0.1))
+
+                Link(
+                    OWSLocalizedString(
+                        "SECONDARY_ONBOARDING_SCAN_CODE_HELP_TEXT",
+                        comment: "Link text for page with troubleshooting info shown on the QR scanning screen"
+                    ),
+                    destination: URL(string: "https://support.signal.org/hc/articles/360007320451")!
+                )
+                .font(.subheadline)
+                .foregroundStyle(Color.Signal.accent)
+
+#if TESTABLE_BUILD
+                if
+                    #available(iOS 16.0, *),
+                    let provisioningUrl = model.qrCodeViewModel.qrCodeURL
+                {
+                    // If on a physical device, this postfixing with some text
+                    // allows one to AirDrop the URL to macOS to be copied into
+                    // a simulator, instead of having macOS automatically try
+                    // and open the URL (which Signal Desktop will try, and
+                    // fail, to handle).
+                    ShareLink(item: "\(provisioningUrl) DELETETHIS") {
+                        Text(LocalizationNotNeeded(
+                            "Debug only: Share URL"
+                        ))
+                        .font(.subheadline)
+                        .foregroundStyle(Color.Signal.accent)
+                    }
+                    .simultaneousGesture(TapGesture().onEnded {
+                        // When tapped, also copy to the clipboard for easy
+                        // extraction from a simulator.
+                        UIPasteboard.general.url = provisioningUrl
+                    })
+
+                    Button(LocalizationNotNeeded("Debug only: Copy URL")) {
+                        UIPasteboard.general.url = provisioningUrl
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(Color.Signal.accent)
+                }
+#endif
+            }
+            .multilineTextAlignment(.center)
+        }
+    }
+}
+
+// MARK: -
+
+private struct PreviewView: View {
+    let urlDisplayMode: ProvisioningQRCodeView.Model.URLDisplayMode
+
+    var body: some View {
+        ProvisioningQRCodeView(
+            model: ProvisioningQRCodeView.Model(urlDisplayMode: urlDisplayMode),
+            onRefreshButtonPressed: {}
+        )
+        .padding(112)
+    }
+}
+
+#Preview("Loaded") {
+    PreviewView(urlDisplayMode: .loaded(URL(string: "https://signal.org")!))
+}
+
+#Preview("Loading") {
+    PreviewView(urlDisplayMode: .loading)
+}
+
+#Preview("Refresh Button") {
+    PreviewView(urlDisplayMode: .refreshButton)
 }

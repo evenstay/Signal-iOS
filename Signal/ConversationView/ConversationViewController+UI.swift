@@ -225,7 +225,8 @@ extension ConversationViewController {
                 subtitleText.append(betweenItemSpacer, attributes: attributes)
             }
 
-            subtitleText.appendTemplatedImage(named: "check-extra-small", font: subtitleFont)
+            subtitleText.append(SignalSymbol.safetyNumber.attributedString(staticFontSize: subtitleFont.pointSize))
+
             subtitleText.append(iconSpacer, attributes: attributes)
             subtitleText.append(
                 SafetyNumberStrings.verified,
@@ -271,7 +272,7 @@ extension ConversationViewController {
             editTarget: editTarget,
             inputToolbarDelegate: self,
             inputTextViewDelegate: self,
-            mentionDelegate: self
+            bodyRangesTextViewDelegate: self
         )
         inputToolbar.accessibilityIdentifier = "inputToolbar"
         if let voiceMemoDraft = voiceMemoDraft {
@@ -282,21 +283,21 @@ extension ConversationViewController {
     }
 
     func buildDraftQuotedReply(_ draftReply: ThreadReplyInfo) -> DraftQuotedReplyModel? {
-        return Self.databaseStorage.read { transaction in
-            guard let interaction = try? InteractionFinder.interactions(
-                withTimestamp: draftReply.timestamp,
-                filter: { candidate in
-                    if let incoming = candidate as? TSIncomingMessage {
-                        return incoming.authorAddress.aci == draftReply.author
-                    }
-                    if candidate is TSOutgoingMessage {
-                        return DependenciesBridge.shared.tsAccountManager
-                            .localIdentifiers(tx: transaction.asV2Read)?.aci == draftReply.author
-                    }
-                    return false
-                },
+        return SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            let interaction = try? InteractionFinder.fetchInteractions(
+                timestamp: draftReply.timestamp,
                 transaction: transaction
-            ).first as? TSMessage else {
+            ).filter { candidate in
+                if let incoming = candidate as? TSIncomingMessage {
+                    return incoming.authorAddress.aci == draftReply.author
+                }
+                if candidate is TSOutgoingMessage {
+                    return DependenciesBridge.shared.tsAccountManager
+                        .localIdentifiers(tx: transaction)?.aci == draftReply.author
+                }
+                return false
+            }.first as? TSMessage
+            guard let interaction else {
                 return nil
             }
             if interaction is OWSPaymentMessage {
@@ -304,7 +305,7 @@ extension ConversationViewController {
             }
             return DependenciesBridge.shared.quotedReplyManager.buildDraftQuotedReply(
                 originalMessage: interaction,
-                tx: transaction.asV2Read
+                tx: transaction
             )
 
         }

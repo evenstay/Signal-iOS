@@ -10,7 +10,7 @@ import SignalUI
 
 class DebugUICallsTab: DebugUIPage {
     private var callRecordStore: CallRecordStore { DependenciesBridge.shared.callRecordStore }
-    private var databaseStorage: SDSDatabaseStorage { SSKEnvironment.shared.databaseStorage }
+    private var databaseStorage: SDSDatabaseStorage { SSKEnvironment.shared.databaseStorageRef }
 
     private var _nowTimestamp: UInt64 = Date().ows_millisecondsSince1970
     private var nowTimestamp: UInt64 {
@@ -187,7 +187,7 @@ class DebugUICallsTab: DebugUIPage {
 
     private func createIncomingAcceptedCall(
         contactThread: TSContactThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         createIndividualCall(
             contactThread: contactThread,
@@ -200,7 +200,7 @@ class DebugUICallsTab: DebugUIPage {
 
     private func createIncomingMissedCall(
         contactThread: TSContactThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         createIndividualCall(
             contactThread: contactThread,
@@ -213,7 +213,7 @@ class DebugUICallsTab: DebugUIPage {
 
     private func createOutgoingAcceptedCall(
         contactThread: TSContactThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         createIndividualCall(
             contactThread: contactThread,
@@ -226,7 +226,7 @@ class DebugUICallsTab: DebugUIPage {
 
     private func createOutgoingMissedCall(
         contactThread: TSContactThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         createIndividualCall(
             contactThread: contactThread,
@@ -242,7 +242,7 @@ class DebugUICallsTab: DebugUIPage {
         callDirection: CallRecord.CallDirection,
         callType: RPRecentCallType,
         individualCallStatus: CallRecord.CallStatus.IndividualCallStatus,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         let callInteraction = TSCall(
             callType: callType,
@@ -261,14 +261,18 @@ class DebugUICallsTab: DebugUIPage {
             callStatus: .individual(individualCallStatus),
             callBeganTimestamp: callInteraction.timestamp
         )
-        _ = callRecordStore.insert(callRecord: callRecord, tx: tx.asV2Write)
+        do {
+            _ = try callRecordStore.insert(callRecord: callRecord, tx: tx)
+        } catch let error {
+            owsFailBeta("Failed to insert call record: \(error)")
+        }
     }
 
     // MARK: Group calls
 
     private func createGenericCall(
         groupThread: TSGroupThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         createGroupCall(
             groupThread: groupThread,
@@ -280,7 +284,7 @@ class DebugUICallsTab: DebugUIPage {
 
     private func createJoinedCall(
         groupThread: TSGroupThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         createGroupCall(
             groupThread: groupThread,
@@ -292,7 +296,7 @@ class DebugUICallsTab: DebugUIPage {
 
     private func createRingingAcceptedCall(
         groupThread: TSGroupThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         createGroupCall(
             groupThread: groupThread,
@@ -304,7 +308,7 @@ class DebugUICallsTab: DebugUIPage {
 
     private func createRingingDeclinedCall(
         groupThread: TSGroupThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         createGroupCall(
             groupThread: groupThread,
@@ -316,7 +320,7 @@ class DebugUICallsTab: DebugUIPage {
 
     private func createOutgoingRingingCall(
         groupThread: TSGroupThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         createGroupCall(
             groupThread: groupThread,
@@ -330,7 +334,7 @@ class DebugUICallsTab: DebugUIPage {
         groupThread: TSGroupThread,
         callDirection: CallRecord.CallDirection,
         groupCallStatus: CallRecord.CallStatus.GroupCallStatus,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         let callInteraction = OWSGroupCallMessage(
             joinedMemberAcis: [],
@@ -350,7 +354,11 @@ class DebugUICallsTab: DebugUIPage {
             callStatus: .group(groupCallStatus),
             callBeganTimestamp: callInteraction.timestamp
         )
-        _ = callRecordStore.insert(callRecord: callRecord, tx: tx.asV2Write)
+        do {
+            _ = try callRecordStore.insert(callRecord: callRecord, tx: tx)
+        } catch let error {
+            owsFailBeta("Failed to insert call record: \(error)")
+        }
     }
 
     // MARK: Thread enumeration
@@ -358,11 +366,11 @@ class DebugUICallsTab: DebugUIPage {
     private func enumerateThreads(
         contactThreadBlock: (
             _ thread: TSContactThread,
-            _ tx: SDSAnyWriteTransaction
+            _ tx: DBWriteTransaction
         ) -> Void,
         groupThreadBlock: (
             _ thread: TSGroupThread,
-            _ tx: SDSAnyWriteTransaction
+            _ tx: DBWriteTransaction
         ) -> Void
     ) {
         databaseStorage.write { tx in

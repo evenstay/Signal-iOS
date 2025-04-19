@@ -6,15 +6,15 @@
 import Foundation
 @testable import SignalServiceKit
 
-typealias TSRequestDataTaskBlock = ((TSRequest, Bool) -> Promise<HTTPResponse>)
-typealias DataTaskPromiseBlock = ((URLRequest) -> Promise<HTTPResponse>)
-typealias UploadTaskPromiseBlock = ((URLRequest, URL) -> Promise<HTTPResponse>)
+typealias PerformTSRequestBlock = ((TSRequest, Bool) async throws -> any HTTPResponse)
+typealias PerformRequestBlock = ((URLRequest) async throws -> any HTTPResponse)
+typealias PerformUploadBlock = ((URLRequest, URL, OWSProgressSource?) async throws -> any HTTPResponse)
 
 enum MockRequestType {
-    case uploadForm(TSRequestDataTaskBlock)
-    case uploadLocation(DataTaskPromiseBlock)
-    case uploadProgress(DataTaskPromiseBlock)
-    case uploadTask(UploadTaskPromiseBlock)
+    case uploadForm(PerformTSRequestBlock)
+    case uploadLocation(PerformRequestBlock)
+    case uploadProgress(PerformRequestBlock)
+    case uploadTask(PerformUploadBlock)
 }
 
 enum MockResultType {
@@ -24,24 +24,72 @@ enum MockResultType {
     case uploadTask(URLRequest)
 }
 
+struct MockUploadAttempt {
+    let cdn: CDNEndpoint
+    let auth: String
+    let form: Upload.Form
+    let formUploadLocation: String
+    let fetchedUploadLocation: String
+
+    var resumeUploadURL: String {
+        switch cdn {
+        case .cdn2: return fetchedUploadLocation
+        case .cdn3: return fetchedUploadLocation + "/" + form.cdnKey
+        }
+    }
+
+    var uploadHttpMethod: String {
+        switch cdn {
+        case .cdn2: return "PUT"
+        case .cdn3: return "POST"
+        }
+    }
+
+    var resumeUploadHttpMethod: String {
+        switch cdn {
+        case .cdn2: return "PUT"
+        case .cdn3: return "PATCH"
+        }
+    }
+
+    var fetchedUploadSuccesStatusCode: Int {
+        switch cdn {
+        case .cdn2: return 201
+        case .cdn3: return 200
+        }
+    }
+}
+
+enum CDNEndpoint: UInt32, CaseIterable {
+    case cdn2 = 2
+    case cdn3 = 3
+}
+
 class AttachmentUploadManagerMockHelper {
     var mockDate = Date()
     lazy var mockDateProvider = { return self.mockDate }
-    var mockDB = MockDB()
+    var mockDB = InMemoryDB()
     var mockURLSession = AttachmentUploadManagerImpl.Mocks.URLSession()
-    var mockNetworkManager = AttachmentUploadManagerImpl.Mocks.NetworkManager(libsignalNet: nil)
+    var mockNetworkManager = AttachmentUploadManagerImpl.Mocks.NetworkManager(appReadiness: AppReadinessMock(), libsignalNet: nil)
     var mockServiceManager = OWSSignalServiceMock()
     var mockChatConnectionManager = AttachmentUploadManagerImpl.Mocks.ChatConnectionManager()
     var mockFileSystem = AttachmentUploadManagerImpl.Mocks.FileSystem()
     var mockInteractionStore = MockInteractionStore()
-    var mockStoryStore = StoryStoreMock()
-    var mockAttachmentStore = AttachmentUploadStoreMock()
+    var mockStoryStore = StoryStoreImpl()
+    var mockAttachmentStore = AttachmentStoreMock()
+    lazy var mockAttachmentUploadStore = AttachmentUploadStoreMock(attachmentStore: mockAttachmentStore)
     var mockAttachmentThumbnailService = MockAttachmentThumbnailService()
     var mockAttachmentEncrypter = AttachmentUploadManagerImpl.Mocks.AttachmentEncrypter()
     var messageBackupKeyMaterial = AttachmentUploadManagerImpl.Mocks.MessageBackupKeyMaterial()
     var messageBackupRequestManager = AttachmentUploadManagerImpl.Mocks.MessageBackupRequestManager()
+    var mockRemoteConfigProvider = MockRemoteConfigProvider()
+    var mockSleepTimer = AttachmentUploadManagerImpl.Mocks.SleepTimer()
 
     var capturedRequests = [MockResultType]()
+    var capturedFormRequests: [MockResultType] { capturedRequests.filter { if case .uploadForm = $0 { true } else { false }}}
+    var capturedLocationRequests: [MockResultType] { capturedRequests.filter { if case .uploadLocation = $0 { true } else { false }}}
+    var capturedProgressRequests: [MockResultType] { capturedRequests.filter { if case .uploadProgress = $0 { true } else { false }}}
+    var capturedUploadRequests: [MockResultType] { capturedRequests.filter { if case .uploadTask = $0 { true } else { false }}}
 
     // List of auth requests.
     var authFormRequestBlock = [MockRequestType]()
@@ -84,66 +132,112 @@ class AttachmentUploadManagerMockHelper {
                 return .init(error: OWSAssertionError("Mock request missing"))
             }
             self.capturedRequests.append(.uploadForm(request))
-            return authDataTaskBlock(request, canUseWebSocket)
+            return Promise.wrapAsync { try await authDataTaskBlock(request, canUseWebSocket) }
         }
 
-        mockURLSession.promiseForDataTaskBlock = { request in
+        mockURLSession.performRequestBlock = { request in
             switch self.activeUploadRequestMocks.removeFirst() {
             case .uploadLocation(let requestBlock):
                 self.capturedRequests.append(.uploadLocation(request))
-                return requestBlock(request)
+                return try await requestBlock(request)
             case .uploadProgress(let requestBlock):
                 self.capturedRequests.append(.uploadProgress(request))
-                return requestBlock(request)
+                return try await requestBlock(request)
             case .uploadForm, .uploadTask:
-                return .init(error: OWSAssertionError("Mock request missing"))
+                throw OWSAssertionError("Mock request missing")
             }
         }
 
-        mockURLSession.promiseForUploadFileTaskBlock = { request, url, _, _ in
+        mockURLSession.performUploadFileBlock = { request, url, _, progress in
             guard case let .uploadTask(requestBlock) = self.activeUploadRequestMocks.removeFirst() else {
-                return .init(error: OWSAssertionError("Mock request missing"))
+                throw OWSAssertionError("Mock request missing")
             }
             self.capturedRequests.append(.uploadTask(request))
-            return requestBlock(request, url)
+            return try await requestBlock(request, url, progress)
         }
     }
 
-    func addFormRequestMock(version: UInt32, statusCode: Int = 200) -> (auth: String, location: String) {
-        let authString = UUID().uuidString
-        // Create a random, yet identifiable URL.  Helps with debugging the captured requests.
-        let location = "https://upload/location/\(UUID().uuidString)"
-        authFormRequestBlock.append(.uploadForm({ request, _ in
-            let headers = [ "Auth": authString, ]
-            let form = Upload.Form(
-                headers: headers,
-                signedUploadLocation: location,
-                cdnKey: UUID().uuidString,
-                cdnNumber: version
-            )
-            self.activeUploadRequestMocks = self.authToUploadRequestMockMap[authString] ?? .init()
-            return .value(HTTPResponseImpl(
-                requestUrl: request.url!,
-                status: statusCode,
-                headers: OWSHttpHeaders(),
-                bodyData: try! JSONEncoder().encode(form)
-            ))
-        }))
-        return (authString, location)
+    func addUploadFormAndLocationRequestMock(
+        cdn: CDNEndpoint,
+        formStatusCode: Int = 200,
+        fetchLocationStatusCode: Int = 201,
+        _ uploadMockBuilder: (_ auth: String, _ formUploadLocation: String, _ fetchedUploadLocation: String) -> Void
+    ) -> MockUploadAttempt {
+        addFormRequestMock(
+            cdn: cdn,
+            statusCode: formStatusCode
+        ) { auth, formUploadLoaction in
+            addFetchedUploadLocationMock(
+                cdn: cdn,
+                auth: auth,
+                signedUploadLocation: formUploadLoaction,
+                statusCode: fetchLocationStatusCode
+            ) { fetchedUploadLocation in
+                uploadMockBuilder(auth, formUploadLoaction, fetchedUploadLocation)
+            }
+        }
     }
 
-    func addResumeLocationMock(auth: String, statusCode: Int = 201) -> String {
+    private func addFormRequestMock(
+        cdn: CDNEndpoint,
+        statusCode: Int = 200,
+        _ authedMockBuilder: (_ auth: String, _ location: String) -> (String)
+    ) -> MockUploadAttempt {
+        let authString = UUID().uuidString
         // Create a random, yet identifiable URL.  Helps with debugging the captured requests.
-        let location = "https://resume/location/\(UUID().uuidString)"
-        enqueue(auth: auth, request: .uploadLocation({ request in
-            let headers = [ "Location": location ]
-            return .value(HTTPResponseImpl(
-                requestUrl: request.url!,
+        let location = "https://upload/formUploadLocation/\(UUID().uuidString)"
+        let headers: HttpHeaders = ["Auth": authString]
+        let form = Upload.Form(
+            headers: headers,
+            signedUploadLocation: location,
+            cdnKey: UUID().uuidString,
+            cdnNumber: cdn.rawValue
+        )
+        authFormRequestBlock.append(.uploadForm({ request, _ in
+            self.activeUploadRequestMocks = self.authToUploadRequestMockMap[authString] ?? .init()
+            return HTTPResponseImpl(
+                requestUrl: request.url,
                 status: statusCode,
-                headers: OWSHttpHeaders(httpHeaders: headers, overwriteOnConflict: true),
-                bodyData: nil
-            ))
+                headers: HttpHeaders(),
+                bodyData: try! JSONEncoder().encode(form)
+            )
         }))
+        return .init(
+            cdn: cdn,
+            auth: authString,
+            form: form,
+            formUploadLocation: location,
+            fetchedUploadLocation: authedMockBuilder(authString, location)
+        )
+    }
+
+    private func addFetchedUploadLocationMock(
+        cdn: CDNEndpoint,
+        auth: String,
+        signedUploadLocation: String,
+        statusCode: Int,
+        _ resumedLocationMockBuilder: ((String) -> Void)
+    ) -> String {
+        let location =  {
+            switch cdn {
+            case .cdn2:
+                // Create a random, yet identifiable URL.  Helps with debugging the captured requests.
+                let fetchedUploadLocation = "https://upload/fetchedUploadLocation/\(UUID().uuidString)"
+                enqueue(auth: auth, request: .uploadLocation({ request in
+                    let headers = [ "Location": fetchedUploadLocation ]
+                    return HTTPResponseImpl(
+                        requestUrl: request.url!,
+                        status: statusCode,
+                        headers: HttpHeaders(httpHeaders: headers, overwriteOnConflict: true),
+                        bodyData: nil
+                    )
+                }))
+                return fetchedUploadLocation
+            case .cdn3:
+                return signedUploadLocation
+            }
+        }()
+        resumedLocationMockBuilder(location)
         return location
     }
 
@@ -155,56 +249,98 @@ class AttachmentUploadManagerMockHelper {
         case malformedRange
         case otherStatusCode(Int)
     }
-    func addResumeProgressMock(auth: String, location: String, type: ResumeProgressType) {
-        enqueue(auth: auth, request: .uploadProgress({ request in
-            var headers = ["Location": "\(location)"]
-            var statusCode = 308
 
-            switch type {
-            case .progress(let count):
-                headers["Range"] = "bytes=0-\(count)"
-            case .newUpload:
-                break
-            case .missingRange:
-                headers["Range"] = "bytes="
-            case .malformedRange:
-                headers["Range"] = "bytes=0-baddata"
-            case .otherStatusCode(let code):
-                statusCode = code
-            case .complete:
-                statusCode = 201 // This could also be a 200
-            }
+    func addResumeProgressMock(cdn: CDNEndpoint, auth: String, location: String, type: ResumeProgressType) {
+        switch cdn {
+        case .cdn2:
+            enqueue(auth: auth, request: .uploadProgress({ request in
+                var headers = ["Location": "\(location)"]
+                var statusCode = 308
 
-            return .value(HTTPResponseImpl(
-                requestUrl: request.url!,
-                status: statusCode,
-                headers: OWSHttpHeaders(httpHeaders: headers, overwriteOnConflict: true),
-                bodyData: nil
-            ))
-        }))
+                switch type {
+                case .progress(let count):
+                    headers["Range"] = "bytes=0-\(count)"
+                case .newUpload:
+                    break
+                case .missingRange:
+                    headers["Range"] = "bytes="
+                case .malformedRange:
+                    headers["Range"] = "bytes=0-baddata"
+                case .otherStatusCode(let code):
+                    statusCode = code
+                case .complete:
+                    statusCode = 201 // This could also be a 200
+                }
+
+                return HTTPResponseImpl(
+                    requestUrl: request.url!,
+                    status: statusCode,
+                    headers: HttpHeaders(httpHeaders: headers, overwriteOnConflict: true),
+                    bodyData: nil
+                )
+            }))
+        case .cdn3:
+            enqueue(auth: auth, request: .uploadProgress({ request in
+                var headers = ["Tus-Resumable": "1.0.0"]
+                var statusCode = 200
+
+                switch type {
+                case .progress(let count):
+                    headers["upload-offset"] = "\(count)"
+                case .newUpload:
+                    break
+                case .missingRange:
+                    break
+                case .malformedRange:
+                    headers["upload-offset"] = "baddata"
+                case .otherStatusCode(let code):
+                    statusCode = code
+                case .complete:
+                    statusCode = 403
+                }
+
+                return HTTPResponseImpl(
+                    requestUrl: request.url!,
+                    status: statusCode,
+                    headers: HttpHeaders(httpHeaders: headers, overwriteOnConflict: true),
+                    bodyData: nil
+                )
+            }))
+        }
     }
 
     enum UploadResultType {
         case success
-        case failure
+        case failure(code: Int)
         case networkError
+        case networkTimeout
     }
-    func addUploadRequestMock(auth: String, location: String, type: UploadResultType) {
-        enqueue(auth: auth, request: .uploadTask({ request, url in
-            var statusCode = 200
+
+    func addUploadRequestMock(auth: String, location: String, type: UploadResultType, completedCount: UInt64? = nil) {
+        enqueue(auth: auth, request: .uploadTask({ request, url, progress in
+            if let completedCount {
+                progress?.incrementCompletedUnitCount(by: completedCount)
+            }
             switch type {
+            case .networkTimeout:
+                throw OWSHTTPError.networkFailure(.genericTimeout)
             case .networkError:
-                return .init(error: OWSHTTPError.networkFailure(requestUrl: request.url!))
-            case .failure:
-                statusCode = 500
-                fallthrough // Use the same response code as success
+                throw OWSHTTPError.networkFailure(.genericFailure)
+            case .failure(let code):
+                throw OWSHTTPError.forServiceResponse(
+                    requestUrl: URL(string: location)!,
+                    responseStatus: code,
+                    responseHeaders: HttpHeaders(),
+                    responseError: nil,
+                    responseData: nil
+                )
             case .success:
-                return .value(HTTPResponseImpl(
+                return HTTPResponseImpl(
                     requestUrl: request.url!,
-                    status: statusCode,
-                    headers: OWSHttpHeaders(),
+                    status: 200,
+                    headers: HttpHeaders(),
                     bodyData: nil
-                ))
+                )
             }
         }))
     }

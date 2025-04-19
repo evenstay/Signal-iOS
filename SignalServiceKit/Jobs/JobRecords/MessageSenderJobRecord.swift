@@ -17,7 +17,7 @@ public final class MessageSenderJobRecord: JobRecord, FactoryInitializableFromRe
     private let persistedMessageId: String?
     /// Ignored for in memory messages. Determined if the media queue should
     /// be used for sending.
-    private let useMediaQueue: Bool
+    let useMediaQueue: Bool
 
     /// A message we send but which is never inserted into the Interactions table;
     /// its only used for sending.
@@ -60,7 +60,6 @@ public final class MessageSenderJobRecord: JobRecord, FactoryInitializableFromRe
         messageType: MessageType,
         removeMessageAfterSending: Bool,
         isHighPriority: Bool,
-        exclusiveProcessIdentifier: String? = nil,
         failureCount: UInt = 0,
         status: Status = .ready
     ) {
@@ -88,7 +87,6 @@ public final class MessageSenderJobRecord: JobRecord, FactoryInitializableFromRe
         }
 
         super.init(
-            exclusiveProcessIdentifier: exclusiveProcessIdentifier,
             failureCount: failureCount,
             status: status
         )
@@ -97,7 +95,7 @@ public final class MessageSenderJobRecord: JobRecord, FactoryInitializableFromRe
     convenience init(
         persistedMessage: PreparedOutgoingMessage.MessageType.Persisted,
         isHighPriority: Bool,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) throws {
         let messageType = MessageType.persisted(
             messageId: persistedMessage.message.uniqueId,
@@ -115,7 +113,7 @@ public final class MessageSenderJobRecord: JobRecord, FactoryInitializableFromRe
     convenience init(
         editMessage: PreparedOutgoingMessage.MessageType.EditMessage,
         isHighPriority: Bool,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) throws {
         let messageType = MessageType.editMessage(
             editedMessageId: editMessage.editedMessage.uniqueId,
@@ -218,9 +216,5 @@ public final class MessageSenderJobRecord: JobRecord, FactoryInitializableFromRe
         )
         try container.encode(removeMessageAfterSending, forKey: .removeMessageAfterSending)
         try container.encode(isHighPriority, forKey: .isHighPriority)
-    }
-
-    override var canBeRunByCurrentProcess: Bool {
-        return super.canBeRunByCurrentProcess && !removeMessageAfterSending
     }
 }

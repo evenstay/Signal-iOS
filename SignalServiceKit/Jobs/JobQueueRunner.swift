@@ -25,7 +25,7 @@ public enum JobAttemptResult {
     public static func executeBlockWithDefaultErrorHandler(
         jobRecord: JobRecord,
         retryLimit: UInt,
-        db: DB,
+        db: any DB,
         block: () async throws -> Void
     ) async -> JobAttemptResult {
         do {
@@ -147,7 +147,7 @@ public class JobQueueRunner<
     JobFinderType: JobRecordFinder,
     JobRunnerFactoryType: JobRunnerFactory
 > where JobFinderType.JobRecordType == JobRunnerFactoryType.JobRunnerType.JobRecordType {
-    private let db: DB
+    private let db: any DB
     private let jobFinder: JobFinderType
     private let jobRunnerFactory: JobRunnerFactoryType
     private var observers = [NSObjectProtocol]()
@@ -189,7 +189,7 @@ public class JobQueueRunner<
 
     private let state: AtomicValue<State>
 
-    public init(canExecuteJobsConcurrently: Bool, db: DB, jobFinder: JobFinderType, jobRunnerFactory: JobRunnerFactoryType) {
+    public init(canExecuteJobsConcurrently: Bool, db: any DB, jobFinder: JobFinderType, jobRunnerFactory: JobRunnerFactoryType) {
         let mode: Mode = .loading(canExecuteJobsConcurrently: canExecuteJobsConcurrently, jobsToEnqueueAfterLoading: [])
         self.state = AtomicValue<State>(State(mode: mode), lock: .init())
         self.db = db
@@ -209,7 +209,7 @@ public class JobQueueRunner<
         var oldJobs = [JobFinderType.JobRecordType]()
         if shouldRestartExistingJobs {
             do {
-                oldJobs.append(contentsOf: try await jobFinder.loadRunnableJobs())
+                oldJobs.append(contentsOf: try await jobFinder.loadRunnableJobs(updateRunnableJobRecord: { _, _ in }))
             } catch {
                 Logger.error("Couldn't start existing jobs, so no new jobs will start: \(error)")
                 return
@@ -354,7 +354,7 @@ public class JobQueueRunner<
         case .retryAfter(let retryAfter, let canRetryEarly):
             // Create a Task that waits for `retryAfter`. If `retryWaitingJobs` is
             // called, this Task will be canceled, starting the next retry immediately.
-            let waitingTask = Task { _ = try? await Task.sleep(nanoseconds: UInt64(retryAfter*Double(NSEC_PER_SEC))) }
+            let waitingTask = Task { _ = try? await Task.sleep(nanoseconds: retryAfter.clampedNanoseconds) }
             if canRetryEarly {
                 state.update { state in state.waitingTasks[queuedJob.rowId] = waitingTask }
             }

@@ -3,24 +3,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-public class PaymentsCurrenciesImpl: NSObject, PaymentsCurrenciesSwift, PaymentsCurrencies {
+public class PaymentsCurrenciesImpl: PaymentsCurrenciesSwift, PaymentsCurrencies {
 
     private let appReadiness: AppReadiness
     private var refreshEvent: RefreshEvent?
 
     public init(appReadiness: AppReadiness) {
         self.appReadiness = appReadiness
-        super.init()
 
         // TODO: Tune.
-        let refreshCheckInterval = kMinuteInterval * 15
+        let refreshCheckInterval: TimeInterval = .minute * 15
         refreshEvent = RefreshEvent(appReadiness: appReadiness, refreshInterval: refreshCheckInterval) { [weak self] in
-            self?.updateConversationRatesIfStale()
+            self?.updateConversionRates()
         }
 
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(updateConversationRatesIfStale),
+            selector: #selector(updateConversionRates),
             name: PaymentsConstants.arePaymentsEnabledDidChange,
             object: nil
         )
@@ -29,7 +28,7 @@ public class PaymentsCurrenciesImpl: NSObject, PaymentsCurrenciesSwift, Payments
     public func warmCaches() {
         owsAssertDebug(GRDBSchemaMigrator.areMigrationsComplete)
 
-        Self.databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             self.currentCurrencyCode = Self.loadCurrentCurrencyCode(transaction: transaction)
         }
     }
@@ -40,7 +39,7 @@ public class PaymentsCurrenciesImpl: NSObject, PaymentsCurrenciesSwift, Payments
 
     static let defaultCurrencyCode = PaymentsConstants.currencyCodeGBP
 
-    private static let keyValueStore = SDSKeyValueStore(collection: "PaymentsCurrencies")
+    private static let keyValueStore = KeyValueStore(collection: "PaymentsCurrencies")
 
     private static let currentCurrencyCodeKey = "currentCurrencyCodeKey"
 
@@ -60,7 +59,7 @@ public class PaymentsCurrenciesImpl: NSObject, PaymentsCurrenciesSwift, Payments
         }
     }
 
-    private static func loadCurrentCurrencyCode(transaction: SDSAnyReadTransaction) -> Currency.Code {
+    private static func loadCurrentCurrencyCode(transaction: DBReadTransaction) -> Currency.Code {
         if let currencyCode = Self.keyValueStore.getString(Self.currentCurrencyCodeKey,
                                                            transaction: transaction) {
             return currencyCode
@@ -77,7 +76,7 @@ public class PaymentsCurrenciesImpl: NSObject, PaymentsCurrenciesSwift, Payments
         return Self.defaultCurrencyCode
     }
 
-    public func setCurrentCurrencyCode(_ currencyCode: Currency.Code, transaction: SDSAnyWriteTransaction) {
+    public func setCurrentCurrencyCode(_ currencyCode: Currency.Code, transaction: DBWriteTransaction) {
         self.currentCurrencyCode = currencyCode
 
         Self.keyValueStore.setString(currencyCode, key: Self.currentCurrencyCodeKey, transaction: transaction)
@@ -103,8 +102,7 @@ public class PaymentsCurrenciesImpl: NSObject, PaymentsCurrenciesSwift, Payments
             // agree we don't want to treat future values as stale.
             //
             // PAYMENTS TODO: Tune.
-            let staleInverval: TimeInterval = 1 * kHourInterval
-            return -serviceDate.timeIntervalSinceNow > staleInverval
+            return -serviceDate.timeIntervalSinceNow > .hour
         }
     }
 
@@ -136,35 +134,15 @@ public class PaymentsCurrenciesImpl: NSObject, PaymentsCurrenciesSwift, Payments
                 }
             }
             self._conversionRates = newConversionRates
-            NotificationCenter.default.postNotificationNameAsync(Self.paymentConversionRatesDidChange,
+            NotificationCenter.default.postOnMainThread(name: Self.paymentConversionRatesDidChange,
                                                                  object: nil)
-        }
-    }
-
-    public func updateConversationRatesIfStale() {
-        let shouldUpdate: Bool = {
-            guard CurrentAppContext().isMainApp,
-                  !CurrentAppContext().isRunningTests else {
-                return false
-            }
-            guard Self.paymentsHelper.arePaymentsEnabled else {
-                return false
-            }
-            guard let conversionRates = self.conversionRates else {
-                return true
-            }
-            let staleInverval: TimeInterval = 5 * kMinuteInterval
-            return abs(conversionRates.serviceDate.timeIntervalSinceNow) > staleInverval
-        }()
-
-        if shouldUpdate {
-            updateConversationRates()
         }
     }
 
     private let isUpdateInFlight = AtomicBool(false, lock: .sharedGlobal)
 
-    func updateConversationRates() {
+    @objc
+    public func updateConversionRates() {
         guard
             appReadiness.isAppReady,
             CurrentAppContext().isMainAppAndActive,
@@ -172,7 +150,7 @@ public class PaymentsCurrenciesImpl: NSObject, PaymentsCurrenciesSwift, Payments
         else {
             return
         }
-        guard Self.paymentsHelper.arePaymentsEnabled else {
+        guard SSKEnvironment.shared.paymentsHelperRef.arePaymentsEnabled else {
             return
         }
         if let conversionRates = self.conversionRates,
@@ -188,7 +166,7 @@ public class PaymentsCurrenciesImpl: NSObject, PaymentsCurrenciesSwift, Payments
 
         firstly(on: DispatchQueue.global()) { () -> Promise<HTTPResponse> in
             let request = OWSRequestFactory.currencyConversionRequest()
-            return Self.networkManager.makePromise(request: request)
+            return SSKEnvironment.shared.networkManagerRef.makePromise(request: request)
         }.map(on: DispatchQueue.global()) { response in
             guard let json = response.responseBodyJson else {
                 throw OWSAssertionError("Missing or invalid JSON")

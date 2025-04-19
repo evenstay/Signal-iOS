@@ -6,7 +6,7 @@
 public import SignalServiceKit
 import SignalUI
 
-struct StoryViewModel: Dependencies {
+struct StoryViewModel {
     let context: StoryContext
 
     let messages: [StoryMessage]
@@ -34,7 +34,7 @@ struct StoryViewModel: Dependencies {
     init(
         messages: [StoryMessage],
         isHidden: Bool? = nil,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) throws {
         let sortedFilteredMessages = messages.lazy.sorted { $0.timestamp < $1.timestamp }
         self.messages = sortedFilteredMessages
@@ -50,7 +50,7 @@ struct StoryViewModel: Dependencies {
 
         latestMessageName = StoryUtil.authorDisplayName(
             for: latestMessage,
-            contactsManager: Self.contactsManager,
+            contactsManager: SSKEnvironment.shared.contactManagerRef,
             transaction: transaction
         )
         latestMessageAvatarDataSource = try StoryUtil.contextAvatarDataSource(for: latestMessage, transaction: transaction)
@@ -69,7 +69,7 @@ struct StoryViewModel: Dependencies {
         updatedMessages: [StoryMessage],
         deletedMessageRowIds: [Int64],
         isHidden: Bool,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) throws -> Self? {
         var newMessages = updatedMessages
         var messages: [StoryMessage] = self.messages.lazy

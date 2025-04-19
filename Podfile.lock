@@ -8,9 +8,9 @@ PODS:
     - SQLCipher (>= 3.4.0)
   - LibMobileCoin/CoreHTTP (6.0.2):
     - SwiftProtobuf (~> 1.5)
-  - libPhoneNumber-iOS (0.9.15)
-  - LibSignalClient (0.58.0)
-  - LibSignalClient/Tests (0.58.0)
+  - libPhoneNumber-iOS (1.2.0)
+  - LibSignalClient (0.69.1)
+  - LibSignalClient/Tests (0.69.1)
   - libwebp (1.3.2):
     - libwebp/demux (= 1.3.2)
     - libwebp/mux (= 1.3.2)
@@ -30,16 +30,15 @@ PODS:
     - Logging (~> 1.4)
   - PureLayout (3.1.4)
   - Reachability (3.7.6)
-  - SignalRingRTC (2.48.2):
-    - SignalRingRTC/WebRTC (= 2.48.2)
-  - SignalRingRTC/WebRTC (2.48.2)
-  - SQLCipher (4.6.0):
-    - SQLCipher/standard (= 4.6.0)
-  - SQLCipher/common (4.6.0)
-  - SQLCipher/standard (4.6.0):
+  - SignalRingRTC (2.50.5):
+    - SignalRingRTC/WebRTC (= 2.50.5)
+  - SignalRingRTC/WebRTC (2.50.5)
+  - SQLCipher (4.6.1):
+    - SQLCipher/standard (= 4.6.1)
+  - SQLCipher/common (4.6.1)
+  - SQLCipher/standard (4.6.1):
     - SQLCipher/common
-  - SSZipArchive (2.5.2)
-  - SwiftProtobuf (1.28.1)
+  - SwiftProtobuf (1.29.0)
   - YYImage (1.0.4):
     - YYImage/Core (= 1.0.4)
   - YYImage/Core (1.0.4)
@@ -54,18 +53,17 @@ DEPENDENCIES:
   - GRDB.swift/SQLCipher
   - LibMobileCoin/CoreHTTP (from `https://github.com/signalapp/libmobilecoin-ios-artifacts`, tag `signal/6.0.2`)
   - libPhoneNumber-iOS (from `https://github.com/signalapp/libPhoneNumber-iOS`, branch `signal-master`)
-  - LibSignalClient (from `https://github.com/signalapp/libsignal.git`, tag `v0.58.0`)
-  - LibSignalClient/Tests (from `https://github.com/signalapp/libsignal.git`, tag `v0.58.0`)
+  - LibSignalClient (from `https://github.com/signalapp/libsignal.git`, tag `v0.69.1`)
+  - LibSignalClient/Tests (from `https://github.com/signalapp/libsignal.git`, tag `v0.69.1`)
   - libwebp (from `./ThirdParty/libwebp.podspec.json`)
   - lottie-ios
   - Mantle (from `https://github.com/signalapp/Mantle`, branch `signal-master`)
   - MobileCoin/CoreHTTP (from `https://github.com/mobilecoinofficial/MobileCoin-Swift`, tag `v6.0.3`)
   - PureLayout
   - Reachability
-  - SignalRingRTC (from `https://github.com/signalapp/ringrtc`, tag `v2.48.2`)
-  - SQLCipher (from `https://github.com/signalapp/sqlcipher.git`, tag `v4.6.0-f_barrierfsync`)
-  - SSZipArchive (from `ThirdParty/SSZipArchive.podspec`)
-  - SwiftProtobuf (>= 1.14.0)
+  - SignalRingRTC (from `https://github.com/signalapp/ringrtc`, tag `v2.50.5`)
+  - SQLCipher (from `https://github.com/signalapp/sqlcipher.git`, tag `v4.6.1-f_barrierfsync`)
+  - SwiftProtobuf (= 1.29.0)
   - YYImage (from `https://github.com/signalapp/YYImage`)
   - YYImage/libwebp (from `https://github.com/signalapp/YYImage`)
 
@@ -92,7 +90,7 @@ EXTERNAL SOURCES:
     :git: https://github.com/signalapp/libPhoneNumber-iOS
   LibSignalClient:
     :git: https://github.com/signalapp/libsignal.git
-    :tag: v0.58.0
+    :tag: v0.69.1
   libwebp:
     :podspec: "./ThirdParty/libwebp.podspec.json"
   Mantle:
@@ -103,12 +101,10 @@ EXTERNAL SOURCES:
     :tag: v6.0.3
   SignalRingRTC:
     :git: https://github.com/signalapp/ringrtc
-    :tag: v2.48.2
+    :tag: v2.50.5
   SQLCipher:
     :git: https://github.com/signalapp/sqlcipher.git
-    :tag: v4.6.0-f_barrierfsync
-  SSZipArchive:
-    :podspec: ThirdParty/SSZipArchive.podspec
+    :tag: v4.6.1-f_barrierfsync
   YYImage:
     :git: https://github.com/signalapp/YYImage
 
@@ -121,11 +117,11 @@ CHECKOUT OPTIONS:
     :submodules: true
     :tag: signal/6.0.2
   libPhoneNumber-iOS:
-    :commit: 8b6f552682be0e66cf25cd0f0db5e1732a1e9f15
+    :commit: 60482f7c0341e7c13e037ae1edbe8b359de7e6f3
     :git: https://github.com/signalapp/libPhoneNumber-iOS
   LibSignalClient:
     :git: https://github.com/signalapp/libsignal.git
-    :tag: v0.58.0
+    :tag: v0.69.1
   Mantle:
     :commit: e7e46253bb01ce39525d90aa69ed9e85e758bfc4
     :git: https://github.com/signalapp/Mantle
@@ -134,10 +130,10 @@ CHECKOUT OPTIONS:
     :tag: v6.0.3
   SignalRingRTC:
     :git: https://github.com/signalapp/ringrtc
-    :tag: v2.48.2
+    :tag: v2.50.5
   SQLCipher:
     :git: https://github.com/signalapp/sqlcipher.git
-    :tag: v4.6.0-f_barrierfsync
+    :tag: v4.6.1-f_barrierfsync
   YYImage:
     :commit: 62a4cede20bcf31da73d18163408e46a92f171c6
     :git: https://github.com/signalapp/YYImage
@@ -148,8 +144,8 @@ SPEC CHECKSUMS:
   CocoaLumberjack: 543c79c114dadc3b1aba95641d8738b06b05b646
   GRDB.swift: 1395cb3556df6b16ed69dfc74c3886abc75d2825
   LibMobileCoin: 8503f567fa32184a5be7bc038fbd727747dd9991
-  libPhoneNumber-iOS: 2d26d0a38933eee2702962a4dbdec2fc20e5ef9f
-  LibSignalClient: c8368f61e09933a1122adbee2a357013813e73a4
+  libPhoneNumber-iOS: 1a34106b49dc6e12a7f37eb9aee7c64011509547
+  LibSignalClient: cac315ec5fea263737ef8d74bf8fd95187444c9b
   libwebp: 1b5562124e3ca3336fb7506e76501bed7758963a
   Logging: beeb016c9c80cf77042d62e83495816847ef108b
   lottie-ios: fcb5e73e17ba4c983140b7d21095c834b3087418
@@ -157,12 +153,11 @@ SPEC CHECKSUMS:
   MobileCoin: cd7f49d6eaa2d362e4c9f8324cae0cc3bc3c53b5
   PureLayout: f08c01b8dec00bb14a1fefa3de4c7d9c265df85e
   Reachability: fd0ecd23705e2599e4cceeb943222ae02296cbc6
-  SignalRingRTC: fb52c87981d5979c92c98700bf4ccdf0ae33fd54
-  SQLCipher: 30a8e81afa6128e600b17ffa77d0f92fa05ed208
-  SSZipArchive: 8c3485528a87fa6f90afdbfc33682eb61d985ae5
-  SwiftProtobuf: cc47329e2a10c235e35ba4faed831742ae5135ce
+  SignalRingRTC: 9f029f34f5705a7a8f4b5b56da31c6a9aea13269
+  SQLCipher: ff2f045b20d675a73a70f7329395ddd4a2580063
+  SwiftProtobuf: b7aa08087e2ab6d162862d143020091254095f69
   YYImage: f1ddd15ac032a58b78bbed1e012b50302d318331
 
-PODFILE CHECKSUM: b5c61e3e04144fd567dcf03747379fb03c958808
+PODFILE CHECKSUM: 0456805d85749c48ef9bace908bca0db0c002bed
 
 COCOAPODS: 1.15.2

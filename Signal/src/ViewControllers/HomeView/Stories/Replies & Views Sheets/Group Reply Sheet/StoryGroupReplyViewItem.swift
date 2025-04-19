@@ -8,7 +8,7 @@ import SignalServiceKit
 import SignalUI
 import UIKit
 
-class StoryGroupReplyViewItem: Dependencies {
+class StoryGroupReplyViewItem {
     let interactionIdentifier: InteractionSnapshotIdentifier
     let interactionUniqueId: String
     let displayableText: DisplayableText?
@@ -30,7 +30,7 @@ class StoryGroupReplyViewItem: Dependencies {
         authorDisplayName: String?,
         authorColor: UIColor,
         recipientStatus: MessageReceiptStatus?,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) {
         self.interactionIdentifier = .fromInteraction(message)
         self.interactionUniqueId = message.uniqueId

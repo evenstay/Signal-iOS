@@ -3,20 +3,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-public import MultipeerConnectivity
+import MultipeerConnectivity
 import SignalServiceKit
 import SignalUI
 
-public class ProvisioningTransferProgressViewController: ProvisioningBaseViewController {
+class ProvisioningTransferProgressViewController: ProvisioningBaseViewController {
 
     let progressView: TransferProgressView
 
-    public init(provisioningController: ProvisioningController, progress: Progress) {
+    init(provisioningController: ProvisioningController, progress: Progress) {
         self.progressView = TransferProgressView(progress: progress)
         super.init(provisioningController: provisioningController)
     }
 
-    override public func loadView() {
+    override func loadView() {
         view = UIView()
         view.addSubview(primaryView)
         primaryView.autoPinEdgesToSuperviewEdges()
@@ -60,21 +60,21 @@ public class ProvisioningTransferProgressViewController: ProvisioningBaseViewCon
         topSpacer.autoMatch(.height, to: .height, of: bottomSpacer)
     }
 
-    override public func viewWillAppear(_ animated: Bool) {
+    override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
 
         progressView.startUpdatingProgress()
 
-        deviceTransferService.addObserver(self)
+        AppEnvironment.shared.deviceTransferServiceRef.addObserver(self)
     }
 
-    public override func viewWillDisappear(_ animated: Bool) {
+    override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
 
         progressView.stopUpdatingProgress()
 
-        deviceTransferService.removeObserver(self)
-        deviceTransferService.cancelTransferFromOldDevice()
+        AppEnvironment.shared.deviceTransferServiceRef.removeObserver(self)
+        AppEnvironment.shared.deviceTransferServiceRef.cancelTransferFromOldDevice()
     }
 
     // MARK: - Events

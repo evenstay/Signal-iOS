@@ -3,43 +3,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import GRDB
-
 #if TESTABLE_BUILD
 
-final class InMemoryDB: DB {
-    // MARK: - Transactions
+public import GRDB
 
-    class ReadTransaction: DBReadTransaction {
-        let db: Database
-        init(db: Database) {
-            self.db = db
-        }
-    }
+public final class InMemoryDB: DB {
 
-    static func shimOnlyBridge(_ tx: DBReadTransaction) -> ReadTransaction {
-        return tx as! ReadTransaction
-    }
+    private let schedulers: Schedulers
 
-    final class WriteTransaction: ReadTransaction, DBWriteTransaction {
-        func addFinalization(forKey key: String, block: @escaping () -> Void) {
-            fatalError()
-        }
-        func addSyncCompletion(_ block: @escaping () -> Void) {
-            fatalError()
-        }
-        func addAsyncCompletion(on scheduler: Scheduler, _ block: @escaping () -> Void) {
-            fatalError()
-        }
-    }
-
-    static func shimOnlyBridge(_ tx: DBWriteTransaction) -> WriteTransaction {
-        return tx as! WriteTransaction
+    public init(schedulers: Schedulers = DispatchQueueSchedulers()) {
+        self.schedulers = schedulers
     }
 
     // MARK: - State
 
-    public let databaseQueue: DatabaseQueue = {
+    let databaseQueue: DatabaseQueue = {
         let result = DatabaseQueue()
         let schemaUrl = Bundle(for: GRDBSchemaMigrator.self).url(forResource: "schema", withExtension: "sql")!
         try! result.write { try $0.execute(sql: try String(contentsOf: schemaUrl)) }
@@ -48,16 +26,14 @@ final class InMemoryDB: DB {
 
     // MARK: - Protocol
 
-    func appendDbChangeDelegate(_ dbChangeDelegate: DBChangeDelegate) { fatalError() }
-
-    func add(
+    public func add(
         transactionObserver: TransactionObserver,
         extent: Database.TransactionObservationExtent
     ) {
         databaseQueue.add(transactionObserver: transactionObserver, extent: extent)
     }
 
-    func asyncRead<T>(
+    public func asyncRead<T>(
         file: String,
         function: String,
         line: Int,
@@ -65,13 +41,13 @@ final class InMemoryDB: DB {
         completionQueue: DispatchQueue,
         completion: ((T) -> Void)?
     ) {
-        DispatchQueue.global().async {
+        schedulers.global().async {
             let result: T = self.read(file: file, function: function, line: line, block: block)
             if let completion { completionQueue.async({ completion(result) }) }
         }
     }
 
-    func asyncWrite<T>(
+    public func asyncWrite<T>(
         file: String,
         function: String,
         line: Int,
@@ -79,43 +55,49 @@ final class InMemoryDB: DB {
         completionQueue: DispatchQueue,
         completion: ((T) -> Void)?
     ) {
-        DispatchQueue.global().async {
+        schedulers.global().async {
             let result = self.write(file: file, function: function, line: line, block: block)
             if let completion { completionQueue.async({ completion(result) }) }
         }
     }
 
-    func awaitableWrite<T>(
+    public func asyncWriteWithTxCompletion<T>(
+        file: String = #file,
+        function: String = #function,
+        line: Int = #line,
+        block: @escaping (DBWriteTransaction) -> TransactionCompletion<T>,
+        completionQueue: DispatchQueue,
+        completion: ((T) -> Void)?
+    ) {
+        schedulers.global().async {
+            let result = self.writeWithTxCompletion(file: file, function: function, line: line, block: block)
+            if let completion { completionQueue.async({ completion(result) }) }
+        }
+    }
+
+    public func awaitableWrite<T>(
         file: String,
         function: String,
         line: Int,
-        block: @escaping (DBWriteTransaction) throws -> T
+        block: (DBWriteTransaction) throws -> T
     ) async rethrows -> T {
         await Task.yield()
         return try write(file: file, function: function, line: line, block: block)
     }
 
-    func readPromise<T>(
-        file: String,
-        function: String,
-        line: Int,
-        _ block: @escaping (DBReadTransaction) throws -> T
-    ) -> Promise<T> {
-        return Promise.wrapAsync { try self.read(file: file, function: function, line: line, block: block) }
-    }
-
-    func writePromise<T>(
-        file: String,
-        function: String,
-        line: Int,
-        _ block: @escaping (DBWriteTransaction) throws -> T
-    ) -> Promise<T> {
-        return Promise.wrapAsync { try await self.awaitableWrite(file: file, function: function, line: line, block: block) }
+    public func awaitableWriteWithTxCompletion<T>(
+        file: String = #file,
+        function: String = #function,
+        line: Int = #line,
+        block: (DBWriteTransaction) -> TransactionCompletion<T>
+    ) async -> T {
+        await Task.yield()
+        return writeWithTxCompletion(file: file, function: function, line: line, block: block)
     }
 
     // MARK: - Value Methods
 
-    func read<T>(
+    public func read<T>(
         file: String,
         function: String,
         line: Int,
@@ -128,7 +110,7 @@ final class InMemoryDB: DB {
         var thrownError: Error?
         let result: T? = try! databaseQueue.read { db in
             do {
-                return try block(ReadTransaction(db: db))
+                return try block(DBReadTransaction(database: db))
             } catch {
                 thrownError = error
                 return nil
@@ -140,63 +122,101 @@ final class InMemoryDB: DB {
         return result!
     }
 
-    func write<T>(
+    public func write<T>(
         file: String,
         function: String,
         line: Int,
         block: (DBWriteTransaction) throws -> T
     ) rethrows -> T {
-        return try _write(block: block, rescue: { throw $0 })
+        return try _writeCommitIfThrows(block: block, rescue: { throw $0 })
     }
 
-    private func _write<T>(
+    public func writeWithTxCompletion<T>(
+        file: String = #file,
+        function: String = #function,
+        line: Int = #line,
+        block: (DBWriteTransaction) -> TransactionCompletion<T>
+    ) -> T {
+        return _writeWithTxCompletion(block: block)
+    }
+
+    private func _writeCommitIfThrows<T>(
         block: (DBWriteTransaction) throws -> T,
         rescue: (Error) throws -> Never
     ) rethrows -> T {
-        var thrownError: Error?
-        let result: T? = try! databaseQueue.write { db in
+        var result: T!
+        var thrown: Error?
+        _writeWithTxCompletion { tx in
             do {
-                return try block(WriteTransaction(db: db))
+                result = try block(tx)
             } catch {
-                thrownError = error
-                return nil
+                thrown = error
             }
+            // Always commit, regardless of thrown errors.
+            return .commit(())
         }
-        if let thrownError {
-            try rescue(thrownError)
+        if let thrown {
+            try rescue(thrown)
         }
         return result!
+    }
+
+    private func _writeWithTxCompletion<T>(
+        block: (DBWriteTransaction) -> TransactionCompletion<T>
+    ) -> T {
+        var txCompletionBlocks: [DBWriteTransaction.CompletionBlock]!
+        let result: T = try! databaseQueue.writeWithoutTransaction { db in
+            var result: T!
+            try db.inTransaction {
+                let tx = DBWriteTransaction(database: db)
+                defer {
+                    tx.finalizeTransaction()
+                    txCompletionBlocks = tx.completionBlocks
+                }
+                switch block(tx) {
+                case .commit(let t):
+                    result = t
+                    return .commit
+                case .rollback(let t):
+                    result = t
+                    return .rollback
+                }
+            }
+            return result
+        }
+        txCompletionBlocks.forEach { $0() }
+        return result
     }
 
     // MARK: - Helpers
 
     func fetchExactlyOne<T: SDSCodableModel>(modelType: T.Type) -> T? {
-        let all = try! read { tx in try modelType.fetchAll(Self.shimOnlyBridge(tx).db) }
+        let all = try! read { tx in try modelType.fetchAll(tx.database) }
         guard all.count == 1 else { return nil }
         return all.first!
     }
 
     func insert<T: PersistableRecord>(record: T) {
-        try! write { tx in try record.insert(Self.shimOnlyBridge(tx).db) }
+        try! write { tx in try record.insert(tx.database) }
     }
 
     func update<T: PersistableRecord>(record: T) {
-        try! write { tx in try record.update(Self.shimOnlyBridge(tx).db) }
+        try! write { tx in try record.update(tx.database) }
     }
 
     func remove<T: PersistableRecord>(model record: T) {
-        _ = try! write { tx in try record.delete(Self.shimOnlyBridge(tx).db) }
+        _ = try! write { tx in try record.delete(tx.database) }
     }
 
-    func touch(_ interaction: TSInteraction, shouldReindex: Bool, tx: DBWriteTransaction) {
+    public func touch(interaction: TSInteraction, shouldReindex: Bool, tx: DBWriteTransaction) {
         // Do nothing.
     }
 
-    func touch(_ thread: TSThread, shouldReindex: Bool, shouldUpdateChatListUi: Bool, tx: DBWriteTransaction) {
+    public func touch(thread: TSThread, shouldReindex: Bool, shouldUpdateChatListUi: Bool, tx: DBWriteTransaction) {
         // Do nothing.
     }
 
-    func touch(_ storyMessage: StoryMessage, tx: DBWriteTransaction) {
+    public func touch(storyMessage: StoryMessage, tx: DBWriteTransaction) {
         // Do nothing.
     }
 }

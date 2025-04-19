@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+#if TESTABLE_BUILD
+
 import Foundation
 public import LibSignalClient
-
-#if TESTABLE_BUILD
 
 internal class MockSignalProtocolStore: SignalProtocolStore {
     public var sessionStore: SignalSessionStore { mockSessionStore }
@@ -25,14 +25,13 @@ class MockSessionStore: SignalSessionStore {
     func mergeRecipient(_ recipient: SignalRecipient, into targetRecipient: SignalRecipient, tx: DBWriteTransaction) { }
     func archiveAllSessions(for serviceId: ServiceId, tx: DBWriteTransaction) { }
     func archiveAllSessions(for address: SignalServiceAddress, tx: DBWriteTransaction) { }
-    func archiveSession(for serviceId: ServiceId, deviceId: UInt32, tx: DBWriteTransaction) { }
-    func loadSession(for serviceId: ServiceId, deviceId: UInt32, tx: DBReadTransaction) throws -> LibSignalClient.SessionRecord? { nil }
+    func archiveSession(for serviceId: ServiceId, deviceId: DeviceId, tx: DBWriteTransaction) { }
+    func loadSession(for serviceId: ServiceId, deviceId: DeviceId, tx: DBReadTransaction) throws -> LibSignalClient.SessionRecord? { nil }
     func loadSession(for address: ProtocolAddress, context: StoreContext) throws -> LibSignalClient.SessionRecord? { nil }
     func resetSessionStore(tx: DBWriteTransaction) { }
     func deleteAllSessions(for serviceId: ServiceId, tx: DBWriteTransaction) { }
     func deleteAllSessions(for recipientUniqueId: RecipientUniqueId, tx: DBWriteTransaction) { }
     func removeAll(tx: DBWriteTransaction) { }
-    func printAll(tx: DBReadTransaction) { }
     func loadExistingSessions(for addresses: [ProtocolAddress], context: StoreContext) throws -> [LibSignalClient.SessionRecord] { [] }
     func storeSession(_ record: LibSignalClient.SessionRecord, for address: ProtocolAddress, context: StoreContext) throws { }
 }
@@ -147,11 +146,11 @@ internal class MockSignalSignedPreKeyStore: SignalSignedPreKeyStore {
         tx: SignalServiceKit.DBWriteTransaction
     ) {}
 
-    // MARK: - Testing
-
     func removeAll(tx: DBWriteTransaction) {
         generatedSignedPreKeys.removeAll()
     }
+
+    // MARK: - Testing
 
     internal func setPrekeyUpdateFailureCount(
         _ count: Int,
@@ -188,29 +187,29 @@ internal class MockKyberPreKeyStore: SignalKyberPreKeyStore {
         self.dateProvider = dateProvider
     }
 
-    func generateLastResortKyberPreKey(signedBy keyPair: ECKeyPair, tx: DBWriteTransaction) throws -> SignalServiceKit.KyberPreKeyRecord {
-        let record = try generateKyberPreKey(signedBy: keyPair, isLastResort: true)
+    func generateLastResortKyberPreKey(signedBy keyPair: ECKeyPair, tx: DBWriteTransaction) -> SignalServiceKit.KyberPreKeyRecord {
+        let record = generateKyberPreKey(signedBy: keyPair, isLastResort: true)
         lastResortRecords.append(record)
         return record
     }
 
-    func generateLastResortKyberPreKeyForLinkedDevice(signedBy keyPair: ECKeyPair) throws -> SignalServiceKit.KyberPreKeyRecord {
-        let record = try generateKyberPreKey(signedBy: keyPair, isLastResort: true)
+    func generateLastResortKyberPreKeyForLinkedDevice(signedBy keyPair: ECKeyPair) -> SignalServiceKit.KyberPreKeyRecord {
+        let record = generateKyberPreKey(signedBy: keyPair, isLastResort: true)
         lastResortRecords.append(record)
         return record
     }
 
     func storeLastResortPreKeyFromLinkedDevice(record: KyberPreKeyRecord, tx: DBWriteTransaction) throws { }
 
-    func generateKyberPreKeyRecords(count: Int, signedBy keyPair: ECKeyPair, tx: DBWriteTransaction) throws -> [SignalServiceKit.KyberPreKeyRecord] {
-        let records = try (0..<count).map { _ in
-            try generateKyberPreKey(signedBy: keyPair, isLastResort: false)
+    func generateKyberPreKeyRecords(count: Int, signedBy keyPair: ECKeyPair, tx: DBWriteTransaction) -> [SignalServiceKit.KyberPreKeyRecord] {
+        let records = (0..<count).map { _ in
+            generateKyberPreKey(signedBy: keyPair, isLastResort: false)
         }
         oneTimeRecords.append(contentsOf: records)
         return records
     }
 
-    func generateKyberPreKey(signedBy keyPair: ECKeyPair, isLastResort: Bool) throws -> SignalServiceKit.KyberPreKeyRecord {
+    func generateKyberPreKey(signedBy keyPair: ECKeyPair, isLastResort: Bool) -> SignalServiceKit.KyberPreKeyRecord {
 
         let keyPair = KEMKeyPair.generate()
         let signature = Data(identityKeyPair.keyPair.privateKey.generateSignature(message: Data(keyPair.publicKey.serialize())))

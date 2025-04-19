@@ -52,6 +52,21 @@ extension ServiceId {
     }
 }
 
+extension ProtocolAddress {
+    public convenience init(_ serviceId: ServiceId, deviceId: DeviceId) {
+        self.init(serviceId, deviceId: deviceId.uint32Value)
+    }
+
+    public var deviceIdObj: DeviceId {
+        get throws {
+            guard let result = DeviceId(validating: self.deviceId) else {
+                throw OWSAssertionError("Invalid protocol address: must have valid deviceId")
+            }
+            return result
+        }
+    }
+}
+
 public struct AtLeastOneServiceId {
     /// Non-Optional because we must have at least an ACI or a PNI.
     public let aciOrElsePni: ServiceId
@@ -97,13 +112,28 @@ public struct NormalizedDatabaseRecordAddress {
     public let serviceId: ServiceId?
     public let phoneNumber: String?
 
+    public init(aci: Aci) {
+        self.serviceId = aci
+        self.phoneNumber = nil
+    }
+
+    private init(phoneNumber: String, pni: Pni?) {
+        self.serviceId = pni
+        self.phoneNumber = phoneNumber
+    }
+
+    private init(phoneNumber: String?, pni: Pni) {
+        self.serviceId = pni
+        self.phoneNumber = phoneNumber
+    }
+
     public init?(aci: Aci?, phoneNumber: String?, pni: Pni?) {
         if let aci {
-            self.serviceId = aci
-            self.phoneNumber = nil
-        } else if phoneNumber != nil || pni != nil {
-            self.phoneNumber = phoneNumber
-            self.serviceId = pni
+            self.init(aci: aci)
+        } else if let pni {
+            self.init(phoneNumber: phoneNumber, pni: pni)
+        } else if let phoneNumber {
+            self.init(phoneNumber: phoneNumber, pni: pni)
         } else {
             return nil
         }

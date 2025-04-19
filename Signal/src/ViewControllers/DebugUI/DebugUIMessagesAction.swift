@@ -7,7 +7,7 @@ import SignalServiceKit
 
 #if USE_DEBUG_UI
 
-class DebugUIMessagesAction: Dependencies {
+class DebugUIMessagesAction {
 
     typealias Completion = (Result<Void, Error>) -> Void
 
@@ -46,7 +46,7 @@ class DebugUIMessagesAction: Dependencies {
         }
 
         var runCount = count
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             var batchSize = 0
             while runCount > 0 {
                 let index = runCount
@@ -90,8 +90,8 @@ class DebugUIMessagesAction: Dependencies {
 
 class DebugUIMessagesSingleAction: DebugUIMessagesAction {
 
-    typealias StaggeredAction = (UInt, SDSAnyWriteTransaction, @escaping Completion) -> Void
-    typealias UnstaggeredAction = (UInt, SDSAnyWriteTransaction) -> Void
+    typealias StaggeredAction = (UInt, DBWriteTransaction, @escaping Completion) -> Void
+    typealias UnstaggeredAction = (UInt, DBWriteTransaction) -> Void
 
     private(set) var prepare: ((@escaping Completion) -> Void)?
     private(set) var staggeredAction: StaggeredAction?

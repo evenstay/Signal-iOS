@@ -17,7 +17,7 @@ class MediaPageViewController: UIPageViewController {
     private let initialGalleryItem: MediaGalleryItem
 
     convenience init?(
-        initialMediaAttachment: ReferencedTSResource,
+        initialMediaAttachment: ReferencedAttachment,
         thread: TSThread,
         spoilerState: SpoilerRenderState,
         showingSingleMessage: Bool = false
@@ -31,7 +31,7 @@ class MediaPageViewController: UIPageViewController {
     }
 
     init?(
-        initialMediaAttachment: ReferencedTSResource,
+        initialMediaAttachment: ReferencedAttachment,
         mediaGallery: MediaGallery,
         spoilerState: SpoilerRenderState,
         showingSingleMessage: Bool = false
@@ -335,6 +335,16 @@ class MediaPageViewController: UIPageViewController {
         // TODO: Edit
         contextMenuActions.append(UIAction(
             title: OWSLocalizedString(
+                "MEDIA_VIEWER_SAVE_MEDIA_ACTION",
+                comment: "Context menu item in media viewer. Refers to saving currently displayed photo/video to the Photos app."
+            ),
+            image: Theme.iconImage(.contextMenuSave),
+            handler: { [weak self] _ in
+                self?.saveCurrentMediaToPhotos()
+            }
+        ))
+        contextMenuActions.append(UIAction(
+            title: OWSLocalizedString(
                 "MEDIA_VIEWER_DELETE_MEDIA_ACTION",
                 comment: "Context menu item in media viewer. Refers to deleting currently displayed photo/video."
             ),
@@ -416,12 +426,13 @@ class MediaPageViewController: UIPageViewController {
     private func forwardCurrentMedia() {
         let messageForCurrentItem = currentItem.message
 
-        let mediaAttachments: [ReferencedTSResource] = databaseStorage.read { transaction in
-            return DependenciesBridge.shared.tsResourceStore
-                .referencedBodyAttachments(for: messageForCurrentItem, tx: transaction.asV2Read)
+        let mediaAttachments: [ReferencedAttachment] = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            guard let rowId = messageForCurrentItem.sqliteRowId else { return [] }
+            return DependenciesBridge.shared.attachmentStore
+                .fetchReferencedAttachments(for: .messageBodyAttachment(messageRowId: rowId), tx: transaction)
         }
 
-        let mediaAttachmentStreams: [ReferencedTSResourceStream] = mediaAttachments.compactMap { attachment in
+        let mediaAttachmentStreams: [ReferencedAttachmentStream] = mediaAttachments.compactMap { attachment in
             guard let attachmentStream = attachment.asReferencedStream else {
                 // Our current media item should always be an attachment
                 // stream (downloaded). However, we can't guarantee that the
@@ -485,12 +496,20 @@ class MediaPageViewController: UIPageViewController {
     private func shareCurrentMedia(fromNavigationBar: Bool) {
         guard let currentViewController else { return }
         guard
-            let attachmentStream = try? currentViewController.galleryItem.attachmentStream.asShareableResource()
+            let attachmentStream = (try? [currentViewController.galleryItem.attachmentStream].asShareableAttachments())?.first
         else {
             return
         }
         let sender = fromNavigationBar ? barButtonShareMedia : bottomMediaPanel
         AttachmentSharing.showShareUI(for: attachmentStream, sender: sender)
+    }
+
+    private func saveCurrentMediaToPhotos() {
+        guard let mediaItem = currentItem else { return }
+
+        AttachmentSaving.saveToPhotoLibrary(
+            referencedAttachmentStreams: [mediaItem.attachmentStream]
+        )
     }
 
     private func deleteCurrentMedia() {
@@ -512,8 +531,8 @@ class MediaPageViewController: UIPageViewController {
     private func senderName(from message: TSMessage) -> String {
         switch message {
         case let incomingMessage as TSIncomingMessage:
-            return databaseStorage.read { tx in
-                return self.contactsManager.displayName(for: incomingMessage.authorAddress, tx: tx).resolvedValue()
+            return SSKEnvironment.shared.databaseStorageRef.read { tx in
+                return SSKEnvironment.shared.contactManagerRef.displayName(for: incomingMessage.authorAddress, tx: tx).resolvedValue()
             }
         case is TSOutgoingMessage:
             return CommonStrings.you
@@ -731,6 +750,10 @@ extension MediaPageViewController: MediaItemViewControllerDelegate {
 
     func mediaItemViewControllerWillBeginZooming(_ viewController: MediaItemViewController) {
         setShouldHideToolbars(true, animated: true)
+    }
+
+    func mediaItemViewControllerFullyZoomedOut(_ viewController: MediaItemViewController) {
+        setShouldHideToolbars(false, animated: true)
     }
 }
 

@@ -7,7 +7,7 @@ import SignalServiceKit
 import SignalUI
 
 class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
-    typealias PaymentMethodsConfiguration = SubscriptionManagerImpl.DonationConfiguration.PaymentMethodsConfiguration
+    typealias PaymentMethodsConfiguration = DonationSubscriptionManager.DonationConfiguration.PaymentMethodsConfiguration
 
     // MARK: - View state
 
@@ -40,7 +40,7 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
 
         super.viewDidLoad()
 
-        databaseStorage.appendDatabaseChangeDelegate(self)
+        DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
 
         title = OWSLocalizedString(
             "DONATION_ON_BEHALF_OF_A_FRIEND_CONFIRMATION_SCREEN_TITLE",
@@ -59,7 +59,11 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
     }
 
     func didCompleteDonation() {
-        SignalApp.shared.presentConversationForThread(thread, action: .none, animated: false)
+        SignalApp.shared.presentConversationForThread(
+            threadUniqueId: thread.uniqueId,
+            action: .none,
+            animated: false
+        )
         dismiss(animated: true) {
             SignalApp.shared.conversationSplitViewController?.present(
                 BadgeGiftingThanksSheet(thread: self.thread, badge: self.badge),
@@ -91,8 +95,8 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
                 break
             }
 
-            let recipientFullName = self.databaseStorage.read { transaction in
-                self.contactsManager.displayName(for: self.thread, transaction: transaction)
+            let recipientFullName = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+                SSKEnvironment.shared.contactManagerRef.displayName(for: self.thread, transaction: transaction)
             }
 
             let sheet = DonateChoosePaymentMethodSheet(
@@ -179,14 +183,14 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
             badged: true
         )
 
-        let (recipientName, disappearingMessagesDuration) = databaseStorage.read { transaction -> (String, UInt32) in
+        let (recipientName, disappearingMessagesDuration) = SSKEnvironment.shared.databaseStorageRef.read { transaction -> (String, UInt32) in
             avatarView.update(transaction) { config in
                 config.dataSource = avatarViewDataSource
             }
 
-            let recipientName = self.contactsManager.displayName(for: thread, transaction: transaction)
+            let recipientName = SSKEnvironment.shared.contactManagerRef.displayName(for: thread, transaction: transaction)
             let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-            let disappearingMessagesDuration = dmConfigurationStore.durationSeconds(for: thread, tx: transaction.asV2Read)
+            let disappearingMessagesDuration = dmConfigurationStore.durationSeconds(for: thread, tx: transaction)
             return (recipientName, disappearingMessagesDuration)
         }
 
@@ -343,7 +347,7 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
             descriptionLabel.numberOfLines = 0
 
             let priceLabel = UILabel()
-            priceLabel.text = DonationUtilities.format(money: price)
+            priceLabel.text = CurrencyFormatter.format(money: price)
             priceLabel.font = .dynamicTypeBody.semibold()
             priceLabel.numberOfLines = 0
 
@@ -377,8 +381,8 @@ class BadgeGiftingConfirmationViewController: OWSTableViewController2 {
 extension BadgeGiftingConfirmationViewController: DatabaseChangeDelegate {
     private func updateDisappearingMessagesTimerWithSneakyTransaction() {
         let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-        let dmSeconds = databaseStorage.read { tx in
-            dmConfigurationStore.durationSeconds(for: thread, tx: tx.asV2Read)
+        let dmSeconds = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            dmConfigurationStore.durationSeconds(for: thread, tx: tx)
         }
         if previouslyRenderedDisappearingMessagesDuration != dmSeconds {
             updateTableContents()

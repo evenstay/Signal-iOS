@@ -92,6 +92,10 @@ extension ConversationSettingsViewController {
     // MARK: Calls section
 
     private func createCallSection() -> OWSTableSection? {
+        return Self.createCallHistorySection(callRecords: callRecords)
+    }
+
+    static func createCallHistorySection(callRecords: [CallRecord]) -> OWSTableSection? {
         guard let callRecord = callRecords.first else {
             return nil
         }
@@ -112,54 +116,72 @@ extension ConversationSettingsViewController {
 
         typealias CallRow = (icon: ThemeIcon, description: String, timestamp: String)
         let callRows: [CallRow] = callRecords.map { callRecord in
-            let icon: ThemeIcon = switch callRecord.callType {
-            case .audioCall:
-                .phone16
-            case .adHocCall, .groupCall, .videoCall:
-                .video16
-            }
-
-            let description: String = switch (callRecord.callStatus.isMissedCall, callRecord.callDirection) {
-            case (false, .outgoing):
+            let icon: ThemeIcon = {
                 switch callRecord.callType {
                 case .audioCall:
-                    OWSLocalizedString(
-                        "CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VOICE_CALL",
-                        comment: "A label indicating that a call was an outgoing voice call"
-                    )
+                    return .phone16
                 case .adHocCall, .groupCall, .videoCall:
-                    OWSLocalizedString(
-                        "CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VIDEO_CALL",
-                        comment: "A label indicating that a call was an outgoing video call"
-                    )
+                    return .video16
                 }
-            case (false, .incoming):
+            }()
+
+            let description: String = {
+                enum CallMedium {
+                    case audioCall
+                    case videoCall
+                }
+                let callMedium: CallMedium
                 switch callRecord.callType {
+                case .adHocCall:
+                    return CallStrings.callLink
                 case .audioCall:
-                    OWSLocalizedString(
-                        "CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VOICE_CALL",
-                        comment: "A label indicating that a call was an incoming voice call"
-                    )
-                case .adHocCall, .videoCall, .groupCall:
-                    OWSLocalizedString(
-                        "CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VIDEO_CALL",
-                        comment: "A label indicating that a call was an incoming video call"
-                    )
+                    callMedium = .audioCall
+                case .groupCall, .videoCall:
+                    callMedium = .videoCall
                 }
-            case (true, _):
-                switch callRecord.callType {
-                case .audioCall:
-                    OWSLocalizedString(
-                        "CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VOICE_CALL",
-                        comment: "A label indicating that a call was an missed voice call"
-                    )
-                case .adHocCall, .videoCall, .groupCall:
-                    OWSLocalizedString(
-                        "CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VIDEO_CALL",
-                        comment: "A label indicating that a call was an missed video call"
-                    )
+                if callRecord.callStatus.isMissedCall {
+                    switch callMedium {
+                    case .audioCall:
+                        return OWSLocalizedString(
+                            "CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VOICE_CALL",
+                            comment: "A label indicating that a call was an missed voice call"
+                        )
+                    case .videoCall:
+                        return OWSLocalizedString(
+                            "CONVERSATION_SETTINGS_CALL_DETAILS_MISSED_VIDEO_CALL",
+                            comment: "A label indicating that a call was an missed video call"
+                        )
+                    }
                 }
-            }
+                switch callRecord.callDirection {
+                case .outgoing:
+                    switch callMedium {
+                    case .audioCall:
+                        return OWSLocalizedString(
+                            "CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VOICE_CALL",
+                            comment: "A label indicating that a call was an outgoing voice call"
+                        )
+                    case .videoCall:
+                        return OWSLocalizedString(
+                            "CONVERSATION_SETTINGS_CALL_DETAILS_OUTGOING_VIDEO_CALL",
+                            comment: "A label indicating that a call was an outgoing video call"
+                        )
+                    }
+                case .incoming:
+                    switch callMedium {
+                    case .audioCall:
+                        return OWSLocalizedString(
+                            "CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VOICE_CALL",
+                            comment: "A label indicating that a call was an incoming voice call"
+                        )
+                    case .videoCall:
+                        return OWSLocalizedString(
+                            "CONVERSATION_SETTINGS_CALL_DETAILS_INCOMING_VIDEO_CALL",
+                            comment: "A label indicating that a call was an incoming video call"
+                        )
+                    }
+                }
+            }()
 
             let timestamp = DateUtil.formatDateAsTime(callRecord.callBeganDate)
             return (icon, description, timestamp)
@@ -279,10 +301,10 @@ extension ConversationSettingsViewController {
         guard !thread.isNoteToSelf, isContactThread else { return }
         guard let contactAddress = (thread as? TSContactThread)?.contactAddress else { return }
 
-        let (visibleBadges, shortName) = databaseStorage.read { tx -> ([OWSUserProfileBadgeInfo], String) in
+        let (visibleBadges, shortName) = SSKEnvironment.shared.databaseStorageRef.read { tx -> ([OWSUserProfileBadgeInfo], String) in
             let visibleBadges: [OWSUserProfileBadgeInfo] = {
                 let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-                guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx.asV2Read) else {
+                guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) else {
                     return []
                 }
                 let address = OWSUserProfile.internalAddress(for: contactAddress, localIdentifiers: localIdentifiers)
@@ -291,7 +313,7 @@ extension ConversationSettingsViewController {
                 }
                 return userProfile.visibleBadges
             }()
-            let shortName = contactsManager.displayName(for: contactAddress, tx: tx).resolvedValue(useShortNameIfAvailable: true)
+            let shortName = SSKEnvironment.shared.contactManagerRef.displayName(for: contactAddress, tx: tx).resolvedValue(useShortNameIfAvailable: true)
             return (visibleBadges, shortName)
         }
         guard !visibleBadges.isEmpty else { return }
@@ -563,7 +585,7 @@ extension ConversationSettingsViewController {
             }
         }))
 
-        let hasReportedSpam = NSObject.databaseStorage.read { tx in
+        let hasReportedSpam = SSKEnvironment.shared.databaseStorageRef.read { tx in
             return InteractionFinder(threadUniqueId: thread.uniqueId).hasUserReportedSpam(transaction: tx)
         }
 
@@ -693,12 +715,12 @@ extension ConversationSettingsViewController {
                     return UITableViewCell()
                 }
 
-                Self.databaseStorage.read { transaction in
+                SSKEnvironment.shared.databaseStorageRef.read { transaction in
                     let configuration = ContactCellConfiguration(address: memberAddress, localUserDisplayMode: .asLocalUser)
                     let isGroupAdmin = groupMembership.isFullMemberAndAdministrator(memberAddress)
                     let isVerified = verificationState == .verified
                     let isNoLongerVerified = verificationState == .noLongerVerified
-                    let isBlocked = self.blockingManager.isAddressBlocked(memberAddress, transaction: transaction)
+                    let isBlocked = SSKEnvironment.shared.blockingManagerRef.isAddressBlocked(memberAddress, transaction: transaction)
                     if isGroupAdmin {
                         configuration.accessoryMessage = OWSLocalizedString("GROUP_MEMBER_ADMIN_INDICATOR",
                                                                            comment: "Label indicating that a group member is an admin.")
@@ -717,15 +739,16 @@ extension ConversationSettingsViewController {
 
                     if isVerified {
                         configuration.useVerifiedSubtitle()
-                    } else if !memberAddress.isLocalAddress,
-                              let bioForDisplay = (Self.profileManagerImpl.profileBioForDisplay(for: memberAddress,
-                                                                                                transaction: transaction)) {
+                    } else if
+                        !memberAddress.isLocalAddress,
+                        let bioForDisplay = SSKEnvironment.shared.profileManagerImplRef.userProfile(for: memberAddress, tx: transaction)?.bioForDisplay
+                    {
                         configuration.attributedSubtitle = NSAttributedString(string: bioForDisplay)
                     } else {
                         owsAssertDebug(configuration.attributedSubtitle == nil)
                     }
 
-                    let isSystemContact = self.contactsManager.fetchSignalAccount(for: memberAddress, transaction: transaction) != nil
+                    let isSystemContact = SSKEnvironment.shared.contactManagerRef.fetchSignalAccount(for: memberAddress, transaction: transaction) != nil
                     configuration.shouldShowContactIcon = isSystemContact
 
                     cell.configure(configuration: configuration, transaction: transaction)
@@ -903,7 +926,10 @@ extension ConversationSettingsViewController {
                     return cell
                 },
                 actionBlock: {
-                    SignalApp.shared.presentConversationForThread(groupThread, animated: true)
+                    SignalApp.shared.presentConversationForThread(
+                        threadUniqueId: groupThread.uniqueId,
+                        animated: true
+                    )
                 }
             ))
         }

@@ -5,7 +5,7 @@
 
 import LibSignalClient
 
-public class OWSMessageDecrypter: Dependencies {
+public class OWSMessageDecrypter {
 
     private var senderIdsResetDuringCurrentBatch = NSMutableSet()
     private var placeholderCleanupTimer: Timer? {
@@ -34,7 +34,7 @@ public class OWSMessageDecrypter: Dependencies {
         // We don't want to send additional resets until we
         // have received the "empty" response from the WebSocket
         // or finished at least one REST fetch.
-        guard Self.messageFetcherJob.hasCompletedInitialFetch else { return }
+        guard SSKEnvironment.shared.messageFetcherJobRef.hasCompletedInitialFetch else { return }
 
         // We clear all recently reset sender ids any time the
         // decryption queue has drained, so that any new messages
@@ -45,14 +45,14 @@ public class OWSMessageDecrypter: Dependencies {
     private func trySendNullMessage(
         in contactThread: TSContactThread,
         senderId: String,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         if RemoteConfig.current.automaticSessionResetKillSwitch {
             Logger.warn("Skipping null message after undecryptable message from \(senderId) due to kill switch.")
             return
         }
 
-        let store = SDSKeyValueStore(collection: "OWSMessageDecrypter+NullMessage")
+        let store = KeyValueStore(collection: "OWSMessageDecrypter+NullMessage")
 
         let lastNullMessageDate = store.getDate(senderId, transaction: transaction)
         let timeSinceNullMessage = abs(lastNullMessageDate?.timeIntervalSinceNow ?? .infinity)
@@ -65,43 +65,48 @@ public class OWSMessageDecrypter: Dependencies {
         Logger.info("Sending null message to reset session after undecryptable message from: \(senderId)")
         store.setDate(Date(), key: senderId, transaction: transaction)
 
-        transaction.addAsyncCompletionOffMain {
-            Self.databaseStorage.write { transaction in
-                let nullMessage = OWSOutgoingNullMessage(contactThread: contactThread, transaction: transaction)
-                let preparedMessage = PreparedOutgoingMessage.preprepared(
-                    transientMessageWithoutAttachments: nullMessage
-                )
-                SSKEnvironment.shared.messageSenderJobQueueRef.add(
-                    .promise,
-                    message: preparedMessage,
-                    transaction: transaction
-                ).done(on: DispatchQueue.global()) {
-                    Logger.info("Successfully sent null message after session reset " +
+        transaction.addSyncCompletion {
+            Task {
+                let db = DependenciesBridge.shared.db
+                let messageSenderJobQueue = SSKEnvironment.shared.messageSenderJobQueueRef
+
+                await db.awaitableWrite { transaction in
+                    let nullMessage = OWSOutgoingNullMessage(contactThread: contactThread, transaction: transaction)
+                    let preparedMessage = PreparedOutgoingMessage.preprepared(
+                        transientMessageWithoutAttachments: nullMessage
+                    )
+                    messageSenderJobQueue.add(
+                        .promise,
+                        message: preparedMessage,
+                        transaction: transaction
+                    ).done(on: DispatchQueue.global()) {
+                        Logger.info("Successfully sent null message after session reset " +
                                     "for undecryptable message from \(senderId)")
-                }.catch(on: DispatchQueue.global()) { error in
-                    if error is UntrustedIdentityError {
-                        Logger.info("Failed to send null message after session reset for " +
+                    }.catch(on: DispatchQueue.global()) { error in
+                        if error is UntrustedIdentityError {
+                            Logger.info("Failed to send null message after session reset for " +
                                         "for undecryptable message from \(senderId) (\(error))")
-                    } else {
-                        owsFailDebug("Failed to send null message after session reset " +
-                                        "for undecryptable message from \(senderId) (\(error))")
+                        } else {
+                            owsFailDebug("Failed to send null message after session reset " +
+                                         "for undecryptable message from \(senderId) (\(error))")
+                        }
                     }
                 }
             }
         }
     }
 
-    private func trySendReactiveProfileKey(to sourceAci: Aci, tx transaction: SDSAnyWriteTransaction) {
-        let store = SDSKeyValueStore(collection: "OWSMessageDecrypter+ReactiveProfileKey")
+    private func trySendReactiveProfileKey(to sourceAci: Aci, tx transaction: DBWriteTransaction) {
+        let store = KeyValueStore(collection: "OWSMessageDecrypter+ReactiveProfileKey")
 
         let lastProfileKeyMessageDate = store.getDate(sourceAci.serviceIdUppercaseString, transaction: transaction)
         let timeSinceProfileKeyMessage = abs(lastProfileKeyMessageDate?.timeIntervalSinceNow ?? .infinity)
         guard timeSinceProfileKeyMessage > RemoteConfig.current.reactiveProfileKeyAttemptInterval else {
-            Logger.warn("Skipping reactive profile key message after non-UD message from \(sourceAci), last reactive profile key message sent \(lastProfileKeyMessageDate!.ows_millisecondsSince1970).")
+            Logger.warn("Skipping reactive profile key for \(sourceAci), last reactive profile key message sent \(lastProfileKeyMessageDate!.ows_millisecondsSince1970).")
             return
         }
 
-        Logger.info("Sending reactive profile key message after non-UD message from: \(sourceAci)")
+        Logger.info("Sending reactive profile key to \(sourceAci)")
         store.setDate(Date(), key: sourceAci.serviceIdUppercaseString, transaction: transaction)
 
         let contactThread = TSContactThread.getOrCreateThread(
@@ -109,32 +114,26 @@ public class OWSMessageDecrypter: Dependencies {
             transaction: transaction
         )
 
-        transaction.addAsyncCompletionOffMain {
-            Self.databaseStorage.write { transaction in
-                let profileKeyMessage = OWSProfileKeyMessage(thread: contactThread, transaction: transaction)
-                let preparedMessage = PreparedOutgoingMessage.preprepared(
-                    transientMessageWithoutAttachments: profileKeyMessage
-                )
-                SSKEnvironment.shared.messageSenderJobQueueRef.add(
-                    .promise,
-                    message: preparedMessage,
-                    transaction: transaction
-                ).done(on: DispatchQueue.global()) {
-                    Logger.info("Successfully sent reactive profile key message after non-UD message from \(sourceAci)")
-                }.catch(on: DispatchQueue.global()) { error in
-                    if error is UntrustedIdentityError {
-                        Logger.info("Failed to send reactive profile key message after non-UD message from \(sourceAci) (\(error))")
-                    } else {
-                        owsFailDebug("Failed to send reactive profile key message after non-UD message from \(sourceAci) (\(error))")
-                    }
-                }
-            }
+        let profileManager = SSKEnvironment.shared.profileManagerRef
+        guard let profileKey = profileManager.localProfileKey(tx: transaction) else {
+            Logger.warn("Skipping reactive profile key because we don't have a profile key.")
+            return
         }
+
+        let profileKeyMessage = OWSProfileKeyMessage(
+            thread: contactThread,
+            profileKey: profileKey.serialize().asData,
+            transaction: transaction
+        )
+        let preparedMessage = PreparedOutgoingMessage.preprepared(
+            transientMessageWithoutAttachments: profileKeyMessage
+        )
+        SSKEnvironment.shared.messageSenderJobQueueRef.add(message: preparedMessage, transaction: transaction)
     }
 
     private struct UnsealedEnvelope {
         let sourceAci: Aci
-        let sourceDeviceId: UInt32
+        let sourceDeviceId: DeviceId
         let content: Data?
         let cipherType: CiphertextMessage.MessageType
         let untrustedGroupId: Data?
@@ -145,7 +144,7 @@ public class OWSMessageDecrypter: Dependencies {
         _ error: Error,
         validatedEnvelope: ValidatedIncomingEnvelope,
         unsealedEnvelope: UnsealedEnvelope?,
-        tx transaction: SDSAnyWriteTransaction
+        tx transaction: DBWriteTransaction
     ) -> Error {
         let logString = "Error while decrypting \(Self.description(for: validatedEnvelope.envelope)), error: \(error)"
 
@@ -178,8 +177,8 @@ public class OWSMessageDecrypter: Dependencies {
         let sourceAddress = SignalServiceAddress(sourceAci)
 
         if
-            blockingManager.isAddressBlocked(sourceAddress, transaction: transaction) ||
-            DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(sourceAddress, tx: transaction.asV2Read)
+            SSKEnvironment.shared.blockingManagerRef.isAddressBlocked(sourceAddress, transaction: transaction) ||
+            DependenciesBridge.shared.recipientHidingManager.isHiddenAddress(sourceAddress, tx: transaction)
         {
             Logger.info("Ignoring decryption error for blocked or hidden user \(sourceAddress) \(wrappedError).")
             return wrappedError
@@ -198,7 +197,7 @@ public class OWSMessageDecrypter: Dependencies {
                     unsealedEnvelope: unsealedEnvelope
                 )
             {
-                Logger.info("Performing modern resend of \(unsealedEnvelope.contentHint) content with timestamp \(validatedEnvelope.timestamp)")
+                Logger.info("Requesting modern resend of \(unsealedEnvelope.contentHint) content with timestamp \(validatedEnvelope.timestamp)")
 
                 switch unsealedEnvelope.contentHint {
                 case .default:
@@ -257,8 +256,11 @@ public class OWSMessageDecrypter: Dependencies {
         case .pni:
             Logger.info("Not resetting or requesting resend of message sent to PNI.")
 
-            DependenciesBridge.shared.linkedDevicePniKeyManager
-                .recordSuspectedIssueWithPniIdentityKey(tx: transaction.asV2Write)
+            let linkedDevicePniKeyManager = DependenciesBridge.shared.linkedDevicePniKeyManager
+            linkedDevicePniKeyManager.recordSuspectedIssueWithPniIdentityKey(tx: transaction)
+            Task {
+                await linkedDevicePniKeyManager.validateLocalPniIdentityKeyIfNecessary()
+            }
 
             errorMessage = .failedDecryption(
                 sender: sourceAddress,
@@ -280,8 +282,8 @@ public class OWSMessageDecrypter: Dependencies {
 
         if let errorMessage = errorMessage {
             errorMessage.anyInsert(transaction: transaction)
-            notificationPresenter.notifyUser(forErrorMessage: errorMessage, thread: contactThread, transaction: transaction)
-            notificationPresenter.notifyTestPopulation(ofErrorMessage: "Failed decryption of envelope: \(validatedEnvelope.timestamp)")
+            SSKEnvironment.shared.notificationPresenterRef.notifyUser(forErrorMessage: errorMessage, thread: contactThread, transaction: transaction)
+            SSKEnvironment.shared.notificationPresenterRef.notifyTestPopulation(ofErrorMessage: "Failed decryption of envelope: \(validatedEnvelope.timestamp)")
         }
 
         return wrappedError
@@ -308,7 +310,7 @@ public class OWSMessageDecrypter: Dependencies {
                 originalMessageBytes: unsealedContent,
                 type: unsealedEnvelope.cipherType,
                 timestamp: validatedEnvelope.timestamp,
-                originalSenderDeviceId: unsealedEnvelope.sourceDeviceId
+                originalSenderDeviceId: unsealedEnvelope.sourceDeviceId.uint32Value
             )
             return Data(errorMessage.serialize())
         } catch {
@@ -321,7 +323,7 @@ public class OWSMessageDecrypter: Dependencies {
         errorMessageBytes: Data,
         sourceAci: Aci,
         failedEnvelopeGroupId: Data?,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         let resendRequest = OWSOutgoingResendRequest(
             errorMessageBytes: errorMessageBytes,
@@ -337,9 +339,9 @@ public class OWSMessageDecrypter: Dependencies {
 
     private func resetSessionIfNecessary(
         for sourceAci: Aci,
-        sourceDeviceId: UInt32,
+        sourceDeviceId: DeviceId,
         contactThread: TSContactThread,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> Bool {
         // Since the message failed to decrypt, we want to reset our session
         // with this device to ensure future messages we receive are decryptable.
@@ -360,7 +362,7 @@ public class OWSMessageDecrypter: Dependencies {
 
             Logger.warn("Archiving session for undecryptable message from \(senderId)")
             let sessionStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore
-            sessionStore.archiveSession(for: sourceAci, deviceId: sourceDeviceId, tx: transaction.asV2Write)
+            sessionStore.archiveSession(for: sourceAci, deviceId: sourceDeviceId, tx: transaction)
 
             trySendNullMessage(in: contactThread, senderId: senderId, transaction: transaction)
             return true
@@ -375,13 +377,14 @@ public class OWSMessageDecrypter: Dependencies {
         _ validatedEnvelope: ValidatedIncomingEnvelope,
         cipherType: CiphertextMessage.MessageType,
         localIdentifiers: LocalIdentifiers,
-        tx transaction: SDSAnyWriteTransaction
+        tx transaction: DBWriteTransaction
     ) throws -> DecryptedIncomingEnvelope {
         // This method is only used for identified envelopes. If an unidentified
         // envelope is ever passed here, we'll reject on the next line because it
         // won't have a source.
         let (sourceAci, sourceDeviceId) = try validatedEnvelope.validateSource(Aci.self)
         let localIdentity = validatedEnvelope.localIdentity
+        let plaintextData: Data
         do {
             guard let encryptedData = validatedEnvelope.envelope.content else {
                 throw OWSError(error: .failedToDecryptMessage,
@@ -401,20 +404,20 @@ public class OWSMessageDecrypter: Dependencies {
                     message: message,
                     from: protocolAddress,
                     sessionStore: signalProtocolStore.sessionStore,
-                    identityStore: identityManager.libSignalStore(for: localIdentity, tx: transaction.asV2Write),
+                    identityStore: identityManager.libSignalStore(for: localIdentity, tx: transaction),
                     context: transaction
                 )
                 sendReactiveProfileKeyIfNecessary(to: sourceAci, tx: transaction)
             case .preKey:
-                if DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegistered {
-                    DependenciesBridge.shared.preKeyManager.checkPreKeysIfNecessary(tx: transaction.asV2Read)
+                if DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction).isRegistered {
+                    DependenciesBridge.shared.preKeyManager.checkPreKeysIfNecessary(tx: transaction)
                 }
                 let message = try PreKeySignalMessage(bytes: encryptedData)
                 plaintext = try signalDecryptPreKey(
                     message: message,
                     from: protocolAddress,
                     sessionStore: signalProtocolStore.sessionStore,
-                    identityStore: identityManager.libSignalStore(for: localIdentity, tx: transaction.asV2Write),
+                    identityStore: identityManager.libSignalStore(for: localIdentity, tx: transaction),
                     preKeyStore: signalProtocolStore.preKeyStore,
                     signedPreKeyStore: signalProtocolStore.signedPreKeyStore,
                     kyberPreKeyStore: signalProtocolStore.kyberPreKeyStore,
@@ -424,15 +427,15 @@ public class OWSMessageDecrypter: Dependencies {
                 plaintext = try groupDecrypt(
                     encryptedData,
                     from: protocolAddress,
-                    store: Self.senderKeyStore,
+                    store: SSKEnvironment.shared.senderKeyStoreRef,
                     context: transaction
                 )
             case .plaintext:
                 let plaintextMessage = try PlaintextContent(bytes: encryptedData)
                 plaintext = plaintextMessage.body
 
-            // FIXME: return this to @unknown default once cipherType is represented
-            // as a finite enum.
+                // FIXME: return this to @unknown default once cipherType is represented
+                // as a finite enum.
             default:
                 owsFailDebug("Unexpected ciphertext type: \(cipherType.rawValue)")
                 throw OWSError(error: .failedToDecryptMessage,
@@ -440,27 +443,7 @@ public class OWSMessageDecrypter: Dependencies {
                                isRetryable: false)
             }
 
-            let plaintextData = Data(plaintext).withoutPadding()
-            let decryptedEnvelope = DecryptedIncomingEnvelope(
-                validatedEnvelope: validatedEnvelope,
-                updatedEnvelope: validatedEnvelope.envelope,
-                sourceAci: sourceAci,
-                sourceDeviceId: sourceDeviceId,
-                wasReceivedByUD: false,
-                plaintextData: plaintextData
-            )
-
-            processDecryptedEnvelope(
-                decryptedEnvelope,
-                localIdentifiers: localIdentifiers,
-                mergeRecipient: { transaction in
-                    let recipientFetcher = DependenciesBridge.shared.recipientFetcher
-                    return recipientFetcher.fetchOrCreate(serviceId: sourceAci, tx: transaction)
-                },
-                tx: transaction.asV2Write
-            )
-
-            return decryptedEnvelope
+            plaintextData = Data(plaintext).withoutPadding()
         } catch {
             throw processError(
                 error,
@@ -476,49 +459,76 @@ public class OWSMessageDecrypter: Dependencies {
                 tx: transaction
             )
         }
+
+        let decryptedEnvelope = try DecryptedIncomingEnvelope(
+            validatedEnvelope: validatedEnvelope,
+            updatedEnvelope: validatedEnvelope.envelope,
+            sourceAci: sourceAci,
+            sourceDeviceId: sourceDeviceId,
+            wasReceivedByUD: false,
+            plaintextData: plaintextData,
+            isPlaintextCipher: cipherType == .plaintext
+        )
+
+        processDecryptedEnvelope(
+            decryptedEnvelope,
+            localIdentifiers: localIdentifiers,
+            mergeRecipient: { transaction in
+                let recipientFetcher = DependenciesBridge.shared.recipientFetcher
+                return recipientFetcher.fetchOrCreate(serviceId: sourceAci, tx: transaction)
+            },
+            tx: transaction
+        )
+
+        return decryptedEnvelope
     }
 
-    private func sendReactiveProfileKeyIfNecessary(to sourceAci: Aci, tx transaction: SDSAnyWriteTransaction) {
-        if DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aci == sourceAci {
+    private func sendReactiveProfileKeyIfNecessary(to sourceAci: Aci, tx transaction: DBWriteTransaction) {
+        if DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction)?.aci == sourceAci {
             return
         }
 
-        if blockingManager.isAddressBlocked(SignalServiceAddress(sourceAci), transaction: transaction) {
+        if SSKEnvironment.shared.blockingManagerRef.isAddressBlocked(SignalServiceAddress(sourceAci), transaction: transaction) {
             Logger.info("Skipping send of reactive profile key to blocked address")
             return
         }
 
         // We do this work in an async completion so we don't delay
         // receipt of this message.
-        transaction.addAsyncCompletionOffMain {
-            let needsReactiveProfileKeyMessage: Bool = self.databaseStorage.read { transaction in
-                // This user is whitelisted, they should have our profile key / be sending UD messages
-                // Send them our profile key in case they somehow lost it.
-                if self.profileManager.isUser(
-                    inProfileWhitelist: SignalServiceAddress(sourceAci),
-                    transaction: transaction
-                ) {
-                    return true
+        transaction.addSyncCompletion {
+            Task {
+                let db = DependenciesBridge.shared.db
+                let profileManager = SSKEnvironment.shared.profileManagerRef
+
+                let needsReactiveProfileKeyMessage: Bool = db.read { transaction in
+                    // This user is whitelisted, they should have our profile key / be sending UD messages
+                    // Send them our profile key in case they somehow lost it.
+                    if profileManager.isUser(
+                        inProfileWhitelist: SignalServiceAddress(sourceAci),
+                        transaction: transaction
+                    ) {
+                        return true
+                    }
+
+                    // If we're in a V2 group with this user, they should also have our profile key /
+                    // be sending UD messages. Send them it in case they somehow lost it.
+                    var needsReactiveProfileKeyMessage = false
+                    TSGroupThread.enumerateGroupThreads(
+                        with: SignalServiceAddress(sourceAci),
+                        transaction: transaction
+                    ) { thread, stop in
+                        guard thread.isGroupV2Thread else { return }
+                        guard thread.isLocalUserFullMember else { return }
+                        stop.pointee = true
+                        needsReactiveProfileKeyMessage = true
+                    }
+                    return needsReactiveProfileKeyMessage
                 }
 
-                // If we're in a V2 group with this user, they should also have our profile key /
-                // be sending UD messages. Send them it in case they somehow lost it.
-                var needsReactiveProfileKeyMessage = false
-                TSGroupThread.enumerateGroupThreads(
-                    with: SignalServiceAddress(sourceAci),
-                    transaction: transaction
-                ) { thread, stop in
-                    guard thread.isGroupV2Thread else { return }
-                    guard thread.isLocalUserFullMember else { return }
-                    stop.pointee = true
-                    needsReactiveProfileKeyMessage = true
-                }
-                return needsReactiveProfileKeyMessage
-            }
-
-            if needsReactiveProfileKeyMessage {
-                self.databaseStorage.write { transaction in
-                    self.trySendReactiveProfileKey(to: sourceAci, tx: transaction)
+                if needsReactiveProfileKeyMessage {
+                    await db.awaitableWrite { transaction in
+                        self.trySendReactiveProfileKey(to: sourceAci, tx: transaction)
+                    }
                 }
             }
         }
@@ -527,8 +537,8 @@ public class OWSMessageDecrypter: Dependencies {
     func decryptUnidentifiedSenderEnvelope(
         _ validatedEnvelope: ValidatedIncomingEnvelope,
         localIdentifiers: LocalIdentifiers,
-        localDeviceId: UInt32,
-        tx transaction: SDSAnyWriteTransaction
+        localDeviceId: LocalDeviceId,
+        tx transaction: DBWriteTransaction
     ) throws -> DecryptedIncomingEnvelope {
         let localIdentity = validatedEnvelope.localIdentity
         guard let encryptedData = validatedEnvelope.envelope.content else {
@@ -542,14 +552,14 @@ public class OWSMessageDecrypter: Dependencies {
             preKeyStore: signalProtocolStore.preKeyStore,
             signedPreKeyStore: signalProtocolStore.signedPreKeyStore,
             kyberPreKeyStore: signalProtocolStore.kyberPreKeyStore,
-            identityStore: identityManager.libSignalStore(for: localIdentity, tx: transaction.asV2Write),
-            senderKeyStore: Self.senderKeyStore
+            identityStore: identityManager.libSignalStore(for: localIdentity, tx: transaction),
+            senderKeyStore: SSKEnvironment.shared.senderKeyStoreRef
         )
 
         let decryptResult: SMKDecryptResult
         do {
             decryptResult = try cipher.decryptMessage(
-                trustRoot: Self.udManager.trustRoot,
+                trustRoot: SSKEnvironment.shared.udManagerRef.trustRoot,
                 cipherTextData: encryptedData,
                 timestamp: validatedEnvelope.serverTimestamp,
                 localIdentifiers: localIdentifiers,
@@ -581,28 +591,23 @@ public class OWSMessageDecrypter: Dependencies {
 
         if
             decryptResult.messageType == .prekey,
-            DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegistered
+            DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction).isRegistered
         {
-            DependenciesBridge.shared.preKeyManager.checkPreKeysIfNecessary(tx: transaction.asV2Read)
+            DependenciesBridge.shared.preKeyManager.checkPreKeysIfNecessary(tx: transaction)
         }
-
-        let rawSourceDeviceId = decryptResult.senderDeviceId
-        guard rawSourceDeviceId > 0, rawSourceDeviceId < UInt32.max else {
-            throw OWSAssertionError("Invalid UD sender device id.")
-        }
-        let sourceDeviceId = rawSourceDeviceId
 
         let envelopeBuilder = validatedEnvelope.envelope.asBuilder()
         envelopeBuilder.setSourceServiceID(decryptResult.senderAci.serviceIdString)
-        envelopeBuilder.setSourceDevice(sourceDeviceId)
+        envelopeBuilder.setSourceDevice(decryptResult.senderDeviceId.uint32Value)
 
-        let decryptedEnvelope = DecryptedIncomingEnvelope(
+        let decryptedEnvelope = try DecryptedIncomingEnvelope(
             validatedEnvelope: validatedEnvelope,
             updatedEnvelope: try envelopeBuilder.build(),
             sourceAci: decryptResult.senderAci,
-            sourceDeviceId: sourceDeviceId,
+            sourceDeviceId: decryptResult.senderDeviceId,
             wasReceivedByUD: validatedEnvelope.envelope.sourceServiceID == nil,
-            plaintextData: decryptResult.paddedPayload.withoutPadding()
+            plaintextData: decryptResult.paddedPayload.withoutPadding(),
+            isPlaintextCipher: decryptResult.messageType == .plaintext
         )
 
         processDecryptedEnvelope(
@@ -616,7 +621,7 @@ public class OWSMessageDecrypter: Dependencies {
                     tx: transaction
                 )
             },
-            tx: transaction.asV2Write
+            tx: transaction
         )
 
         return decryptedEnvelope
@@ -626,7 +631,7 @@ public class OWSMessageDecrypter: Dependencies {
         _ error: Error,
         validatedEnvelope: ValidatedIncomingEnvelope,
         unsealedEnvelope: UnsealedEnvelope?,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> Error {
         switch error {
         case SMKSecretSessionCipherError.selfSentMessage:
@@ -703,7 +708,7 @@ public class OWSMessageDecrypter: Dependencies {
         // about 5 seconds of leeway sufficient.
         let latestAcceptableFireDate = expirationDate.addingTimeInterval(5)
 
-        if latestAcceptableFireDate.isBefore(fireDate) {
+        if latestAcceptableFireDate < fireDate {
             placeholderCleanupTimer = Timer.scheduledTimer(
                 withTimeInterval: expirationDate.timeIntervalSinceNow,
                 repeats: false,
@@ -717,7 +722,7 @@ public class OWSMessageDecrypter: Dependencies {
     }
 
     private func _cleanUpExpiredPlaceholders() async {
-        let (expiredPlaceholderIds, nextExpirationDate) = databaseStorage.read { tx in
+        let (expiredPlaceholderIds, nextExpirationDate) = SSKEnvironment.shared.databaseStorageRef.read { tx in
             var expiredPlaceholderIds = [String]()
             var nextExpirationDate: Date?
             InteractionFinder.enumeratePlaceholders(transaction: tx) { placeholder in
@@ -736,7 +741,7 @@ public class OWSMessageDecrypter: Dependencies {
             let thisBatchPlaceholderIds = remainingPlaceholderIds.prefix(batchSize)
             remainingPlaceholderIds = remainingPlaceholderIds.dropFirst(batchSize)
 
-            await databaseStorage.awaitableWrite { tx in
+            await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
                 for placeholderId in thisBatchPlaceholderIds {
                     guard let placeholder = OWSRecoverableDecryptionPlaceholder.anyFetchRecoverableDecryptionPlaceholder(
                         uniqueId: placeholderId,
@@ -746,7 +751,7 @@ public class OWSMessageDecrypter: Dependencies {
                     }
                     Logger.info("Cleaning up placeholder \(placeholder.timestamp)")
                     DependenciesBridge.shared.interactionDeleteManager
-                        .delete(placeholder, sideEffects: .default(), tx: tx.asV2Write)
+                        .delete(placeholder, sideEffects: .default(), tx: tx)
                     guard let thread = placeholder.thread(tx: tx) else {
                         return
                     }
@@ -756,7 +761,7 @@ public class OWSMessageDecrypter: Dependencies {
                         sender: placeholder.sender
                     )
                     errorMessage.anyInsert(transaction: tx)
-                    self.notificationPresenter.notifyUser(forErrorMessage: errorMessage, thread: thread, transaction: tx)
+                    SSKEnvironment.shared.notificationPresenterRef.notifyUser(forErrorMessage: errorMessage, thread: thread, transaction: tx)
                 }
             }
         }
@@ -778,17 +783,12 @@ public class OWSMessageDecrypter: Dependencies {
             return "Unknown"
         case .ciphertext:
             return "SignalEncryptedMessage"
-        case .keyExchange:
-            // Unsupported
-            return "KeyExchange"
         case .prekeyBundle:
             return "PreKeyEncryptedMessage"
         case .receipt:
             return "DeliveryReceipt"
         case .unidentifiedSender:
             return "UnidentifiedSender"
-        case .senderkeyMessage:
-            return "SenderKey"
         case .plaintextContent:
             return "PlaintextContent"
         }

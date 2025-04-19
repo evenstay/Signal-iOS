@@ -9,7 +9,7 @@ import SignalUI
 
 #if USE_DEBUG_UI
 
-class DebugUIGroupsV2: DebugUIPage, Dependencies {
+class DebugUIGroupsV2: DebugUIPage {
 
     let name = "Groups v2"
 
@@ -17,10 +17,6 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
         var sectionItems = [OWSTableItem]()
 
         if let groupThread = thread as? TSGroupThread {
-            sectionItems.append(OWSTableItem(title: "Send group update.") { [weak self] in
-                self?.sendGroupUpdate(groupThread: groupThread)
-            })
-
             if let groupModelV2 = groupThread.groupModel as? TSGroupModelV2 {
                 // v2 Group
                 sectionItems.append(OWSTableItem(title: "Kick other group members.") { [weak self] in
@@ -35,13 +31,9 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
             })
         }
 
-        if let groupThread = thread as? TSGroupThread,
-            groupThread.isGroupV2Thread {
+        if let groupThread = thread as? TSGroupThread, groupThread.isGroupV2Thread {
             sectionItems.append(OWSTableItem(title: "Send partially-invalid group messages.") { [weak self] in
                 self?.sendPartiallyInvalidGroupMessages(groupThread: groupThread)
-            })
-            sectionItems.append(OWSTableItem(title: "Update v2 group immediately.") { [weak self] in
-                self?.updateV2GroupImmediately(groupThread: groupThread)
             })
         }
 
@@ -60,7 +52,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
 
         Task {
             do {
-                _ = try await GroupManager.removeFromGroupOrRevokeInviteV2(groupModel: groupModel, serviceIds: serviceIdsToKick)
+                try await GroupManager.removeFromGroupOrRevokeInviteV2(groupModel: groupModel, serviceIds: serviceIdsToKick)
                 Logger.info("Success.")
             } catch {
                 owsFailDebug("Error: \(error)")
@@ -119,15 +111,15 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
 
                 // Last admin (local user) can't leave group, so first
                 // make the "other user" an admin.
-                let changeMemberThread = try await GroupManager.changeMemberRoleV2(
+                try await GroupManager.changeMemberRoleV2(
                     groupModel: groupModel,
                     aci: otherUserAci,
                     role: .administrator
                 )
-                self.databaseStorage.write { transaction in
-                    GroupManager.localLeaveGroupOrDeclineInvite(groupThread: changeMemberThread, tx: transaction)
+                SSKEnvironment.shared.databaseStorageRef.write { transaction in
+                    GroupManager.localLeaveGroupOrDeclineInvite(groupThread: groupThread3, tx: transaction)
                 }
-                guard let missingLocalUserGroupModelV2 = changeMemberThread.groupModel as? TSGroupModelV2 else {
+                guard let missingLocalUserGroupModelV2 = groupThread3.groupModel as? TSGroupModelV2 else {
                     throw OWSAssertionError("Invalid groupModel.")
                 }
 
@@ -163,7 +155,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
             return try! GroupV2ContextInfo.deriveFrom(masterKeyData: Randomness.generateRandomBytes(32))
         }
 
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             messages.append(OWSDynamicOutgoingMessage(thread: contactThread, transaction: transaction) {
                 // Real and valid group id/master key/secret params.
                 // Other user is not in the group.
@@ -342,7 +334,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
 
         for message in messages {
             let preparedMessage = PreparedOutgoingMessage.preprepared(transientMessageWithoutAttachments: message)
-            Task { try await self.messageSender.sendMessage(preparedMessage) }
+            Task { try await SSKEnvironment.shared.messageSenderRef.sendMessage(preparedMessage) }
         }
     }
 
@@ -357,7 +349,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
         let masterKey = try! groupModelV2.masterKey().serialize().asData
         let groupContextInfo = try! GroupV2ContextInfo.deriveFrom(masterKeyData: masterKey)
 
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             messages.append(OWSDynamicOutgoingMessage(thread: groupThread, transaction: transaction) {
                 // Real and valid group id/master key/secret params.
                 let masterKeyData = groupContextInfo.masterKeyData
@@ -399,7 +391,7 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
 
         for message in messages {
             let preparedMessage = PreparedOutgoingMessage.preprepared(transientMessageWithoutAttachments: message)
-            Task { try await self.messageSender.sendMessage(preparedMessage) }
+            Task { try await SSKEnvironment.shared.messageSenderRef.sendMessage(preparedMessage) }
         }
     }
 
@@ -409,33 +401,6 @@ class DebugUIGroupsV2: DebugUIPage, Dependencies {
         contentBuilder.setDataMessage(dataProto)
         let plaintextData = try! contentBuilder.buildSerializedData()
         return plaintextData
-    }
-
-    private func sendGroupUpdate(groupThread: TSGroupThread) {
-        Task {
-            await GroupManager.sendGroupUpdateMessage(thread: groupThread)
-            Logger.info("Success.")
-        }
-    }
-
-    private func updateV2GroupImmediately(groupThread: TSGroupThread) {
-        guard let groupModelV2 = groupThread.groupModel as? TSGroupModelV2 else {
-            owsFailDebug("Invalid groupModel.")
-            return
-        }
-        let groupId = groupModelV2.groupId
-        let groupSecretParamsData = groupModelV2.secretParamsData
-        Task {
-            do {
-                _ = try await self.groupV2Updates.tryToRefreshV2GroupUpToCurrentRevisionImmediately(
-                    groupId: groupId,
-                    groupSecretParams: try GroupSecretParams(contents: [UInt8](groupSecretParamsData))
-                )
-                Logger.info("Success.")
-            } catch {
-                owsFailDebug("Error: \(error)")
-            }
-        }
     }
 }
 

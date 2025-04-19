@@ -55,10 +55,6 @@ public extension TSThread {
         return true
     }
 
-    var transactionFinalizationKey: String {
-        return "\(Self.table.tableName).\(self.uniqueId)"
-    }
-
     @available(swift, obsoleted: 1.0)
     func canSendChatMessagesToThread() -> Bool {
         canSendChatMessagesToThread(ignoreAnnouncementOnly: false)
@@ -103,104 +99,21 @@ public extension TSThread {
         return groupModel.isAnnouncementsOnly
     }
 
-    func hasPendingMessageRequest(transaction: SDSAnyReadTransaction) -> Bool {
+    func hasPendingMessageRequest(transaction: DBReadTransaction) -> Bool {
         return ThreadFinder().hasPendingMessageRequest(thread: self, transaction: transaction)
     }
 
     @nonobjc
-    func isSystemContact(contactsManager: ContactManager, tx: SDSAnyReadTransaction) -> Bool {
+    func isSystemContact(contactsManager: ContactManager, tx: DBReadTransaction) -> Bool {
         guard let contactThread = self as? TSContactThread else { return false }
         return contactsManager.fetchSignalAccount(for: contactThread.contactAddress, transaction: tx) != nil
     }
 
     // MARK: - Database Hooks
 
-    internal func _anyDidInsert(tx: SDSAnyWriteTransaction) {
+    internal func _anyDidInsert(tx: DBWriteTransaction) {
         let searchableNameIndexer = DependenciesBridge.shared.searchableNameIndexer
-        searchableNameIndexer.insert(self, tx: tx.asV2Write)
-    }
-}
-
-// MARK: -
-
-public extension TSThread {
-
-    struct LastVisibleInteraction: Codable, Equatable {
-        public let sortId: UInt64
-        public let onScreenPercentage: CGFloat
-
-        public init(sortId: UInt64, onScreenPercentage: CGFloat) {
-            self.sortId = sortId
-            self.onScreenPercentage = onScreenPercentage
-        }
-    }
-
-    private static let lastVisibleInteractionStore = SDSKeyValueStore(collection: "lastVisibleInteractionStore")
-
-    @objc
-    func hasLastVisibleInteraction(transaction: SDSAnyReadTransaction) -> Bool {
-        nil != Self.lastVisibleInteraction(forThread: self, transaction: transaction)
-    }
-
-    @objc
-    func lastVisibleSortId(transaction: SDSAnyReadTransaction) -> NSNumber? {
-        guard let lastVisibleInteraction = lastVisibleInteraction(transaction: transaction) else {
-            return nil
-        }
-        return NSNumber(value: lastVisibleInteraction.sortId)
-    }
-
-    func lastVisibleInteraction(transaction: SDSAnyReadTransaction) -> LastVisibleInteraction? {
-        Self.lastVisibleInteraction(forThread: self, transaction: transaction)
-    }
-
-    static func lastVisibleInteraction(forThread thread: TSThread,
-                                       transaction: SDSAnyReadTransaction) -> LastVisibleInteraction? {
-        guard let data = lastVisibleInteractionStore.getData(thread.uniqueId, transaction: transaction) else {
-            return nil
-        }
-        do {
-            return try JSONDecoder().decode(LastVisibleInteraction.self, from: data)
-        } catch {
-            owsFailDebug("Error: \(error)")
-            return nil
-        }
-    }
-
-    @objc
-    func clearLastVisibleInteraction(transaction: SDSAnyWriteTransaction) {
-        Self.setLastVisibleInteraction(nil, forThread: self, transaction: transaction)
-    }
-
-    @objc
-    func setLastVisibleInteraction(sortId: UInt64,
-                                   onScreenPercentage: CGFloat,
-                                   transaction: SDSAnyWriteTransaction) {
-        let lastVisibleInteraction = LastVisibleInteraction(sortId: sortId, onScreenPercentage: onScreenPercentage)
-        Self.setLastVisibleInteraction(lastVisibleInteraction, forThread: self, transaction: transaction)
-    }
-
-    func setLastVisibleInteraction(_ lastVisibleInteraction: LastVisibleInteraction?,
-                                   transaction: SDSAnyWriteTransaction) {
-        Self.setLastVisibleInteraction(lastVisibleInteraction, forThread: self, transaction: transaction)
-    }
-
-    static func setLastVisibleInteraction(_ lastVisibleInteraction: LastVisibleInteraction?,
-                                          forThread thread: TSThread,
-                                          transaction: SDSAnyWriteTransaction) {
-        guard let lastVisibleInteraction = lastVisibleInteraction else {
-            lastVisibleInteractionStore.removeValue(forKey: thread.uniqueId, transaction: transaction)
-            return
-        }
-        let data: Data
-        do {
-            data = try JSONEncoder().encode(lastVisibleInteraction)
-        } catch {
-            owsFailDebug("Error: \(error)")
-            lastVisibleInteractionStore.removeValue(forKey: thread.uniqueId, transaction: transaction)
-            return
-        }
-        lastVisibleInteractionStore.setData(data, key: thread.uniqueId, transaction: transaction)
+        searchableNameIndexer.insert(self, tx: tx)
     }
 }
 
@@ -209,13 +122,13 @@ public extension TSThread {
 extension TSThread {
 
     @objc
-    public func currentDraft(transaction: SDSAnyReadTransaction) -> MessageBody? {
+    public func currentDraft(transaction: DBReadTransaction) -> MessageBody? {
         currentDraft(shouldFetchLatest: true, transaction: transaction)
     }
 
     @objc
     public func currentDraft(shouldFetchLatest: Bool,
-                             transaction: SDSAnyReadTransaction) -> MessageBody? {
+                             transaction: DBReadTransaction) -> MessageBody? {
         if shouldFetchLatest {
             guard let thread = TSThread.anyFetch(uniqueId: uniqueId, transaction: transaction) else {
                 return nil
@@ -235,10 +148,10 @@ extension TSThread {
     }
 
     @objc
-    public func editTarget(transaction: SDSAnyReadTransaction) -> TSOutgoingMessage? {
+    public func editTarget(transaction: DBReadTransaction) -> TSOutgoingMessage? {
         guard
             let editTargetTimestamp = editTargetTimestamp?.uint64Value,
-            let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)?.aciAddress
+            let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction)?.aciAddress
         else {
             return nil
         }

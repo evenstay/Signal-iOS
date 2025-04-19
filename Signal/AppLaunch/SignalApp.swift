@@ -118,8 +118,8 @@ extension SignalApp {
         case .changingNumber:
             Logger.info("Attempting change number registration on app launch")
         }
-        let coordinator = databaseStorage.write { tx in
-            return loader.coordinator(forDesiredMode: desiredMode, transaction: tx.asV2Write)
+        let coordinator = SSKEnvironment.shared.databaseStorageRef.write { tx in
+            return loader.coordinator(forDesiredMode: desiredMode, transaction: tx)
         }
         let navController = RegistrationNavigationController.withCoordinator(coordinator, appReadiness: appReadiness)
 
@@ -130,7 +130,7 @@ extension SignalApp {
 
     @objc
     private func spamChallenge() {
-        SpamCaptchaViewController.presentActionSheet(from: UIApplication.shared.frontmostViewController!)
+        SpamCaptchaViewController.presentActionSheet(from: AppEnvironment.shared.windowManagerRef.captchaWindow.findFrontmostViewController(ignoringAlerts: true)!)
     }
 
     @objc
@@ -148,14 +148,18 @@ extension SignalApp {
         action: ConversationViewAction = .none,
         animated: Bool
     ) {
-        let thread = databaseStorage.write { transaction in
+        let thread = SSKEnvironment.shared.databaseStorageRef.write { transaction in
             return TSContactThread.getOrCreateThread(withContactAddress: address, transaction: transaction)
         }
-        presentConversationForThread(thread, action: action, animated: animated)
+        presentConversationForThread(
+            threadUniqueId: thread.uniqueId,
+            action: action,
+            animated: animated
+        )
     }
 
     func presentConversationForThread(
-        _ thread: TSThread,
+        threadUniqueId: String,
         action: ConversationViewAction = .none,
         focusMessageId: String? = nil,
         animated: Bool
@@ -171,7 +175,7 @@ extension SignalApp {
 
         DispatchMainThreadSafe {
             if let visibleThread = conversationSplitViewController.visibleThread,
-               visibleThread.uniqueId == thread.uniqueId,
+               visibleThread.uniqueId == threadUniqueId,
                let conversationViewController = conversationSplitViewController.selectedConversationViewController {
                 conversationViewController.popKeyBoard()
                 if case .updateDraft = action {
@@ -179,15 +183,17 @@ extension SignalApp {
                 }
                 return
             }
-            conversationSplitViewController.presentThread(thread, action: action, focusMessageId: focusMessageId, animated: animated)
+            conversationSplitViewController.presentThread(
+                threadUniqueId: threadUniqueId,
+                action: action,
+                focusMessageId: focusMessageId,
+                animated: animated
+            )
         }
     }
 
-    @objc
-    func presentConversationAndScrollToFirstUnreadMessage(forThreadId threadId: String, animated: Bool) {
-        AssertIsOnMainThread()
-        owsAssertDebug(!threadId.isEmpty)
-
+    @MainActor
+    func presentConversationAndScrollToFirstUnreadMessage(threadUniqueId: String, animated: Bool) {
         guard let conversationSplitViewController else {
             owsFailDebug("No conversationSplitViewController")
             return
@@ -195,26 +201,40 @@ extension SignalApp {
 
         Logger.info("")
 
-        guard let thread = databaseStorage.read(block: { transaction in
-            return TSThread.anyFetch(uniqueId: threadId, transaction: transaction)
-        }) else {
-            owsFailDebug("unable to find thread with id: \(threadId)")
+        // If there's a presented blocking splash, but the user is trying to open a
+        // thread, dismiss it. We'll try again next time they open the app. We
+        // don't want to block them from accessing their conversations.
+        ExperienceUpgradeManager.dismissSplashWithoutCompletingIfNecessary()
+
+        if let visibleThread = conversationSplitViewController.visibleThread, visibleThread.uniqueId == threadUniqueId {
+            AppEnvironment.shared.windowManagerRef.minimizeCallIfNeeded()
+            conversationSplitViewController.selectedConversationViewController?.scrollToInitialPosition(animated: animated)
             return
         }
 
-        DispatchMainThreadSafe {
-            // If there's a presented blocking splash, but the user is trying to open a thread,
-            // dismiss it. We'll try again next time they open the app. We don't want to block
-            // them from accessing their conversations.
-            ExperienceUpgradeManager.dismissSplashWithoutCompletingIfNecessary()
-
-            if let visibleThread = conversationSplitViewController.visibleThread, visibleThread.uniqueId == thread.uniqueId {
-                conversationSplitViewController.selectedConversationViewController?.scrollToInitialPosition(animated: animated)
+        if let sendMediaNavigationController = conversationSplitViewController.selectedConversationViewController?.presentedViewController as? SendMediaNavigationController {
+            if sendMediaNavigationController.hasUnsavedChanges {
                 return
             }
 
-            conversationSplitViewController.presentThread(thread, action: .none, focusMessageId: nil, animated: animated)
+            AppEnvironment.shared.windowManagerRef.minimizeCallIfNeeded()
+            conversationSplitViewController.presentThread(
+                threadUniqueId: threadUniqueId,
+                action: .none,
+                focusMessageId: nil,
+                animated: false
+            )
+            sendMediaNavigationController.dismiss(animated: animated)
+            return
         }
+
+        AppEnvironment.shared.windowManagerRef.minimizeCallIfNeeded()
+        conversationSplitViewController.presentThread(
+            threadUniqueId: threadUniqueId,
+            action: .none,
+            focusMessageId: nil,
+            animated: animated
+        )
     }
 
     @objc
@@ -238,73 +258,98 @@ extension SignalApp {
 
 extension SignalApp {
 
-    static func resetAppDataWithUI() {
+    @MainActor
+    static func resetAppDataWithUI(keyFetcher: GRDBKeyFetcher = SSKEnvironment.shared.databaseStorageRef.keyFetcher) {
         Logger.info("")
 
-        DispatchMainThreadSafe {
-            guard let fromVC = UIApplication.shared.frontmostViewController else { return }
-            ModalActivityIndicatorViewController.present(
-                fromViewController: fromVC,
-                canCancel: true,
-                backgroundBlock: { _ in
-                    SignalApp.resetAppDataAndExit()
-                }
-            )
-        }
+        guard let fromVC = UIApplication.shared.frontmostViewController else { return }
+        ModalActivityIndicatorViewController.present(
+            fromViewController: fromVC,
+            canCancel: false,
+            asyncBlock: { _ in
+                SignalApp.resetAppDataAndExit(keyFetcher: keyFetcher)
+            }
+        )
     }
 
-    static func resetAppDataAndExit() -> Never {
-        resetAppData()
+    @MainActor
+    static func resetLinkedAppDataWithUI(
+        localDeviceId: LocalDeviceId,
+        keyFetcher: GRDBKeyFetcher = SSKEnvironment.shared.databaseStorageRef.keyFetcher
+    ) {
+        Logger.info("")
+
+        guard let fromVC = UIApplication.shared.frontmostViewController else { return }
+        ModalActivityIndicatorViewController.present(
+            fromViewController: fromVC,
+            canCancel: false,
+            asyncBlock: { _ in
+                if let localDeviceId = localDeviceId.ifValid {
+                    // Best effort to unlink ourselves from the server.
+                    try? await DependenciesBridge.shared.deviceService.unlinkDevice(deviceId: localDeviceId)
+                } else {
+                    // If localDeviceId isn't valid, we've already been unlinked.
+                }
+                SignalApp.resetAppDataAndExit(keyFetcher: keyFetcher)
+            }
+        )
+    }
+
+    @MainActor
+    static func resetAppDataAndExit(keyFetcher: GRDBKeyFetcher) -> Never {
+        resetAppData(keyFetcher: keyFetcher)
         exit(0)
     }
 
-    static func resetAppData() {
+    @MainActor
+    static func resetAppData(keyFetcher: GRDBKeyFetcher) {
         // This _should_ be wiped out below.
         Logger.info("")
         Logger.flush()
 
-        DispatchSyncMainThreadSafe {
-            databaseStorage.resetAllStorage()
-            OWSUserProfile.resetProfileStorage()
-            preferences.removeAllValues()
-            NSObject.notificationPresenter.clearAllNotifications()
-            UIApplication.shared.applicationIconBadgeNumber = 0
-            OWSFileSystem.deleteContents(ofDirectory: OWSFileSystem.appSharedDataDirectoryPath())
-            OWSFileSystem.deleteContents(ofDirectory: OWSFileSystem.appDocumentDirectoryPath())
-            OWSFileSystem.deleteContents(ofDirectory: OWSFileSystem.cachesDirectoryPath())
-            OWSFileSystem.deleteContents(ofDirectory: OWSTemporaryDirectory())
-            OWSFileSystem.deleteContents(ofDirectory: NSTemporaryDirectory())
-            AppDelegate.updateApplicationShortcutItems(isRegistered: false)
+        do {
+            try keyFetcher.clear()
+        } catch {
+            owsFailDebug("Could not clear keychain: \(error)")
         }
+
+        // This *must not* touch any environments -- they're not always available.
+        SSKEnvironment.shared.preferencesRef.removeAllValues()
+        SSKEnvironment.shared.notificationPresenterRef.clearAllNotifications()
+        UIApplication.shared.applicationIconBadgeNumber = 0
+        OWSFileSystem.deleteContents(ofDirectory: OWSFileSystem.appSharedDataDirectoryPath())
+        OWSFileSystem.deleteContents(ofDirectory: OWSFileSystem.appDocumentDirectoryPath())
+        OWSFileSystem.deleteContents(ofDirectory: OWSFileSystem.cachesDirectoryPath())
+        OWSFileSystem.deleteContents(ofDirectory: NSTemporaryDirectory())
+        AppDelegate.updateApplicationShortcutItems(isRegistered: false)
 
         DebugLogger.shared.wipeLogsAlways(appContext: CurrentAppContext() as! MainAppContext)
     }
 
+    @MainActor
     static func showTransferCompleteAndExit() {
-        DispatchQueue.main.async {
-            let actionSheet = ActionSheetController(
-                title: OWSLocalizedString(
-                    "OUTGOING_TRANSFER_COMPLETE_TITLE",
-                    comment: "Title for action sheet shown when device transfer completes"
-                ),
-                message: OWSLocalizedString(
-                    "OUTGOING_TRANSFER_COMPLETE_MESSAGE",
-                    comment: "Message for action sheet shown when device transfer completes"
-                )
+        let actionSheet = ActionSheetController(
+            title: OWSLocalizedString(
+                "OUTGOING_TRANSFER_COMPLETE_TITLE",
+                comment: "Title for action sheet shown when device transfer completes"
+            ),
+            message: OWSLocalizedString(
+                "OUTGOING_TRANSFER_COMPLETE_MESSAGE",
+                comment: "Message for action sheet shown when device transfer completes"
             )
-            actionSheet.addAction(.init(
-                title: OWSLocalizedString(
-                    "OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION",
-                    comment: "Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch)."
-                ),
-                style: .destructive,
-                handler: { _ in
-                    exit(0)
-                }
-            ))
-            actionSheet.isCancelable = false
-            CurrentAppContext().frontmostViewController()?.present(actionSheet, animated: true)
-        }
+        )
+        actionSheet.addAction(.init(
+            title: OWSLocalizedString(
+                "OUTGOING_TRANSFER_COMPLETE_EXIT_ACTION",
+                comment: "Button for action sheet shown when device transfer completes; quits the Signal app immediately (does not automatically relaunch, but the user may choose to relaunch)."
+            ),
+            style: .destructive,
+            handler: { _ in
+                exit(0)
+            }
+        ))
+        actionSheet.isCancelable = false
+        CurrentAppContext().frontmostViewController()?.present(actionSheet, animated: true)
     }
 }
 
@@ -337,12 +382,12 @@ extension SignalApp {
         alert.addAction(.init(title: "Export", style: .destructive) { _ in
             if SSKEnvironment.hasShared {
                 // Try to sync the database first, since we don't export the WAL.
-                _ = try? SSKEnvironment.shared.grdbStorageAdapter.syncTruncatingCheckpoint()
+                _ = try? SSKEnvironment.shared.databaseStorageRef.grdbStorage.syncTruncatingCheckpoint()
             }
             let databaseFileUrl = GRDBDatabaseStorageAdapter.databaseFileUrl()
             let shareSheet = UIActivityViewController(activityItems: [databaseFileUrl], applicationActivities: nil)
             shareSheet.completionWithItemsHandler = { _, completed, _, error in
-                guard completed, error == nil, let password = NSObject.databaseStorage.keyFetcher.debugOnly_keyData()?.hexadecimalString else {
+                guard completed, error == nil, let password = SSKEnvironment.shared.databaseStorageRef.keyFetcher.debugOnly_keyData()?.hexadecimalString else {
                     completion()
                     return
                 }

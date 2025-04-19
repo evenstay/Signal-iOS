@@ -7,8 +7,7 @@ import Foundation
 public import GRDB
 
 /// Model object for a badge. Only information for the badge itself, nothing user-specific (expirations, visibility, etc.)
-@objc
-public class ProfileBadge: NSObject, Codable {
+public class ProfileBadge: Codable, Equatable {
     public let id: String
     public let category: Category
     public let localizedName: String
@@ -21,7 +20,6 @@ public class ProfileBadge: NSObject, Codable {
     public let duration: TimeInterval?
 
     // Nil until a badge is checked in to the BadgeStore
-    @objc
     public fileprivate(set) var assets: BadgeAssets?
 
     private enum CodingKeys: String, CodingKey {
@@ -70,25 +68,17 @@ public class ProfileBadge: NSObject, Codable {
         duration = try values.decodeIfPresent(TimeInterval.self, forKey: .duration)
     }
 
-    override public func isEqual(_ object: Any?) -> Bool {
-        guard
-            let other = object as? Self,
-            type(of: self) == type(of: other)
-        else {
-            return false
-        }
-
-        return
-            id == other.id &&
-            category == other.category &&
-            localizedName == other.localizedName &&
-            localizedDescriptionFormatString == other.localizedDescriptionFormatString &&
-            resourcePath == other.resourcePath &&
-            badgeVariant == other.badgeVariant &&
-            localization == other.localization &&
-            duration == other.duration
-            // Don't check assets -- it's essentially a derived property that doesn't
-            // need to be included in equality checks.
+    public static func == (lhs: ProfileBadge, rhs: ProfileBadge) -> Bool {
+        return (lhs.id == rhs.id &&
+                lhs.category == rhs.category &&
+                lhs.localizedName == rhs.localizedName &&
+                lhs.localizedDescriptionFormatString == rhs.localizedDescriptionFormatString &&
+                lhs.resourcePath == rhs.resourcePath &&
+                lhs.badgeVariant == rhs.badgeVariant &&
+                lhs.localization == rhs.localization &&
+                lhs.duration == rhs.duration)
+        // Don't check assets -- it's essentially a derived property that doesn't
+        // need to be included in equality checks.
     }
 }
 
@@ -193,8 +183,7 @@ extension ProfileBadge: FetchableRecord, PersistableRecord {
 
 // MARK: - BadgeStore
 
-@objc
-public class BadgeStore: NSObject {
+public class BadgeStore {
     let lock = UnfairLock()
     var badgeCache = LRUCache<String, ProfileBadge>(maxSize: 5)
     // BadgeAssets have two roles: fetching assets we don't currently have and vending retrieved assets as UIImages
@@ -205,7 +194,7 @@ public class BadgeStore: NSObject {
 
     // TODO: Badging — Memory warnings?
 
-    func createOrUpdateBadge(_ newBadge: ProfileBadge, transaction writeTx: SDSAnyWriteTransaction) throws {
+    func createOrUpdateBadge(_ newBadge: ProfileBadge, transaction writeTx: DBWriteTransaction) throws {
         try lock.withLock {
             // First, we check to see if we already have a cached badge that's equal to the new version
             // If so, we can just update the assets property and return
@@ -216,13 +205,16 @@ public class BadgeStore: NSObject {
             }
 
             // Something changed, so we need to update our database copy
-            try newBadge.save(writeTx.unwrapGrdbWrite.database)
+            try newBadge.save(writeTx.database)
 
             // Finally we update our cached badge and start preparing our assets
-            firstly {
-                populateAssets(newBadge)
-            }.catch { error in
-                owsFailDebug("Failed to populate assets on badge \(error)")
+            let badgeAssets = getBadgetAssets(newBadge)
+            Task {
+                do {
+                    try await badgeAssets.prepareAssetsIfNecessary()
+                } catch {
+                    owsFailDebug("Failed to populate assets on badge \(error)")
+                }
             }
 
             owsAssertDebug(newBadge.assets != nil)
@@ -230,17 +222,20 @@ public class BadgeStore: NSObject {
         }
     }
 
-    func fetchBadgeWithId(_ badgeId: String, readTx: SDSAnyReadTransaction) -> ProfileBadge? {
+    func fetchBadgeWithId(_ badgeId: String, readTx: DBReadTransaction) -> ProfileBadge? {
         do {
             return try lock.withLock {
                 if let cachedBadge = badgeCache[badgeId] {
                     owsAssertDebug(cachedBadge.assets != nil)
                     return cachedBadge
-                } else if let fetchedBadge = try ProfileBadge.filter(key: badgeId).fetchOne(readTx.unwrapGrdbRead.database) {
-                    firstly {
-                        populateAssets(fetchedBadge)
-                    }.catch { error in
-                        owsFailDebug("Failed to populate assets on badge \(error)")
+                } else if let fetchedBadge = try ProfileBadge.filter(key: badgeId).fetchOne(readTx.database) {
+                    let badgeAssets = getBadgetAssets(fetchedBadge)
+                    Task {
+                        do {
+                            try await badgeAssets.prepareAssetsIfNecessary()
+                        } catch {
+                            owsFailDebug("Failed to populate assets on badge \(error)")
+                        }
                     }
 
                     owsAssertDebug(fetchedBadge.assets != nil)
@@ -256,16 +251,11 @@ public class BadgeStore: NSObject {
         }
     }
 
-    public func populateAssetsOnBadge(_ badge: ProfileBadge) -> Promise<Void> {
-        return lock.withLock {
-            populateAssets(badge)
-        }
-    }
-
-    private func populateAssets(_ badge: ProfileBadge) -> Promise<Void> {
+    private func getBadgetAssets(_ badge: ProfileBadge) -> BadgeAssets {
         lock.assertOwner()
 
         let badgeAssets: BadgeAssets
+
         // We try and reuse any existing BadgeAssets instances if we have one cached
         if let cachedValue = badgeCache[badge.id], cachedValue.resourcePath == badge.resourcePath, let assets = cachedValue.assets {
             badgeAssets = assets
@@ -280,6 +270,13 @@ public class BadgeStore: NSObject {
         }
         badge.assets = badgeAssets
 
-        return badgeAssets.prepareAssetsIfNecessary()
+        return badgeAssets
+    }
+
+    public func populateAssetsOnBadge(_ badge: ProfileBadge) async throws {
+        let badgeAssets = lock.withLock {
+            return getBadgetAssets(badge)
+        }
+        try await badgeAssets.prepareAssetsIfNecessary()
     }
 }

@@ -9,7 +9,6 @@ public import LibSignalClient
 /// MessageBody is a container for a message's body as well as the `MessageBodyRanges` that
 /// apply to it.
 /// Most of the work is done by `MessageBodyRanges`; this is just a container for the text too.
-@objc
 public class MessageBody: NSObject, NSCopying, NSSecureCoding {
     typealias Style = MessageBodyRanges.Style
     typealias CollapsedStyle = MessageBodyRanges.CollapsedStyle
@@ -164,7 +163,7 @@ extension MessageBody {
     /// Convenience method to hydrate a MessageBody for forwarding to a thread destination.
     public func forForwarding(
         to context: TSThread,
-        transaction: GRDBReadTransaction,
+        transaction: DBReadTransaction,
         isRTL: Bool = CurrentAppContext().isRTL
     ) -> HydratedMessageBody {
         guard hasMentions else {
@@ -173,7 +172,7 @@ extension MessageBody {
 
         let groupMemberAcis: Set<Aci>
         if let groupThread = context as? TSGroupThread, groupThread.isGroupV2Thread {
-            groupMemberAcis = Set(groupThread.recipientAddresses(with: transaction.asAnyRead).compactMap(\.aci))
+            groupMemberAcis = Set(groupThread.recipientAddresses(with: transaction).compactMap(\.aci))
         } else {
             groupMemberAcis = Set()
         }
@@ -183,7 +182,7 @@ extension MessageBody {
         // not be known to everyone so we need to hydrate them out.
         let mentionHydrator = ContactsMentionHydrator.mentionHydrator(
             excludedAcis: groupMemberAcis,
-            transaction: transaction.asAnyRead.asV2Read
+            transaction: transaction
         )
 
         return hydrating(mentionHydrator: mentionHydrator, isRTL: isRTL)

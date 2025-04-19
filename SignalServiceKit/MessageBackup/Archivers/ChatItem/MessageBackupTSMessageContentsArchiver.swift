@@ -66,12 +66,40 @@ extension MessageBackup {
             let giftBadge: OWSGiftBadge
         }
 
+        struct ViewOnceMessage {
+            enum State {
+                case complete
+                case unviewed(BackupProto_MessageAttachment)
+            }
+            let state: State
+
+            fileprivate let reactions: [BackupProto_Reaction]
+        }
+
+        struct StoryReply {
+            enum ReplyType {
+                struct TextReply {
+                    let body: MessageBody
+                    fileprivate let oversizeTextAttachment: BackupProto_FilePointer?
+                }
+
+                case textReply(TextReply)
+                case emoji(String)
+            }
+
+            let replyType: ReplyType
+            fileprivate let reactions: [BackupProto_Reaction]
+        }
+
         case archivedPayment(Payment)
         case remoteDeleteTombstone
         case text(Text)
         case contactShare(ContactShare)
         case stickerMessage(StickerMessage)
         case giftBadge(GiftBadge)
+        case viewOnceMessage(ViewOnceMessage)
+        /// Note: only includes 1:1 story replies, not group story replies.
+        case storyReply(StoryReply)
     }
 }
 
@@ -85,7 +113,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
     private typealias ArchiveFrameError = MessageBackup.ArchiveFrameError<MessageBackup.InteractionUniqueId>
     private typealias RestoreFrameError = MessageBackup.RestoreFrameError<MessageBackup.ChatItemId>
 
-    private let interactionStore: InteractionStore
+    private let interactionStore: MessageBackupInteractionStore
     private let archivedPaymentStore: ArchivedPaymentStore
     private let attachmentsArchiver: MessageBackupMessageAttachmentArchiver
     private lazy var contactAttachmentArchiver = MessageBackupContactAttachmentArchiver(
@@ -94,7 +122,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
     private let reactionArchiver: MessageBackupReactionArchiver
 
     init(
-        interactionStore: InteractionStore,
+        interactionStore: MessageBackupInteractionStore,
         archivedPaymentStore: ArchivedPaymentStore,
         attachmentsArchiver: MessageBackupMessageAttachmentArchiver,
         reactionArchiver: MessageBackupReactionArchiver
@@ -109,7 +137,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
 
     func archiveMessageContents(
         _ message: TSMessage,
-        context: MessageBackup.RecipientArchivingContext
+        context: MessageBackup.ChatArchivingContext
     ) -> ArchiveInteractionResult<ChatItemType> {
         guard let messageRowId = message.sqliteRowId else {
             return .completeFailure(.fatalArchiveError(
@@ -121,43 +149,56 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
             return archivePaymentMessageContents(
                 paymentMessage,
                 uniqueInteractionId: message.uniqueInteractionId,
-                context: context
+                context: context.recipientContext
             )
         } else if let archivedPayment = message as? OWSArchivedPaymentMessage {
             return archivePaymentArchiveContents(
                 archivedPayment,
                 uniqueInteractionId: message.uniqueInteractionId,
-                context: context
+                context: context.recipientContext
             )
         } else if message.wasRemotelyDeleted {
             return archiveRemoteDeleteTombstone(
                 message,
-                context: context
+                context: context.recipientContext
             )
         } else if let contactShare = message.contactShare {
             return archiveContactShareMessageContents(
                 message,
                 contactShare: contactShare,
                 messageRowId: messageRowId,
-                context: context
+                context: context.recipientContext
             )
         } else if let messageSticker = message.messageSticker {
             return archiveStickerMessageContents(
                 message,
                 messageSticker: messageSticker,
                 messageRowId: messageRowId,
-                context: context
+                context: context.recipientContext
             )
         } else if let giftBadge = message.giftBadge {
             return archiveGiftBadge(
                 giftBadge,
+                context: context.recipientContext
+            )
+        } else if message.isViewOnceMessage {
+            return archiveViewOnceMessage(
+                message,
+                messageRowId: messageRowId,
+                context: context.recipientContext
+            )
+        } else if message.isStoryReply && !message.isGroupStoryReply {
+            return archiveDirectStoryReplyMessage(
+                message,
+                interactionUniqueId: message.uniqueInteractionId,
+                messageRowId: messageRowId,
                 context: context
             )
         } else {
             return archiveStandardMessageContents(
                 message,
                 messageRowId: messageRowId,
-                context: context
+                context: context.recipientContext
             )
         }
     }
@@ -169,7 +210,17 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         uniqueInteractionId: MessageBackup.InteractionUniqueId,
         context: MessageBackup.RecipientArchivingContext
     ) -> MessageBackup.ArchiveInteractionResult<ChatItemType> {
-        guard let historyItem = archivedPaymentStore.fetch(for: archivedPaymentMessage, tx: context.tx) else {
+        let historyItem: ArchivedPayment?
+        do {
+            historyItem = try archivedPaymentStore.fetch(
+                for: archivedPaymentMessage,
+                interactionUniqueId: uniqueInteractionId.value,
+                tx: context.tx
+            )
+        } catch {
+            return .messageFailure([.archiveFrameError(.paymentInfoFetchFailed(error), uniqueInteractionId)])
+        }
+        guard let historyItem else {
             return .messageFailure([.archiveFrameError(.missingPaymentInformation, uniqueInteractionId)])
         }
 
@@ -255,7 +306,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         // if neither is set this stays false and we fail the message.
         var hasPrimaryContent = false
 
-        if let messageBody = message.body {
+        if let messageBody = message.body?.nilIfEmpty {
             hasPrimaryContent = true
 
             let text: BackupProto_Text
@@ -309,11 +360,10 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
             // We would hard-error here, but we know these exist in the wild
             // and don't want to hard error any user that has them when we can
             // just skip.
-            return .skippableChatUpdate(.emptyBodyMessage)
+            return .skippableInteraction(.emptyBodyMessage)
         }
 
         if let quotedMessage = message.quotedMessage {
-            let quote: BackupProto_Quote
             let quoteResult = archiveQuote(
                 quotedMessage,
                 interactionUniqueId: message.uniqueInteractionId,
@@ -321,18 +371,17 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
                 context: context
             )
             switch quoteResult.bubbleUp(ChatItemType.self, partialErrors: &partialErrors) {
-            case .continue(let _quote):
-                quote = _quote
+            case .continue(let quote):
+                quote.map { standardMessage.quote = $0 }
             case .bubbleUpError(let errorResult):
                 return errorResult
             }
-
-            standardMessage.quote = quote
         }
 
         if let linkPreview = message.linkPreview {
             let linkPreviewResult = self.archiveLinkPreview(
                 linkPreview,
+                messageBody: standardMessage.text.body,
                 interactionUniqueId: message.uniqueInteractionId,
                 context: context,
                 messageRowId: messageRowId
@@ -407,7 +456,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         interactionUniqueId: MessageBackup.InteractionUniqueId,
         messageRowId: Int64,
         context: MessageBackup.RecipientArchivingContext
-    ) -> ArchiveInteractionResult<BackupProto_Quote> {
+    ) -> ArchiveInteractionResult<BackupProto_Quote?> {
         var partialErrors = [ArchiveFrameError]()
 
         guard let authorAddress = quotedMessage.authorAddress.asSingleServiceIdBackupAddress() else {
@@ -424,18 +473,38 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
 
         var quote = BackupProto_Quote()
         quote.authorID = authorId.value
-        quote.type = quotedMessage.isGiftBadge ? .giftbadge : .normal
-        if let targetSentTimestamp = quotedMessage.timestampValue?.uint64Value {
-            quote.targetSentTimestamp = targetSentTimestamp
-        }
 
-        if let body = quotedMessage.body {
+        let targetSentTimestamp: UInt64? = {
+            switch quotedMessage.bodySource {
+            case .local, .unknown:
+                return quotedMessage.timestampValue?.uint64Value
+            case .remote, .story:
+                return nil
+            @unknown default:
+                return nil
+            }
+        }()
+        // The proto's targetSentTimestamp is an optional field
+        // and should be unset (not 0) if the target message could
+        // not be found at the time the quote was received.
+        MessageBackup.Timestamps.setTimestampIfValid(
+            from: targetSentTimestamp,
+            \.self,
+            on: &quote,
+            \.targetSentTimestamp,
+            allowZero: false
+        )
+
+        var didArchiveText = false
+        var didArchiveAttachments = false
+
+        if let body = quotedMessage.body?.nilIfEmpty {
             let textResult = archiveText(
                 MessageBody(text: body, ranges: quotedMessage.bodyRanges ?? .empty),
                 interactionUniqueId: interactionUniqueId
             )
             let text: BackupProto_Text
-            switch textResult.bubbleUp(BackupProto_Quote.self, partialErrors: &partialErrors) {
+            switch textResult.bubbleUp(Optional<BackupProto_Quote>.self, partialErrors: &partialErrors) {
             case .continue(let value):
                 text = value
             case .bubbleUpError(let errorResult):
@@ -448,6 +517,8 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
                 quoteText.bodyRanges = text.bodyRanges
                 return quoteText
             }()
+
+            didArchiveText = true
         }
 
         if let attachmentInfo = quotedMessage.attachmentInfo() {
@@ -457,12 +528,33 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
                 messageRowId: messageRowId,
                 context: context
             )
-            switch quoteAttachmentResult.bubbleUp(BackupProto_Quote.self, partialErrors: &partialErrors) {
+            switch quoteAttachmentResult.bubbleUp(Optional<BackupProto_Quote>.self, partialErrors: &partialErrors) {
             case .continue(let quoteAttachmentProto):
                 quote.attachments = [quoteAttachmentProto]
             case .bubbleUpError(let errorResult):
                 return errorResult
             }
+
+            didArchiveAttachments = true
+        }
+
+        if quotedMessage.isGiftBadge {
+            quote.type = .giftBadge
+        } else if quotedMessage.isTargetMessageViewOnce {
+            quote.type = .viewOnce
+        } else {
+            guard didArchiveText || didArchiveAttachments else {
+                // NORMAL-type quotes must have either text or attachments, lest
+                // they be rejected by the validator.
+                partialErrors.append(.archiveFrameError(
+                    .quoteTypeNormalMissingTextAndAttachments,
+                    interactionUniqueId
+                ))
+
+                return .partialFailure(nil, partialErrors)
+            }
+
+            quote.type = .normal
         }
 
         if partialErrors.isEmpty {
@@ -481,15 +573,11 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         var partialErrors = [MessageBackup.ArchiveFrameError<MessageBackup.InteractionUniqueId>]()
 
         var proto = BackupProto_Quote.QuotedAttachment()
-        if let stubMimeType = attachmentInfo.stubMimeType {
-            proto.contentType = stubMimeType
+        if let mimeType = attachmentInfo.originalAttachmentMimeType {
+            proto.contentType = mimeType
         }
-        if let stubSourceFilename = attachmentInfo.stubSourceFilename {
-            proto.fileName = stubSourceFilename
-        }
-        guard attachmentInfo.attachmentType == .V2 else {
-            // If its just a stub, early return with no thumbnail image
-            return .success(proto)
+        if let sourceFilename = attachmentInfo.originalAttachmentSourceFilename {
+            proto.fileName = sourceFilename
         }
 
         let imageResult = attachmentsArchiver.archiveQuotedReplyThumbnailAttachment(
@@ -513,6 +601,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
 
     private func archiveLinkPreview(
         _ linkPreview: OWSLinkPreview,
+        messageBody: String,
         interactionUniqueId: MessageBackup.InteractionUniqueId,
         context: MessageBackup.RecipientArchivingContext,
         messageRowId: Int64
@@ -530,11 +619,25 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
             return .partialFailure(nil, partialErrors)
         }
 
+        guard messageBody.contains(url) else {
+            partialErrors.append(.archiveFrameError(
+                .linkPreviewUrlNotInBody,
+                interactionUniqueId
+            ))
+            return .partialFailure(nil, partialErrors)
+        }
+
         var proto = BackupProto_LinkPreview()
         proto.url = url
         linkPreview.title.map { proto.title = $0 }
         linkPreview.previewDescription.map { proto.description_p = $0 }
-        linkPreview.date.map { proto.date = $0.ows_millisecondsSince1970 }
+        MessageBackup.Timestamps.setTimestampIfValid(
+            from: linkPreview,
+            \.date?.ows_millisecondsSince1970,
+            on: &proto,
+            \.date,
+            allowZero: true
+        )
 
         // Returns nil if no link preview image; this is both how we check presence and how we archive.
         let imageResult = attachmentsArchiver.archiveLinkPreviewAttachment(
@@ -576,7 +679,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         )
         switch contactResult.bubbleUp(ChatItemType.self, partialErrors: &partialErrors) {
         case .continue(let contactProto):
-            proto.contact = [contactProto]
+            proto.contact = contactProto
         case .bubbleUpError(let errorResult):
             return errorResult
         }
@@ -684,6 +787,181 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         return .success(.giftBadge(giftBadgeProto))
     }
 
+    // MARK: -
+
+    private func archiveViewOnceMessage(
+        _ message: TSMessage,
+        messageRowId: Int64,
+        context: MessageBackup.RecipientArchivingContext
+    ) -> ArchiveInteractionResult<ChatItemType> {
+        var partialErrors = [ArchiveFrameError]()
+
+        var proto = BackupProto_ViewOnceMessage()
+
+        if !message.isViewOnceComplete {
+            let attachmentResult = attachmentsArchiver.archiveBodyAttachments(
+                messageId: message.uniqueInteractionId,
+                messageRowId: messageRowId,
+                context: context
+            )
+            switch attachmentResult.bubbleUp(ChatItemType.self, partialErrors: &partialErrors) {
+            case .continue(let value):
+                guard let first = value.first else {
+                    return .messageFailure(partialErrors + [.archiveFrameError(
+                        .unviewedViewOnceMessageMissingAttachment,
+                        message.uniqueInteractionId
+                    )])
+                }
+                if value.count > 1 {
+                    partialErrors.append(.archiveFrameError(
+                        .unviewedViewOnceMessageTooManyAttachments(value.count),
+                        message.uniqueInteractionId
+                    ))
+                }
+                proto.attachment = first
+            case .bubbleUpError(let errorResult):
+                return errorResult
+            }
+        }
+
+        let reactions: [BackupProto_Reaction]
+        let reactionsResult = reactionArchiver.archiveReactions(
+            message,
+            context: context
+        )
+        switch reactionsResult.bubbleUp(ChatItemType.self, partialErrors: &partialErrors) {
+        case .continue(let values):
+            reactions = values
+        case .bubbleUpError(let errorResult):
+            return errorResult
+        }
+        proto.reactions = reactions
+
+        if partialErrors.isEmpty {
+            return .success(.viewOnceMessage(proto))
+        } else {
+            return .partialFailure(.viewOnceMessage(proto), partialErrors)
+        }
+    }
+
+    // MARK: -
+
+    /// Note this only covers 1:1 story replies which are rendered in-chat;
+    /// group story replies are rendered in the story UI and are not backed
+    /// up since stories are not backed up.
+    private func archiveDirectStoryReplyMessage(
+        _ message: TSMessage,
+        interactionUniqueId: MessageBackup.InteractionUniqueId,
+        messageRowId: Int64,
+        context: MessageBackup.ChatArchivingContext
+    ) -> ArchiveInteractionResult<ChatItemType> {
+        guard
+            let chatId = context[message.uniqueThreadIdentifier],
+            let threadInfo = context[chatId]
+        else {
+            return .messageFailure([.archiveFrameError(
+                .referencedThreadIdMissing(message.uniqueThreadIdentifier),
+                interactionUniqueId
+            )])
+        }
+
+        switch threadInfo {
+        case .groupThread:
+            return .messageFailure([.archiveFrameError(
+                .storyReplyInGroupThread,
+                interactionUniqueId
+            )])
+        case .contactThread(let contactAddress):
+            if contactAddress?.aci == context.recipientContext.localIdentifiers.aci {
+                // See comment on skippable update enum case.
+                return .skippableInteraction(.directStoryReplyInNoteToSelf)
+            }
+        }
+
+        guard !message.isGroupStoryReply else {
+            return .messageFailure([.archiveFrameError(
+                .storyReplyInGroupThread,
+                interactionUniqueId
+            )])
+        }
+
+        var partialErrors = [ArchiveFrameError]()
+
+        var proto = BackupProto_DirectStoryReplyMessage()
+
+        // We don't put the story author aci on the proto; it can be inferred
+        // since you can't 1:1 reply to your own stories.
+        // If this is an outgoing reply, it must be to a story from the contact
+        // in the contact thread containing it.
+        // If this an incoming reply, it must be a story from the local user.
+
+        if let emoji = message.storyReactionEmoji {
+            guard !emoji.isEmpty else {
+                return .messageFailure([.archiveFrameError(
+                    .storyReplyEmptyContents,
+                    interactionUniqueId
+                )])
+            }
+            proto.reply = .emoji(emoji)
+        } else if let body = message.body {
+            guard !body.isEmpty else {
+                return .messageFailure([.archiveFrameError(
+                    .storyReplyEmptyContents,
+                    interactionUniqueId
+                )])
+            }
+
+            let textResult = archiveText(
+                MessageBody(text: body, ranges: message.bodyRanges ?? .empty),
+                interactionUniqueId: interactionUniqueId
+            )
+            let text: BackupProto_Text
+            switch textResult.bubbleUp(ChatItemType.self, partialErrors: &partialErrors) {
+            case .continue(let value):
+                text = value
+            case .bubbleUpError(let errorResult):
+                return errorResult
+            }
+            var textReply = BackupProto_DirectStoryReplyMessage.TextReply()
+            textReply.text = text
+
+            // We'll only have oversize text if we also have a message body. If
+            // the following returns `nil`, we had no oversize text.
+            let oversizeTextResult = attachmentsArchiver.archiveOversizeTextAttachment(
+                messageRowId: messageRowId,
+                messageId: message.uniqueInteractionId,
+                context: context
+            )
+            switch oversizeTextResult.bubbleUp(ChatItemType.self, partialErrors: &partialErrors) {
+            case .continue(let oversizeTextAttachmentProto):
+                oversizeTextAttachmentProto.map { textReply.longText = $0 }
+            case .bubbleUpError(let errorResult):
+                return errorResult
+            }
+
+            proto.reply = .textReply(textReply)
+        }
+
+        let reactions: [BackupProto_Reaction]
+        let reactionsResult = reactionArchiver.archiveReactions(
+            message,
+            context: context.recipientContext
+        )
+        switch reactionsResult.bubbleUp(ChatItemType.self, partialErrors: &partialErrors) {
+        case .continue(let values):
+            reactions = values
+        case .bubbleUpError(let errorResult):
+            return errorResult
+        }
+        proto.reactions = reactions
+
+        if partialErrors.isEmpty {
+            return .success(.directStoryReplyMessage(proto))
+        } else {
+            return .partialFailure(.directStoryReplyMessage(proto), partialErrors)
+        }
+    }
+
     // MARK: - Restoring
 
     /// Parses the proto structure of message contents into
@@ -699,7 +977,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         _ chatItemType: ChatItemType,
         chatItemId: MessageBackup.ChatItemId,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreInteractionResult<MessageBackup.RestoredMessageContents> {
         switch chatItemType {
         case .paymentNotification(let paymentNotification):
@@ -743,6 +1021,20 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
                 chatItemId: chatItemId,
                 context: context
             )
+        case .viewOnceMessage(let viewOnceMessage):
+            return restoreViewOnceMessage(
+                viewOnceMessage,
+                chatItemId: chatItemId,
+                chatThread: chatThread,
+                context: context
+            )
+        case .directStoryReplyMessage(let storyReply):
+            return restoreDirectStoryReplyMessage(
+                storyReply,
+                chatItemId: chatItemId,
+                chatThread: chatThread,
+                context: context
+            )
         case .updateMessage:
             return .messageFailure([.restoreFrameError(
                 .developerError(OWSAssertionError("Chat update has no contents to restore!")),
@@ -760,7 +1052,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         thread: MessageBackup.ChatThread,
         chatItemId: MessageBackup.ChatItemId,
         restoredContents: MessageBackup.RestoredMessageContents,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreInteractionResult<Void> {
         guard let messageRowId = message.sqliteRowId else {
             return .messageFailure([.restoreFrameError(
@@ -860,6 +1152,49 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
                 thread: thread,
                 context: context
             ))
+        case .viewOnceMessage(let viewOnceMessage):
+            downstreamObjectResults.append(reactionArchiver.restoreReactions(
+                viewOnceMessage.reactions,
+                chatItemId: chatItemId,
+                message: message,
+                context: context.recipientContext
+            ))
+            switch viewOnceMessage.state {
+            case .unviewed(let attachment):
+                downstreamObjectResults.append(attachmentsArchiver.restoreBodyAttachments(
+                    [attachment],
+                    chatItemId: chatItemId,
+                    messageRowId: messageRowId,
+                    message: message,
+                    thread: thread,
+                    context: context
+                ))
+            case .complete:
+                break
+            }
+        case .storyReply(let storyReply):
+            downstreamObjectResults.append(reactionArchiver.restoreReactions(
+                storyReply.reactions,
+                chatItemId: chatItemId,
+                message: message,
+                context: context.recipientContext
+            ))
+
+            switch storyReply.replyType {
+            case .textReply(let textReply):
+                if let oversizeTextAttachment = textReply.oversizeTextAttachment {
+                    downstreamObjectResults.append(attachmentsArchiver.restoreOversizeTextAttachment(
+                        oversizeTextAttachment,
+                        chatItemId: chatItemId,
+                        messageRowId: messageRowId,
+                        message: message,
+                        thread: thread,
+                        context: context
+                    ))
+                }
+            case .emoji:
+                break
+            }
         case .remoteDeleteTombstone, .giftBadge:
             // Nothing downstream to restore.
             break
@@ -888,6 +1223,12 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
                 return nil
             }
         }()
+        guard let senderOrRecipientAci else {
+            return .messageFailure([.restoreFrameError(
+                .invalidProtoData(.paymentNotificationInGroup),
+                chatItemId
+            )])
+        }
 
         let direction: ArchivedPayment.Direction
         switch message {
@@ -901,20 +1242,19 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
                 chatItemId
             )])
         }
-        guard
-            let senderOrRecipientAci,
-            let archivedPayment = ArchivedPayment.fromBackup(
-                transaction,
-                senderOrRecipientAci: senderOrRecipientAci,
-                direction: direction,
-                interactionUniqueId: message.uniqueId
-        ) else {
-            return .messageFailure([.restoreFrameError(
-                .invalidProtoData(.unrecognizedPaymentTransaction),
-                chatItemId
-            )])
+        let archivedPayment = ArchivedPayment.fromBackup(
+            transaction,
+            senderOrRecipientAci: senderOrRecipientAci,
+            direction: direction,
+            interactionUniqueId: message.uniqueId
+        )
+        do {
+            try archivedPaymentStore.insert(archivedPayment, tx: context.tx)
+        } catch {
+            return .messageFailure([
+                .restoreFrameError(.databaseInsertionFailed(error), chatItemId)
+            ])
         }
-        archivedPaymentStore.insert(archivedPayment, tx: context.tx)
         return .success(())
     }
 
@@ -922,7 +1262,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         _ paymentNotification: BackupProto_PaymentNotification,
         chatItemId: MessageBackup.ChatItemId,
         thread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreInteractionResult<MessageBackup.RestoredMessageContents> {
         let status: MessageBackup.RestoredMessageContents.Payment.Status
         let paymentTransaction: BackupProto_PaymentNotification.TransactionDetails.Transaction?
@@ -959,7 +1299,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         _ remoteDeleteTombstone: BackupProto_RemoteDeletedMessage,
         chatItemId: MessageBackup.ChatItemId,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreInteractionResult<MessageBackup.RestoredMessageContents> {
         return .success(.remoteDeleteTombstone)
     }
@@ -970,24 +1310,31 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         _ standardMessage: BackupProto_StandardMessage,
         chatItemId: MessageBackup.ChatItemId,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreInteractionResult<MessageBackup.RestoredMessageContents> {
         var partialErrors = [RestoreFrameError]()
 
         let quotedMessage: TSQuotedMessage?
         let quotedMessageThumbnail: BackupProto_MessageAttachment?
         if standardMessage.hasQuote {
-            guard
-                let quoteResult = restoreQuote(
+            switch self
+                .restoreQuote(
                     standardMessage.quote,
                     chatItemId: chatItemId,
                     thread: chatThread,
                     context: context
-                ).unwrap(partialErrors: &partialErrors)
-            else {
-                return .messageFailure(partialErrors)
+                )
+                .bubbleUp(
+                    MessageBackup.RestoredMessageContents.self,
+                    partialErrors: &partialErrors
+                )
+            {
+            case .continue(let component):
+                quotedMessage = component.0
+                quotedMessageThumbnail = component.1
+            case .bubbleUpError(let error):
+                return error
             }
-            (quotedMessage, quotedMessageThumbnail) = quoteResult
         } else {
             quotedMessage = nil
             quotedMessageThumbnail = nil
@@ -996,17 +1343,29 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         let linkPreview: OWSLinkPreview?
         let linkPreviewAttachment: BackupProto_FilePointer?
         if let linkPreviewProto = standardMessage.linkPreview.first {
-            guard
-                let linkPreviewResult = restoreLinkPreview(
+            switch self
+                .restoreLinkPreview(
                     linkPreviewProto,
                     standardMessage: standardMessage,
                     chatItemId: chatItemId,
                     context: context
-                ).unwrap(partialErrors: &partialErrors)
-            else {
-                return .messageFailure(partialErrors)
+                )
+                .bubbleUp(
+                    MessageBackup.RestoredMessageContents.self,
+                    partialErrors: &partialErrors
+                )
+            {
+            case .continue(let component):
+                if let component {
+                    linkPreview = component.0
+                    linkPreviewAttachment = component.1
+                } else {
+                    linkPreview = nil
+                    linkPreviewAttachment = nil
+                }
+            case .bubbleUpError(let error):
+                return error
             }
-            (linkPreview, linkPreviewAttachment) = linkPreviewResult
         } else {
             linkPreview = nil
             linkPreviewAttachment = nil
@@ -1078,6 +1437,8 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
                 )),
                 partialErrors + messageBodyErrors
             )
+        case .unrecognizedEnum(let error):
+            return .unrecognizedEnum(error)
         case .messageFailure(let messageBodyErrors):
             return .messageFailure(partialErrors + messageBodyErrors)
         }
@@ -1106,9 +1467,6 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         var bodyMentions = [NSRange: Aci]()
         var bodyStyles = [NSRangedValue<MessageBodyRanges.SingleStyle>]()
         for bodyRange in bodyRangeProtos {
-            guard bodyRange.hasStart, bodyRange.hasLength else {
-                continue
-            }
             let bodyRangeStart = bodyRange.start
             let bodyRangeLength = bodyRange.length
 
@@ -1127,10 +1485,6 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
                 let swiftStyle: MessageBodyRanges.SingleStyle
                 switch protoBodyRangeStyle {
                 case .none, .UNRECOGNIZED:
-                    partialErrors.append(.restoreFrameError(
-                        .invalidProtoData(.unrecognizedBodyRangeStyle),
-                        chatItemId
-                    ))
                     continue
                 case .bold:
                     swiftStyle = .bold
@@ -1168,7 +1522,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         _ quote: BackupProto_Quote,
         chatItemId: MessageBackup.ChatItemId,
         thread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreInteractionResult<(TSQuotedMessage, BackupProto_MessageAttachment?)> {
         let authorAddress: MessageBackup.InteropAddress
         switch context.recipientContext[quote.authorRecipientId] {
@@ -1179,7 +1533,7 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
             )])
         case .localAddress:
             authorAddress = context.recipientContext.localIdentifiers.aciAddress
-        case .group, .distributionList, .releaseNotesChannel:
+        case .group, .distributionList, .releaseNotesChannel, .callLink:
             // Groups and distritibution lists cannot be an authors of a message!
             return .messageFailure([.restoreFrameError(
                 .invalidProtoData(.incomingMessageNotFromAciOrE164),
@@ -1198,74 +1552,76 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         var partialErrors = [RestoreFrameError]()
 
         let targetMessageTimestamp: NSNumber?
+        let bodySource: TSQuotedMessageContentSource
         if
             quote.hasTargetSentTimestamp,
+            quote.targetSentTimestamp > 0,
             SDS.fitsInInt64(quote.targetSentTimestamp)
         {
             targetMessageTimestamp = NSNumber(value: quote.targetSentTimestamp)
+            // non-nil timestamp means the client that created the backup had
+            // the target message at receive time (local state was .local)
+            bodySource = .local
         } else {
             targetMessageTimestamp = nil
+            // nil timestamp means the client that created the backup did not have
+            // the target message at receive time (local state was .remote)
+            bodySource = .remote
         }
 
-        // Try and find the targeted message, and use that as the source.
-        // If this turns out to be a big perf hit, maybe we skip this and just
-        // always use the contents of the proto?
-        let targetMessage = findTargetMessageForQuote(
-            quote: quote,
-            thread: thread,
-            context: context
-        )
-
-        let bodySource: TSQuotedMessageContentSource
         let quoteBody: MessageBody?
-        if
-            let targetMessage,
-            let text = targetMessage.body
-        {
-            bodySource = .local
-            quoteBody = MessageBody(
-                text: text,
-                ranges: targetMessage.bodyRanges ?? .empty
-            )
-        } else if quote.hasText {
-            guard
-                let bodyResult = restoreMessageBody(
+        if quote.hasText {
+            switch self
+                .restoreMessageBody(
                     text: quote.text.body,
                     bodyRangeProtos: quote.text.bodyRanges,
                     chatItemId: chatItemId
-                ).unwrap(partialErrors: &partialErrors)
-            else {
-                return .messageFailure(partialErrors)
+                )
+                .bubbleUp(
+                    (TSQuotedMessage, BackupProto_MessageAttachment?).self,
+                    partialErrors: &partialErrors
+                )
+            {
+            case .continue(let component):
+                quoteBody = component
+            case .bubbleUpError(let error):
+                return error
             }
-
-            bodySource = .remote
-            quoteBody = bodyResult
         } else {
-            bodySource = targetMessage == nil ? .remote : .local
             quoteBody = nil
         }
 
         let isGiftBadge: Bool
+        let isTargetMessageViewOnce: Bool
         switch quote.type {
         case .UNRECOGNIZED, .unknown, .normal:
             isGiftBadge = false
-        case .giftbadge:
+            isTargetMessageViewOnce = false
+        case .viewOnce:
+            isGiftBadge = false
+            isTargetMessageViewOnce = true
+        case .giftBadge:
             isGiftBadge = true
+            isTargetMessageViewOnce = false
         }
 
         let quotedAttachmentInfo: OWSAttachmentInfo?
         let quotedAttachmentThumbnail: BackupProto_MessageAttachment?
         if let quotedAttachmentProto = quote.attachments.first {
+            let mimeType = quotedAttachmentProto.contentType.nilIfEmpty
+            ?? MimeType.applicationOctetStream.rawValue
+            let sourceFilename = quotedAttachmentProto.fileName.nilIfEmpty
+
             if quotedAttachmentProto.hasThumbnail {
-                quotedAttachmentInfo = .init(forV2ThumbnailReference: ())
+                quotedAttachmentInfo = .forThumbnailReference(
+                    withOriginalAttachmentMimeType: mimeType,
+                    originalAttachmentSourceFilename: sourceFilename
+                )
                 quotedAttachmentThumbnail = quotedAttachmentProto.thumbnail
             } else {
-                let mimeType = quotedAttachmentProto.contentType.nilIfEmpty
-                    ?? MimeType.applicationOctetStream.rawValue
-                let sourceFilename = quotedAttachmentProto.fileName.nilIfEmpty
-                quotedAttachmentInfo = .init(
-                    stubWithMimeType: mimeType,
-                    sourceFilename: sourceFilename
+                quotedAttachmentInfo = .stub(
+                    withOriginalAttachmentMimeType: mimeType,
+                    originalAttachmentSourceFilename: sourceFilename
                 )
                 quotedAttachmentThumbnail = nil
             }
@@ -1274,21 +1630,27 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
             quotedAttachmentThumbnail = nil
         }
 
-        guard quoteBody != nil || quotedAttachmentInfo != nil || isGiftBadge else {
-            return .messageFailure([.restoreFrameError(
+        if
+            quoteBody == nil,
+            quotedAttachmentInfo == nil,
+            !isGiftBadge,
+            !isTargetMessageViewOnce
+        {
+            partialErrors.append(.restoreFrameError(
                 .invalidProtoData(.quotedMessageEmptyContent),
                 chatItemId
-            )])
+            ))
         }
 
         let quotedMessage = TSQuotedMessage(
-            targetMessageTimestamp: targetMessageTimestamp,
+            fromBackupWithTargetMessageTimestamp: targetMessageTimestamp,
             authorAddress: authorAddress,
             body: quoteBody?.text,
             bodyRanges: quoteBody?.ranges,
             bodySource: bodySource,
             quotedAttachmentInfo: quotedAttachmentInfo,
-            isGiftBadge: isGiftBadge
+            isGiftBadge: isGiftBadge,
+            isTargetMessageViewOnce: isTargetMessageViewOnce
         )
 
         if partialErrors.isEmpty {
@@ -1298,51 +1660,20 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         }
     }
 
-    private func findTargetMessageForQuote(
-        quote: BackupProto_Quote,
-        thread: MessageBackup.ChatThread,
-        context: MessageBackup.RestoringContext
-    ) -> TSMessage? {
-        guard
-            quote.hasTargetSentTimestamp,
-            SDS.fitsInInt64(quote.targetSentTimestamp)
-        else { return nil }
-
-        let messageCandidates: [TSInteraction] = (try? interactionStore
-            .interactions(
-                withTimestamp: quote.targetSentTimestamp,
-                tx: context.tx
-            )
-        ) ?? []
-
-        let filteredMessages = messageCandidates
-            .lazy
-            .compactMap { $0 as? TSMessage }
-            .filter { $0.uniqueThreadId == thread.tsThread.uniqueId }
-
-        if filteredMessages.count > 1 {
-            // We found more than one matching message. We don't know which
-            // to use, so lets just use whats in the quote proto.
-            return nil
-        } else {
-            return filteredMessages.first
-        }
-    }
-
     private func restoreLinkPreview(
         _ linkPreviewProto: BackupProto_LinkPreview,
         standardMessage: BackupProto_StandardMessage,
         chatItemId: MessageBackup.ChatItemId,
         context: MessageBackup.RestoringContext
-    ) -> RestoreInteractionResult<(OWSLinkPreview, BackupProto_FilePointer?)> {
+    ) -> RestoreInteractionResult<(OWSLinkPreview, BackupProto_FilePointer?)?> {
         guard let url = linkPreviewProto.url.nilIfEmpty else {
-            return .messageFailure([.restoreFrameError(
+            return .partialRestore(nil, [.restoreFrameError(
                 .invalidProtoData(.linkPreviewEmptyUrl),
                 chatItemId
             )])
         }
         guard standardMessage.text.body.contains(url) else {
-            return .messageFailure([.restoreFrameError(
+            return .partialRestore(nil, [.restoreFrameError(
                 .invalidProtoData(.linkPreviewUrlNotInBody),
                 chatItemId
             )])
@@ -1362,15 +1693,13 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         )
 
         if linkPreviewProto.hasImage {
-            let linkPreview = OWSLinkPreview.withForeignReferenceImageAttachment(
-                metadata: metadata,
-                ownerType: .message
+            let linkPreview = OWSLinkPreview(
+                metadata: metadata
             )
             return .success((linkPreview, linkPreviewProto.image))
         } else {
-            let linkPreview = OWSLinkPreview.withoutImage(
-                metadata: metadata,
-                ownerType: .message
+            let linkPreview = OWSLinkPreview(
+                metadata: metadata
             )
             return .success((linkPreview, nil))
         }
@@ -1382,26 +1711,33 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         _ contactMessage: BackupProto_ContactMessage,
         chatItemId: MessageBackup.ChatItemId,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreInteractionResult<MessageBackup.RestoredMessageContents> {
         var partialErrors = [RestoreFrameError]()
 
-        guard
-            contactMessage.contact.count == 1,
-            let contactAttachment = contactMessage.contact.first
-        else {
+        guard contactMessage.hasContact else {
             return .messageFailure([.restoreFrameError(
-                .invalidProtoData(.contactMessageNonSingularContactAttachmentCount),
+                .invalidProtoData(.contactMessageMissingContactAttachment),
                 chatItemId
             )])
         }
+        let contactAttachment = contactMessage.contact
 
         let contactResult = contactAttachmentArchiver.restoreContact(
             contactAttachment,
             chatItemId: chatItemId
         )
-        guard let contact = contactResult.unwrap(partialErrors: &partialErrors) else {
-            return .messageFailure(partialErrors)
+        let contact: OWSContact
+        switch contactResult
+            .bubbleUp(
+                MessageBackup.RestoredMessageContents.self,
+                partialErrors: &partialErrors
+            )
+        {
+        case .continue(let component):
+            contact = component
+        case .bubbleUpError(let error):
+            return error
         }
 
         let avatar: BackupProto_FilePointer?
@@ -1429,10 +1765,10 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
         _ stickerMessage: BackupProto_StickerMessage,
         chatItemId: MessageBackup.ChatItemId,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreInteractionResult<MessageBackup.RestoredMessageContents> {
         let stickerProto = stickerMessage.sticker
-        let messageSticker = MessageSticker.withForeignReferenceAttachment(
+        let messageSticker = MessageSticker(
             info: .init(
                 packId: stickerProto.packID,
                 packKey: stickerProto.packKey,
@@ -1453,11 +1789,11 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
     private func restoreGiftBadge(
         _ giftBadgeProto: BackupProto_GiftBadge,
         chatItemId: MessageBackup.ChatItemId,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreInteractionResult<MessageBackup.RestoredMessageContents> {
         let giftBadge: OWSGiftBadge
         switch giftBadgeProto.state {
-        case .unopened:
+        case .unopened, .UNRECOGNIZED:
             giftBadge = .restoreFromBackup(
                 receiptCredentialPresentation: giftBadgeProto.receiptCredentialPresentation,
                 redemptionState: .pending
@@ -1481,15 +1817,102 @@ class MessageBackupTSMessageContentsArchiver: MessageBackupProtoArchiver {
                 receiptCredentialPresentation: nil,
                 redemptionState: .pending
             )
-        case .UNRECOGNIZED(_):
-            return .messageFailure([.restoreFrameError(
-                .invalidProtoData(.unrecognizedGiftBadgeState),
-                chatItemId
-            )])
         }
 
         return .success(.giftBadge(MessageBackup.RestoredMessageContents.GiftBadge(
             giftBadge: giftBadge
+        )))
+    }
+
+    // MARK: -
+
+    private func restoreViewOnceMessage(
+        _ viewOnceMessage: BackupProto_ViewOnceMessage,
+        chatItemId: MessageBackup.ChatItemId,
+        chatThread: MessageBackup.ChatThread,
+        context: MessageBackup.ChatItemRestoringContext
+    ) -> RestoreInteractionResult<MessageBackup.RestoredMessageContents> {
+        let state: MessageBackup.RestoredMessageContents.ViewOnceMessage.State
+        if viewOnceMessage.hasAttachment {
+            state = .unviewed(viewOnceMessage.attachment)
+        } else {
+            state = .complete
+        }
+        return .success(.viewOnceMessage(.init(
+            state: state,
+            reactions: viewOnceMessage.reactions
+        )))
+    }
+
+    // MARK: -
+
+    /// Note this only covers 1:1 story replies which are rendered in-chat;
+    /// group story replies are rendered in the story UI and are not backed
+    /// up since stories are not backed up.
+    private func restoreDirectStoryReplyMessage(
+        _ storyReply: BackupProto_DirectStoryReplyMessage,
+        chatItemId: MessageBackup.ChatItemId,
+        chatThread: MessageBackup.ChatThread,
+        context: MessageBackup.ChatItemRestoringContext
+    ) -> RestoreInteractionResult<MessageBackup.RestoredMessageContents> {
+        var partialErrors = [RestoreFrameError]()
+
+        let replyType: MessageBackup.RestoredMessageContents.StoryReply.ReplyType
+
+        switch storyReply.reply {
+        case .textReply(let textReply):
+            let oversizeTextAttachment: BackupProto_FilePointer? = if textReply.hasLongText {
+                textReply.longText
+            } else {
+                nil
+            }
+
+            let messageBody: MessageBody?
+            switch self
+                .restoreMessageBody(
+                    textReply.text,
+                    chatItemId: chatItemId
+                )
+                .bubbleUp(
+                    MessageBackup.RestoredMessageContents.self,
+                    partialErrors: &partialErrors
+                )
+            {
+            case .continue(let component):
+                messageBody = component
+            case .bubbleUpError(let error):
+                return error
+            }
+
+            if let messageBody {
+                replyType = .textReply(.init(
+                    body: messageBody,
+                    oversizeTextAttachment: oversizeTextAttachment
+                ))
+            } else {
+                let restoreErrorType: RestoreFrameError.ErrorType
+                if oversizeTextAttachment != nil {
+                    restoreErrorType = .invalidProtoData(.directStoryReplyMessageEmptyWithLongText)
+                } else {
+                    restoreErrorType = .invalidProtoData(.directStoryReplyMessageEmpty)
+                }
+
+                return .messageFailure([.restoreFrameError(
+                    restoreErrorType,
+                    chatItemId
+                )] + partialErrors)
+            }
+        case .emoji(let string):
+            replyType = .emoji(string)
+        case .none:
+            return .unrecognizedEnum(MessageBackup.UnrecognizedEnumError(
+                enumType: BackupProto_DirectStoryReplyMessage.OneOf_Reply.self
+            ))
+        }
+
+        return .success(.storyReply(.init(
+            replyType: replyType,
+            reactions: storyReply.reactions
         )))
     }
 }
@@ -1502,8 +1925,8 @@ private extension ArchivedPayment {
         senderOrRecipientAci: Aci,
         direction: Direction,
         interactionUniqueId: String?
-    ) -> ArchivedPayment? {
-        var archivedPayment: ArchivedPayment?
+    ) -> ArchivedPayment {
+        var archivedPayment: ArchivedPayment
         switch backup.status {
         case .failure(let reason):
             archivedPayment = ArchivedPayment(
@@ -1539,7 +1962,7 @@ private extension ArchivedPayment {
                 timestamp: payment?.timestamp,
                 blockIndex: payment?.blockIndex,
                 blockTimestamp: payment?.blockTimestamp,
-                transaction: payment?.transaction,
+                transaction: payment?.transaction.nilIfEmpty,
                 receipt: payment?.receipt,
                 senderOrRecipientAci: senderOrRecipientAci,
                 interactionUniqueId: interactionUniqueId

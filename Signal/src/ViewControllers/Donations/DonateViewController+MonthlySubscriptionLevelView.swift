@@ -39,10 +39,10 @@ extension DonateViewController {
             return result
         }()
 
-        public let subscriptionLevel: SubscriptionLevel
+        public let subscriptionLevel: DonationSubscriptionLevel
         public let animationName: String
 
-        public init(subscriptionLevel: SubscriptionLevel, animationName: String) {
+        public init(subscriptionLevel: DonationSubscriptionLevel, animationName: String) {
             self.subscriptionLevel = subscriptionLevel
             self.animationName = animationName
 
@@ -82,7 +82,7 @@ extension DonateViewController {
         public func render(
             currencyCode: Currency.Code,
             currentSubscription: Subscription?,
-            selectedSubscriptionLevel: SubscriptionLevel?
+            selectedSubscriptionLevel: DonationSubscriptionLevel?
         ) {
             let isCurrentSubscription: Bool = {
                 guard let currentSubscription = currentSubscription else { return false }
@@ -107,7 +107,7 @@ extension DonateViewController {
                 guard let price = subscriptionLevel.amounts[currencyCode] else {
                     owsFail("[Donations] No price for this currency code. This should be impossible in the UI")
                 }
-                let currencyString = DonationUtilities.format(money: price)
+                let currencyString = CurrencyFormatter.format(money: price)
                 return String(format: format, currencyString)
             }()
             headingStackView.removeAllSubviews()

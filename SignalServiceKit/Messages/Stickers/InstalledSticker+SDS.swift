@@ -131,8 +131,8 @@ extension InstalledSticker: SDSModel {
         }
     }
 
-    public func asRecord() throws -> SDSRecord {
-        try serializer.asRecord()
+    public func asRecord() -> SDSRecord {
+        serializer.asRecord()
     }
 
     public var sdsTableName: String {
@@ -149,12 +149,12 @@ extension InstalledSticker: SDSModel {
 extension InstalledSticker: DeepCopyable {
 
     public func deepCopy() throws -> AnyObject {
-        // Any subclass can be cast to it's superclass,
-        // so the order of this switch statement matters.
-        // We need to do a "depth first" search by type.
         guard let id = self.grdbId?.int64Value else {
             throw OWSAssertionError("Model missing grdbId.")
         }
+
+        // Any subclass can be cast to its superclass, so the order of these if
+        // statements matters. We need to do a "depth first" search by type.
 
         do {
             let modelToCopy = self
@@ -162,8 +162,6 @@ extension InstalledSticker: DeepCopyable {
             let uniqueId: String = modelToCopy.uniqueId
             let contentType: String? = modelToCopy.contentType
             let emojiString: String? = modelToCopy.emojiString
-            // NOTE: If this generates build errors, you made need to
-            // implement DeepCopyable for this type in DeepCopy.swift.
             let info: StickerInfo = try DeepCopies.deepCopy(modelToCopy.info)
 
             return InstalledSticker(grdbId: id,
@@ -209,7 +207,7 @@ extension InstalledStickerSerializer {
 
 @objc
 public extension InstalledSticker {
-    func anyInsert(transaction: SDSAnyWriteTransaction) {
+    func anyInsert(transaction: DBWriteTransaction) {
         sdsSave(saveMode: .insert, transaction: transaction)
     }
 
@@ -221,7 +219,7 @@ public extension InstalledSticker {
     //
     // For performance, when possible, you should explicitly specify whether
     // you are inserting or updating rather than calling this method.
-    func anyUpsert(transaction: SDSAnyWriteTransaction) {
+    func anyUpsert(transaction: DBWriteTransaction) {
         let isInserting: Bool
         if InstalledSticker.anyFetch(uniqueId: uniqueId, transaction: transaction) != nil {
             isInserting = false
@@ -255,7 +253,7 @@ public extension InstalledSticker {
     //
     // This isn't a perfect arrangement, but in practice this will prevent
     // data loss and will resolve all known issues.
-    func anyUpdate(transaction: SDSAnyWriteTransaction, block: (InstalledSticker) -> Void) {
+    func anyUpdate(transaction: DBWriteTransaction, block: (InstalledSticker) -> Void) {
 
         block(self)
 
@@ -283,27 +281,12 @@ public extension InstalledSticker {
     // There are cases when this doesn't make sense, e.g. when  we know we've
     // just loaded the model in the same transaction. In those cases it is
     // safe and faster to do a "overwriting" update
-    func anyOverwritingUpdate(transaction: SDSAnyWriteTransaction) {
+    func anyOverwritingUpdate(transaction: DBWriteTransaction) {
         sdsSave(saveMode: .update, transaction: transaction)
     }
 
-    func anyRemove(transaction: SDSAnyWriteTransaction) {
+    func anyRemove(transaction: DBWriteTransaction) {
         sdsRemove(transaction: transaction)
-    }
-
-    func anyReload(transaction: SDSAnyReadTransaction) {
-        anyReload(transaction: transaction, ignoreMissing: false)
-    }
-
-    func anyReload(transaction: SDSAnyReadTransaction, ignoreMissing: Bool) {
-        guard let latestVersion = type(of: self).anyFetch(uniqueId: uniqueId, transaction: transaction) else {
-            if !ignoreMissing {
-                owsFailDebug("`latest` was unexpectedly nil")
-            }
-            return
-        }
-
-        setValuesForKeys(latestVersion.dictionaryValue)
     }
 }
 
@@ -311,10 +294,10 @@ public extension InstalledSticker {
 
 @objc
 public class InstalledStickerCursor: NSObject, SDSCursor {
-    private let transaction: GRDBReadTransaction
+    private let transaction: DBReadTransaction
     private let cursor: RecordCursor<InstalledStickerRecord>?
 
-    init(transaction: GRDBReadTransaction, cursor: RecordCursor<InstalledStickerRecord>?) {
+    init(transaction: DBReadTransaction, cursor: RecordCursor<InstalledStickerRecord>?) {
         self.transaction = transaction
         self.cursor = cursor
     }
@@ -327,7 +310,7 @@ public class InstalledStickerCursor: NSObject, SDSCursor {
             return nil
         }
         let value = try InstalledSticker.fromRecord(record)
-        Self.modelReadCaches.installedStickerCache.didReadInstalledSticker(value, transaction: transaction.asAnyRead)
+        SSKEnvironment.shared.modelReadCachesRef.installedStickerCache.didReadInstalledSticker(value, transaction: transaction)
         return value
     }
 
@@ -347,7 +330,8 @@ public class InstalledStickerCursor: NSObject, SDSCursor {
 
 @objc
 public extension InstalledSticker {
-    class func grdbFetchCursor(transaction: GRDBReadTransaction) -> InstalledStickerCursor {
+    @nonobjc
+    class func grdbFetchCursor(transaction: DBReadTransaction) -> InstalledStickerCursor {
         let database = transaction.database
         do {
             let cursor = try InstalledStickerRecord.fetchCursor(database)
@@ -364,7 +348,7 @@ public extension InstalledSticker {
 
     // Fetches a single model by "unique id".
     class func anyFetch(uniqueId: String,
-                        transaction: SDSAnyReadTransaction) -> InstalledSticker? {
+                        transaction: DBReadTransaction) -> InstalledSticker? {
         assert(!uniqueId.isEmpty)
 
         return anyFetch(uniqueId: uniqueId, transaction: transaction, ignoreCache: false)
@@ -372,26 +356,23 @@ public extension InstalledSticker {
 
     // Fetches a single model by "unique id".
     class func anyFetch(uniqueId: String,
-                        transaction: SDSAnyReadTransaction,
+                        transaction: DBReadTransaction,
                         ignoreCache: Bool) -> InstalledSticker? {
         assert(!uniqueId.isEmpty)
 
         if !ignoreCache,
-            let cachedCopy = Self.modelReadCaches.installedStickerCache.getInstalledSticker(uniqueId: uniqueId, transaction: transaction) {
+            let cachedCopy = SSKEnvironment.shared.modelReadCachesRef.installedStickerCache.getInstalledSticker(uniqueId: uniqueId, transaction: transaction) {
             return cachedCopy
         }
 
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let sql = "SELECT * FROM \(InstalledStickerRecord.databaseTableName) WHERE \(installedStickerColumn: .uniqueId) = ?"
-            return grdbFetchOne(sql: sql, arguments: [uniqueId], transaction: grdbTransaction)
-        }
+        let sql = "SELECT * FROM \(InstalledStickerRecord.databaseTableName) WHERE \(installedStickerColumn: .uniqueId) = ?"
+        return grdbFetchOne(sql: sql, arguments: [uniqueId], transaction: transaction)
     }
 
     // Traverses all records.
     // Records are not visited in any particular order.
     class func anyEnumerate(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         block: (InstalledSticker, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
         anyEnumerate(transaction: transaction, batched: false, block: block)
@@ -400,7 +381,7 @@ public extension InstalledSticker {
     // Traverses all records.
     // Records are not visited in any particular order.
     class func anyEnumerate(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batched: Bool = false,
         block: (InstalledSticker, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
@@ -413,32 +394,29 @@ public extension InstalledSticker {
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
     class func anyEnumerate(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batchSize: UInt,
         block: (InstalledSticker, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let cursor = InstalledSticker.grdbFetchCursor(transaction: grdbTransaction)
-            Batching.loop(batchSize: batchSize,
-                          loopBlock: { stop in
-                                do {
-                                    guard let value = try cursor.next() else {
-                                        stop.pointee = true
-                                        return
-                                    }
-                                    block(value, stop)
-                                } catch let error {
-                                    owsFailDebug("Couldn't fetch model: \(error)")
+        let cursor = InstalledSticker.grdbFetchCursor(transaction: transaction)
+        Batching.loop(batchSize: batchSize,
+                        loopBlock: { stop in
+                            do {
+                                guard let value = try cursor.next() else {
+                                    stop.pointee = true
+                                    return
                                 }
-                              })
-        }
+                                block(value, stop)
+                            } catch let error {
+                                owsFailDebug("Couldn't fetch model: \(error)")
+                            }
+                            })
     }
 
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
     class func anyEnumerateUniqueIds(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
         anyEnumerateUniqueIds(transaction: transaction, batched: false, block: block)
@@ -447,7 +425,7 @@ public extension InstalledSticker {
     // Traverses all records' unique ids.
     // Records are not visited in any particular order.
     class func anyEnumerateUniqueIds(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batched: Bool = false,
         block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
@@ -460,24 +438,21 @@ public extension InstalledSticker {
     //
     // If batchSize > 0, the enumeration is performed in autoreleased batches.
     class func anyEnumerateUniqueIds(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batchSize: UInt,
         block: (String, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            grdbEnumerateUniqueIds(transaction: grdbTransaction,
-                                   sql: """
-                    SELECT \(installedStickerColumn: .uniqueId)
-                    FROM \(InstalledStickerRecord.databaseTableName)
-                """,
-                batchSize: batchSize,
-                block: block)
-        }
+        grdbEnumerateUniqueIds(transaction: transaction,
+                                sql: """
+                SELECT \(installedStickerColumn: .uniqueId)
+                FROM \(InstalledStickerRecord.databaseTableName)
+            """,
+            batchSize: batchSize,
+            block: block)
     }
 
     // Does not order the results.
-    class func anyFetchAll(transaction: SDSAnyReadTransaction) -> [InstalledSticker] {
+    class func anyFetchAll(transaction: DBReadTransaction) -> [InstalledSticker] {
         var result = [InstalledSticker]()
         anyEnumerate(transaction: transaction) { (model, _) in
             result.append(model)
@@ -486,7 +461,7 @@ public extension InstalledSticker {
     }
 
     // Does not order the results.
-    class func anyAllUniqueIds(transaction: SDSAnyReadTransaction) -> [String] {
+    class func anyAllUniqueIds(transaction: DBReadTransaction) -> [String] {
         var result = [String]()
         anyEnumerateUniqueIds(transaction: transaction) { (uniqueId, _) in
             result.append(uniqueId)
@@ -494,14 +469,11 @@ public extension InstalledSticker {
         return result
     }
 
-    class func anyCount(transaction: SDSAnyReadTransaction) -> UInt {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            return InstalledStickerRecord.ows_fetchCount(grdbTransaction.database)
-        }
+    class func anyCount(transaction: DBReadTransaction) -> UInt {
+        return InstalledStickerRecord.ows_fetchCount(transaction.database)
     }
 
-    class func anyRemoveAllWithInstantiation(transaction: SDSAnyWriteTransaction) {
+    class func anyRemoveAllWithInstantiation(transaction: DBWriteTransaction) {
         // To avoid mutationDuringEnumerationException, we need to remove the
         // instances outside the enumeration.
         let uniqueIds = anyAllUniqueIds(transaction: transaction)
@@ -519,23 +491,20 @@ public extension InstalledSticker {
 
     class func anyExists(
         uniqueId: String,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> Bool {
         assert(!uniqueId.isEmpty)
 
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let sql = "SELECT EXISTS ( SELECT 1 FROM \(InstalledStickerRecord.databaseTableName) WHERE \(installedStickerColumn: .uniqueId) = ? )"
-            let arguments: StatementArguments = [uniqueId]
-            do {
-                return try Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
-            } catch {
-                DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
-                    userDefaults: CurrentAppContext().appUserDefaults(),
-                    error: error
-                )
-                owsFail("Missing instance.")
-            }
+        let sql = "SELECT EXISTS ( SELECT 1 FROM \(InstalledStickerRecord.databaseTableName) WHERE \(installedStickerColumn: .uniqueId) = ? )"
+        let arguments: StatementArguments = [uniqueId]
+        do {
+            return try Bool.fetchOne(transaction.database, sql: sql, arguments: arguments) ?? false
+        } catch {
+            DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+                userDefaults: CurrentAppContext().appUserDefaults(),
+                error: error
+            )
+            owsFail("Missing instance.")
         }
     }
 }
@@ -545,7 +514,7 @@ public extension InstalledSticker {
 public extension InstalledSticker {
     class func grdbFetchCursor(sql: String,
                                arguments: StatementArguments = StatementArguments(),
-                               transaction: GRDBReadTransaction) -> InstalledStickerCursor {
+                               transaction: DBReadTransaction) -> InstalledStickerCursor {
         do {
             let sqlRequest = SQLRequest<Void>(sql: sql, arguments: arguments, cached: true)
             let cursor = try InstalledStickerRecord.fetchCursor(transaction.database, sqlRequest)
@@ -562,7 +531,7 @@ public extension InstalledSticker {
 
     class func grdbFetchOne(sql: String,
                             arguments: StatementArguments = StatementArguments(),
-                            transaction: GRDBReadTransaction) -> InstalledSticker? {
+                            transaction: DBReadTransaction) -> InstalledSticker? {
         assert(!sql.isEmpty)
 
         do {
@@ -572,7 +541,7 @@ public extension InstalledSticker {
             }
 
             let value = try InstalledSticker.fromRecord(record)
-            Self.modelReadCaches.installedStickerCache.didReadInstalledSticker(value, transaction: transaction.asAnyRead)
+            SSKEnvironment.shared.modelReadCachesRef.installedStickerCache.didReadInstalledSticker(value, transaction: transaction)
             return value
         } catch {
             owsFailDebug("error: \(error)")
@@ -594,7 +563,7 @@ class InstalledStickerSerializer: SDSSerializer {
 
     // MARK: - Record
 
-    func asRecord() throws -> SDSRecord {
+    func asRecord() -> SDSRecord {
         let id: Int64? = model.grdbId?.int64Value
 
         let recordType: SDSRecordType = .installedSticker
@@ -608,20 +577,3 @@ class InstalledStickerSerializer: SDSSerializer {
         return InstalledStickerRecord(delegate: model, id: id, recordType: recordType, uniqueId: uniqueId, emojiString: emojiString, info: info, contentType: contentType)
     }
 }
-
-// MARK: - Deep Copy
-
-#if TESTABLE_BUILD
-@objc
-public extension InstalledSticker {
-    // We're not using this method at the moment,
-    // but we might use it for validation of
-    // other deep copy methods.
-    func deepCopyUsingRecord() throws -> InstalledSticker {
-        guard let record = try asRecord() as? InstalledStickerRecord else {
-            throw OWSAssertionError("Could not convert to record.")
-        }
-        return try InstalledSticker.fromRecord(record)
-    }
-}
-#endif

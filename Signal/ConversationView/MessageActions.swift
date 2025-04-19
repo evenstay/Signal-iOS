@@ -76,6 +76,17 @@ struct MessageActionBuilder {
         })
     }
 
+    static func saveMedia(itemViewModel: CVItemViewModelImpl, delegate: MessageActionsDelegate) -> MessageAction {
+        return MessageAction(.save,
+                             accessibilityLabel: OWSLocalizedString("MESSAGE_ACTION_SAVE_MEDIA", comment: "Action sheet button title"),
+                             accessibilityIdentifier: UIView.accessibilityIdentifier(containerName: "message_action", name: "save_media"),
+                             contextMenuTitle: OWSLocalizedString("CONTEXT_MENU_SAVE_MEDIA", comment: "Context menu button title"),
+                             contextMenuAttributes: [],
+                             block: { _ in
+            itemViewModel.saveMediaAction()
+        })
+    }
+
     static func forwardMessage(itemViewModel: CVItemViewModelImpl, delegate: MessageActionsDelegate) -> MessageAction {
         return MessageAction(.forward,
                              accessibilityLabel: OWSLocalizedString("MESSAGE_ACTION_FORWARD_MESSAGE", comment: "Action sheet button title"),
@@ -189,7 +200,7 @@ class MessageActions: NSObject {
         if itemViewModel.canCopyOrShareOrSpeakText {
             // If the user started speaking a message and then turns of the "speak selection" OS setting,
             // we still want to let them turn it off.
-            if self.speechManager.isSpeaking {
+            if AppEnvironment.shared.speechManagerRef.isSpeaking {
                 let stopSpeakingAction = MessageActionBuilder.stopSpeakingMessage(itemViewModel: itemViewModel, delegate: delegate)
                 actions.append(stopSpeakingAction)
             } else if UIAccessibility.isSpeakSelectionEnabled {
@@ -213,6 +224,11 @@ class MessageActions: NSObject {
         if itemViewModel.canShareMedia {
             let shareMediaAction = MessageActionBuilder.shareMedia(itemViewModel: itemViewModel, delegate: delegate)
             actions.append(shareMediaAction)
+        }
+
+        if itemViewModel.canSaveMedia {
+            let saveMediaAction = MessageActionBuilder.saveMedia(itemViewModel: itemViewModel, delegate: delegate)
+            actions.append(saveMediaAction)
         }
 
         if shouldAllowReply {

@@ -17,12 +17,12 @@ class NSECallMessageHandler: CallMessageHandler {
         SwiftSingletons.register(self)
     }
 
-    private var databaseStorage: SDSDatabaseStorage { NSObject.databaseStorage }
-    private var groupCallManager: GroupCallManager { NSObject.groupCallManager }
+    private var databaseStorage: SDSDatabaseStorage { SSKEnvironment.shared.databaseStorageRef }
+    private var groupCallManager: GroupCallManager { SSKEnvironment.shared.groupCallManagerRef }
     private var identityManager: any OWSIdentityManager { DependenciesBridge.shared.identityManager }
-    private var messagePipelineSupervisor: MessagePipelineSupervisor { NSObject.messagePipelineSupervisor }
-    private var notificationPresenter: NotificationPresenterImpl { NSObject.notificationPresenter as! NotificationPresenterImpl }
-    private var profileManager: any ProfileManager { NSObject.profileManager }
+    private var messagePipelineSupervisor: MessagePipelineSupervisor { SSKEnvironment.shared.messagePipelineSupervisorRef }
+    private var notificationPresenter: NotificationPresenterImpl { SSKEnvironment.shared.notificationPresenterRef as! NotificationPresenterImpl }
+    private var profileManager: any ProfileManager { SSKEnvironment.shared.profileManagerRef }
     private var tsAccountManager: any TSAccountManager { DependenciesBridge.shared.tsAccountManager }
 
     // MARK: - Call Handlers
@@ -30,19 +30,20 @@ class NSECallMessageHandler: CallMessageHandler {
     func receivedEnvelope(
         _ envelope: SSKProtoEnvelope,
         callEnvelope: CallEnvelopeType,
-        from caller: (aci: Aci, deviceId: UInt32),
+        from caller: (aci: Aci, deviceId: DeviceId),
+        toLocalIdentity localIdentity: OWSIdentity,
         plaintextData: Data,
         wasReceivedByUD: Bool,
         sentAtTimestamp: UInt64,
         serverReceivedTimestamp: UInt64,
         serverDeliveryTimestamp: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         let bufferSecondsForMainAppToAnswerRing: UInt64 = 10
 
         let serverReceivedTimestamp = serverReceivedTimestamp > 0 ? serverReceivedTimestamp : sentAtTimestamp
         let approxMessageAge = (serverDeliveryTimestamp - serverReceivedTimestamp)
-        let messageAgeForRingRtc = approxMessageAge / kSecondInMs + bufferSecondsForMainAppToAnswerRing
+        let messageAgeForRingRtc = approxMessageAge / UInt64.secondInMs + bufferSecondsForMainAppToAnswerRing
 
         switch callEnvelope {
         case .offer(let offer):
@@ -58,6 +59,7 @@ class NSECallMessageHandler: CallMessageHandler {
             let partialResult = callOfferHandler.startHandlingOffer(
                 caller: caller.aci,
                 sourceDevice: caller.deviceId,
+                localIdentity: localIdentity,
                 callId: offer.id,
                 callType: offer.type ?? .offerAudioCall,
                 sentAtTimestamp: sentAtTimestamp,
@@ -158,7 +160,7 @@ class NSECallMessageHandler: CallMessageHandler {
         plaintextData: Data,
         wasReceivedByUD: Bool,
         serverDeliveryTimestamp: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         do {
             let payload = try CallMessageRelay.enqueueCallMessageForMainApp(
@@ -191,11 +193,11 @@ class NSECallMessageHandler: CallMessageHandler {
 
     func receivedGroupCallUpdateMessage(
         _ updateMessage: SSKProtoDataMessageGroupCallUpdate,
-        for groupThread: TSGroupThread,
+        forGroupId groupId: GroupIdentifier,
         serverReceivedTimestamp: UInt64
     ) async {
         await groupCallManager.peekGroupCallAndUpdateThread(
-            groupThread,
+            forGroupId: groupId,
             peekTrigger: .receivedGroupUpdateMessage(
                 eraId: updateMessage.eraID,
                 messageTimestamp: serverReceivedTimestamp

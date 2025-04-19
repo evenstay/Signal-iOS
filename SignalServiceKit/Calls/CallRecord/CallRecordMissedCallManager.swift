@@ -194,9 +194,13 @@ class CallRecordMissedCallManagerImpl: CallRecordMissedCallManager {
                 while let unreadCallRecord = try unreadCallCursor.next() {
                     markedAsReadCount += 1
 
-                    callRecordStore.markAsRead(
-                        callRecord: unreadCallRecord, tx: tx
-                    )
+                    do {
+                        try callRecordStore.markAsRead(
+                            callRecord: unreadCallRecord, tx: tx
+                        )
+                    } catch let error {
+                        owsFailBeta("Failed to update call record: \(error)")
+                    }
                 }
 
                 owsAssertDebug(
@@ -243,9 +247,11 @@ class CallRecordMissedCallManagerImpl: CallRecordMissedCallManager {
         eventType: OutgoingCallLogEventSyncMessage.CallLogEvent.EventType,
         tx: DBWriteTransaction
     ) {
-        guard let conversationId = callRecordConversationIdAdapter.getConversationId(
-            callRecord: callRecord, tx: tx
-        ) else {
+        let conversationId: Data
+        do {
+            conversationId = try callRecordConversationIdAdapter.getConversationId(callRecord: callRecord, tx: tx)
+        } catch {
+            owsFailDebug("\(error)")
             return
         }
         syncMessageSender.sendCallLogEventSyncMessage(
@@ -307,7 +313,7 @@ class _CallRecordMissedCallManagerImpl_SyncMessageSender_Wrapper: _CallRecordMis
                 conversationId: conversationId,
                 timestamp: timestamp
             ),
-            thread: localThread,
+            localThread: localThread,
             tx: sdsTx
         )
 

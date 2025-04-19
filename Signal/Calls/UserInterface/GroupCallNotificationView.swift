@@ -65,12 +65,18 @@ class GroupCallNotificationView: UIView {
 
         guard let bannerView: BannerView = {
             if membersPendingJoinNotification.count > 0 {
-                callService.audioService.playJoinSound()
+                // Stop any active ringing when anyone joins the call
+                callService.audioService.stopPlayingAnySounds()
+                if !CurrentAppContext().isAppForegroundAndActive() {
+                    callService.audioService.playJoinSound()
+                }
                 let addresses = membersPendingJoinNotification.map { $0.address }
                 membersPendingJoinNotification.removeAll()
                 return BannerView(addresses: addresses, action: .join)
             } else if membersPendingLeaveNotification.count > 0 {
-                callService.audioService.playLeaveSound()
+                if !CurrentAppContext().isAppForegroundAndActive() {
+                    callService.audioService.playLeaveSound()
+                }
                 let addresses = membersPendingLeaveNotification.map { $0.address }
                 membersPendingLeaveNotification.removeAll()
                 return BannerView(addresses: addresses, action: .leave)
@@ -104,24 +110,22 @@ class GroupCallNotificationView: UIView {
 
         layoutIfNeeded()
 
-        firstly(on: DispatchQueue.main) {
-            UIView.animate(.promise, duration: 0.35) {
-                offScreenConstraint.isActive = false
-                onScreenConstraint.isActive = true
+        UIView.animate(withDuration: 0.35, delay: 0) {
+            offScreenConstraint.isActive = false
+            onScreenConstraint.isActive = true
 
-                self.layoutIfNeeded()
-            }
-        }.then(on: DispatchQueue.main) { _ in
-            UIView.animate(.promise, duration: 0.35, delay: 2, options: .curveEaseInOut) {
+            self.layoutIfNeeded()
+        } completion: { _ in
+            UIView.animate(withDuration: 0.35, delay: 2, options: .curveEaseInOut) {
                 onScreenConstraint.isActive = false
                 offScreenConstraint.isActive = true
 
                 self.layoutIfNeeded()
+            } completion: { _ in
+                bannerView.removeFromSuperview()
+                self.isPresentingNotification = false
+                self.presentNextNotificationIfNecessary()
             }
-        }.done(on: DispatchQueue.main) { _ in
-            bannerView.removeFromSuperview()
-            self.isPresentingNotification = false
-            self.presentNextNotificationIfNecessary()
         }
     }
 }
@@ -161,17 +165,13 @@ private class BannerView: UIView {
         layer.cornerRadius = 8
         clipsToBounds = true
 
-        if UIAccessibility.isReduceTransparencyEnabled {
-            backgroundColor = .ows_blackAlpha80
-        } else {
-            let blurEffectView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
-            addSubview(blurEffectView)
-            blurEffectView.autoPinEdgesToSuperviewEdges()
-            backgroundColor = .ows_blackAlpha40
-        }
+        let blurEffectView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
+        addSubview(blurEffectView)
+        blurEffectView.autoPinEdgesToSuperviewEdges()
+        backgroundColor = .ows_blackAlpha40
 
-        let displayNames = databaseStorage.read { tx in
-            return contactsManagerImpl.sortedComparableNames(for: addresses, tx: tx)
+        let displayNames = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            return SSKEnvironment.shared.contactManagerImplRef.sortedComparableNames(for: addresses, tx: tx)
         }.sorted(by: <).map { $0.resolvedValue() }
 
         let actionText: String
@@ -232,15 +232,11 @@ private class BannerView: UIView {
             avatarView.autoVCenterInSuperview()
             avatarView.autoMatch(.height, to: .width, of: avatarView)
 
-            if address.isLocalAddress,
-               let avatarImage = profileManager.localProfileAvatarImage {
-                avatarView.image = avatarImage
-            } else {
-                let avatar = Self.avatarBuilder.avatarImageWithSneakyTransaction(forAddress: address,
-                                                                                 diameterPoints: 40,
-                                                                                 localUserDisplayMode: .asUser)
-                avatarView.image = avatar
-            }
+            avatarView.image = SSKEnvironment.shared.avatarBuilderRef.avatarImageWithSneakyTransaction(
+                forAddress: address,
+                diameterPoints: 40,
+                localUserDisplayMode: .asUser
+            )
         }
 
         let label = UILabel()

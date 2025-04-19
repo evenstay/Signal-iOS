@@ -32,18 +32,10 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
         case loadStringObjectFailed
         case loadDataRepresentationFailed
         case loadInPlaceFileRepresentationFailed
-        case nonFileUrl
         case fileUrlWasBplist
     }
 
-    private var hasInitialRootViewController = false
-    private var isReadyForAppExtensions = false
-
-    private var progressPoller: ProgressPoller?
-    lazy var loadViewController = SAELoadViewController(delegate: self)
-
     public var shareViewNavigationController: OWSNavigationController?
-    private var loadTask: Task<Void, any Error>?
 
     private lazy var appReadiness = AppReadinessImpl()
 
@@ -52,23 +44,14 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
 
         // This should be the first thing we do.
         let appContext = ShareAppExtensionContext(rootViewController: self)
-        SetCurrentAppContext(appContext)
+        SetCurrentAppContext(appContext, isRunningTests: false)
 
         let debugLogger = DebugLogger.shared
         debugLogger.enableTTYLoggingIfNeeded()
+        debugLogger.enableFileLogging(appContext: appContext, canLaunchInBackground: false)
         DebugLogger.registerLibsignal()
-        debugLogger.setUpFileLoggingIfNeeded(appContext: appContext, canLaunchInBackground: false)
 
         Logger.info("")
-
-        // We don't need to use DeviceSleepManager in the SAE.
-
-        // We don't need to use applySignalAppearence in the SAE.
-
-        if appContext.isRunningTests {
-            // TODO: Do we need to implement isRunningTests in the SAE context?
-            return
-        }
 
         let keychainStorage = KeychainStorageImpl(isUsingProductionService: TSConstants.isUsingProductionService)
         let databaseStorage: SDSDatabaseStorage
@@ -84,17 +67,18 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
         }
         databaseStorage.grdbStorage.setUpDatabasePathKVO()
 
-        // We shouldn't set up our environment until after we've consulted isReadyForAppExtensions.
         let databaseContinuation = AppSetup().start(
             appContext: appContext,
             appReadiness: appReadiness,
             databaseStorage: databaseStorage,
+            deviceSleepManager: nil,
             paymentsEvents: PaymentsEventsAppExtension(),
             mobileCoinHelper: MobileCoinHelperMinimal(),
             callMessageHandler: NoopCallMessageHandler(),
             currentCallProvider: CurrentCallNoOpProvider(),
             notificationPresenter: NoopNotificationPresenterImpl(),
-            incrementalTSAttachmentMigrator: NoOpIncrementalMessageTSAttachmentMigrator()
+            incrementalMessageTSAttachmentMigratorFactory: NoOpIncrementalMessageTSAttachmentMigratorFactory(),
+            messageBackupErrorPresenterFactory: NoOpMessageBackupErrorPresenterFactory()
         )
 
         // Configure the rest of the globals before preparing the database.
@@ -103,48 +87,142 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
             authCredentialManager: databaseContinuation.authCredentialManager
         )
 
-        databaseContinuation.prepareDatabase().done(on: DispatchQueue.main) { finalContinuation in
-            switch finalContinuation.finish(willResumeInProgressRegistration: false) {
-            case .corruptRegistrationState:
-                self.showNotRegisteredView()
-            case nil:
-                self.setAppIsReady()
-            }
-        }
-
         let shareViewNavigationController = OWSNavigationController()
         shareViewNavigationController.presentationController?.delegate = self
         shareViewNavigationController.delegate = self
         self.shareViewNavigationController = shareViewNavigationController
 
-        // Don't display load screen immediately, in hopes that we can avoid it altogether.
-        Guarantee.after(seconds: 0.8).done { [weak self] in
-            AssertIsOnMainThread()
+        Task {
+            let initialLoadViewController = SAELoadViewController(delegate: self)
+            var didDisplaceInitialLoadViewController = false
+            async let _ = { @MainActor () async throws -> Void in
+                // Don't display load screen immediately because loading the database and
+                // preparing attachments (if the recipient is pre-selected) will usually be
+                // fast enough that we can avoid it altogether. If you haven't run GRDB
+                // migrations in a while or have selected a long video, though, you'll
+                // likely see the load screen after 800ms.
+                try await Task.sleep(nanoseconds: 0.8.clampedNanoseconds)
+                guard self.presentedViewController == nil else {
+                    return
+                }
+                self.showPrimaryViewController(initialLoadViewController)
+            }()
 
-            guard let strongSelf = self else { return }
-            guard strongSelf.presentedViewController == nil else {
-                Logger.debug("setup completed quickly, no need to present load view controller.")
+            let finalContinuation = await databaseContinuation.prepareDatabase()
+            finalContinuation.runLaunchTasksIfNeededAndReloadCaches()
+            switch finalContinuation.setUpLocalIdentifiers(willResumeInProgressRegistration: false) {
+            case .corruptRegistrationState:
+                self.showNotRegisteredView()
+                return
+            case nil:
+                self.setAppIsReady()
+            }
+
+            if ScreenLock.shared.isScreenLockEnabled() {
+                let didUnlock = await withCheckedContinuation { continuation in
+                    let viewController = SAEScreenLockViewController { didUnlock in
+                        continuation.resume(returning: didUnlock)
+                    }
+                    self.showPrimaryViewController(viewController)
+                }
+                guard didUnlock else {
+                    self.shareViewWasCancelled()
+                    return
+                }
+                // If we show the Screen Lock UI, that'll displace the loading view
+                // controller or prevent it from being shown.
+                didDisplaceInitialLoadViewController = true
+            }
+
+            // Prepare the attachments.
+
+            let typedItemProviders: [TypedItemProvider]
+            do {
+                typedItemProviders = try buildTypedItemProviders()
+            } catch {
+                self.presentAttachmentError(error)
                 return
             }
 
-            Logger.debug("setup is slow - showing loading screen")
-            strongSelf.showPrimaryViewController(strongSelf.loadViewController)
+            let conversationPicker: SharingThreadPickerViewController
+            conversationPicker = SharingThreadPickerViewController(
+                areAttachmentStoriesCompatPrecheck: typedItemProviders.allSatisfy { $0.isStoriesCompatible },
+                shareViewDelegate: self
+            )
+
+            let preSelectedThread = self.fetchPreSelectedThread()
+
+            let loadViewControllerToDisplay: SAELoadViewController?
+            let loadViewControllerForProgress: SAELoadViewController?
+
+            // If we have a pre-selected thread, we wait to show the approval view
+            // until the attachments have been built. Otherwise, we'll present it
+            // immediately and tell it what attachments we're sharing once we've
+            // finished building them.
+            if preSelectedThread == nil {
+                self.showPrimaryViewController(conversationPicker)
+                // We show a progress spinner on the recipient picker.
+                loadViewControllerToDisplay = nil
+                loadViewControllerForProgress = nil
+            } else if didDisplaceInitialLoadViewController {
+                // We hit this branch when isScreenLockEnabled() == true. In this case, we
+                // need a new instance because the initial one has already been
+                // shown/dismissed.
+                loadViewControllerToDisplay = SAELoadViewController(delegate: self)
+                loadViewControllerForProgress = loadViewControllerToDisplay
+            } else {
+                // We don't need to show anything (it'll be shown by the block at the
+                // beginning of this Task), but we do want to hook up progress reporting.
+                loadViewControllerToDisplay = nil
+                loadViewControllerForProgress = initialLoadViewController
+            }
+
+            let attachments: [SignalAttachment]
+            do {
+                // If buildAndValidateAttachments takes longer than 200ms, we want to show
+                // the new load view. If it takes less than 200ms, we'll exit out of this
+                // `do` block, that will cancel the `async let`, and then we'll leave the
+                // primary view controller alone as a result.
+                async let _ = { @MainActor () async throws -> Void in
+                    guard let loadViewControllerToDisplay else {
+                        return
+                    }
+                    try await Task.sleep(nanoseconds: 0.2.clampedNanoseconds)
+                    // Check for cancellation on the main thread to ensure mutual exclusion
+                    // with the the code outside of this do block.
+                    try Task.checkCancellation()
+                    self.showPrimaryViewController(loadViewControllerToDisplay)
+                }()
+                attachments = try await buildAndValidateAttachments(
+                    for: typedItemProviders,
+                    setProgress: { loadViewControllerForProgress?.progress = $0 }
+                )
+            } catch {
+                self.presentAttachmentError(error)
+                return
+            }
+
+            Logger.info("Setting picker attachments: \(attachments)")
+            conversationPicker.attachments = attachments
+
+            if let preSelectedThread {
+                let approvalViewController = try conversationPicker.buildApprovalViewController(for: preSelectedThread)
+                self.showPrimaryViewController(approvalViewController)
+
+                // If you're sharing to a specific thread, the picker view controller isn't
+                // added to the view hierarchy, but it's the "brains" of the sending
+                // operation and must not be deallocated. Tie its lifetime to the lifetime
+                // of the view controller that's visible.
+                ObjectRetainer.retainObject(conversationPicker, forLifetimeOf: approvalViewController)
+            }
         }
 
-        // We don't need to use "screen protection" in the SAE.
-
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(registrationStateDidChange),
-                                               name: .registrationStateDidChange,
-                                               object: nil)
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(owsApplicationWillEnterForeground),
-                                               name: .OWSApplicationWillEnterForeground,
-                                               object: nil)
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(applicationDidEnterBackground),
-                                               name: .OWSApplicationDidEnterBackground,
-                                               object: nil)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationDidEnterBackground),
+            name: .OWSApplicationDidEnterBackground,
+            object: nil
+        )
 
         Logger.info("completed.")
     }
@@ -165,152 +243,22 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
         }
     }
 
-    private func activate() {
-        AssertIsOnMainThread()
-
-        Logger.debug("")
-
-        // We don't need to use "screen protection" in the SAE.
-
-        ensureRootViewController()
-
-        // Always check prekeys after app launches, and sometimes check on app activation.
-        self.databaseStorage.read { tx in
-            if DependenciesBridge.shared.tsAccountManager.registrationState(tx: tx.asV2Read).isRegistered {
-                DependenciesBridge.shared.preKeyManager.checkPreKeysIfNecessary(tx: tx.asV2Read)
-            }
-        }
-
-        // We don't need to use RTCInitializeSSL() in the SAE.
-
-        if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered {
-            Logger.info("running post launch block for registered user: \(String(describing: DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress))")
-        } else {
-            Logger.info("running post launch block for unregistered user.")
-
-            // We don't need to update the app icon badge number in the SAE.
-
-            // We don't need to prod the ChatConnectionManager in the SAE.
-        }
-
-        if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered {
-            DispatchQueue.main.async { [weak self] in
-                guard self != nil else { return }
-                Logger.info("running post launch block for registered user: \(String(describing: DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress))")
-
-                // We don't need to use the ChatConnectionManager in the SAE.
-
-                // TODO: Re-enable when system contact fetching uses less memory.
-                // self.contactsManager.fetchSystemContactsOnceIfAlreadyAuthorized()
-
-                // We don't need to fetch messages in the SAE.
-
-                // We don't need to use OWSSyncPushTokensJob in the SAE.
-            }
-        }
-    }
-
     private func setAppIsReady() {
-        Logger.debug("")
         AssertIsOnMainThread()
         owsPrecondition(!appReadiness.isAppReady)
-
-        // We don't need to use LaunchJobs in the SAE.
 
         // Note that this does much more than set a flag; it will also run all deferred blocks.
         appReadiness.setAppIsReady()
 
-        if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered {
-            Logger.info("localAddress: \(String(describing: DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress))")
-
-            // We don't need to use messageFetcherJob in the SAE.
-
-            // We don't need to use SyncPushTokensJob in the SAE.
-        }
-
-        // We don't need to use DeviceSleepManager in the SAE.
+        let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aci
+        Logger.info("localAci: \(localAci?.logString ?? "<none>")")
 
         AppVersionImpl.shared.saeLaunchDidComplete()
 
-        ensureRootViewController()
-
-        // We don't need to fetch the local profile in the SAE
-    }
-
-    @objc
-    private func registrationStateDidChange() {
-        AssertIsOnMainThread()
-
-        Logger.debug("")
-
-        if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered {
-            Logger.info("localAddress: \(String(describing: DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.aciAddress))")
-
-            // We don't need to use ExperienceUpgradeFinder in the SAE.
-
-            // We don't need to use OWSDisappearingMessagesJob in the SAE.
-        }
-    }
-
-    private func ensureRootViewController() {
-        AssertIsOnMainThread()
-
-        Logger.debug("")
-
-        guard appReadiness.isAppReady else {
-            return
-        }
-        guard !hasInitialRootViewController else {
-            return
-        }
-        hasInitialRootViewController = true
-
-        Logger.info("Presenting initial root view controller")
-
-        if ScreenLock.shared.isScreenLockEnabled() {
-            presentScreenLock()
-        } else {
-            presentContentView()
-        }
-    }
-
-    private func presentContentView() {
-        AssertIsOnMainThread()
-
-        Logger.debug("")
-
-        Logger.info("Presenting content view")
-
-        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
-            showNotRegisteredView()
-            return
-        }
-
-        let localProfileExists = databaseStorage.read { transaction in
-            return self.profileManager.localProfileExists(with: transaction)
-        }
-        guard localProfileExists else {
-            // This is a rare edge case, but we want to ensure that the user
-            // has already saved their local profile key in the main app.
-            showNotReadyView()
-            return
-        }
-
-        buildAttachmentsAndPresentConversationPicker()
-        // We don't use the AppUpdateNag in the SAE.
+        Logger.info("")
     }
 
     // MARK: Error Views
-
-    private func showNotReadyView() {
-        AssertIsOnMainThread()
-
-        let failureTitle = OWSLocalizedString("SHARE_EXTENSION_NOT_YET_MIGRATED_TITLE",
-                                             comment: "Title indicating that the share extension cannot be used until the main app has been launched at least once.")
-        let failureMessage = OWSLocalizedString("SHARE_EXTENSION_NOT_YET_MIGRATED_MESSAGE",
-                                               comment: "Message indicating that the share extension cannot be used until the main app has been launched at least once.")
-        showErrorView(title: failureTitle, message: failureMessage)
-    }
 
     private func showNotRegisteredView() {
         AssertIsOnMainThread()
@@ -331,83 +279,14 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
         navigationController.presentationController?.delegate = self
         navigationController.setViewControllers([viewController], animated: false)
         if self.presentedViewController == nil {
-            Logger.debug("presenting modally: \(viewController)")
             self.present(navigationController, animated: true)
         } else {
-            owsFailDebug("modal already presented. swapping modal content for: \(viewController)")
+            owsFailDebug("modal already presented. swapping modal content for: \(type(of: viewController))")
             assert(self.presentedViewController == navigationController)
         }
     }
 
-    // MARK: View Lifecycle
-
-    override open func viewDidLoad() {
-        super.viewDidLoad()
-
-        Logger.debug("")
-
-        if isReadyForAppExtensions {
-            appReadiness.runNowOrWhenAppDidBecomeReadySync { [weak self] in
-                AssertIsOnMainThread()
-                self?.activate()
-            }
-        }
-    }
-
-    override open func viewWillAppear(_ animated: Bool) {
-        Logger.debug("")
-
-        super.viewWillAppear(animated)
-    }
-
-    override open func viewDidAppear(_ animated: Bool) {
-        Logger.debug("")
-
-        super.viewDidAppear(animated)
-    }
-
-    override open func viewWillDisappear(_ animated: Bool) {
-        Logger.debug("")
-
-        super.viewWillDisappear(animated)
-        loadTask?.cancel()
-        loadTask = nil
-    }
-
-    @objc
-    private func owsApplicationWillEnterForeground() throws {
-        AssertIsOnMainThread()
-
-        Logger.debug("")
-
-        // If a user unregisters in the main app, the SAE should shut down
-        // immediately.
-        guard !DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
-            // If user is registered, do nothing.
-            return
-        }
-        guard let shareViewNavigationController = shareViewNavigationController else {
-            owsFailDebug("Missing shareViewNavigationController")
-            return
-        }
-        guard let firstViewController = shareViewNavigationController.viewControllers.first else {
-            // If no view has been presented yet, do nothing.
-            return
-        }
-        if firstViewController is SAEFailedViewController {
-            // If root view is an error view, do nothing.
-            return
-        }
-        throw ShareViewControllerError.notRegistered
-    }
-
     // MARK: ShareViewDelegate, SAEFailedViewDelegate
-
-    public func shareViewWasUnlocked() {
-        Logger.info("")
-
-        presentContentView()
-    }
 
     public func shareViewWasCompleted() {
         Logger.info("")
@@ -462,112 +341,106 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
         }
         shareViewNavigationController.setViewControllers([viewController], animated: true)
         if self.presentedViewController == nil {
-            Logger.debug("presenting modally: \(viewController)")
             self.present(shareViewNavigationController, animated: true)
         } else {
-            Logger.debug("modal already presented. swapping modal content for: \(viewController)")
             assert(self.presentedViewController == shareViewNavigationController)
         }
     }
 
-    private lazy var conversationPicker = SharingThreadPickerViewController(shareViewDelegate: self)
-    private func buildAttachmentsAndPresentConversationPicker() {
-        let selectedThread: TSThread?
-        if let intent = extensionContext?.intent as? INSendMessageIntent,
-           let threadUniqueId = intent.conversationIdentifier {
-            selectedThread = databaseStorage.read { TSThread.anyFetch(uniqueId: threadUniqueId, transaction: $0) }
+    private func fetchPreSelectedThread() -> TSThread? {
+        let hasIntent = self.extensionContext?.intent != nil
+        Logger.info("hasIntent? \(hasIntent)")
+        if let threadUniqueId = (self.extensionContext?.intent as? INSendMessageIntent)?.conversationIdentifier {
+            let result = SSKEnvironment.shared.databaseStorageRef.read { TSThread.anyFetch(uniqueId: threadUniqueId, transaction: $0) }
+            Logger.info("hasThread? \(result != nil)")
+            return result
         } else {
-            selectedThread = nil
-        }
-
-        // If we have a pre-selected thread, we wait to show the approval view
-        // until the attachments have been built. Otherwise, we'll present it
-        // immediately and tell it what attachments we're sharing once we've
-        // finished building them.
-        if selectedThread == nil {
-            showPrimaryViewController(conversationPicker)
-        }
-
-        loadTask?.cancel()
-        loadTask = Task {
-            do {
-                guard let inputItems = self.extensionContext?.inputItems as? [NSExtensionItem] else {
-                    throw ShareViewControllerError.nilInputItems
-                }
-                #if DEBUG
-                for (inputItemIndex, inputItem) in inputItems.enumerated() {
-                    Logger.debug("- inputItems[\(inputItemIndex)]")
-                    for (itemProvidersIndex, itemProviders) in inputItem.attachments!.enumerated() {
-                        Logger.debug("  - itemProviders[\(itemProvidersIndex)]")
-                        for typeIdentifier in itemProviders.registeredTypeIdentifiers {
-                            Logger.debug("    - \(typeIdentifier)")
-                        }
-                    }
-                }
-                #endif
-                let inputItem = try Self.selectExtensionItem(inputItems)
-                guard let itemProviders = inputItem.attachments else {
-                    throw ShareViewControllerError.nilAttachments
-                }
-                guard !itemProviders.isEmpty else {
-                    throw ShareViewControllerError.noAttachments
-                }
-
-                let typedItemProviders = try Self.typedItemProviders(for: itemProviders)
-                self.conversationPicker.areAttachmentStoriesCompatPrecheck = typedItemProviders.allSatisfy { $0.isStoriesCompatible }
-                let attachments = try await self.buildAttachments(for: typedItemProviders)
-                try Task.checkCancellation()
-
-                // Make sure the user is not trying to share more than our attachment limit.
-                guard attachments.filter({ !$0.isConvertibleToTextMessage }).count <= SignalAttachment.maxAttachmentsAllowed else {
-                    throw ShareViewControllerError.tooManyAttachments
-                }
-
-                self.progressPoller = nil
-
-                Logger.info("Setting picker attachments: \(attachments)")
-                self.conversationPicker.attachments = attachments
-
-                if let selectedThread = selectedThread {
-                    let approvalVC = try self.conversationPicker.buildApprovalViewController(for: selectedThread)
-                    self.showPrimaryViewController(approvalVC)
-                }
-
-            } catch ShareViewControllerError.tooManyAttachments {
-                let format = OWSLocalizedString("IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_FORMAT",
-                                                comment: "Momentarily shown to the user when attempting to select more images than is allowed. Embeds {{max number of items}} that can be shared.")
-
-                let alertTitle = String(format: format, OWSFormat.formatInt(SignalAttachment.maxAttachmentsAllowed))
-
-                OWSActionSheets.showActionSheet(
-                    title: alertTitle,
-                    buttonTitle: CommonStrings.cancelButton
-                ) { _ in
-                    self.shareViewWasCancelled()
-                }
-            } catch {
-                let alertTitle = OWSLocalizedString("SHARE_EXTENSION_UNABLE_TO_BUILD_ATTACHMENT_ALERT_TITLE",
-                                                    comment: "Shown when trying to share content to a Signal user for the share extension. Followed by failure details.")
-
-                OWSActionSheets.showActionSheet(
-                    title: alertTitle,
-                    message: error.userErrorDescription,
-                    buttonTitle: CommonStrings.cancelButton
-                ) { _ in
-                    self.shareViewWasCancelled()
-                }
-                owsFailDebug("building attachment failed with error: \(error)")
-            }
+            return nil
         }
     }
 
-    private func presentScreenLock() {
-        AssertIsOnMainThread()
+    private func buildTypedItemProviders() throws -> [TypedItemProvider] {
+        guard let inputItems = self.extensionContext?.inputItems as? [NSExtensionItem] else {
+            throw ShareViewControllerError.nilInputItems
+        }
+#if DEBUG
+        for (inputItemIndex, inputItem) in inputItems.enumerated() {
+            Logger.debug("- inputItems[\(inputItemIndex)]")
+            for (itemProvidersIndex, itemProviders) in inputItem.attachments!.enumerated() {
+                Logger.debug("  - itemProviders[\(itemProvidersIndex)]")
+                for typeIdentifier in itemProviders.registeredTypeIdentifiers {
+                    Logger.debug("    - \(typeIdentifier)")
+                }
+            }
+        }
+#endif
+        let inputItem = try Self.selectExtensionItem(inputItems)
+        guard let itemProviders = inputItem.attachments else {
+            throw ShareViewControllerError.nilAttachments
+        }
+        guard !itemProviders.isEmpty else {
+            throw ShareViewControllerError.noAttachments
+        }
 
-        let screenLockUI = SAEScreenLockViewController(shareViewDelegate: self)
-        Logger.debug("presentScreenLock: \(screenLockUI)")
-        showPrimaryViewController(screenLockUI)
-        Logger.info("showing screen lock")
+        return try Self.typedItemProviders(for: itemProviders)
+    }
+
+    private func buildAndValidateAttachments(
+        for typedItemProviders: [TypedItemProvider],
+        setProgress: @MainActor (Progress) -> Void
+    ) async throws -> [SignalAttachment] {
+        let progress = Progress(totalUnitCount: Int64(typedItemProviders.count))
+
+        let itemsAndProgresses = typedItemProviders.map {
+            let itemProgress = Progress(totalUnitCount: 10_000)
+            progress.addChild(itemProgress, withPendingUnitCount: 1)
+            return ($0, itemProgress)
+        }
+
+        setProgress(progress)
+
+        let attachments = try await self.buildAttachments(for: itemsAndProgresses)
+        try Task.checkCancellation()
+
+        // Make sure the user is not trying to share more than our attachment limit.
+        guard attachments.filter({ !$0.isConvertibleToTextMessage }).count <= SignalAttachment.maxAttachmentsAllowed else {
+            throw ShareViewControllerError.tooManyAttachments
+        }
+
+        return attachments
+    }
+
+    private func presentAttachmentError(_ error: any Error) {
+        switch error {
+        case ShareViewControllerError.tooManyAttachments:
+            let format = OWSLocalizedString(
+                "IMAGE_PICKER_CAN_SELECT_NO_MORE_TOAST_FORMAT",
+                comment: "Momentarily shown to the user when attempting to select more images than is allowed. Embeds {{max number of items}} that can be shared."
+            )
+
+            let alertTitle = String(format: format, OWSFormat.formatInt(SignalAttachment.maxAttachmentsAllowed))
+
+            OWSActionSheets.showActionSheet(
+                title: alertTitle,
+                buttonTitle: CommonStrings.cancelButton
+            ) { _ in
+                self.shareViewWasCancelled()
+            }
+        default:
+            let alertTitle = OWSLocalizedString(
+                "SHARE_EXTENSION_UNABLE_TO_BUILD_ATTACHMENT_ALERT_TITLE",
+                comment: "Shown when trying to share content to a Signal user for the share extension. Followed by failure details."
+            )
+
+            OWSActionSheets.showActionSheet(
+                title: alertTitle,
+                message: error.userErrorDescription,
+                buttonTitle: CommonStrings.cancelButton
+            ) { _ in
+                self.shareViewWasCancelled()
+            }
+            owsFailDebug("building attachment failed with error: \(error)")
+        }
     }
 
     private static func selectExtensionItem(_ extensionItems: [NSExtensionItem]) throws -> NSExtensionItem {
@@ -598,9 +471,15 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
             case webUrl
             case fileUrl
             case contact
+            // Apple docs and runtime checks seem to imply "public.plain-text"
+            // should be able to be loaded from an NSItemProvider as
+            // "public.text", but in practice it fails with:
+            // "A string could not be instantiated because of an unknown error."
+            case plainText
             case text
             case pdf
             case pkPass
+            case json
             case data
 
             var typeIdentifier: String {
@@ -615,12 +494,16 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
                     return UTType.fileURL.identifier
                 case .contact:
                     return UTType.vCard.identifier
+                case .plainText:
+                    return UTType.plainText.identifier
                 case .text:
                     return UTType.text.identifier
                 case .pdf:
                     return UTType.pdf.identifier
                 case .pkPass:
                     return "com.apple.pkpass"
+                case .json:
+                    return UTType.json.identifier
                 case .data:
                     return UTType.data.identifier
                 }
@@ -640,9 +523,9 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
 
         var isStoriesCompatible: Bool {
             switch itemType {
-            case .movie, .image, .webUrl, .text:
+            case .movie, .image, .webUrl, .plainText, .text:
                 return true
-            case .fileUrl, .contact, .pdf, .pkPass, .data:
+            case .fileUrl, .contact, .pdf, .pkPass, .json, .data:
                 return false
             }
         }
@@ -654,7 +537,7 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
         //     conforms to public.text, but when asking the OS for text it returns a file URL instead
         let forcedDataTypeIdentifiers: [String] = ["com.topografix.gpx"]
         // due to UT conformance fallbacks the order these are checked is important; more specific types need to come earlier in the list than their fallbacks
-        let itemTypeOrder: [TypedItemProvider.ItemType] = [.movie, .image, .contact, .text, .pdf, .pkPass, .fileUrl, .webUrl, .data]
+        let itemTypeOrder: [TypedItemProvider.ItemType] = [.movie, .image, .contact, .json, .plainText, .text, .pdf, .pkPass, .fileUrl, .webUrl, .data]
         let candidates: [TypedItemProvider] = try itemProviders.map { itemProvider in
             for typeIdentifier in forcedDataTypeIdentifiers {
                 if itemProvider.hasItemConformingToTypeIdentifier(typeIdentifier) {
@@ -680,17 +563,22 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
         return visualMediaCandidates.isEmpty ? Array(candidates.prefix(1)) : visualMediaCandidates
     }
 
-    nonisolated private func buildAttachments(for typedItemProviders: [TypedItemProvider]) async throws -> [SignalAttachment] {
-
+    nonisolated private func buildAttachments(for itemsAndProgresses: [(TypedItemProvider, Progress)]) async throws -> [SignalAttachment] {
         // FIXME: does not use a task group because SignalAttachment likes to load things into RAM and resize them; doing this in parallel can exhaust available RAM
         var result: [SignalAttachment] = []
-        for typedItemProvider in typedItemProviders {
-            result.append(try await self.buildAttachment(for: typedItemProvider))
+        for (typedItemProvider, progress) in itemsAndProgresses {
+            result.append(try await self.buildAttachment(for: typedItemProvider, progress: progress))
         }
         return result
     }
 
-    nonisolated private func buildAttachment(for typedItemProvider: TypedItemProvider) async throws -> SignalAttachment {
+    nonisolated private func buildAttachment(for typedItemProvider: TypedItemProvider, progress: Progress) async throws -> SignalAttachment {
+        // Whenever this finishes, mark its progress as fully complete. This
+        // handles item providers that can't provide partial progress updates.
+        defer {
+            progress.completedUnitCount = progress.totalUnitCount
+        }
+
         let itemProvider = typedItemProvider.itemProvider
         switch typedItemProvider.itemType {
         case .image:
@@ -701,38 +589,46 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
             //   2) try to load a UIImage directly in the case that is what was sent over
             //   3) try to NSKeyedUnarchive NSData directly into a UIImage
             do {
-                return try await self.buildFileAttachment(fromItemProvider: itemProvider, forTypeIdentifier: typedItemProvider.itemType.typeIdentifier)
+                return try await self.buildFileAttachment(fromItemProvider: itemProvider, forTypeIdentifier: typedItemProvider.itemType.typeIdentifier, progress: progress)
             } catch SignalAttachmentError.couldNotParseImage, ShareViewControllerError.fileUrlWasBplist {
                 Logger.warn("failed to parse image directly from file; checking for loading UIImage directly")
                 let image: UIImage = try await Self.loadObjectWithKeyedUnarchiverFallback(fromItemProvider: itemProvider, forTypeIdentifier: typedItemProvider.itemType.typeIdentifier, cannotLoadError: .cannotLoadUIImageObject, failedLoadError: .loadUIImageObjectFailed)
                 return try Self.createAttachment(withImage: image)
             }
         case .movie, .pdf, .data:
-            return try await self.buildFileAttachment(fromItemProvider: itemProvider, forTypeIdentifier: typedItemProvider.itemType.typeIdentifier)
-        case .fileUrl:
-            let url: NSURL = try await Self.loadObjectWithKeyedUnarchiverFallback(fromItemProvider: itemProvider, forTypeIdentifier: typedItemProvider.itemType.typeIdentifier, cannotLoadError: .cannotLoadURLObject, failedLoadError: .loadURLObjectFailed)
-            let attachment = try Self.copyAttachment(fromUrl: url as URL)
-            return try await self.compressVideo(attachment: attachment)
+            return try await self.buildFileAttachment(fromItemProvider: itemProvider, forTypeIdentifier: typedItemProvider.itemType.typeIdentifier, progress: progress)
+        case .fileUrl, .json:
+            let url: NSURL = try await Self.loadObjectWithKeyedUnarchiverFallback(fromItemProvider: itemProvider, forTypeIdentifier: TypedItemProvider.ItemType.fileUrl.typeIdentifier, cannotLoadError: .cannotLoadURLObject, failedLoadError: .loadURLObjectFailed)
+
+            let (dataSource, dataUTI) = try Self.copyFileUrl(
+                fileUrl: url as URL,
+                defaultTypeIdentifier: UTType.data.identifier
+            )
+
+            return try await compressVideoIfNecessary(
+                dataSource: dataSource,
+                dataUTI: dataUTI,
+                progress: progress
+            )
         case .webUrl:
             let url: NSURL = try await Self.loadObjectWithKeyedUnarchiverFallback(fromItemProvider: itemProvider, forTypeIdentifier: typedItemProvider.itemType.typeIdentifier, cannotLoadError: .cannotLoadURLObject, failedLoadError: .loadURLObjectFailed)
             return try Self.createAttachment(withText: (url as URL).absoluteString)
         case .contact:
-            let contactData = try await Self.loadDataRepresentation(fromItemProvider: itemProvider, forTypeIdentifier: UTType.contact.identifier)
-            let dataSource = DataSourceValue(contactData, utiType: UTType.contact.identifier)
-            let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: UTType.contact.identifier)
+            let contactData = try await Self.loadDataRepresentation(fromItemProvider: itemProvider, forTypeIdentifier: typedItemProvider.itemType.typeIdentifier)
+            let dataSource = DataSourceValue(contactData, utiType: typedItemProvider.itemType.typeIdentifier)
+            let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: typedItemProvider.itemType.typeIdentifier)
             attachment.isConvertibleToContactShare = true
             if let attachmentError = attachment.error {
                 throw attachmentError
             }
             return attachment
-        case .text:
+        case .plainText, .text:
             let text: NSString = try await Self.loadObjectWithKeyedUnarchiverFallback(fromItemProvider: itemProvider, forTypeIdentifier: typedItemProvider.itemType.typeIdentifier, cannotLoadError: .cannotLoadStringObject, failedLoadError: .loadStringObjectFailed)
             return try Self.createAttachment(withText: text as String)
         case .pkPass:
-            let typeIdentifier = "com.apple.pkpass"
-            let pkPass = try await Self.loadDataRepresentation(fromItemProvider: itemProvider, forTypeIdentifier: typeIdentifier)
-            let dataSource = DataSourceValue(pkPass, fileExtension: "pkpass")
-            let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: typeIdentifier)
+            let pkPass = try await Self.loadDataRepresentation(fromItemProvider: itemProvider, forTypeIdentifier: typedItemProvider.itemType.typeIdentifier)
+            let dataSource = DataSourceValue(pkPass, utiType: typedItemProvider.itemType.typeIdentifier)
+            let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: typedItemProvider.itemType.typeIdentifier)
             if let attachmentError = attachment.error {
                 throw attachmentError
             }
@@ -740,41 +636,66 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
         }
     }
 
-    nonisolated private static func copyAttachment(fromUrl url: URL, defaultTypeIdentifier: String = UTType.data.identifier) throws -> SignalAttachment {
-        guard let dataSource = try? DataSourcePath(fileUrl: url, shouldDeleteOnDeallocation: false) else {
-            throw ShareViewControllerError.nonFileUrl
+    nonisolated private static func copyFileUrl(
+        fileUrl: URL,
+        defaultTypeIdentifier: String
+    ) throws -> (DataSource, dataUTI: String) {
+        guard fileUrl.isFileURL else {
+            throw OWSAssertionError("Unexpectedly not a file URL: \(fileUrl)")
         }
-        dataSource.sourceFilename = url.lastPathComponent
-        let utiType = MimeTypeUtil.utiTypeForFileExtension(url.pathExtension) ?? defaultTypeIdentifier
-        let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: utiType)
-        if let attachmentError = attachment.error {
-            throw attachmentError
-        }
-        return try attachment.cloneAttachment()
+
+        let copiedUrl = OWSFileSystem.temporaryFileUrl(fileExtension: fileUrl.pathExtension)
+        try FileManager.default.copyItem(at: fileUrl, to: copiedUrl)
+
+        let dataSource = try DataSourcePath(fileUrl: copiedUrl, shouldDeleteOnDeallocation: true)
+        dataSource.sourceFilename = fileUrl.lastPathComponent
+
+        let dataUTI = MimeTypeUtil.utiTypeForFileExtension(fileUrl.pathExtension) ?? defaultTypeIdentifier
+
+        return (dataSource, dataUTI)
     }
 
-    nonisolated private func compressVideo(attachment: SignalAttachment) async throws -> SignalAttachment {
-        if attachment.isVideoThatNeedsCompression() {
+    nonisolated private func compressVideoIfNecessary(
+        dataSource: DataSource,
+        dataUTI: String,
+        progress: Progress
+    ) async throws -> SignalAttachment {
+        if SignalAttachment.isVideoThatNeedsCompression(
+            dataSource: dataSource,
+            dataUTI: dataUTI
+        ) {
             // TODO: Move waiting for this export to the end of the share flow rather than up front
-            let compressedAttachment = try await SignalAttachment.compressVideoAsMp4(dataSource: attachment.dataSource, dataUTI: attachment.dataUTI, sessionCallback: { exportSession in
-                let progressPoller = ProgressPoller(timeInterval: 0.1, ratioCompleteBlock: { return exportSession.progress })
+            var progressPoller: ProgressPoller?
+            defer {
+                progressPoller?.stopPolling()
+            }
+            let compressedAttachment = try await SignalAttachment.compressVideoAsMp4(
+                dataSource: dataSource,
+                dataUTI: dataUTI,
+                sessionCallback: { exportSession in
+                    progressPoller = ProgressPoller(progress: progress, pollInterval: 0.1, fractionCompleted: { return exportSession.progress })
+                    progressPoller?.startPolling()
+                }
+            )
 
-                self.progressPoller = progressPoller
-                progressPoller.startPolling()
-
-                self.loadViewController.progress = progressPoller.progress
-            })
             if let attachmentError = compressedAttachment.error {
                 throw attachmentError
             }
+
             return compressedAttachment
         } else {
+            let attachment = SignalAttachment.attachment(dataSource: dataSource, dataUTI: dataUTI)
+
+            if let attachmentError = attachment.error {
+                throw attachmentError
+            }
+
             return attachment
         }
     }
 
-    nonisolated private func buildFileAttachment(fromItemProvider itemProvider: NSItemProvider, forTypeIdentifier typeIdentifier: String) async throws -> SignalAttachment {
-        let attachment: SignalAttachment = try await withCheckedThrowingContinuation { continuation in
+    nonisolated private func buildFileAttachment(fromItemProvider itemProvider: NSItemProvider, forTypeIdentifier typeIdentifier: String, progress: Progress) async throws -> SignalAttachment {
+        let (dataSource, dataUTI): (DataSource, String) = try await withCheckedThrowingContinuation { continuation in
             _ = itemProvider.loadInPlaceFileRepresentation(forTypeIdentifier: typeIdentifier, completionHandler: { fileUrl, _, error in
                 if let error {
                     continuation.resume(throwing: error)
@@ -784,7 +705,7 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
                     } else {
                         do {
                             // NOTE: Compression here rather than creating an additional temp file would be nice but blocking this completion handler for video encoding is probably not a good way to go.
-                            continuation.resume(returning: try Self.copyAttachment(fromUrl: fileUrl, defaultTypeIdentifier: typeIdentifier))
+                            continuation.resume(returning: try Self.copyFileUrl(fileUrl: fileUrl, defaultTypeIdentifier: typeIdentifier))
                         } catch {
                             continuation.resume(throwing: error)
                         }
@@ -795,11 +716,7 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
             })
         }
 
-        if let attachmentError = attachment.error {
-            throw attachmentError
-        }
-
-        return try await self.compressVideo(attachment: attachment)
+        return try await compressVideoIfNecessary(dataSource: dataSource, dataUTI: dataUTI, progress: progress)
     }
 
     nonisolated private static func loadDataRepresentation(fromItemProvider itemProvider: NSItemProvider, forTypeIdentifier typeIdentifier: String) async throws -> Data {
@@ -872,7 +789,7 @@ public class ShareViewController: UIViewController, ShareViewDelegate, SAEFailed
     nonisolated private static func isBplist(url: URL) -> Bool {
         if let handle = try? FileHandle(forReadingFrom: url) {
             let data = handle.readData(ofLength: 6)
-            return data == "bplist".data(using: .utf8)
+            return data == Data("bplist".utf8)
         } else {
             return false
         }
@@ -911,23 +828,20 @@ extension ShareViewController: UINavigationControllerDelegate {
 
 // Exposes a Progress object, whose progress is updated by polling the return of a given block
 private class ProgressPoller: NSObject {
+    private let progress: Progress
+    private let pollInterval: TimeInterval
+    private let fractionCompleted: () -> Float
 
-    let progress: Progress
-    private(set) var timer: Timer?
+    init(progress: Progress, pollInterval: TimeInterval, fractionCompleted: @escaping () -> Float) {
+        self.progress = progress
+        self.pollInterval = pollInterval
+        self.fractionCompleted = fractionCompleted
+    }
 
-    // Higher number offers higher ganularity
-    let progressTotalUnitCount: Int64 = 10000
-    private let timeInterval: Double
-    private let ratioCompleteBlock: () -> Float
+    private var timer: Timer?
 
-    init(timeInterval: TimeInterval, ratioCompleteBlock: @escaping () -> Float) {
-        self.timeInterval = timeInterval
-        self.ratioCompleteBlock = ratioCompleteBlock
-
-        self.progress = Progress()
-
-        progress.totalUnitCount = progressTotalUnitCount
-        progress.completedUnitCount = Int64(ratioCompleteBlock() * Float(progressTotalUnitCount))
+    func stopPolling() {
+        timer?.invalidate()
     }
 
     func startPolling() {
@@ -936,18 +850,14 @@ private class ProgressPoller: NSObject {
             return
         }
 
-        self.timer = WeakTimer.scheduledTimer(timeInterval: timeInterval, target: self, userInfo: nil, repeats: true) { [weak self] (timer) in
-            guard let strongSelf = self else {
+        self.timer = WeakTimer.scheduledTimer(timeInterval: pollInterval, target: self, userInfo: nil, repeats: true) { [weak self] (timer) in
+            guard let self else {
+                timer.invalidate()
                 return
             }
 
-            let completedUnitCount = Int64(strongSelf.ratioCompleteBlock() * Float(strongSelf.progressTotalUnitCount))
-            strongSelf.progress.completedUnitCount = completedUnitCount
-
-            if completedUnitCount == strongSelf.progressTotalUnitCount {
-                Logger.debug("progress complete")
-                timer.invalidate()
-            }
+            let fractionCompleted = self.fractionCompleted()
+            self.progress.completedUnitCount = Int64(fractionCompleted * Float(self.progress.totalUnitCount))
         }
     }
 }

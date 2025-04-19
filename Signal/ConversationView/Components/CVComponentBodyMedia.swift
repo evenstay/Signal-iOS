@@ -14,19 +14,13 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
     private var items: [CVMediaAlbumItem] {
         bodyMedia.items
     }
-    private var mediaAlbumHasFailedAttachment: Bool {
-        bodyMedia.mediaAlbumHasFailedAttachment
-    }
-    private var mediaAlbumHasPendingAttachment: Bool {
-        bodyMedia.mediaAlbumHasPendingAttachment
-    }
 
     private var areAllItemsImages: Bool {
         for item in items {
             // This potentially reads the image data on disk.
             // We will eventually have better guarantees about this
             // state being cached and not requiring a disk read.
-            switch item.attachmentStream?.computeContentType() {
+            switch item.attachmentStream?.contentType {
             case .image, .animatedImage:
                 continue
             case .none:
@@ -38,10 +32,6 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
             }
         }
         return true
-    }
-
-    var hasDownloadButton: Bool {
-        mediaAlbumHasPendingAttachment
     }
 
     private let footerOverlay: CVComponent?
@@ -153,7 +143,7 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
             stackView.layoutSubviewToFillSuperviewEdges(innerShadowView)
         }
 
-        if hasDownloadButton {
+        if bodyMedia.mediaAlbumHasPendingAttachment {
             let iconView = CVImageView()
             iconView.setTemplateImageName(Theme.iconName(.arrowDown), tintColor: UIColor.ows_white)
             if albumView.itemViews.count > 1 {
@@ -203,30 +193,34 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
                 stackView.addSubviewToCenterOnSuperview(iconView, size: .square(24))
             }
 
-            if mediaAlbumHasPendingAttachment {
+            if bodyMedia.mediaAlbumHasPendingAttachment {
                 let pendingManualDownloadAttachments = items
                     .lazy
-                    .compactMap { (item: CVMediaAlbumItem) -> ReferencedTSResource? in
+                    .compactMap { (item: CVMediaAlbumItem) -> ReferencedAttachment? in
                         switch item.attachment {
                         case .stream:
                             return nil
                         case .backupThumbnail:
                             // TODO[Backups]: Check for media tier download state
                             return nil
-                        case .pointer(let attachment, let transitTierDownloadState):
+                        case .pointer(let attachment, let downloadState):
                             if item.threadHasPendingMessageRequest {
                                 // Doesn't count.
                                 return nil
                             }
-                            switch transitTierDownloadState {
+                            switch downloadState {
                             case .none:
                                 return attachment
                             case .enqueuedOrDownloading, .failed:
                                 return nil
                             }
+                        case .undownloadable:
+                            return nil
                         }
                     }
-                let totalSize = pendingManualDownloadAttachments.map { $0.attachment.unencryptedResourceByteCount ?? 0}.reduce(0, +)
+                let totalSize = pendingManualDownloadAttachments.map {
+                    $0.attachment.asAnyPointer()?.unencryptedByteCount ?? 0
+                }.reduce(0, +)
 
                 if totalSize > 0 {
                     var downloadSizeText = [OWSFormat.localizedFileSizeString(from: Int64(totalSize))]
@@ -336,10 +330,25 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
 
     // MARK: - Events
 
-    public override func handleTap(sender: UIGestureRecognizer,
-                                   componentDelegate: CVComponentDelegate,
-                                   componentView: CVComponentView,
-                                   renderItem: CVRenderItem) -> Bool {
+    public override func cellWillBecomeVisible(
+        componentDelegate: CVComponentDelegate
+    ) {
+        AssertIsOnMainThread()
+
+        if
+            let message = interaction as? TSMessage,
+            bodyMedia.mediaAlbumHasFailedAttachment || bodyMedia.mediaAlbumHasPendingAttachment
+        {
+            componentDelegate.willBecomeVisibleWithFailedOrPendingDownloads(message)
+        }
+    }
+
+    public override func handleTap(
+        sender: UIGestureRecognizer,
+        componentDelegate: CVComponentDelegate,
+        componentView: CVComponentView,
+        renderItem: CVRenderItem
+    ) -> Bool {
         AssertIsOnMainThread()
 
         guard let componentView = componentView as? CVComponentViewBodyMedia else {
@@ -350,43 +359,40 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
             owsFailDebug("Invalid interaction.")
             return false
         }
-        if hasDownloadButton {
+
+        if bodyMedia.mediaAlbumHasPendingAttachment {
             componentDelegate.didTapFailedOrPendingDownloads(message)
             return true
         }
+
         let albumView = componentView.albumView
         let location = sender.location(in: albumView)
         guard let mediaView = albumView.mediaView(forLocation: location) else {
             Logger.warn("Missing mediaView.")
             return false
         }
-        let isMoreItemsWithMediaView = albumView.isMoreItemsView(mediaView: mediaView)
 
-        if isMoreItemsWithMediaView,
-           mediaAlbumHasFailedAttachment {
+        if
+            albumView.isMoreItemsView(mediaView: mediaView),
+            bodyMedia.mediaAlbumHasFailedAttachment
+        {
             componentDelegate.didTapFailedOrPendingDownloads(message)
             return true
         }
 
         switch mediaView.attachment {
-        case .pointer(let pointer, let transitTierDownloadState):
-            switch transitTierDownloadState {
+        case .pointer(let pointer, let downloadState):
+            switch downloadState {
             case .failed, .none:
                 componentDelegate.didTapFailedOrPendingDownloads(message)
                 return true
             case .enqueuedOrDownloading:
-                Logger.warn("Media attachment not yet downloaded.")
-                self.databaseStorage.write { tx in
-                    DependenciesBridge.shared.tsResourceDownloadManager.cancelDownload(
-                        for: pointer.attachment.resourceId,
-                        tx: tx.asV2Write
-                    )
-                }
+                componentDelegate.didCancelDownload(message, attachmentId: pointer.attachment.id)
                 return true
             }
         case .stream(let stream):
             let itemViewModel = CVItemViewModelImpl(renderItem: renderItem)
-            if let item = items.first(where: { $0.attachment.attachment.attachment.resourceId == stream.attachment.resourceId }), item.isBroken {
+            if let item = items.first(where: { $0.attachment.attachment.attachment.id == stream.attachment.id }), item.isBroken {
                 componentDelegate.didTapBrokenVideo()
                 return true
             }
@@ -397,13 +403,17 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
             )
             return true
         case .backupThumbnail:
-            // TODO[Backups]: If the media tier download hasn't been started, enqueue it
+            // Download the fullsize attachment
+            componentDelegate.didTapFailedOrPendingDownloads(message)
+            return true
+        case .undownloadable:
+            componentDelegate.didTapUndownloadableMedia()
             return true
         }
     }
 
     public func albumItemView(
-        forAttachment attachment: ReferencedTSResource,
+        forAttachment attachment: ReferencedAttachment,
         componentView: CVComponentView
     ) -> UIView? {
         guard let componentView = componentView as? CVComponentViewBodyMedia else {
@@ -412,7 +422,7 @@ public class CVComponentBodyMedia: CVComponentBase, CVComponent {
         }
         let albumView = componentView.albumView
         guard let albumItemView = (albumView.itemViews.first {
-            $0.attachment.attachment.attachment.resourceId == attachment.attachment.resourceId
+            $0.attachment.attachment.attachment.id == attachment.attachment.id
                 && $0.attachment.attachment.reference.hasSameOwner(as: attachment.reference)
         }) else {
             assert(albumView.moreItemsView != nil)

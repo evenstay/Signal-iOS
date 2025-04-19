@@ -10,7 +10,7 @@ public protocol VideoPlayerDelegate: AnyObject {
     func videoPlayerDidPlayToCompletion(_ videoPlayer: VideoPlayer)
 }
 
-public class VideoPlayer: Dependencies {
+public class VideoPlayer {
 
     public let avPlayer: AVPlayer
     private let audioActivity: AudioActivity
@@ -39,7 +39,7 @@ public class VideoPlayer: Dependencies {
     }
 
     public convenience init(
-        attachment: ReferencedTSResourceStream,
+        attachment: ReferencedAttachmentStream,
         shouldMixAudioWithOthers: Bool = false
     ) throws {
         try self.init(
@@ -51,7 +51,7 @@ public class VideoPlayer: Dependencies {
     }
 
     public convenience init(
-        attachment: TSResourceStream,
+        attachment: AttachmentStream,
         shouldLoop: Bool,
         shouldMixAudioWithOthers: Bool = false
     ) throws {
@@ -64,7 +64,7 @@ public class VideoPlayer: Dependencies {
     }
 
     private convenience init(
-        attachment: TSResourceStream,
+        attachment: AttachmentStream,
         shouldLoop: Bool,
         shouldMixAudioWithOthers: Bool,
         audioDescription: String?
@@ -108,7 +108,7 @@ public class VideoPlayer: Dependencies {
     // MARK: Playback Controls
 
     public func endAudioActivity() {
-        audioSession.endAudioActivity(audioActivity)
+        SUIEnvironment.shared.audioSessionRef.endAudioActivity(audioActivity)
     }
 
     public func pause() {
@@ -117,7 +117,7 @@ public class VideoPlayer: Dependencies {
     }
 
     public func play() {
-        let success = audioSession.startAudioActivity(audioActivity)
+        let success = SUIEnvironment.shared.audioSessionRef.startAudioActivity(audioActivity)
         assert(success)
 
         guard let item = avPlayer.currentItem else {

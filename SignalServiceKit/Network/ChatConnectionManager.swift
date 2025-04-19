@@ -11,7 +11,7 @@ public protocol ChatConnectionManager {
     var identifiedConnectionState: OWSChatConnectionState { get }
     var hasEmptiedInitialQueue: Bool { get }
 
-    func canMakeRequests(connectionType: OWSChatConnectionType) -> Bool
+    func shouldWaitForSocketToMakeRequest(connectionType: OWSChatConnectionType) -> Bool
     func makeRequest(_ request: TSRequest) async throws -> HTTPResponse
 
     func didReceivePush()
@@ -22,7 +22,7 @@ public class ChatConnectionManagerImpl: ChatConnectionManager {
     private let connectionUnidentified: OWSChatConnection
     private var connections: [OWSChatConnection] { [ connectionIdentified, connectionUnidentified ]}
 
-    public init(accountManager: TSAccountManager, appExpiry: AppExpiry, appReadiness: AppReadiness, currentCallProvider: any CurrentCallProvider, db: DB, libsignalNet: Net, registrationStateChangeManager: RegistrationStateChangeManager, userDefaults: UserDefaults) {
+    public init(accountManager: TSAccountManager, appExpiry: AppExpiry, appReadiness: AppReadiness, currentCallProvider: any CurrentCallProvider, db: any DB, libsignalNet: Net, registrationStateChangeManager: RegistrationStateChangeManager, userDefaults: UserDefaults) {
         AssertIsOnMainThread()
         if userDefaults.bool(forKey: Self.shouldUseLibsignalForIdentifiedDefaultsKey) {
             connectionIdentified = OWSAuthConnectionUsingLibSignal(libsignalNet: libsignalNet, accountManager: accountManager, appExpiry: appExpiry, appReadiness: appReadiness, currentCallProvider: currentCallProvider, db: db, registrationStateChangeManager: registrationStateChangeManager)
@@ -40,26 +40,6 @@ public class ChatConnectionManagerImpl: ChatConnectionManager {
 
         if userDefaults.bool(forKey: Self.shouldUseLibsignalForUnidentifiedDefaultsKey) {
             connectionUnidentified = OWSUnauthConnectionUsingLibSignal(libsignalNet: libsignalNet, accountManager: accountManager, appExpiry: appExpiry, appReadiness: appReadiness, currentCallProvider: currentCallProvider, db: db, registrationStateChangeManager: registrationStateChangeManager)
-        } else if userDefaults.bool(forKey: Self.enableShadowingDefaultsKey) {
-            let shadowingConnection = OWSChatConnectionWithLibSignalShadowing(
-                libsignalNet: libsignalNet,
-                type: .unidentified,
-                accountManager: accountManager,
-                appExpiry: appExpiry,
-                appReadiness: appReadiness,
-                currentCallProvider: currentCallProvider,
-                db: db,
-                registrationStateChangeManager: registrationStateChangeManager,
-                shadowingFrequency: 0.0
-            )
-            // RemoteConfig isn't available while we're still setting up singletons,
-            // so we might not shadow the first few requests.
-            appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
-                let frequency = RemoteConfig.current.experimentalTransportShadowingHigh ? 1.0 : 0.1
-                Logger.info("Using unauth OWSChatConnectionWithLibSignalShadowing, shadowing frequency \(frequency)")
-                shadowingConnection.updateShadowingFrequency(frequency)
-            }
-            connectionUnidentified = shadowingConnection
         } else {
             connectionUnidentified = OWSChatConnectionUsingSSKWebSocket(type: .unidentified, accountManager: accountManager, appExpiry: appExpiry, appReadiness: appReadiness, currentCallProvider: currentCallProvider, db: db, registrationStateChangeManager: registrationStateChangeManager)
         }
@@ -76,8 +56,8 @@ public class ChatConnectionManagerImpl: ChatConnectionManager {
         }
     }
 
-    public func canMakeRequests(connectionType: OWSChatConnectionType) -> Bool {
-        connection(ofType: connectionType).canMakeRequests
+    public func shouldWaitForSocketToMakeRequest(connectionType: OWSChatConnectionType) -> Bool {
+        connection(ofType: connectionType).shouldSocketBeOpen
     }
 
     public typealias RequestSuccess = OWSChatConnection.RequestSuccess
@@ -98,7 +78,7 @@ public class ChatConnectionManagerImpl: ChatConnectionManager {
             return
         }
         // After 30 seconds, we try anyways. We'll probably fail.
-        let maxWaitInterval = 30 * kSecondInterval
+        let maxWaitInterval: TimeInterval = 30 * .second
         _ = try? await withCooperativeTimeout(
             seconds: maxWaitInterval,
             operation: { try await connection.waitForOpen() }
@@ -107,31 +87,7 @@ public class ChatConnectionManagerImpl: ChatConnectionManager {
 
     // This method can be called from any thread.
     public func makeRequest(_ request: TSRequest) async throws -> HTTPResponse {
-        let connectionType: OWSChatConnectionType = {
-            if request.isUDRequest {
-                return .unidentified
-            } else if !request.shouldHaveAuthorizationHeaders {
-                return .unidentified
-            } else {
-                return .identified
-            }
-        }()
-
-        // connectionType, isUDRequest and shouldHaveAuthorizationHeaders
-        // should be (mostly?) aligned.
-        switch connectionType {
-        case .identified:
-            owsAssertDebug(!request.isUDRequest)
-            owsAssertDebug(request.shouldHaveAuthorizationHeaders)
-            if request.isUDRequest || !request.shouldHaveAuthorizationHeaders {
-                Logger.info("request: \(request.description), isUDRequest: \(request.isUDRequest), shouldHaveAuthorizationHeaders: \(request.shouldHaveAuthorizationHeaders)")
-            }
-        case .unidentified:
-            owsAssertDebug(request.isUDRequest || !request.shouldHaveAuthorizationHeaders)
-            if !request.isUDRequest && request.shouldHaveAuthorizationHeaders {
-                Logger.info("request: \(request.description), isUDRequest: \(request.isUDRequest), shouldHaveAuthorizationHeaders: \(request.shouldHaveAuthorizationHeaders)")
-            }
-        }
+        let connectionType = try request.auth.connectionType
 
         // Request that the websocket open to make this request, if necessary.
         let unsubmittedRequestToken = connection(ofType: connectionType).makeUnsubmittedRequestToken()
@@ -158,16 +114,6 @@ public class ChatConnectionManagerImpl: ChatConnectionManager {
 
     // MARK: -
 
-    private static var enableShadowingDefaultsKey: String = "EnableShadowingForUnidentifiedWebsocket"
-
-    /// We cache this in UserDefaults because it's used too early to access the RemoteConfig object.
-    static func saveEnableShadowingForUnidentifiedWebsocket(
-        _ enableShadowingForUnidentifiedWebsocket: Bool,
-        in defaults: UserDefaults
-    ) {
-        defaults.set(enableShadowingForUnidentifiedWebsocket, forKey: enableShadowingDefaultsKey)
-    }
-
     private static var shouldUseLibsignalForUnidentifiedDefaultsKey: String = "UseLibsignalForUnidentifiedWebsocket"
 
     /// We cache this in UserDefaults because it's used too early to access the RemoteConfig object.
@@ -182,6 +128,10 @@ public class ChatConnectionManagerImpl: ChatConnectionManager {
     }
 
     private static var shouldUseLibsignalForIdentifiedDefaultsKey: String = "UseLibsignalForIdentifiedWebsocket"
+
+    static var shouldUseLibsignalForIdentifiedWebsocket: Bool {
+        CurrentAppContext().appUserDefaults().bool(forKey: shouldUseLibsignalForIdentifiedDefaultsKey)
+    }
 
     /// We cache this in UserDefaults because it's used too early to access the RemoteConfig object.
     ///
@@ -208,10 +158,10 @@ public class ChatConnectionManagerMock: ChatConnectionManager {
 
     public var identifiedConnectionState: OWSChatConnectionState = .closed
 
-    public var canMakeRequestsPerType = [OWSChatConnectionType: Bool]()
+    public var shouldWaitForSocketToMakeRequestPerType = [OWSChatConnectionType: Bool]()
 
-    public func canMakeRequests(connectionType: OWSChatConnectionType) -> Bool {
-        return canMakeRequestsPerType[connectionType] ?? true
+    public func shouldWaitForSocketToMakeRequest(connectionType: OWSChatConnectionType) -> Bool {
+        return shouldWaitForSocketToMakeRequestPerType[connectionType] ?? true
     }
 
     public var requestHandler: (_ request: TSRequest) async throws -> HTTPResponse = { _ in

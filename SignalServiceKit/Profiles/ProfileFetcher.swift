@@ -6,33 +6,40 @@
 import Foundation
 public import LibSignalClient
 
-public struct ProfileFetchOptions: OptionSet {
-    public var rawValue: Int
-    public init(rawValue: Int) { self.rawValue = rawValue }
+public struct ProfileFetchContext {
+    /// If set, GSEs will be used as a fallback auth mechanism.
+    var groupId: GroupIdentifier?
 
-    public static let opportunistic: Self = .init(rawValue: 1 << 0)
+    /// If true, the fetch may be arbitrarily dropped if deemed non-critical.
+    public var isOpportunistic: Bool
+
+    public init(groupId: GroupIdentifier? = nil, isOpportunistic: Bool = false) {
+        self.groupId = groupId
+        self.isOpportunistic = isOpportunistic
+    }
 }
 
 public protocol ProfileFetcher {
-    func fetchProfileImpl(for serviceId: ServiceId, options: ProfileFetchOptions, authedAccount: AuthedAccount) async throws -> FetchedProfile
-    func fetchProfileSyncImpl(for serviceId: ServiceId, options: ProfileFetchOptions, authedAccount: AuthedAccount) -> Task<FetchedProfile, Error>
+    func fetchProfileImpl(for serviceId: ServiceId, context: ProfileFetchContext, authedAccount: AuthedAccount) async throws -> FetchedProfile
+    func fetchProfileSyncImpl(for serviceId: ServiceId, context: ProfileFetchContext, authedAccount: AuthedAccount) -> Task<FetchedProfile, Error>
+    func waitForPendingFetches(for serviceId: ServiceId) async throws
 }
 
 extension ProfileFetcher {
     public func fetchProfile(
         for serviceId: ServiceId,
-        options: ProfileFetchOptions = [],
+        context: ProfileFetchContext = ProfileFetchContext(),
         authedAccount: AuthedAccount = .implicit()
     ) async throws -> FetchedProfile {
-        return try await fetchProfileImpl(for: serviceId, options: options, authedAccount: authedAccount)
+        return try await fetchProfileImpl(for: serviceId, context: context, authedAccount: authedAccount)
     }
 
     func fetchProfileSync(
         for serviceId: ServiceId,
-        options: ProfileFetchOptions = [],
+        context: ProfileFetchContext = ProfileFetchContext(),
         authedAccount: AuthedAccount = .implicit()
     ) -> Task<FetchedProfile, Error> {
-        return fetchProfileSyncImpl(for: serviceId, options: options, authedAccount: authedAccount)
+        return fetchProfileSyncImpl(for: serviceId, context: context, authedAccount: authedAccount)
     }
 }
 
@@ -41,7 +48,7 @@ public enum ProfileFetcherError: Error {
 }
 
 public actor ProfileFetcherImpl: ProfileFetcher {
-    private let jobCreator: (ServiceId, AuthedAccount) -> ProfileFetcherJob
+    private let jobCreator: (ServiceId, GroupIdentifier?, AuthedAccount) -> ProfileFetcherJob
     private let reachabilityManager: any SSKReachabilityManager
     private let tsAccountManager: any TSAccountManager
 
@@ -63,12 +70,17 @@ public actor ProfileFetcherImpl: ProfileFetcher {
         }
     }
 
-    private var rateLimitExpirationDate: MonotonicDate = .distantPast
-    private var scheduledOpportunisticDate: MonotonicDate = .distantPast
+    private nonisolated let inProgressFetches = AtomicValue<[ServiceId: [FetchState]]>([:], lock: .init())
+
+    private class FetchState {
+        var waiterContinuations = [CancellableContinuation<Void>]()
+    }
+
+    private var rateLimitExpirationDate: MonotonicDate?
+    private var scheduledOpportunisticDate: MonotonicDate?
 
     public init(
         db: any DB,
-        deleteForMeSyncMessageSettingsStore: any DeleteForMeSyncMessageSettingsStore,
         disappearingMessagesConfigurationStore: any DisappearingMessagesConfigurationStore,
         identityManager: any OWSIdentityManager,
         paymentsHelper: any PaymentsHelper,
@@ -77,19 +89,21 @@ public actor ProfileFetcherImpl: ProfileFetcher {
         recipientDatabaseTable: any RecipientDatabaseTable,
         recipientManager: any SignalRecipientManager,
         recipientMerger: any RecipientMerger,
+        storageServiceRecordIkmCapabilityStore: any StorageServiceRecordIkmCapabilityStore,
+        storageServiceRecordIkmMigrator: any StorageServiceRecordIkmMigrator,
         syncManager: any SyncManagerProtocol,
         tsAccountManager: any TSAccountManager,
         udManager: any OWSUDManager,
-        versionedProfiles: any VersionedProfilesSwift
+        versionedProfiles: any VersionedProfiles
     ) {
         self.reachabilityManager = reachabilityManager
         self.tsAccountManager = tsAccountManager
-        self.jobCreator = { serviceId, authedAccount in
+        self.jobCreator = { serviceId, groupIdContext, authedAccount in
             return ProfileFetcherJob(
                 serviceId: serviceId,
+                groupIdContext: groupIdContext,
                 authedAccount: authedAccount,
                 db: db,
-                deleteForMeSyncMessageSettingsStore: deleteForMeSyncMessageSettingsStore,
                 disappearingMessagesConfigurationStore: disappearingMessagesConfigurationStore,
                 identityManager: identityManager,
                 paymentsHelper: paymentsHelper,
@@ -97,6 +111,8 @@ public actor ProfileFetcherImpl: ProfileFetcher {
                 recipientDatabaseTable: recipientDatabaseTable,
                 recipientManager: recipientManager,
                 recipientMerger: recipientMerger,
+                storageServiceRecordIkmCapabilityStore: storageServiceRecordIkmCapabilityStore,
+                storageServiceRecordIkmMigrator: storageServiceRecordIkmMigrator,
                 syncManager: syncManager,
                 tsAccountManager: tsAccountManager,
                 udManager: udManager,
@@ -106,15 +122,39 @@ public actor ProfileFetcherImpl: ProfileFetcher {
         SwiftSingletons.register(self)
     }
 
+    private nonisolated func insertFetchState(serviceId: ServiceId) -> FetchState {
+        let fetchState = FetchState()
+        self.inProgressFetches.update {
+            $0[serviceId, default: []].append(fetchState)
+        }
+        return fetchState
+    }
+
+    private nonisolated func finalizeFetchState(
+        serviceId: ServiceId,
+        fetchState: FetchState
+    ) {
+        self.inProgressFetches.update {
+            $0[serviceId, default: []].removeAll(where: { $0 === fetchState })
+        }
+        for waiter in fetchState.waiterContinuations {
+            waiter.resume(with: .success(()))
+        }
+    }
+
     public nonisolated func fetchProfileSyncImpl(
         for serviceId: ServiceId,
-        options: ProfileFetchOptions,
+        context: ProfileFetchContext,
         authedAccount: AuthedAccount
     ) -> Task<FetchedProfile, Error> {
+        // Insert this before starting the Task to ensure we've denoted the pending
+        // fetch before returning control to the caller.
+        let fetchState = insertFetchState(serviceId: serviceId)
         return Task {
-            return try await self.fetchProfileWithOptions(
+            return try await self.fetchProfileWithOptionsAndFinalize(
                 serviceId: serviceId,
-                options: options,
+                fetchState: fetchState,
+                context: context,
                 authedAccount: authedAccount
             )
         }
@@ -122,32 +162,53 @@ public actor ProfileFetcherImpl: ProfileFetcher {
 
     public func fetchProfileImpl(
         for serviceId: ServiceId,
-        options: ProfileFetchOptions,
+        context: ProfileFetchContext,
         authedAccount: AuthedAccount
     ) async throws -> FetchedProfile {
-        return try await fetchProfileWithOptions(
+        // We're already running concurrently with other code, so no new race
+        // conditions are introduced by calling `insertFetchState` inline.
+        return try await fetchProfileWithOptionsAndFinalize(
             serviceId: serviceId,
-            options: options,
+            fetchState: insertFetchState(serviceId: serviceId),
+            context: context,
             authedAccount: authedAccount
         )
     }
 
-    private func fetchProfileWithOptions(
+    private func fetchProfileWithOptionsAndFinalize(
         serviceId: ServiceId,
-        options: ProfileFetchOptions,
+        fetchState: FetchState,
+        context: ProfileFetchContext,
         authedAccount: AuthedAccount
     ) async throws -> FetchedProfile {
-        if options.contains(.opportunistic) {
+        let result = await Result {
+            try await fetchProfileWithOptions(
+                serviceId: serviceId,
+                context: context,
+                authedAccount: authedAccount
+            )
+        }
+        finalizeFetchState(serviceId: serviceId, fetchState: fetchState)
+        return try result.get()
+    }
+
+    private func fetchProfileWithOptions(
+        serviceId: ServiceId,
+        context: ProfileFetchContext,
+        authedAccount: AuthedAccount
+    ) async throws -> FetchedProfile {
+        if context.isOpportunistic {
             if !CurrentAppContext().isMainApp {
                 throw ProfileFetcherError.skippingOpportunisticFetch
             }
-            return try await fetchProfileOpportunistically(serviceId: serviceId, authedAccount: authedAccount)
+            return try await fetchProfileOpportunistically(serviceId: serviceId, context: context, authedAccount: authedAccount)
         }
-        return try await fetchProfileUrgently(serviceId: serviceId, authedAccount: authedAccount)
+        return try await fetchProfileUrgently(serviceId: serviceId, context: context, authedAccount: authedAccount)
     }
 
     private func fetchProfileOpportunistically(
         serviceId: ServiceId,
+        context: ProfileFetchContext,
         authedAccount: AuthedAccount
     ) async throws -> FetchedProfile {
         if CurrentAppContext().isRunningTests {
@@ -169,7 +230,7 @@ public actor ProfileFetcherImpl: ProfileFetcher {
         guard shouldOpportunisticallyFetch(serviceId: serviceId) else {
             throw ProfileFetcherError.skippingOpportunisticFetch
         }
-        return try await fetchProfileUrgently(serviceId: serviceId, authedAccount: authedAccount)
+        return try await fetchProfileUrgently(serviceId: serviceId, context: context, authedAccount: authedAccount)
     }
 
     private func isRegisteredOrExplicitlyAuthenticated(authedAccount: AuthedAccount) -> Bool {
@@ -183,9 +244,10 @@ public actor ProfileFetcherImpl: ProfileFetcher {
 
     private func fetchProfileUrgently(
         serviceId: ServiceId,
+        context: ProfileFetchContext,
         authedAccount: AuthedAccount
     ) async throws -> FetchedProfile {
-        let result = await Result { try await jobCreator(serviceId, authedAccount).run() }
+        let result = await Result { try await jobCreator(serviceId, context.groupId, authedAccount).run() }
         let outcome: FetchResult.Outcome
         do {
             _ = try result.get()
@@ -199,7 +261,7 @@ public actor ProfileFetcherImpl: ProfileFetcher {
         }
         let now = MonotonicDate()
         if case .failure(ProfileRequestError.rateLimit) = result {
-            self.rateLimitExpirationDate = now.adding(5*kMinuteInterval)
+            self.rateLimitExpirationDate = now.adding(5 * .minute)
         }
         self.recentFetchResults[serviceId] = FetchResult(outcome: outcome, completionDate: now)
         return try result.get()
@@ -222,16 +284,16 @@ public actor ProfileFetcherImpl: ProfileFetcher {
         // * Backing off aggressively if we hit the rate limit.
 
         let minimumDelay: TimeInterval
-        if now < rateLimitExpirationDate {
+        if let rateLimitExpirationDate, now < rateLimitExpirationDate {
             minimumDelay = 20
         } else {
             minimumDelay = 0.1
         }
 
-        let minimumDate = self.scheduledOpportunisticDate.adding(minimumDelay)
-        self.scheduledOpportunisticDate = max(now, minimumDate)
+        let minimumDate = self.scheduledOpportunisticDate?.adding(minimumDelay)
+        self.scheduledOpportunisticDate = [now, minimumDate].compacted().max()!
 
-        if now < minimumDate {
+        if let minimumDate, now < minimumDate {
             try await Task.sleep(nanoseconds: minimumDate - now)
         }
     }
@@ -247,20 +309,41 @@ public actor ProfileFetcherImpl: ProfileFetcher {
         } else {
             switch fetchResult.outcome {
             case .success:
-                retryDelay = 2 * kMinuteInterval
+                retryDelay = 2 * .minute
             case .networkFailure:
-                retryDelay = 1 * kMinuteInterval
+                retryDelay = 1 * .minute
             case .requestFailure(.notAuthorized):
-                retryDelay = 30 * kMinuteInterval
+                retryDelay = 30 * .minute
             case .requestFailure(.notFound):
-                retryDelay = 6 * kHourInterval
+                retryDelay = 6 * .hour
             case .requestFailure(.rateLimit):
-                retryDelay = 5 * kMinuteInterval
+                retryDelay = 5 * .minute
             case .otherFailure:
-                retryDelay = 30 * kMinuteInterval
+                retryDelay = 30 * .minute
             }
         }
 
         return MonotonicDate() > fetchResult.completionDate.adding(retryDelay)
+    }
+
+    // MARK: - Waiting
+
+    public func waitForPendingFetches(for serviceId: ServiceId) async throws {
+        try await withThrowingTaskGroup(of: Void.self) { taskGroup in
+            let cancellableContinuations = self.inProgressFetches.update {
+                // There might be multiple profile fetches queued up for a single
+                // serviceId. We add a CancellableContinuation for *each* of those because
+                // we want to wait for whichever takes the longest.
+                return $0[serviceId, default: []].map { fetchState in
+                    let result = CancellableContinuation<Void>()
+                    fetchState.waiterContinuations.append(result)
+                    return result
+                }
+            }
+            for cancellableContinuation in cancellableContinuations {
+                taskGroup.addTask { try await cancellableContinuation.wait() }
+            }
+            try await taskGroup.waitForAll()
+        }
     }
 }

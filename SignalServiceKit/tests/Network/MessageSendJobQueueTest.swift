@@ -13,7 +13,7 @@ class MessageSenderJobQueueTest: SSKBaseTest {
 
     func test_messageIsSent() async throws {
         let jobQueue = MessageSenderJobQueue(appReadiness: AppReadinessMock())
-        let (message, promise) = try await databaseStorage.awaitableWrite { tx in
+        let (message, promise) = try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             let message = OutgoingMessageFactory().create(transaction: tx)
             let jobRecord = try MessageSenderJobRecord(
                 persistedMessage: .init(
@@ -31,7 +31,7 @@ class MessageSenderJobQueueTest: SSKBaseTest {
             return (message, promise)
         }
         fakeMessageSender.stubbedFailingErrors = [nil]
-        jobQueue.setup(appReadiness: AppReadinessMock())
+        jobQueue.setUp()
         try await promise.awaitable()
         XCTAssertEqual(fakeMessageSender.sentMessages.map { $0.uniqueId }, [message.uniqueId])
     }
@@ -39,8 +39,11 @@ class MessageSenderJobQueueTest: SSKBaseTest {
     func test_respectsQueueOrder() async throws {
         let messageCount = 3
         let jobQueue = MessageSenderJobQueue(appReadiness: AppReadinessMock())
-        let (messages, promises) = try await databaseStorage.awaitableWrite { tx in
-            let messages = (1...messageCount).map { _ in OutgoingMessageFactory().create(transaction: tx) }
+        let (messages, promises) = try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
+            let contactThread = ContactThreadFactory().create(transaction: tx)
+            let outgoingMessageFactory = OutgoingMessageFactory()
+            outgoingMessageFactory.threadCreator = { _ in contactThread }
+            let messages = (1...messageCount).map { _ in outgoingMessageFactory.create(transaction: tx) }
             let promises = try messages.map {
                 let jobRecord = try MessageSenderJobRecord(
                     persistedMessage: .init(
@@ -59,7 +62,7 @@ class MessageSenderJobQueueTest: SSKBaseTest {
             return (messages, promises)
         }
         fakeMessageSender.stubbedFailingErrors = Array(repeating: nil, count: messageCount)
-        jobQueue.setup(appReadiness: AppReadinessMock())
+        jobQueue.setUp()
         for promise in promises {
             try await promise.awaitable()
         }
@@ -69,8 +72,8 @@ class MessageSenderJobQueueTest: SSKBaseTest {
     func test_sendingInvisibleMessage() async throws {
         let jobQueue = MessageSenderJobQueue(appReadiness: AppReadinessMock())
         fakeMessageSender.stubbedFailingErrors = [nil]
-        jobQueue.setup(appReadiness: AppReadinessMock())
-        let (message, promise) = await databaseStorage.awaitableWrite { tx in
+        jobQueue.setUp()
+        let (message, promise) = await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             let message = OutgoingMessageFactory().buildDeliveryReceipt(transaction: tx)
             let preparedMessage = PreparedOutgoingMessage.preprepared(
                 transientMessageWithoutAttachments: message
@@ -85,7 +88,7 @@ class MessageSenderJobQueueTest: SSKBaseTest {
     func test_retryableFailure() async throws {
         let jobQueue = MessageSenderJobQueue(appReadiness: AppReadinessMock())
 
-        let (message, promise) = try await databaseStorage.awaitableWrite { tx in
+        let (jobRecord, message, promise) = try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             let message = OutgoingMessageFactory().create(transaction: tx)
             let jobRecord = try MessageSenderJobRecord(
                 persistedMessage: .init(
@@ -100,33 +103,20 @@ class MessageSenderJobQueueTest: SSKBaseTest {
                 tx: tx
             )!
             let promise = jobQueue.add(.promise, message: preparedMessage, transaction: tx)
-            return (message, promise)
+            return (jobRecord, message, promise)
         }
-
-        let finder = JobRecordFinderImpl<MessageSenderJobRecord>(db: DependenciesBridge.shared.db)
-        var readyRecords: [MessageSenderJobRecord] = []
-        self.read { tx in
-            readyRecords = try! finder.allRecords(
-                status: .ready,
-                transaction: tx.asV2Read
-            )
-        }
-        XCTAssertEqual(1, readyRecords.count)
-
-        var jobRecord = readyRecords.first!
-        XCTAssertEqual(0, jobRecord.failureCount)
 
         // simulate permanent failure (via `maxRetries` retryable failures)
         let retryCount: Int = 110 // Matches MessageSenderOperation
-        fakeMessageSender.stubbedFailingErrors = Array(repeating: OWSRetryableError(), count: retryCount + 1)
-        jobQueue.setup(appReadiness: AppReadinessMock())
+        fakeMessageSender.stubbedFailingErrors = Array(repeating: URLError(.notConnectedToInternet), count: retryCount + 1)
+        jobQueue.setUp()
 
         do {
             let retryTriggerTask = Task.detached {
                 while true {
                     try Task.checkCancellation()
                     try await Task.sleep(nanoseconds: 500*NSEC_PER_USEC)
-                    _ = jobQueue.runAnyQueuedRetry()
+                    jobQueue.becameReachable()
                 }
             }
             defer {
@@ -137,24 +127,20 @@ class MessageSenderJobQueueTest: SSKBaseTest {
         } catch {}
 
         self.read { transaction in
-            jobRecord = jobRecord.fetchLatest(transaction: transaction)
+            XCTAssertNil(jobRecord.fetchLatest(transaction: transaction))
         }
 
-        XCTAssertEqual(retryCount + 1, Int(jobRecord.failureCount))
-        XCTAssertEqual(.permanentlyFailed, jobRecord.status)
+        XCTAssertEqual(fakeMessageSender.stubbedFailingErrors.count, 0)
         XCTAssertEqual(
             fakeMessageSender.sentMessages.map { $0.uniqueId },
             Array(repeating: message.uniqueId, count: retryCount + 1)
         )
-
-        // No remaining retries
-        XCTAssertNil(jobQueue.runAnyQueuedRetry())
     }
 
     func test_permanentFailure() async throws {
         let jobQueue = MessageSenderJobQueue(appReadiness: AppReadinessMock())
 
-        let (message, promise) = try await databaseStorage.awaitableWrite { tx in
+        let (jobRecord, message, promise) = try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             let message = OutgoingMessageFactory().create(transaction: tx)
             let jobRecord = try MessageSenderJobRecord(
                 persistedMessage: .init(
@@ -169,26 +155,13 @@ class MessageSenderJobQueueTest: SSKBaseTest {
                 tx: tx
             )!
             let promise = jobQueue.add(.promise, message: preparedMessage, transaction: tx)
-            return (message, promise)
+            return (jobRecord, message, promise)
         }
-
-        let finder = JobRecordFinderImpl<MessageSenderJobRecord>(db: DependenciesBridge.shared.db)
-        var readyRecords: [MessageSenderJobRecord] = []
-        self.read { tx in
-            readyRecords = try! finder.allRecords(
-                status: .ready,
-                transaction: tx.asV2Read
-            )
-        }
-        XCTAssertEqual(1, readyRecords.count)
-
-        var jobRecord = readyRecords.first!
-        XCTAssertEqual(0, jobRecord.failureCount)
 
         // simulate permanent failure
         let error = OWSUnretryableError()
         fakeMessageSender.stubbedFailingErrors = [error]
-        jobQueue.setup(appReadiness: AppReadinessMock())
+        jobQueue.setUp()
 
         do {
             try await promise.awaitable()
@@ -196,21 +169,14 @@ class MessageSenderJobQueueTest: SSKBaseTest {
         } catch {}
 
         self.read { tx in
-            jobRecord = jobRecord.fetchLatest(transaction: tx)
+            XCTAssertNil(jobRecord.fetchLatest(transaction: tx))
         }
-
-        XCTAssertEqual(1, jobRecord.failureCount)
-        XCTAssertEqual(.permanentlyFailed, jobRecord.status)
         XCTAssertEqual(fakeMessageSender.sentMessages.map { $0.uniqueId }, [message.uniqueId])
     }
 }
 
 private extension MessageSenderJobRecord {
-    func fetchLatest(transaction: SDSAnyReadTransaction) -> Self {
-        guard let latest = Self.anyFetch(uniqueId: uniqueId, transaction: transaction) else {
-            owsFail("Failed to fetch latest model! Was the model removed?")
-        }
-
-        return latest
+    func fetchLatest(transaction: DBReadTransaction) -> Self? {
+        return Self.anyFetch(uniqueId: uniqueId, transaction: transaction)
     }
 }

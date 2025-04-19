@@ -4,10 +4,10 @@
 //
 
 import LibSignalClient
-public import SignalServiceKit
+import SignalServiceKit
 import SignalUI
 
-public class RegistrationUtils: Dependencies {
+public class RegistrationUtils {
 
     private init() {}
 
@@ -30,7 +30,7 @@ public class RegistrationUtils: Dependencies {
 
         Logger.info("phoneNumber: \(e164)")
 
-        preferences.unsetRecordedAPNSTokens()
+        SSKEnvironment.shared.preferencesRef.unsetRecordedAPNSTokens()
 
         showReRegistration(e164: e164, aci: localIdentifiers.aci, appReadiness: appReadiness)
     }
@@ -81,7 +81,7 @@ public class RegistrationUtils: Dependencies {
             return
         }
 
-        preferences.unsetRecordedAPNSTokens()
+        SSKEnvironment.shared.preferencesRef.unsetRecordedAPNSTokens()
         ProvisioningController.presentRelinkingFlow(appReadiness: appReadiness)
     }
 
@@ -90,10 +90,10 @@ public class RegistrationUtils: Dependencies {
         let dependencies = RegistrationCoordinatorDependencies.from(NSObject())
         let desiredMode = RegistrationMode.reRegistering(.init(e164: e164, aci: aci))
         let loader = RegistrationCoordinatorLoaderImpl(dependencies: dependencies)
-        let coordinator = databaseStorage.write {
+        let coordinator = SSKEnvironment.shared.databaseStorageRef.write {
             return loader.coordinator(
                 forDesiredMode: desiredMode,
-                transaction: $0.asV2Write
+                transaction: $0
             )
         }
         let navController = RegistrationNavigationController.withCoordinator(coordinator, appReadiness: appReadiness)

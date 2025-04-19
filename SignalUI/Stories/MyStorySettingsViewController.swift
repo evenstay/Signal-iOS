@@ -55,7 +55,7 @@ private protocol MyStorySettingsDataSourceDelegate: AnyObject, UIViewController 
     func reloadTableContents()
 }
 
-private class MyStorySettingsDataSource: NSObject, Dependencies {
+private class MyStorySettingsDataSource: NSObject {
 
     private weak var delegate: MyStorySettingsDataSourceDelegate?
 
@@ -74,10 +74,21 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
     func generateTableContents(style: Style) -> OWSTableContents {
         let contents = OWSTableContents()
 
-        let (hasSetMyStoriesPrivacy, myStoryThread) = databaseStorage.read { transaction -> (Bool, TSPrivateStoryThread) in
-            (
+        let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+        let storyRecipientStore = DependenciesBridge.shared.storyRecipientStore
+
+        let (
+            hasSetMyStoriesPrivacy,
+            myStoryThread,
+            myStoryThreadRecipientIds
+        ) = databaseStorage.read { transaction -> (Bool, TSPrivateStoryThread, [SignalRecipient.RowId]) in
+            let myStoryThread: TSPrivateStoryThread = TSPrivateStoryThread.getMyStory(transaction: transaction)
+            return (
                 StoryManager.hasSetMyStoriesPrivacy(transaction: transaction),
-                TSPrivateStoryThread.getMyStory(transaction: transaction)
+                myStoryThread,
+                failIfThrows {
+                    return try storyRecipientStore.fetchRecipientIds(forStoryThreadId: myStoryThread.sqliteRowId!, tx: transaction)
+                }
             )
         }
 
@@ -110,7 +121,7 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
         }
 
         do {
-            let isSelected = storyViewMode == .blockList && myStoryThread.addresses.isEmpty
+            let isSelected = storyViewMode == .blockList && myStoryThreadRecipientIds.isEmpty
             let detailText: String?
             if isSelected {
                 let formatString = OWSLocalizedString(
@@ -132,10 +143,10 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
                     self?.delegate?.presentFormSheet(OWSNavigationController(rootViewController: vc), animated: true)
                 })
             ) { [weak self] in
-                Self.databaseStorage.write { transaction in
+                SSKEnvironment.shared.databaseStorageRef.write { transaction in
                     myStoryThread.updateWithStoryViewMode(
                         .blockList,
-                        addresses: [],
+                        storyRecipientIds: .setTo([]),
                         updateStorageService: true,
                         transaction: transaction
                     )
@@ -145,14 +156,14 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
         }
 
         do {
-            let isSelected = storyViewMode == .blockList && myStoryThread.addresses.count > 0
+            let isSelected = storyViewMode == .blockList && !myStoryThreadRecipientIds.isEmpty
             let detailText: String?
             if isSelected {
                 let formatString = OWSLocalizedString(
                     "MY_STORIES_SETTINGS_VISIBILITY_ALL_SIGNAL_CONNECTIONS_EXCEPT_SUBTITLE_%d",
                     tableName: "PluralAware",
                     comment: "Subtitle for the visibility option. Embeds number of excluded members")
-                detailText = String.localizedStringWithFormat(formatString, myStoryThread.addresses.count)
+                detailText = String.localizedStringWithFormat(formatString, myStoryThreadRecipientIds.count)
             } else {
                 detailText = nil
             }
@@ -163,11 +174,17 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
                 detailText: detailText,
                 isSelected: isSelected,
                 accessory: .none
-            ) { [weak self] in
-                let vc = SelectMyStoryRecipientsViewController(thread: myStoryThread, mode: .blockList) {
-                    self?.delegate?.reloadTableContents()
+            ) { [unowned self] in
+                let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+                let viewController = databaseStorage.read { tx in
+                    return SelectMyStoryRecipientsViewController.load(
+                        for: myStoryThread,
+                        mode: .blockList,
+                        tx: tx,
+                        completionBlock: { [weak self] in self?.delegate?.reloadTableContents() }
+                    )
                 }
-                self?.delegate?.presentFormSheet(OWSNavigationController(rootViewController: vc), animated: true)
+                self.delegate?.presentFormSheet(OWSNavigationController(rootViewController: viewController), animated: true)
             })
         }
 
@@ -179,7 +196,7 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
                     "MY_STORIES_SETTINGS_VISIBILITY_ONLY_SHARE_WITH_SUBTITLE_%d",
                     tableName: "PluralAware",
                     comment: "Subtitle for the visibility option. Embeds number of allowed members")
-                detailText = String.localizedStringWithFormat(formatString, myStoryThread.addresses.count)
+                detailText = String.localizedStringWithFormat(formatString, myStoryThreadRecipientIds.count)
             } else {
                 detailText = nil
             }
@@ -190,11 +207,17 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
                 detailText: detailText,
                 isSelected: isSelected,
                 accessory: .none
-            ) { [weak self] in
-                let vc = SelectMyStoryRecipientsViewController(thread: myStoryThread, mode: .explicit) {
-                    self?.delegate?.reloadTableContents()
+            ) { [unowned self] in
+                let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+                let viewController = databaseStorage.read { tx in
+                    return SelectMyStoryRecipientsViewController.load(
+                        for: myStoryThread,
+                        mode: .explicit,
+                        tx: tx,
+                        completionBlock: { [weak self] in self?.delegate?.reloadTableContents() }
+                    )
                 }
-                self?.delegate?.presentFormSheet(OWSNavigationController(rootViewController: vc), animated: true)
+                self.delegate?.presentFormSheet(OWSNavigationController(rootViewController: viewController), animated: true)
             })
         }
 
@@ -220,9 +243,9 @@ private class MyStorySettingsDataSource: NSObject, Dependencies {
 
     @objc
     private func didToggleReplies(_ toggle: UISwitch) {
-        let myStoryThread: TSPrivateStoryThread! = databaseStorage.read { TSPrivateStoryThread.getMyStory(transaction: $0) }
+        let myStoryThread: TSPrivateStoryThread! = SSKEnvironment.shared.databaseStorageRef.read { TSPrivateStoryThread.getMyStory(transaction: $0) }
         guard myStoryThread.allowsReplies != toggle.isOn else { return }
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             myStoryThread.updateWithAllowsReplies(toggle.isOn, updateStorageService: true, transaction: transaction)
         }
     }

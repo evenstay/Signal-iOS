@@ -14,10 +14,12 @@ public class AttachmentTransitPointer {
 
     public let info: Attachment.TransitTierInfo
 
+    public var id: Attachment.IDType { attachment.id }
     public var cdnNumber: UInt32 { info.cdnNumber }
     public var cdnKey: String { info.cdnKey }
     public var uploadTimestamp: UInt64 { info.uploadTimestamp }
     public var lastDownloadAttemptTimestamp: UInt64? { info.lastDownloadAttemptTimestamp }
+    public var unencryptedByteCount: UInt32? { info.unencryptedByteCount }
 
     private init(
         attachment: Attachment,
@@ -39,28 +41,10 @@ public class AttachmentTransitPointer {
         )
     }
 
-    public func downloadState(tx: DBReadTransaction) -> AttachmentDownloadState {
-        if attachment.asStream() != nil {
-            owsFailDebug("Checking download state of stream")
-            return .enqueuedOrDownloading
-        }
-        do {
-            if
-                let record = try DependenciesBridge.shared.attachmentDownloadStore.enqueuedDownload(
-                    for: attachment.id,
-                    tx: tx
-                ),
-                record.minRetryTimestamp ?? 0 <= Date().ows_millisecondsSince1970
-            {
-                return .enqueuedOrDownloading
-            }
-        } catch {
-            owsFailDebug("Failed to look up download queue")
-            return .none
-        }
-        if lastDownloadAttemptTimestamp != nil {
-            return .failed
-        }
-        return .none
+    var asAnyPointer: AttachmentPointer {
+        return AttachmentPointer(
+            attachment: attachment,
+            source: .transitTier(self)
+        )
     }
 }

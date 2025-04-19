@@ -31,8 +31,8 @@ extension DonateViewController {
         }.then(on: DispatchQueue.main) { (subscriberId, authorizationParams) -> Promise<(Data, String)> in
             Logger.info("[Donations] Authorizing payment for new monthly subscription with PayPal")
 
-            return firstly { () -> Promise<Paypal.MonthlyPaymentWebAuthApprovalParams> in
-                return Paypal.presentExpectingApprovalParams(
+            return Promise.wrapAsync { () async throws -> Paypal.MonthlyPaymentWebAuthApprovalParams in
+                return try await Paypal.presentExpectingApprovalParams(
                     approvalUrl: authorizationParams.approvalUrl,
                     withPresentationContext: self
                 )
@@ -83,7 +83,7 @@ extension DonateViewController {
     /// auth.
     private func preparePaypalSubscriptionBehindActivityIndicator(
         monthlyState monthly: State.MonthlyState,
-        selectedSubscriptionLevel: SubscriptionLevel
+        selectedSubscriptionLevel: DonationSubscriptionLevel
     ) -> Promise<(Data, Paypal.SubscriptionAuthorizationParams)> {
         AssertIsOnMainThread()
 
@@ -97,7 +97,9 @@ extension DonateViewController {
                 if let existingSubscriberId = monthly.subscriberID {
                     Logger.info("[Donations] Cancelling existing subscription")
 
-                    return SubscriptionManagerImpl.cancelSubscription(for: existingSubscriberId)
+                    return Promise.wrapAsync {
+                        try await DonationSubscriptionManager.cancelSubscription(for: existingSubscriberId)
+                    }
                 } else {
                     Logger.info("[Donations] No existing subscription to cancel")
 
@@ -106,14 +108,18 @@ extension DonateViewController {
             }.then(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Data> in
                 Logger.info("[Donations] Preparing new monthly subscription with PayPal")
 
-                return SubscriptionManagerImpl.prepareNewSubscription(
-                    currencyCode: monthly.selectedCurrencyCode
-                )
+                return Promise.wrapAsync {
+                    try await DonationSubscriptionManager.prepareNewSubscription(
+                        currencyCode: monthly.selectedCurrencyCode
+                    )
+                }
             }.then(on: DispatchQueue.sharedUserInitiated) { subscriberId -> Promise<(Data, Paypal.SubscriptionAuthorizationParams)> in
                 Logger.info("[Donations] Creating Signal payment method for new monthly subscription with PayPal")
 
-                return Paypal.createSignalPaymentMethodForSubscription(subscriberId: subscriberId)
-                    .map(on: DispatchQueue.sharedUserInitiated) { createParams in (subscriberId, createParams) }
+                return Promise.wrapAsync {
+                    let createParams = try await Paypal.createSignalPaymentMethodForSubscription(subscriberId: subscriberId)
+                    return (subscriberId, createParams)
+                }
             }.map(on: DispatchQueue.main) { retVal in
                 modal.dismiss { future.resolve(retVal) }
             }.catch(on: DispatchQueue.main) { error in
@@ -130,14 +136,13 @@ extension DonateViewController {
         subscriberId: Data,
         paymentMethodId: String,
         monthlyState monthly: State.MonthlyState,
-        selectedSubscriptionLevel: SubscriptionLevel
+        selectedSubscriptionLevel: DonationSubscriptionLevel
     ) -> Promise<Void> {
         AssertIsOnMainThread()
 
-        let finalizePromise: Promise<Void> = firstly { () -> Promise<Subscription> in
+        let finalizePromise: Promise<Void> = Promise.wrapAsync {
             Logger.info("[Donations] Finalizing new subscription for PayPal donation")
-
-            return SubscriptionManagerImpl.finalizeNewSubscription(
+            return try await DonationSubscriptionManager.finalizeNewSubscription(
                 forSubscriberId: subscriberId,
                 paymentType: .paypal(paymentMethodId: paymentMethodId),
                 subscription: selectedSubscriptionLevel,
@@ -146,15 +151,16 @@ extension DonateViewController {
         }.then(on: DispatchQueue.sharedUserInitiated) { _ -> Promise<Void> in
             Logger.info("[Donations] Redeeming monthly receipt for PayPal donation")
 
-            let redemptionPromise = SubscriptionManagerImpl.requestAndRedeemReceipt(
-                subscriberId: subscriberId,
-                subscriptionLevel: selectedSubscriptionLevel.level,
-                priorSubscriptionLevel: monthly.currentSubscriptionLevel?.level,
-                paymentProcessor: .braintree,
-                paymentMethod: .paypal,
-                isNewSubscription: true,
-                shouldSuppressPaymentAlreadyRedeemed: false
-            )
+            let redemptionPromise = Promise.wrapAsync {
+                try await DonationSubscriptionManager.requestAndRedeemReceipt(
+                    subscriberId: subscriberId,
+                    subscriptionLevel: selectedSubscriptionLevel.level,
+                    priorSubscriptionLevel: monthly.currentSubscriptionLevel?.level,
+                    paymentProcessor: .braintree,
+                    paymentMethod: .paypal,
+                    isNewSubscription: true
+                )
+            }
 
             return DonationViewsUtil.waitForRedemptionJob(redemptionPromise, paymentMethod: .paypal)
         }

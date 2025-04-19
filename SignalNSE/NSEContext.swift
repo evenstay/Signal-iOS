@@ -9,6 +9,7 @@ import SignalServiceKit
 class NSEContext: NSObject, AppContext {
     let type: SignalServiceKit.AppContextType = .nse
     let isMainAppAndActive = false
+    let isMainAppAndActiveIsolated = false
 
     func isInBackground() -> Bool { true }
     func isAppForegroundAndActive() -> Bool { false }
@@ -78,14 +79,13 @@ class NSEContext: NSObject, AppContext {
     func beginBackgroundTask(with expirationHandler: BackgroundTaskExpirationHandler) -> UIBackgroundTaskIdentifier { .invalid }
     func endBackgroundTask(_ backgroundTaskIdentifier: UIBackgroundTaskIdentifier) {}
 
-    func ensureSleepBlocking(_ shouldBeBlocking: Bool, blockingObjectsDescription: String) {}
-
     func frontmostViewController() -> UIViewController? { nil }
     func openSystemSettings() {}
     func open(_ url: URL, completion: ((Bool) -> Void)? = nil) {}
 
     func runNowOrWhenMainAppIsActive(_ block: () -> Void) {}
 
+    @MainActor
     func resetAppDataAndExit() -> Never {
         owsFail("Should not reset app data from NSE")
     }

@@ -150,17 +150,35 @@ extension ArchivedPayment {
             transaction.status = success
 
             var identification = BackupProto_PaymentNotification.TransactionDetails.MobileCoinTxoIdentification()
-            if let keyImages = mobileCoinIdentification?.keyImages {
-                identification.keyImages = keyImages
-            }
-            if let publicKey = mobileCoinIdentification?.publicKey {
-                identification.publicKey = publicKey
+            switch direction {
+            case .incoming:
+                if let publicKey = mobileCoinIdentification?.publicKey {
+                    identification.publicKey = publicKey
+                }
+            case .outgoing:
+                if let keyImages = mobileCoinIdentification?.keyImages {
+                    identification.keyImages = keyImages
+                }
+            case .unknown:
+                owsFailDebug("Direction of payment not specified.")
             }
             transaction.mobileCoinIdentification = identification
 
-            if let timestamp { transaction.timestamp = timestamp }
+            MessageBackup.Timestamps.setTimestampIfValid(
+                from: self,
+                \.timestamp,
+                on: &transaction,
+                \.timestamp,
+                allowZero: true
+            )
             if let blockIndex { transaction.blockIndex = blockIndex }
-            if let blockTimestamp { transaction.blockTimestamp = blockTimestamp }
+            MessageBackup.Timestamps.setTimestampIfValid(
+                from: self,
+                \.blockTimestamp,
+                on: &transaction,
+                \.blockTimestamp,
+                allowZero: true
+            )
             if let _transaction = self.transaction { transaction.transaction = _transaction }
             if let receipt { transaction.receipt = receipt }
 
@@ -186,7 +204,7 @@ extension TSPaymentModel {
                 identifier = nil
             } else {
                 identifier = ArchivedPayment.TransactionIdentifier(
-                    publicKey: mcOutputPublicKeys,
+                    publicKey: nil,
                     keyImages: mcSpentKeyImages
                 )
             }

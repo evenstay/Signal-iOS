@@ -17,11 +17,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @implementation OWSSyncFetchLatestMessage
 
-- (instancetype)initWithThread:(TSThread *)thread
-                     fetchType:(OWSSyncFetchType)fetchType
-                   transaction:(SDSAnyReadTransaction *)transaction
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
+                          fetchType:(OWSSyncFetchType)fetchType
+                        transaction:(DBReadTransaction *)transaction
 {
-    self = [super initWithThread:thread transaction:transaction];
+    self = [super initWithLocalThread:localThread transaction:transaction];
 
     _fetchType = fetchType;
 
@@ -42,7 +42,7 @@ NS_ASSUME_NONNULL_BEGIN
     }
 }
 
-- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(SDSAnyReadTransaction *)transaction
+- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(DBReadTransaction *)transaction
 {
     SSKProtoSyncMessageFetchLatestBuilder *fetchLatestBuilder = [SSKProtoSyncMessageFetchLatest builder];
     fetchLatestBuilder.type = self.protoFetchType;

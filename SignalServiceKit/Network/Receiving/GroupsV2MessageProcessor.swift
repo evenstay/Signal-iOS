@@ -64,7 +64,7 @@ class IncomingGroupsV2MessageQueue: MessageProcessingPipelineStage {
         )
 
         appReadiness.runNowOrWhenAppDidBecomeReadySync {
-            NSObject.messagePipelineSupervisor.register(pipelineStage: self)
+            SSKEnvironment.shared.messagePipelineSupervisorRef.register(pipelineStage: self)
         }
     }
 
@@ -119,7 +119,7 @@ class IncomingGroupsV2MessageQueue: MessageProcessingPipelineStage {
         groupId: Data,
         wasReceivedByUD: Bool,
         serverDeliveryTimestamp: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         // We need to persist the decrypted envelope data ASAP to prevent data loss.
         finder.addJob(
@@ -128,7 +128,7 @@ class IncomingGroupsV2MessageQueue: MessageProcessingPipelineStage {
             groupId: groupId,
             wasReceivedByUD: wasReceivedByUD,
             serverDeliveryTimestamp: serverDeliveryTimestamp,
-            transaction: tx.unwrapGrdbWrite
+            transaction: tx
         )
     }
 
@@ -164,7 +164,7 @@ class IncomingGroupsV2MessageQueue: MessageProcessingPipelineStage {
         }
 
         let canProcess = (
-            NSObject.messagePipelineSupervisor.isMessageProcessingPermitted &&
+            SSKEnvironment.shared.messagePipelineSupervisorRef.isMessageProcessingPermitted &&
             DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered
         )
 
@@ -174,12 +174,12 @@ class IncomingGroupsV2MessageQueue: MessageProcessingPipelineStage {
         }
 
         // Obtain the list of groups that currently need processing.
-        let groupIdsWithJobs = Set(NSObject.databaseStorage.read { transaction in
-            self.finder.allEnqueuedGroupIds(transaction: transaction.unwrapGrdbRead)
+        let groupIdsWithJobs = Set(SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            self.finder.allEnqueuedGroupIds(transaction: transaction)
         })
 
         guard !groupIdsWithJobs.isEmpty else {
-            NotificationCenter.default.postNotificationNameAsync(GroupsV2MessageProcessor.didFlushGroupsV2MessageQueue, object: nil)
+            NotificationCenter.default.postOnMainThread(name: GroupsV2MessageProcessor.didFlushGroupsV2MessageQueue, object: nil)
             return
         }
 
@@ -204,11 +204,11 @@ class IncomingGroupsV2MessageQueue: MessageProcessingPipelineStage {
         }
     }
 
-    func hasPendingJobs(tx: SDSAnyReadTransaction) -> Bool {
+    func hasPendingJobs(tx: DBReadTransaction) -> Bool {
         self.finder.jobCount(transaction: tx) > 0
     }
 
-    func pendingJobCount(tx: SDSAnyReadTransaction) -> UInt {
+    func pendingJobCount(tx: DBReadTransaction) -> UInt {
         self.finder.jobCount(transaction: tx)
     }
 }
@@ -222,7 +222,7 @@ class IncomingGroupsV2MessageQueue: MessageProcessingPipelineStage {
 //
 // It's promise is fulfilled when all jobs are processed _or_
 // we give up.
-internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependencies {
+internal class GroupsMessageProcessor: MessageProcessingPipelineStage {
 
     private let appReadiness: AppReadiness
 
@@ -279,7 +279,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
         )
 
         appReadiness.runNowOrWhenAppDidBecomeReadySync {
-            self.messagePipelineSupervisor.register(pipelineStage: self)
+            SSKEnvironment.shared.messagePipelineSupervisorRef.register(pipelineStage: self)
         }
     }
 
@@ -332,13 +332,13 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
         processWorkStep(retryDelayAfterFailure: retryDelayAfterFailure)
     }
 
-    private typealias BatchCompletionBlock = ([IncomingGroupsV2MessageJob], Bool, SDSAnyWriteTransaction) -> Void
+    private typealias BatchCompletionBlock = ([IncomingGroupsV2MessageJob], Bool, DBWriteTransaction) -> Void
 
     private func processWorkStep(retryDelayAfterFailure: TimeInterval = 1.0) {
         owsAssertDebug(isDrainingQueue.get())
 
         let canProcess = (
-            messagePipelineSupervisor.isMessageProcessingPermitted &&
+            SSKEnvironment.shared.messagePipelineSupervisorRef.isMessageProcessingPermitted &&
             DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered
         )
 
@@ -355,8 +355,8 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
         // app is suspended.
         let batchSize: UInt = CurrentAppContext().isInBackground() ? 1 : kIncomingMessageBatchSize
 
-        let batchJobs = databaseStorage.read { transaction in
-            self.finder.nextJobs(forGroupId: self.groupId, batchSize: batchSize, transaction: transaction.unwrapGrdbRead)
+        let batchJobs = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            self.finder.nextJobs(forGroupId: self.groupId, batchSize: batchSize, transaction: transaction)
         }
         guard !batchJobs.isEmpty else {
             future.resolve()
@@ -374,9 +374,9 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
             }
 
             let processedUniqueIds = processedJobs.map { $0.uniqueId }
-            self.finder.removeJobs(withUniqueIds: processedUniqueIds, transaction: transaction.unwrapGrdbWrite)
+            self.finder.removeJobs(withUniqueIds: processedUniqueIds, transaction: transaction)
 
-            transaction.addAsyncCompletionOffMain {
+            transaction.addSyncCompletion {
                 assert(backgroundTask != nil)
                 backgroundTask = nil
 
@@ -410,14 +410,14 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
             }
         }
 
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             self.processJobs(jobs: batchJobs, tx: tx, completion: completion)
         }
     }
 
     private static func jobInfo(
         forJob job: IncomingGroupsV2MessageJob,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> IncomingGroupsV2MessageJobInfo {
         var jobInfo = IncomingGroupsV2MessageJobInfo(job: job)
         guard let envelope = job.envelope else {
@@ -444,7 +444,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
     internal static func discardMode(
         forMessageFrom sourceAci: Aci,
         groupContext: SSKProtoGroupContextV2,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> GroupsV2MessageProcessor.DiscardMode {
         guard groupContext.hasRevision else {
             Logger.info("Missing revision in group context")
@@ -469,7 +469,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
     private static func discardMode(
         forJobInfo jobInfo: IncomingGroupsV2MessageJobInfo,
         hasGroupBeenUpdated: Bool,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> GroupsV2MessageProcessor.DiscardMode {
         guard let envelope = jobInfo.envelope else {
             owsFailDebug("Missing envelope.")
@@ -507,7 +507,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
     // message at the head of the queue.
     private func canJobBeProcessedWithoutUpdate(
         jobInfo: IncomingGroupsV2MessageJobInfo,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> Bool {
         if .discard == Self.discardMode(forJobInfo: jobInfo, hasGroupBeenUpdated: false, tx: tx) {
             return true
@@ -532,7 +532,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
     //       a subset of the jobs.
     private func processJobs(
         jobs: [IncomingGroupsV2MessageJob],
-        tx: SDSAnyWriteTransaction,
+        tx: DBWriteTransaction,
         completion: @escaping BatchCompletionBlock
     ) {
 
@@ -578,7 +578,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
 
     private func performLocalProcessingSync(
         jobInfos: [IncomingGroupsV2MessageJobInfo],
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> [IncomingGroupsV2MessageJob] {
         guard jobInfos.count > 0 else {
             owsFailDebug("Missing jobInfos.")
@@ -595,13 +595,13 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
             } else {
                 // The forced unwraps are checked in `discardMode`, so they can't fail.
                 // TODO: Refactor so that the compiler enforces the above statement.
-                self.messageReceiver.processEnvelope(
+                SSKEnvironment.shared.messageReceiverRef.processEnvelope(
                     jobInfo.envelope!,
                     plaintextData: job.plaintextData!,
                     wasReceivedByUD: job.wasReceivedByUD,
                     serverDeliveryTimestamp: job.serverDeliveryTimestamp,
                     shouldDiscardVisibleMessages: discardMode == .discardVisibleMessages,
-                    localIdentifiers: DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)!,
+                    localIdentifiers: DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx)!,
                     tx: tx
                 )
             }
@@ -634,7 +634,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
             let updateOutcome = await updateGroup(jobInfo: jobInfo)
             switch updateOutcome {
             case .successShouldProcess:
-                await databaseStorage.awaitableWrite { tx in
+                await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
                     let processedJobs = self.performLocalProcessingSync(jobInfos: [jobInfo], tx: tx)
                     completion(processedJobs, false, tx)
                 }
@@ -647,7 +647,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
                 throw GroupsV2Error.shouldDiscard
             }
         } catch {
-            await databaseStorage.awaitableWrite { tx in
+            await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
                 if self.isRetryableError(error) {
                     Logger.warn("Error: \(error)")
                     // Retry
@@ -712,10 +712,10 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
             owsFailDebug("Invalid groupId.")
             return .failureShouldDiscard
         }
-        let thread = NSObject.databaseStorage.read { tx in
+        let groupThread = SSKEnvironment.shared.databaseStorageRef.read { tx in
             return TSGroupThread.fetch(groupId: groupId, transaction: tx)
         }
-        guard let groupThread = thread else {
+        guard let groupThread else {
             // We might be learning of a group for the first time
             // in which case we should fetch current group state from the
             // service.
@@ -741,49 +741,42 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
             // one revision.
             return .failureShouldFailoverToService
         }
-        guard let changeActionsProtoData = groupContext.groupChange else {
+        guard let changeProtoData = groupContext.groupChange else {
             // No embedded group change.
             return .failureShouldFailoverToService
         }
 
+        let changeActionsProto: GroupsProtoGroupChangeActions
         do {
-            // We need to verify the signatures because these protos came from
-            // another client, not the service.
-            let changeActionsProto = try groupsV2.parseAndVerifyChangeActionsProto(
-                changeActionsProtoData,
-                ignoreSignature: false
-            )
-
-            guard changeActionsProto.revision == contextRevision else {
-                throw OWSAssertionError("Embedded change proto revision doesn't match context revision.")
+            let changeProto = try GroupsProtoGroupChange(serializedData: changeProtoData)
+            guard changeProto.changeEpoch <= GroupManager.changeProtoEpoch else {
+                throw OWSAssertionError("Invalid embedded change proto epoch: \(changeProto.changeEpoch).")
             }
 
+            // We need to verify the signatures because these protos came from
+            // another client, not the service.
+            changeActionsProto = try GroupsV2Protos.parseGroupChangeProto(changeProto, verificationOperation: .verifySignature(groupId: groupId))
+        } catch {
+            Logger.warn("Couldn't verify change actions: \(error)")
+            return .failureShouldFailoverToService
+        }
+
+        guard changeActionsProto.revision == contextRevision else {
+            owsFailDebug("Embedded change proto revision doesn't match context revision.")
+            return .failureShouldFailoverToService
+        }
+
+        do {
             let spamReportingMetadata: GroupUpdateSpamReportingMetadata = {
                 guard let serverGuid = jobInfo.envelope?.serverGuid else { return .unreportable }
                 return .reportable(serverGuid: serverGuid)
             }()
-            let updatedGroupThread = try await groupsV2.updateGroupWithChangeActions(
+            try await SSKEnvironment.shared.groupsV2Ref.updateGroupWithChangeActions(
                 groupId: oldGroupModel.groupId,
                 spamReportingMetadata: spamReportingMetadata,
                 changeActionsProto: changeActionsProto,
-                ignoreSignature: false,
                 groupSecretParams: try oldGroupModel.secretParams()
             )
-
-            guard let updatedGroupModel = updatedGroupThread.groupModel as? TSGroupModelV2 else {
-                owsFailDebug("Invalid group model.")
-                return .failureShouldFailoverToService
-            }
-            guard updatedGroupModel.revision >= contextRevision else {
-                owsFailDebug("Invalid revision.")
-                return .failureShouldFailoverToService
-            }
-            guard updatedGroupModel.revision == contextRevision else {
-                // We expect the embedded changes to update us to the target
-                // revision.  If we update past that, assert but proceed in production.
-                owsFailDebug("Unexpected revision.")
-                return .successShouldProcess
-            }
         } catch {
             if self.isRetryableError(error) {
                 Logger.warn("Error: \(error)")
@@ -818,13 +811,11 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
             guard let serverGuid = jobInfo.envelope?.serverGuid else { return .unreportable }
             return .reportable(serverGuid: serverGuid)
         }()
-        let groupUpdateMode = GroupUpdateMode.upToSpecificRevisionImmediately(upToRevision: groupContext.revision)
         do {
-            _ = try await groupV2Updates.tryToRefreshV2GroupThread(
-                groupId: groupContextInfo.groupId,
+            try await SSKEnvironment.shared.groupV2UpdatesRef.refreshGroup(
+                secretParams: groupContextInfo.groupSecretParams,
                 spamReportingMetadata: spamReportingMetadata,
-                groupSecretParams: groupContextInfo.groupSecretParams,
-                groupUpdateMode: groupUpdateMode
+                source: .groupMessage(revision: groupContext.revision)
             )
             return .successShouldProcess
         } catch {
@@ -851,8 +842,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
             return true
         }
         if let statusCode = error.httpStatusCode {
-            if statusCode == 401 ||
-               (500 <= statusCode && statusCode <= 599) {
+            if statusCode == 401 || (500 <= statusCode && statusCode <= 599) {
                 return true
             }
         }
@@ -867,7 +857,7 @@ internal class GroupsMessageProcessor: MessageProcessingPipelineStage, Dependenc
 
 // MARK: -
 
-public class GroupsV2MessageProcessor: NSObject {
+public class GroupsV2MessageProcessor {
 
     public static let didFlushGroupsV2MessageQueue = Notification.Name("didFlushGroupsV2MessageQueue")
 
@@ -875,7 +865,6 @@ public class GroupsV2MessageProcessor: NSObject {
 
     public init(appReadiness: AppReadiness) {
         self.processingQueue = IncomingGroupsV2MessageQueue(appReadiness: appReadiness)
-        super.init()
         SwiftSingletons.register(self)
         processingQueue.drainQueueWhenReady()
     }
@@ -887,7 +876,7 @@ public class GroupsV2MessageProcessor: NSObject {
         plaintextData: Data,
         wasReceivedByUD: Bool,
         serverDeliveryTimestamp: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         guard !envelopeData.isEmpty else {
             owsFailDebug("Empty envelope.")
@@ -916,7 +905,7 @@ public class GroupsV2MessageProcessor: NSObject {
 
         // The new envelope won't be visible to the finder until this transaction commits,
         // so drainQueue in the transaction completion.
-        tx.addAsyncCompletionOffMain {
+        tx.addSyncCompletion {
             self.processingQueue.drainQueueWhenReady()
         }
     }
@@ -941,7 +930,7 @@ public class GroupsV2MessageProcessor: NSObject {
 
     public class func canContextBeProcessedImmediately(
         groupContext: SSKProtoGroupContextV2,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> Bool {
         let groupContextInfo: GroupV2ContextInfo
         do {
@@ -955,7 +944,7 @@ public class GroupsV2MessageProcessor: NSObject {
         // 1. We don't have any other messages queued for this thread
         // 2. The message can be processed without updates
 
-        guard !GRDBGroupsV2MessageJobFinder().existsJob(forGroupId: groupContextInfo.groupId, transaction: tx.unwrapGrdbRead) else {
+        guard !GRDBGroupsV2MessageJobFinder().existsJob(forGroupId: groupContextInfo.groupId, transaction: tx) else {
             Logger.warn("Cannot immediately process GV2 message because there are messages queued")
             return false
         }
@@ -970,7 +959,7 @@ public class GroupsV2MessageProcessor: NSObject {
     fileprivate class func canContextBeProcessedWithoutUpdate(
         groupContext: SSKProtoGroupContextV2,
         groupContextInfo: GroupV2ContextInfo,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> Bool {
         guard let groupThread = TSGroupThread.fetch(groupId: groupContextInfo.groupId, transaction: tx) else {
             return false
@@ -1021,11 +1010,11 @@ public class GroupsV2MessageProcessor: NSObject {
         return processingQueue.isActivelyProcessing
     }
 
-    public func hasPendingJobs(tx: SDSAnyReadTransaction) -> Bool {
+    public func hasPendingJobs(tx: DBReadTransaction) -> Bool {
         processingQueue.hasPendingJobs(tx: tx)
     }
 
-    public func pendingJobCount(tx: SDSAnyReadTransaction) -> UInt {
+    public func pendingJobCount(tx: DBReadTransaction) -> UInt {
         processingQueue.pendingJobCount(tx: tx)
     }
 
@@ -1046,11 +1035,11 @@ public class GroupsV2MessageProcessor: NSObject {
         forMessageFrom sourceAci: Aci,
         groupId: Data,
         shouldCheckGroupModel: Bool = true,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> DiscardMode {
         // We want to discard asap to avoid problems with batching.
 
-        let blockingManager = NSObject.blockingManager
+        let blockingManager = SSKEnvironment.shared.blockingManagerRef
         let isBlocked: Bool = (
             blockingManager.isAddressBlocked(SignalServiceAddress(sourceAci), transaction: tx)
             || blockingManager.isGroupIdBlocked(groupId, transaction: tx)
@@ -1067,7 +1056,7 @@ public class GroupsV2MessageProcessor: NSObject {
         // processing if they correspond to v2 groups of which we are a
         // non-pending member.
         if shouldCheckGroupModel {
-            guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aciAddress else {
+            guard let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx)?.aciAddress else {
                 owsFailDebug("Missing localAddress.")
                 return .discard
             }

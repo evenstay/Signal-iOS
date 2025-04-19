@@ -40,7 +40,7 @@ public extension OWSRequestFactory {
         level: UInt64,
         paymentMethod: StripePaymentMethod
     ) -> TSRequest {
-        let request = TSRequest(
+        var request = TSRequest(
             url: URL(string: BoostApiPaths.stripeCreatePaymentIntent)!,
             method: HTTPMethod.post.methodName,
             parameters: [
@@ -50,7 +50,7 @@ public extension OWSRequestFactory {
                 "paymentMethod": paymentMethod.rawValue
             ]
         )
-        request.shouldHaveAuthorizationHeaders = false
+        request.auth = .anonymous
         return request
     }
 
@@ -62,7 +62,7 @@ public extension OWSRequestFactory {
         returnUrl: URL,
         cancelUrl: URL
     ) -> TSRequest {
-        let request = TSRequest(
+        var request = TSRequest(
             url: URL(string: BoostApiPaths.paypalCreatePayment)!,
             method: HTTPMethod.post.methodName,
             parameters: [
@@ -73,8 +73,7 @@ public extension OWSRequestFactory {
                 "cancelUrl": cancelUrl.absoluteString
             ]
         )
-
-        request.shouldHaveAuthorizationHeaders = false
+        request.auth = .anonymous
         return request
     }
 
@@ -87,7 +86,7 @@ public extension OWSRequestFactory {
         paymentId: String,
         paymentToken: String
     ) -> TSRequest {
-        let request = TSRequest(
+        var request = TSRequest(
             url: URL(string: BoostApiPaths.paypalConfirmPayment)!,
             method: HTTPMethod.post.methodName,
             parameters: [
@@ -99,8 +98,7 @@ public extension OWSRequestFactory {
                 "paymentToken": paymentToken
             ]
         )
-
-        request.shouldHaveAuthorizationHeaders = false
+        request.auth = .anonymous
         return request
     }
 }

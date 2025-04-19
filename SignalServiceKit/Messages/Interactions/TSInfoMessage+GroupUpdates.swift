@@ -95,12 +95,12 @@ public extension TSInfoMessage {
     }
 
     @objc
-    func groupUpdateDescription(transaction tx: SDSAnyReadTransaction) -> NSAttributedString {
+    func groupUpdateDescription(transaction tx: DBReadTransaction) -> NSAttributedString {
         let fallback = DisplayableGroupUpdateItem.genericUpdateByUnknownUser.localizedText
 
         guard
             let localIdentifiers: LocalIdentifiers = DependenciesBridge.shared.tsAccountManager
-                .localIdentifiers(tx: tx.asV2Read)
+                .localIdentifiers(tx: tx)
         else {
             return fallback
         }
@@ -118,7 +118,7 @@ public extension TSInfoMessage {
         case .newGroup, .modelDiff, .precomputed:
             guard let items = buildGroupUpdateItems(
                 localIdentifiers: localIdentifiers,
-                tx: tx.asV2Read,
+                tx: tx,
                 transformer: { builder, precomputedItems, tx in
                     return builder.displayableUpdateItemsForPrecomputed(
                         precomputedUpdateItems: precomputedItems,
@@ -151,23 +151,16 @@ public extension TSInfoMessage {
 
     func computedGroupUpdateItems(
         localIdentifiers: LocalIdentifiers,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> [PersistableGroupUpdateItem]? {
         switch groupUpdateMetadata(localIdentifiers: localIdentifiers) {
         case .legacyRawString, .nonGroupUpdate:
             return nil
 
         case .newGroup, .modelDiff, .precomputed:
-            guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(
-                tx: tx.asV2Read
-            ) else {
-                owsFailDebug("Missing local identifiers!")
-                return nil
-            }
-
             return buildGroupUpdateItems(
                 localIdentifiers: localIdentifiers,
-                tx: tx.asV2Read,
+                tx: tx,
                 transformer: { _, items, _ in return items }
             )
         }
@@ -175,7 +168,7 @@ public extension TSInfoMessage {
 
     func displayableGroupUpdateItems(
         localIdentifiers: LocalIdentifiers,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> [DisplayableGroupUpdateItem]? {
         switch groupUpdateMetadata(localIdentifiers: localIdentifiers) {
         case .legacyRawString, .nonGroupUpdate:
@@ -183,7 +176,7 @@ public extension TSInfoMessage {
 
         case .newGroup, .modelDiff, .precomputed:
             guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(
-                tx: tx.asV2Read
+                tx: tx
             ) else {
                 owsFailDebug("Missing local identifiers!")
                 return nil
@@ -191,7 +184,7 @@ public extension TSInfoMessage {
 
             return buildGroupUpdateItems(
                 localIdentifiers: localIdentifiers,
-                tx: tx.asV2Read,
+                tx: tx,
                 transformer: { builder, precomputedItems, tx in
                     return builder.displayableUpdateItemsForPrecomputed(
                         precomputedUpdateItems: precomputedItems,
@@ -266,7 +259,7 @@ public extension TSInfoMessage {
     ) -> [T]? {
         lazy var groupUpdateItemBuilder = GroupUpdateItemBuilderImpl(
             contactsManager: GroupUpdateItemBuilderImpl.Wrappers.ContactsManager(
-                contactsManager
+                SSKEnvironment.shared.contactManagerRef
             ),
             recipientDatabaseTable: DependenciesBridge.shared.recipientDatabaseTable
         )

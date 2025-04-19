@@ -74,7 +74,7 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         editTarget: TSOutgoingMessage?,
         inputToolbarDelegate: ConversationInputToolbarDelegate,
         inputTextViewDelegate: ConversationInputTextViewDelegate,
-        mentionDelegate: BodyRangesTextViewDelegate
+        bodyRangesTextViewDelegate: BodyRangesTextViewDelegate
     ) {
         self.conversationStyle = conversationStyle
         self.spoilerState = spoilerState
@@ -95,7 +95,7 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
             messageDraft,
             quotedReplyDraft: quotedReplyDraft,
             inputTextViewDelegate: inputTextViewDelegate,
-            mentionDelegate: mentionDelegate
+            bodyRangesTextViewDelegate: bodyRangesTextViewDelegate
         )
 
         NotificationCenter.default.addObserver(
@@ -341,7 +341,7 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         _ messageDraft: MessageBody?,
         quotedReplyDraft: DraftQuotedReplyModel?,
         inputTextViewDelegate: ConversationInputTextViewDelegate,
-        mentionDelegate: BodyRangesTextViewDelegate
+        bodyRangesTextViewDelegate: BodyRangesTextViewDelegate
     ) {
         // The input toolbar should *always* be laid out left-to-right, even when using
         // a right-to-left language. The convention for messaging apps is for the send
@@ -355,7 +355,7 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
         isUserInteractionEnabled = true
 
         // NOTE: Don't set inputTextViewDelegate until configuration is complete.
-        inputTextView.mentionDelegate = mentionDelegate
+        inputTextView.bodyRangesDelegate = bodyRangesTextViewDelegate
         inputTextView.inputTextViewDelegate = inputTextViewDelegate
 
         textViewHeightConstraint = inputTextView.autoSetDimension(.height, toSize: LayoutMetrics.minTextViewHeight)
@@ -384,7 +384,7 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
 
         // Wrap vertical stack into a view with rounded corners.
         let vStackRoundingView = UIView.container()
-        vStackRoundingView.backgroundColor = Theme.isDarkThemeEnabled ? UIColor(white: 1, alpha: 0.16) : UIColor(white: 0, alpha: 0.1)
+        vStackRoundingView.backgroundColor = UIColor.Signal.tertiaryFill
         vStackRoundingView.layer.cornerRadius = 18
         vStackRoundingView.clipsToBounds = true
         vStackRoundingView.addSubview(messageContentVStack)
@@ -976,7 +976,7 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
             if let editTarget = editTarget {
 
                 // Fetch the original text (including any oversized text attachments)
-                let componentState = databaseStorage.read { tx in
+                let componentState = SSKEnvironment.shared.databaseStorageRef.read { tx in
                     CVLoader.buildStandaloneComponentState(
                         interaction: editTarget,
                         spoilerState: SpoilerRenderState(),
@@ -1168,8 +1168,8 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
             ensureLinkPreviewView(withState: LinkPreviewLoading(linkType: .preview))
         case .loaded(let linkPreviewDraft):
             let state: LinkPreviewState
-            if let _ = CallLink(url: linkPreviewDraft.url) {
-                state = LinkPreviewCallLink(previewType: .draft(linkPreviewDraft))
+            if let callLink = CallLink(url: linkPreviewDraft.url) {
+                state = LinkPreviewCallLink(previewType: .draft(linkPreviewDraft), callLink: callLink)
             } else {
                 state = LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft)
             }
@@ -1318,7 +1318,7 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
 
         let suggestedStickerInfos: [StickerInfo]
         if let suggestedStickerEmoji {
-            suggestedStickerInfos = databaseStorage.read { tx in
+            suggestedStickerInfos = SSKEnvironment.shared.databaseStorageRef.read { tx in
                 return StickerManager.suggestedStickers(for: suggestedStickerEmoji, tx: tx).map { $0.info }
             }
         } else {
@@ -1603,7 +1603,7 @@ public class ConversationInputToolbar: UIView, LinkPreviewViewDraftDelegate, Quo
             voiceMessageInterruptedDraft: voiceMemoDraft,
             mediaCache: mediaCache,
             deleteAction: { [weak self] in
-                Self.databaseStorage.asyncWrite {
+                SSKEnvironment.shared.databaseStorageRef.asyncWrite {
                     voiceMemoDraft.clearDraft(transaction: $0)
                 } completion: {
                     self?.hideVoiceMemoUI(animated: true)
@@ -2133,7 +2133,7 @@ extension ConversationInputToolbar {
         ImpactHapticFeedback.impactOccurred(style: .light)
 
         var hasInstalledStickerPacks: Bool = false
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             hasInstalledStickerPacks = !StickerManager.installedStickerPacks(transaction: transaction).isEmpty
         }
         guard hasInstalledStickerPacks else {

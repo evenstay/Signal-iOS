@@ -42,14 +42,14 @@ extension ConversationViewController: MessageActionsDelegate {
 
         var editValidationError: EditSendValidationError?
         var quotedReplyModel: DraftQuotedReplyModel?
-        Self.databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
 
             // If edit send validation fails (timeframe expired,
             // too many edits, etc), display a message here.
             if let error = context.editManager.validateCanSendEdit(
                 targetMessageTimestamp: message.timestamp,
                 thread: self.thread,
-                tx: transaction.asV2Read
+                tx: transaction
             ) {
                 editValidationError = error
                 return
@@ -79,7 +79,7 @@ extension ConversationViewController: MessageActionsDelegate {
                         quotedReplyMessage: message,
                         quotedReply: quotedMessage,
                         originalMessage: originalMessage,
-                        tx: transaction.asV2Read
+                        tx: transaction
                     )
                 }
             }
@@ -93,7 +93,7 @@ extension ConversationViewController: MessageActionsDelegate {
 
             inputToolbar?.editThumbnail = nil
             let imageStream = itemViewModel.bodyMediaAttachmentStreams.first(where: {
-                $0.computeContentType().isImage
+                $0.contentType.isImage
             })
             if let imageStream {
                 Task {
@@ -128,6 +128,7 @@ extension ConversationViewController: MessageActionsDelegate {
 
         let detailVC = MessageDetailViewController(
             message: message,
+            threadViewModel: self.threadViewModel,
             spoilerState: self.viewState.spoilerState,
             editManager: self.context.editManager,
             thread: thread
@@ -156,6 +157,7 @@ extension ConversationViewController: MessageActionsDelegate {
         } else {
             detailVC = MessageDetailViewController(
                 message: message,
+                threadViewModel: self.threadViewModel,
                 spoilerState: self.viewState.spoilerState,
                 editManager: self.context.editManager,
                 thread: thread
@@ -185,13 +187,13 @@ extension ConversationViewController: MessageActionsDelegate {
             guard let message = itemViewModel.interaction as? TSMessage else {
                 return nil
             }
-            return Self.databaseStorage.read { transaction in
+            return SSKEnvironment.shared.databaseStorageRef.read { transaction in
                 if message is OWSPaymentMessage {
                     return DraftQuotedReplyModel.fromOriginalPaymentMessage(message, tx: transaction)
                 }
                 return DependenciesBridge.shared.quotedReplyManager.buildDraftQuotedReply(
                     originalMessage: message,
-                    tx: transaction.asV2Read
+                    tx: transaction
                 )
             }
         }
@@ -239,11 +241,11 @@ extension ConversationViewController: MessageActionsDelegate {
             }
         }()
 
-        self.speechManager.speak(utterance)
+        AppEnvironment.shared.speechManagerRef.speak(utterance)
     }
 
     func messageActionsStopSpeakingItem(_ itemViewModel: CVItemViewModelImpl) {
-        self.speechManager.stop()
+        AppEnvironment.shared.speechManagerRef.stop()
     }
 
     func messageActionsShowPaymentDetails(_ itemViewModel: CVItemViewModelImpl) {
@@ -251,8 +253,8 @@ extension ConversationViewController: MessageActionsDelegate {
             owsFailDebug("Should be contact thread")
             return
         }
-        let contactName = databaseStorage.read { tx in
-            return self.contactsManager.displayName(for: contactAddress, tx: tx).resolvedValue()
+        let contactName = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            return SSKEnvironment.shared.contactManagerRef.displayName(for: contactAddress, tx: tx).resolvedValue()
         }
 
         let paymentHistoryItem: PaymentsHistoryItem

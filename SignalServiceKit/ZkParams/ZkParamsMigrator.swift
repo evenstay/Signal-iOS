@@ -8,26 +8,25 @@ import Foundation
 class ZkParamsMigrator {
     private let appReadiness: AppReadiness
     private let authCredentialStore: AuthCredentialStore
-    private let db: DB
+    private let db: any DB
     private let migrationStore: KeyValueStore
     private let profileManager: ProfileManager
     private let tsAccountManager: TSAccountManager
-    private let versionedProfiles: VersionedProfilesSwift
+    private let versionedProfiles: VersionedProfiles
 
     init(
         appReadiness: AppReadiness,
         authCredentialStore: AuthCredentialStore,
-        db: DB,
-        keyValueStoreFactory: KeyValueStoreFactory,
+        db: any DB,
         profileManager: ProfileManager,
         tsAccountManager: TSAccountManager,
-        versionedProfiles: VersionedProfilesSwift
+        versionedProfiles: VersionedProfiles
     ) {
         self.appReadiness = appReadiness
         self.authCredentialStore = authCredentialStore
         self.db = db
         // This collection name is weird for historical reasons.
-        self.migrationStore = keyValueStoreFactory.keyValueStore(collection: "GroupsV2Impl.serviceStore")
+        self.migrationStore = KeyValueStore(collection: "GroupsV2Impl.serviceStore")
         self.profileManager = profileManager
         self.tsAccountManager = tsAccountManager
         self.versionedProfiles = versionedProfiles

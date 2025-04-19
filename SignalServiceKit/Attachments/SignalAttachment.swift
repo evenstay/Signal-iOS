@@ -242,21 +242,6 @@ public class SignalAttachment: NSObject {
         return errorDescription
     }
 
-    public func cloneAttachment() throws -> SignalAttachment {
-        guard let sourceUrl = dataUrl else {
-            owsFailDebug("Missing data URL for attachment!")
-            return SignalAttachment.empty()
-        }
-
-        let newUrl = OWSFileSystem.temporaryFileUrl(fileExtension: sourceUrl.pathExtension)
-        try FileManager.default.copyItem(at: sourceUrl, to: newUrl)
-
-        let clonedDataSource = try DataSourcePath(fileUrl: newUrl, shouldDeleteOnDeallocation: true)
-        clonedDataSource.sourceFilename = sourceFilename
-
-        return self.replacingDataSource(with: clonedDataSource)
-    }
-
     public func preparedForOutput(qualityLevel: ImageQualityLevel) -> SignalAttachment {
         owsAssertDebug(!Thread.isMainThread)
 
@@ -302,14 +287,9 @@ public class SignalAttachment: NSObject {
     }
 
     public func buildAttachmentDataSource(
-        message: TSMessage? = nil,
-        ownerType: TSResourceOwnerType
-    ) throws -> TSResourceDataSource {
-        return try buildOutgoingAttachmentInfo(message: message).asAttachmentDataSource(ownerType: ownerType)
-    }
-
-    public func buildLegacyAttachmentDataSource(message: TSMessage? = nil) -> TSAttachmentDataSource {
-        return buildOutgoingAttachmentInfo(message: message).asLegacyAttachmentDataSource()
+        message: TSMessage? = nil
+    ) throws -> AttachmentDataSource {
+        return try buildOutgoingAttachmentInfo(message: message).asAttachmentDataSource()
     }
 
     public func staticThumbnail() -> UIImage? {
@@ -445,7 +425,7 @@ public class SignalAttachment: NSObject {
             let kDefaultAttachmentName = "signal"
 
             let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "YYYY-MM-dd-HHmmss"
+            dateFormatter.dateFormat = "yyyy-MM-dd-HHmmss"
             let dateString = dateFormatter.string(from: Date())
 
             let withoutExtension = "\(kDefaultAttachmentName)-\(dateString)"
@@ -631,12 +611,12 @@ public class SignalAttachment: NSObject {
         }
     }
 
-    // Returns an attachment from the pasteboard, or nil if no attachment
-    // can be found.
-    //
-    // NOTE: The attachment returned by this method may not be valid.
-    //       Check the attachment's error property.
-    public class func attachmentFromPasteboard() -> SignalAttachment? {
+    /// Returns an attachment from the pasteboard, or nil if no attachment
+    /// can be found.
+    ///
+    /// NOTE: The attachment returned by this method may not be valid.
+    ///       Check the attachment's error property.
+    public class func attachmentFromPasteboard() async -> SignalAttachment? {
         guard UIPasteboard.general.numberOfItems >= 1 else {
             return nil
         }
@@ -678,12 +658,18 @@ public class SignalAttachment: NSObject {
         }
         for dataUTI in videoUTISet {
             if pasteboardUTISet.contains(dataUTI) {
-                guard let data = dataForFirstPasteboardItem(dataUTI: dataUTI) else {
-                    owsFailDebug("Missing expected pasteboard data for UTI: \(dataUTI)")
+                guard
+                    let data = dataForFirstPasteboardItem(dataUTI: dataUTI),
+                    let dataSource = DataSourceValue(data, utiType: dataUTI)
+                else {
+                    owsFailDebug("Failed to build data source from pasteboard data for UTI: \(dataUTI)")
                     return nil
                 }
-                let dataSource = DataSourceValue(data, utiType: dataUTI)
-                return videoAttachment(dataSource: dataSource, dataUTI: dataUTI)
+
+                return try? await SignalAttachment.compressVideoAsMp4(
+                    dataSource: dataSource,
+                    dataUTI: dataUTI
+                )
             }
         }
         for dataUTI in audioUTISet {
@@ -703,6 +689,34 @@ public class SignalAttachment: NSObject {
             return nil
         }
         let dataSource = DataSourceValue(data, utiType: dataUTI)
+        return genericAttachment(dataSource: dataSource, dataUTI: dataUTI)
+    }
+
+    // Returns an attachment from the memoji, or nil if no attachment
+    /// can be created.
+    ///
+    /// NOTE: The attachment returned by this method may not be valid.
+    ///       Check the attachment's error property.
+    public class func attachmentFromMemoji(_ memojiGlyph: OWSAdaptiveImageGlyph) -> SignalAttachment? {
+        let dataUTI = filterDynamicUTITypes([memojiGlyph.contentType.identifier]).first
+        guard let dataUTI else {
+            return nil
+        }
+        let dataSource = DataSourceValue(memojiGlyph.imageContent, utiType: dataUTI)
+
+        if inputImageUTISet.contains(dataUTI) {
+            return imageAttachment(
+                dataSource: dataSource,
+                dataUTI: dataUTI,
+                isBorderless: dataSource?.hasStickerLikeProperties ?? false
+            )
+        }
+        if videoUTISet.contains(dataUTI) {
+            return videoAttachment(dataSource: dataSource, dataUTI: dataUTI)
+        }
+        if audioUTISet.contains(dataUTI) {
+            return audioAttachment(dataSource: dataSource, dataUTI: dataUTI)
+        }
         return genericAttachment(dataSource: dataSource, dataUTI: dataUTI)
     }
 
@@ -727,7 +741,7 @@ public class SignalAttachment: NSObject {
     //
     // NOTE: The attachment returned by this method may not be valid.
     //       Check the attachment's error property.
-    private class func imageAttachment(dataSource: DataSource?, dataUTI: String, isBorderless: Bool = false) -> SignalAttachment {
+    private class func imageAttachment(dataSource: (any DataSource)?, dataUTI: String, isBorderless: Bool = false) -> SignalAttachment {
         assert(!dataUTI.isEmpty)
         assert(dataSource != nil)
         guard let dataSource = dataSource else {

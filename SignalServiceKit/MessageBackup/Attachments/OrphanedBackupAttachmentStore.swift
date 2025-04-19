@@ -14,7 +14,7 @@ public protocol OrphanedBackupAttachmentStore {
     /// Returns an empty array if the table is empty.
     func peek(count: UInt, tx: DBReadTransaction) throws -> [OrphanedBackupAttachment]
 
-    /// Remove the download from the queue. Should be called once deleted on the cdn (or permanently failed).
+    /// Remove the task from the queue. Should be called once deleted on the cdn (or permanently failed).
     func remove(
         _ record: OrphanedBackupAttachment,
         tx: DBWriteTransaction
@@ -29,8 +29,8 @@ public class OrphanedBackupAttachmentStoreImpl: OrphanedBackupAttachmentStore {
 
     public init() {}
 
-    public func insert(_ record: inout OrphanedBackupAttachment, tx: any DBWriteTransaction) throws {
-        let db = SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite.database
+    public func insert(_ record: inout OrphanedBackupAttachment, tx: DBWriteTransaction) throws {
+        let db = tx.database
         try record.insert(db)
     }
 
@@ -38,7 +38,7 @@ public class OrphanedBackupAttachmentStoreImpl: OrphanedBackupAttachmentStore {
         count: UInt,
         tx: DBReadTransaction
     ) throws -> [OrphanedBackupAttachment] {
-        let db = SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database
+        let db = tx.database
         return try OrphanedBackupAttachment
             // We want to dequeue in insertion order.
             .order([Column(OrphanedBackupAttachment.CodingKeys.id).asc])
@@ -50,50 +50,12 @@ public class OrphanedBackupAttachmentStoreImpl: OrphanedBackupAttachmentStore {
         _ record: OrphanedBackupAttachment,
         tx: DBWriteTransaction
     ) throws {
-        let db = SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite.database
+        let db = tx.database
         try record.delete(db)
     }
 
     public func removeAll(tx: DBWriteTransaction) throws {
-        let db = SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite.database
+        let db = tx.database
         try OrphanedBackupAttachment.deleteAll(db)
     }
 }
-
-#if TESTABLE_BUILD
-
-open class OrphanedBackupAttachmentStoreMock: OrphanedBackupAttachmentStore {
-
-    public init() {}
-
-    public var records = [OrphanedBackupAttachment]()
-
-    open func insert(_ record: inout OrphanedBackupAttachment, tx: any DBWriteTransaction) throws {
-        if records.contains(where: {
-            $0.mediaName == record.mediaName && $0.cdnNumber == record.cdnNumber
-        }) {
-            return
-        }
-        records.append(record)
-    }
-
-    open func peek(
-        count: UInt,
-        tx: DBReadTransaction
-    ) throws -> [OrphanedBackupAttachment] {
-        return Array(records.prefix(Int(count)))
-    }
-
-    open func remove(
-        _ record: OrphanedBackupAttachment,
-        tx: DBWriteTransaction
-    ) throws {
-        records.removeAll(where: { $0.id == record.id })
-    }
-
-    open func removeAll(tx: DBWriteTransaction) throws {
-        records = []
-    }
-}
-
-#endif

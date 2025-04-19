@@ -7,13 +7,11 @@
 import XCTest
 
 class OWSDeviceManagerTest: XCTestCase {
-    private let db: DB = MockDB()
+    private let db: any DB = InMemoryDB()
     private var deviceManager: OWSDeviceManager!
 
     override func setUp() {
-        deviceManager = OWSDeviceManagerImpl(
-            keyValueStoreFactory: InMemoryKeyValueStoreFactory()
-        )
+        deviceManager = OWSDeviceManagerImpl()
     }
 
     func testHasReceivedSyncMessage() {

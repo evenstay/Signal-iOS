@@ -54,7 +54,8 @@ class IndividualCallViewController: OWSViewController, IndividualCallObserver {
         callService: callService,
         confirmationToastManager: callControlsConfirmationToastManager,
         callControlsDelegate: self,
-        sheetPanDelegate: self
+        sheetPanDelegate: self,
+        callDrawerDelegate: self
     )
 
     private var callService: CallService { AppEnvironment.shared.callService }
@@ -256,8 +257,8 @@ class IndividualCallViewController: OWSViewController, IndividualCallObserver {
             view.isHidden = false
         }
 
-        contactNameLabel.text = databaseStorage.read { tx in
-            return contactsManager.displayName(for: thread.contactAddress, tx: tx).resolvedValue()
+        contactNameLabel.text = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            return SSKEnvironment.shared.contactManagerRef.displayName(for: thread.contactAddress, tx: tx).resolvedValue()
         }
         updateAvatarImage()
 
@@ -340,7 +341,7 @@ class IndividualCallViewController: OWSViewController, IndividualCallObserver {
 
     private var callControlsConfirmationToastContainerViewBottomConstraint: NSLayoutConstraint?
     private var callControlsConfirmationToastContainerViewBottomConstraintConstant: CGFloat {
-        return -self.bottomSheet.sheetHeight - 16
+        return -self.bottomSheet.minimizedHeight - 16
     }
 
     private func presentBottomSheet(_ animated: Bool) {
@@ -414,10 +415,10 @@ class IndividualCallViewController: OWSViewController, IndividualCallObserver {
 
     @objc
     private func updateAvatarImage() {
-        databaseStorage.read { transaction in
-            backgroundAvatarView.image = contactsManagerImpl.avatarImage(forAddress: thread.contactAddress,
-                                                                         shouldValidate: true,
-                                                                         transaction: transaction)
+        let contactManager = SSKEnvironment.shared.contactManagerImplRef
+        let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+        backgroundAvatarView.image = databaseStorage.read { tx in
+             return contactManager.avatarImage(forAddress: thread.contactAddress, transaction: tx)
         }
     }
 
@@ -744,7 +745,9 @@ class IndividualCallViewController: OWSViewController, IndividualCallObserver {
         assert(Thread.isMainThread)
 
         let text = localizedTextForCallState()
-        self.callStatusLabel.text = text
+        if text != self.callStatusLabel.text {
+            self.callStatusLabel.text = text
+        }
 
         // Handle reconnecting blinking
         if case .reconnecting = individualCall.state {
@@ -784,7 +787,7 @@ class IndividualCallViewController: OWSViewController, IndividualCallObserver {
             // (ie, minimized in the app). This is not to be confused with the local member view pip
             // (ie, when the call is full screen and the local user is displayed in a pip).
             // The following line disallows having a [local member] pip within a [call] pip.
-            view.isHidden = !individualCall.hasLocalVideo || WindowManager.shared.isCallInPip
+            view.isHidden = !individualCall.hasLocalVideo || AppEnvironment.shared.windowManagerRef.isCallInPip
         }
 
         updateRemoteVideoTrack(
@@ -912,7 +915,7 @@ class IndividualCallViewController: OWSViewController, IndividualCallObserver {
 
         let permissionErrorView = PermissionErrorView(
             thread: self.thread,
-            contactManager: self.contactsManager,
+            contactManager: SSKEnvironment.shared.contactManagerRef,
             okayButtonWasTapped: { [weak self] in self?.dismissImmediately() }
         )
         view.addSubview(permissionErrorView)
@@ -1051,9 +1054,13 @@ class IndividualCallViewController: OWSViewController, IndividualCallObserver {
 
     @objc
     private func didTapLeaveCall(sender: UIButton) {
+        _minimize()
+    }
+
+    private func _minimize() {
         isCallMinimized = true
         cancelBottomSheetTimeout()
-        WindowManager.shared.leaveCallView()
+        AppEnvironment.shared.windowManagerRef.leaveCallView()
     }
 
     // MARK: - CallObserver
@@ -1156,7 +1163,7 @@ class IndividualCallViewController: OWSViewController, IndividualCallObserver {
     }
 
     private func dismissImmediately() {
-        WindowManager.shared.endCall(viewController: self)
+        AppEnvironment.shared.windowManagerRef.endCall(viewController: self)
     }
 }
 
@@ -1170,6 +1177,13 @@ extension IndividualCallViewController: CallViewControllerWindowReference {
     var remoteVideoViewReference: CallMemberView { remoteMemberView }
     var localVideoViewReference: CallMemberView { localVideoView }
     var remoteVideoAddress: SignalServiceAddress { thread.contactAddress }
+    var isJustMe: Bool { isRenderingLocalVanityVideo }
+
+    func minimizeIfNeeded() {
+        if !isCallMinimized {
+            _minimize()
+        }
+    }
 
     func returnFromPip(pipWindow: UIWindow) {
         // The call "pip" uses our remote and local video views since only
@@ -1208,8 +1222,14 @@ extension IndividualCallViewController: CallViewControllerWindowReference {
 
     func willMoveToPip(pipWindow: UIWindow) {
         flipCameraTooltipManager.dismissTooltip()
-        localVideoView.applyChangesToCallMemberViewAndVideoView { view in
-            view.isHidden = true
+        if !isJustMe {
+            localVideoView.applyChangesToCallMemberViewAndVideoView { view in
+                view.isHidden = true
+            }
+        } else {
+            localVideoView.applyChangesToCallMemberViewAndVideoView { view in
+                view.frame = CGRect(origin: .zero, size: pipWindow.bounds.size)
+            }
         }
     }
 
@@ -1315,7 +1335,7 @@ private class PermissionErrorView: UIView {
             localUserDisplayMode: .asUser,
             badged: false
         )
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             contactAvatarView.update(transaction) { config in
                 config.dataSource = .thread(thread)
             }
@@ -1324,7 +1344,7 @@ private class PermissionErrorView: UIView {
     }()
 
     private lazy var needPermissionLabel: UILabel = {
-        let shortName = SDSDatabaseStorage.shared.read {
+        let shortName = SSKEnvironment.shared.databaseStorageRef.read {
             return contactManager.displayName(
                 for: thread.contactAddress,
                 tx: $0
@@ -1415,5 +1435,15 @@ extension IndividualCallViewController: SheetPanDelegate {
         } else if bottomSheet.isCrossFading() {
             bottomSheetState = .transitioning
         }
+    }
+}
+
+extension IndividualCallViewController: CallDrawerDelegate {
+    func didPresentViewController(_ viewController: UIViewController) {
+    }
+
+    func didTapDone() {
+        bottomSheetState = .callControls
+        bottomSheet.minimizeHeight(animated: true)
     }
 }

@@ -6,7 +6,7 @@
 public import LibSignalClient
 public import SignalServiceKit
 
-public enum RegistrationMode {
+public enum RegistrationMode: CustomDebugStringConvertible {
     case registering
     case reRegistering(ReregistrationParams)
     case changingNumber(ChangeNumberParams)
@@ -21,7 +21,18 @@ public enum RegistrationMode {
         public let oldAuthToken: String
         @AciUuid public var localAci: Aci
         public let localAccountId: String
-        public let localDeviceId: UInt32
-        public let localUserAllDeviceIds: [UInt32]
+        public let localDeviceId: DeviceId
+        public let localUserAllDeviceIds: [DeviceId]
+    }
+
+    public var debugDescription: String {
+        switch self {
+        case .registering:
+            return "registering"
+        case .reRegistering:
+            return "reRegistering"
+        case .changingNumber:
+            return "changingNumber"
+        }
     }
 }

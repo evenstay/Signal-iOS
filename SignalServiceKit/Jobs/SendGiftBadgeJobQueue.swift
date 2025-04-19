@@ -15,7 +15,7 @@ public class SendGiftBadgeJobQueue {
     >
     private let jobRunnerFactory: SendGiftBadgeJobRunnerFactory
 
-    public init(db: DB, reachabilityManager: SSKReachabilityManager) {
+    public init(db: any DB, reachabilityManager: SSKReachabilityManager) {
         self.jobRunnerFactory = SendGiftBadgeJobRunnerFactory()
         self.jobQueueRunner = JobQueueRunner(
             canExecuteJobsConcurrently: true,
@@ -76,7 +76,7 @@ public class SendGiftBadgeJobQueue {
 
     public func addJob(
         _ jobRecord: SendGiftBadgeJobRecord,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> (chargePromise: Promise<Void>, completionPromise: Promise<Void>) {
         let (chargePromise, chargeFuture) = Promise<Void>.pending()
         let (completionPromise, completionFuture) = Promise<Void>.pending()
@@ -89,43 +89,38 @@ public class SendGiftBadgeJobQueue {
         return (chargePromise, completionPromise)
     }
 
-    public func alreadyHasJob(for thread: TSContactThread, transaction: SDSAnyReadTransaction) -> Bool {
-        SendGiftBadgeJobFinder.jobExists(forThreadId: thread.uniqueId, transaction: transaction)
+    public func alreadyHasJob(threadId: String, transaction: DBReadTransaction) -> Bool {
+        jobExists(threadId: threadId, transaction: transaction)
     }
 }
 
 // MARK: - Job Finder
 
-private class SendGiftBadgeJobFinder {
-    public class func jobExists(forThreadId threadId: String, transaction: SDSAnyReadTransaction) -> Bool {
-        assert(!threadId.isEmpty)
+private func jobExists(threadId: String, transaction: DBReadTransaction) -> Bool {
+    assert(!threadId.isEmpty)
 
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            let sql = """
-                SELECT EXISTS (
-                    SELECT 1 FROM \(SendGiftBadgeJobRecord.databaseTableName)
-                    WHERE \(SendGiftBadgeJobRecord.columnName(.threadId)) IS ?
-                    AND \(SendGiftBadgeJobRecord.columnName(.recordType)) IS ?
-                    AND \(SendGiftBadgeJobRecord.columnName(.status)) NOT IN (?, ?)
-                )
-            """
-            let arguments: StatementArguments = [
-                threadId,
-                SDSRecordType.sendGiftBadgeJobRecord.rawValue,
-                SendGiftBadgeJobRecord.Status.permanentlyFailed.rawValue,
-                SendGiftBadgeJobRecord.Status.obsolete.rawValue
-            ]
-            do {
-                return try Bool.fetchOne(grdbTransaction.database, sql: sql, arguments: arguments) ?? false
-            } catch {
-                DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
-                    userDefaults: CurrentAppContext().appUserDefaults(),
-                    error: error
-                )
-                owsFail("Unable to find job")
-            }
-        }
+    let sql = """
+        SELECT EXISTS (
+            SELECT 1 FROM \(SendGiftBadgeJobRecord.databaseTableName)
+            WHERE \(SendGiftBadgeJobRecord.columnName(.threadId)) IS ?
+            AND \(SendGiftBadgeJobRecord.columnName(.recordType)) IS ?
+            AND \(SendGiftBadgeJobRecord.columnName(.status)) NOT IN (?, ?)
+        )
+    """
+    let arguments: StatementArguments = [
+        threadId,
+        SDSRecordType.sendGiftBadgeJobRecord.rawValue,
+        SendGiftBadgeJobRecord.Status.permanentlyFailed.rawValue,
+        SendGiftBadgeJobRecord.Status.obsolete.rawValue
+    ]
+    do {
+        return try Bool.fetchOne(transaction.database, sql: sql, arguments: arguments) ?? false
+    } catch {
+        DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
+            userDefaults: CurrentAppContext().appUserDefaults(),
+            error: error
+        )
+        owsFail("Unable to find job")
     }
 }
 
@@ -139,7 +134,7 @@ private class SendGiftBadgeJobRunnerFactory: JobRunnerFactory {
     }
 }
 
-private class SendGiftBadgeJobRunner: JobRunner, Dependencies {
+private class SendGiftBadgeJobRunner: JobRunner {
     private enum Constants {
         static let maxRetries: UInt = 110
     }
@@ -231,7 +226,7 @@ private class SendGiftBadgeJobRunner: JobRunner, Dependencies {
         // We also do this check right before sending the message, but we might be able to prevent
         // charging the payment method (and some extra work) if we check now.
         Logger.info("[Gifting] Ensuring we can still message recipient...")
-        try databaseStorage.read { tx in
+        try SSKEnvironment.shared.databaseStorageRef.read { tx in
             try ensureThatWeCanStillMessageRecipient(threadUniqueId: jobRecord.threadId, tx: tx)
         }
 
@@ -249,7 +244,7 @@ private class SendGiftBadgeJobRunner: JobRunner, Dependencies {
         )
 
         Logger.info("[Gifting] Enqueueing messages & finishing up...")
-        try await databaseStorage.awaitableWrite { tx in
+        try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             try self.enqueueMessages(
                 threadUniqueId: jobRecord.threadId,
                 messageText: jobRecord.messageText,
@@ -261,17 +256,17 @@ private class SendGiftBadgeJobRunner: JobRunner, Dependencies {
         }
     }
 
-    private func getValidatedThread(threadUniqueId: String, tx: SDSAnyReadTransaction) throws -> TSContactThread {
+    private func getValidatedThread(threadUniqueId: String, tx: DBReadTransaction) throws -> TSContactThread {
         guard let thread = TSContactThread.anyFetchContactThread(uniqueId: threadUniqueId, transaction: tx) else {
             throw OWSGenericError("Thread for gift badge sending no longer exists")
         }
-        guard !blockingManager.isThreadBlocked(thread, transaction: tx) else {
+        guard !SSKEnvironment.shared.blockingManagerRef.isThreadBlocked(thread, transaction: tx) else {
             throw OWSGenericError("Thread for gift badge sending is blocked")
         }
         return thread
     }
 
-    private func ensureThatWeCanStillMessageRecipient(threadUniqueId: String, tx: SDSAnyReadTransaction) throws {
+    private func ensureThatWeCanStillMessageRecipient(threadUniqueId: String, tx: DBReadTransaction) throws {
         _ = try getValidatedThread(threadUniqueId: threadUniqueId, tx: tx)
     }
 
@@ -288,7 +283,7 @@ private class SendGiftBadgeJobRunner: JobRunner, Dependencies {
                 paymentMethodId: paymentMethodId,
                 callbackURL: nil,
                 idempotencyKey: idempotencyKey
-            ).awaitable()
+            )
             return paymentIntentId
         case let .forBraintree(paypalApprovalParams, paymentId):
             return try await Paypal.confirmOneTimePayment(
@@ -296,7 +291,7 @@ private class SendGiftBadgeJobRunner: JobRunner, Dependencies {
                 level: .giftBadge(.signalGift),
                 paymentId: paymentId,
                 approvalParams: paypalApprovalParams
-            ).awaitable()
+            )
         }
     }
 
@@ -306,20 +301,25 @@ private class SendGiftBadgeJobRunner: JobRunner, Dependencies {
         receiptCredentialRequest: ReceiptCredentialRequest,
         receiptCredentialRequestContext: ReceiptCredentialRequestContext
     ) async throws -> ReceiptCredentialPresentation {
-        try await SubscriptionManagerImpl.requestReceiptCredentialPresentation(
+        let receiptCredential = try await DonationSubscriptionManager.requestReceiptCredential(
             boostPaymentIntentId: paymentIntentId,
             expectedBadgeLevel: .giftBadge(.signalGift),
             paymentProcessor: payment.processor,
             context: receiptCredentialRequestContext,
-            request: receiptCredentialRequest
-        ).awaitable()
+            request: receiptCredentialRequest,
+            logger: PrefixedLogger(prefix: "[Donations]")
+        )
+
+        return try DonationSubscriptionManager.generateReceiptCredentialPresentation(
+            receiptCredential: receiptCredential
+        )
     }
 
     private func enqueueMessages(
         threadUniqueId: String,
         messageText: String,
         receiptCredentialPresentation: ReceiptCredentialPresentation,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) throws {
         func send(_ unpreparedMessage: UnpreparedOutgoingMessage) throws {
             let preparedMessage = try unpreparedMessage.prepare(tx: tx)
@@ -346,10 +346,10 @@ extension UnpreparedOutgoingMessage {
     fileprivate static func build(
         giftBadgeReceiptCredentialPresentation: ReceiptCredentialPresentation,
         thread: TSThread,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> UnpreparedOutgoingMessage {
         let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-        let dmConfig = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: tx.asV2Read)
+        let dmConfig = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: tx)
         let builder: TSOutgoingMessageBuilder = .withDefaultValues(
             thread: thread,
             expiresInSeconds: dmConfig.durationSeconds,
@@ -362,10 +362,10 @@ extension UnpreparedOutgoingMessage {
     fileprivate static func build(
         messageBody: String,
         thread: TSThread,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> UnpreparedOutgoingMessage {
         let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-        let dmConfig = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: tx.asV2Read)
+        let dmConfig = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: tx)
         let builder: TSOutgoingMessageBuilder = .withDefaultValues(
             thread: thread,
             messageBody: messageBody,

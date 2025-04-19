@@ -36,7 +36,7 @@ public class PaymentsDeactivateViewController: OWSViewController {
     public override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
-        paymentsSwift.updateCurrentPaymentBalance()
+        SUIEnvironment.shared.paymentsSwiftRef.updateCurrentPaymentBalance()
     }
 
     public override func viewWillAppear(_ animated: Bool) {
@@ -74,7 +74,7 @@ public class PaymentsDeactivateViewController: OWSViewController {
 
     @objc
     private func currentPaymentBalanceDidChange() {
-        guard let currentPaymentBalance = paymentsSwift.currentPaymentBalance,
+        guard let currentPaymentBalance = SUIEnvironment.shared.paymentsSwiftRef.currentPaymentBalance,
               currentPaymentBalance.amount.isValidAmount(canBeEmpty: false) else {
             // We need to abort the "deactivate payments with outstanding balance"
             // flow if:
@@ -173,7 +173,7 @@ public class PaymentsDeactivateViewController: OWSViewController {
                                                      canCancel: false) { [weak self] modalActivityIndicator in
 
             firstly(on: DispatchQueue.global()) {
-                Self.paymentsSwift.maximumPaymentAmount()
+                SUIEnvironment.shared.paymentsSwiftRef.maximumPaymentAmount()
             }.done { (transferAmount: TSPaymentAmount) in
                 AssertIsOnMainThread()
 
@@ -218,8 +218,8 @@ public class PaymentsDeactivateViewController: OWSViewController {
 
     private func deactivateImmediately() {
         dismiss(animated: true) {
-            Self.databaseStorage.write { transaction in
-                Self.paymentsHelperSwift.disablePayments(transaction: transaction)
+            SSKEnvironment.shared.databaseStorageRef.write { transaction in
+                SSKEnvironment.shared.paymentsHelperRef.disablePayments(transaction: transaction)
             }
         }
     }

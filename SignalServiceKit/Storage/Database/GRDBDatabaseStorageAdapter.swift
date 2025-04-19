@@ -7,10 +7,8 @@ import Foundation
 public import GRDB
 import UIKit
 
-@objc
-public class GRDBDatabaseStorageAdapter: NSObject {
+public class GRDBDatabaseStorageAdapter {
 
-    @objc
     public enum DirectoryMode: Int {
         public static let commonGRDBPrefix = "grdb"
         public static var primaryFolderNameKey: String { "GRDBPrimaryDirectoryNameKey" }
@@ -52,12 +50,10 @@ public class GRDBDatabaseStorageAdapter: NSObject {
         }
     }
 
-    @objc
     public static func databaseDirUrl(directoryMode: DirectoryMode = .primary) -> URL {
         return SDSDatabaseStorage.baseDir.appendingPathComponent(directoryMode.folderName, isDirectory: true)
     }
 
-    @objc
     public static func databaseFileUrl(directoryMode: DirectoryMode = .primary) -> URL {
         let databaseDir = databaseDirUrl(directoryMode: directoryMode)
         OWSFileSystem.ensureDirectoryExists(databaseDir.path)
@@ -119,6 +115,8 @@ public class GRDBDatabaseStorageAdapter: NSObject {
         static func currentTimestamp() -> UInt64 { clock_gettime_nsec_np(CLOCK_UPTIME_RAW) }
     }
 
+    private let databaseChangeObserver: DatabaseChangeObserver
+
     private let databaseFileUrl: URL
 
     private let storage: GRDBStorage
@@ -127,7 +125,12 @@ public class GRDBDatabaseStorageAdapter: NSObject {
         return storage.pool
     }
 
-    init(databaseFileUrl: URL, keyFetcher: GRDBKeyFetcher) throws {
+    init(
+        databaseChangeObserver: DatabaseChangeObserver,
+        databaseFileUrl: URL,
+        keyFetcher: GRDBKeyFetcher
+    ) throws {
+        self.databaseChangeObserver = databaseChangeObserver
         self.databaseFileUrl = databaseFileUrl
 
         try GRDBDatabaseStorageAdapter.ensureDatabaseKeySpecExists(keyFetcher: keyFetcher)
@@ -160,7 +163,6 @@ public class GRDBDatabaseStorageAdapter: NSObject {
         )
     }
 
-    @objc
     private func primaryDBFolderNameDidChange(darwinNotificationToken: Int32) {
         checkForDatabasePathChange()
     }
@@ -177,27 +179,18 @@ public class GRDBDatabaseStorageAdapter: NSObject {
 
     // MARK: - DatabaseChangeObserver
 
-    private(set) public var databaseChangeObserver: DatabaseChangeObserver?
-
-    func setupDatabaseChangeObserver(appReadiness: AppReadiness) throws {
-        owsAssertDebug(self.databaseChangeObserver == nil)
-
+    func setupDatabaseChangeObserver() throws {
         // DatabaseChangeObserver is a general purpose observer, whose delegates
         // are notified when things change, but are not given any specific details
         // about the changes.
-        let databaseChangeObserver = DatabaseChangeObserver(appReadiness: appReadiness)
-        self.databaseChangeObserver = databaseChangeObserver
-
-        try pool.write { db in
-            db.add(transactionObserver: databaseChangeObserver, extent: Database.TransactionObservationExtent.observerLifetime)
-        }
+        try databaseChangeObserver.beginObserving(pool: pool)
     }
 
-    func testing_tearDownDatabaseChangeObserver() {
+    func testing_tearDownDatabaseChangeObserver() throws {
         // DatabaseChangeObserver is a general purpose observer, whose delegates
         // are notified when things change, but are not given any specific details
         // about the changes.
-        self.databaseChangeObserver = nil
+        try databaseChangeObserver.stopObserving(pool: pool)
     }
 
     // MARK: -
@@ -215,20 +208,6 @@ public class GRDBDatabaseStorageAdapter: NSObject {
             // belt and suspenders: make sure we can fetch it
             _ = try keyFetcher.fetchString()
         }
-    }
-
-    public func resetAllStorage() {
-        Logger.info("")
-
-        // This might be redundant but in the spirit of thoroughness...
-
-        GRDBDatabaseStorageAdapter.removeAllFiles()
-
-        if CurrentAppContext().isMainApp {
-            TSAttachmentStream.deleteAttachmentsFromDisk()
-        }
-
-        // TODO: Delete Profiles on Disk?
     }
 
     static func prepareDatabase(db: Database, keyFetcher: GRDBKeyFetcher) throws {
@@ -254,7 +233,6 @@ public class GRDBDatabaseStorageAdapter: NSObject {
 
 @available(iOSApplicationExtension, unavailable)
 extension GRDBDatabaseStorageAdapter {
-    @objc
     public static var hasAssignedTransferDirectory: Bool { DirectoryMode.storedTransferFolderName != nil }
 
     /// This should be called during restoration to set up a staging database directory name
@@ -344,7 +322,7 @@ extension GRDBDatabaseStorageAdapter: SDSDatabaseStorageAdapter {
     #endif
 
     @discardableResult
-    public func read<T>(block: (GRDBReadTransaction) throws -> T) throws -> T {
+    public func read<T>(block: (DBReadTransaction) throws -> T) throws -> T {
 
         #if TESTABLE_BUILD
         owsAssertDebug(Self.canOpenTransaction)
@@ -362,31 +340,31 @@ extension GRDBDatabaseStorageAdapter: SDSDatabaseStorageAdapter {
 
         return try pool.read { database in
             try autoreleasepool {
-                try block(GRDBReadTransaction(database: database))
+                try block(DBReadTransaction(database: database))
             }
         }
     }
 
     @discardableResult
-    public func write<T>(block: (GRDBWriteTransaction) throws -> T) throws -> T {
+    public func writeWithTxCompletion<T>(
+        block: (DBWriteTransaction) -> TransactionCompletion<T>
+    ) throws -> T {
 
         var value: T!
-        var thrown: Error?
-        try write { (transaction) in
-            do {
-                value = try block(transaction)
-            } catch {
-                thrown = error
+        let _: Void = try writeWithTxCompletion { (transaction) in
+            let result = block(transaction)
+            switch result {
+            case .commit(let t):
+                value = t
+            case .rollback(let t):
+                value = t
             }
-        }
-        if let error = thrown {
-            throw error.grdbErrorForLogging
+            return result.typeErased
         }
         return value
     }
 
-    @objc
-    public func read(block: (GRDBReadTransaction) -> Void) throws {
+    public func read(block: (DBReadTransaction) -> Void) throws {
 
         #if TESTABLE_BUILD
         owsAssertDebug(Self.canOpenTransaction)
@@ -403,14 +381,12 @@ extension GRDBDatabaseStorageAdapter: SDSDatabaseStorageAdapter {
 
         try pool.read { database in
             autoreleasepool {
-                block(GRDBReadTransaction(database: database))
+                block(DBReadTransaction(database: database))
             }
         }
     }
 
-    @objc
-    public func write(block: (GRDBWriteTransaction) -> Void) throws {
-
+    public func writeWithTxCompletion(block: (DBWriteTransaction) -> TransactionCompletion<Void>) throws {
         #if TESTABLE_BUILD
         owsAssertDebug(Self.canOpenTransaction)
         // Check for nested tractions.
@@ -425,17 +401,19 @@ extension GRDBDatabaseStorageAdapter: SDSDatabaseStorageAdapter {
         }
         #endif
 
-        var syncCompletions: [GRDBWriteTransaction.CompletionBlock] = []
-        var asyncCompletions: [GRDBWriteTransaction.AsyncCompletion] = []
+        var txCompletionBlocks: [DBWriteTransaction.CompletionBlock]!
 
-        try pool.write { database in
-            autoreleasepool {
-                let transaction = GRDBWriteTransaction(database: database)
-                block(transaction)
-                transaction.finalizeTransaction()
+        try pool.writeWithoutTransaction { database in
+            try database.inTransaction {
+                let txCompletion: TransactionCompletion<Void> = autoreleasepool {
+                    let tx = DBWriteTransaction(database: database)
+                    let txComplection = block(tx)
+                    tx.finalizeTransaction()
+                    txCompletionBlocks = tx.completionBlocks
 
-                syncCompletions = transaction.syncCompletions
-                asyncCompletions = transaction.asyncCompletions
+                    return txComplection
+                }
+                return txCompletion.asGRDBCompletion
             }
         }
 
@@ -446,13 +424,8 @@ extension GRDBDatabaseStorageAdapter: SDSDatabaseStorageAdapter {
             }
         }
 
-        // Perform all completions _after_ the write transaction completes.
-        for block in syncCompletions {
+        for block in txCompletionBlocks {
             block()
-        }
-
-        for asyncCompletion in asyncCompletions {
-            asyncCompletion.scheduler.async(asyncCompletion.block)
         }
     }
 
@@ -631,7 +604,6 @@ extension GRDBDatabaseStorageAdapter: SDSDatabaseStorageAdapter {
                     if (error as? DatabaseError)?.resultCode == .SQLITE_BUSY {
                         // It is expected that the busy-handler (aka busyMode callback)
                         // will abort checkpoints if there is contention.
-                        Logger.warn("Didn't checkpoint because we were busy")
                     } else {
                         owsFailDebug("Checkpoint failed. Error: \(error.grdbErrorForLogging)")
                     }
@@ -779,8 +751,6 @@ private struct GRDBStorage {
                 db.trace { dbQueryLog("\($0)") }
             #endif
             #endif
-
-            MediaGalleryRecordManager.setupDatabaseFunction(database: db)
         }
         configuration.defaultTransactionKind = .immediate
         configuration.allowsUnsafeTransactions = true
@@ -826,7 +796,7 @@ public struct GRDBKeyFetcher {
         return try keychainStorage.dataValue(service: Constants.keyServiceName, key: Constants.keyName)
     }
 
-    func clear() throws {
+    public func clear() throws {
         try keychainStorage.removeValue(service: Constants.keyServiceName, key: Constants.keyName)
     }
 
@@ -930,10 +900,10 @@ extension GRDBDatabaseStorageAdapter {
     @discardableResult
     public static func checkIntegrity(databaseStorage: SDSDatabaseStorage) -> SqliteUtil.IntegrityCheckResult {
         func read<T>(block: (Database) -> T) -> T {
-            return databaseStorage.read { block($0.unwrapGrdbRead.database) }
+            return databaseStorage.read { block($0.database) }
         }
         func write<T>(block: (Database) -> T) -> T {
-            return databaseStorage.write { block($0.unwrapGrdbWrite.database) }
+            return databaseStorage.write { block($0.database) }
         }
 
         read { db in

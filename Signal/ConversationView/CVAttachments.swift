@@ -11,12 +11,12 @@ public import SignalServiceKit
 public class AudioAttachment {
     public enum State: Equatable {
         case attachmentStream(
-            attachmentStream: ReferencedTSResourceStream,
+            attachmentStream: ReferencedAttachmentStream,
             audioDurationSeconds: TimeInterval
         )
         case attachmentPointer(
-            attachmentPointer: ReferencedTSResourcePointer,
-            transitTierDownloadState: AttachmentDownloadState
+            attachmentPointer: ReferencedAttachmentPointer,
+            downloadState: AttachmentDownloadState
         )
 
         public static func == (lhs: AudioAttachment.State, rhs: AudioAttachment.State) -> Bool {
@@ -25,17 +25,19 @@ public class AudioAttachment {
                 .attachmentStream(lhsStream, lhsDuration),
                 .attachmentStream(rhsStream, rhsDuration)
             ):
-                return lhsStream.attachmentStream.resourceId == rhsStream.attachmentStream.resourceId
+                return lhsStream.attachmentStream.id == rhsStream.attachmentStream.id
                     && lhsStream.reference.hasSameOwner(as: rhsStream.reference)
                     && lhsDuration == rhsDuration
             case let (
                 .attachmentPointer(lhsPointer, lhsState),
                 .attachmentPointer(rhsPointer, rhsState)
             ):
-                return lhsPointer.attachment.resourceId == rhsPointer.attachment.resourceId
+                return lhsPointer.attachment.id == rhsPointer.attachment.id
                     && lhsPointer.reference.hasSameOwner(as: rhsPointer.reference)
                     && lhsState == rhsState
-            case (.attachmentStream, _), (.attachmentPointer, _):
+            case
+                (.attachmentStream, _),
+                (.attachmentPointer, _):
                 return false
             }
         }
@@ -59,18 +61,17 @@ public class AudioAttachment {
     public let isDownloading: Bool
 
     public init?(
-        attachmentStream: ReferencedTSResourceStream,
+        attachmentStream: ReferencedAttachmentStream,
         owningMessage: TSMessage?,
         metadata: MediaMetadata?,
         receivedAtDate: Date
     ) {
         let audioDurationSeconds: TimeInterval
-        switch attachmentStream.attachmentStream.computeContentType() {
-        case .audio(let duration):
-            var duration = duration.compute()
+        switch attachmentStream.attachmentStream.contentType {
+        case .audio(var duration, _):
             // TODO: Remove & replace with a full fix to recompute the duration for invalid files.
-            if duration <= 0, case .v2(let attachment) = attachmentStream.attachmentStream.concreteStreamType {
-                duration = Self.cachedAudioDuration(forAttachment: attachment)
+            if duration <= 0 {
+                duration = Self.cachedAudioDuration(forAttachment: attachmentStream.attachmentStream)
             }
             if duration <= 0 {
                 fallthrough
@@ -89,18 +90,18 @@ public class AudioAttachment {
     }
 
     public init(
-        attachmentPointer: ReferencedTSResourcePointer,
+        attachmentPointer: ReferencedAttachmentPointer,
         owningMessage: TSMessage?,
         metadata: MediaMetadata?,
         receivedAtDate: Date,
-        transitTierDownloadState: AttachmentDownloadState
+        downloadState: AttachmentDownloadState
     ) {
         state = .attachmentPointer(
             attachmentPointer: attachmentPointer,
-            transitTierDownloadState: transitTierDownloadState
+            downloadState: downloadState
         )
 
-        switch transitTierDownloadState {
+        switch downloadState {
         case .failed, .none:
             isDownloading = false
         case .enqueuedOrDownloading:
@@ -129,19 +130,19 @@ public class AudioAttachment {
     }
 }
 
-extension AudioAttachment: Dependencies {
+extension AudioAttachment {
     var isDownloaded: Bool { attachmentStream != nil }
 
-    public var attachment: TSResource {
+    public var attachment: Attachment {
         switch state {
         case .attachmentStream(let attachmentStream, _):
-            return attachmentStream.attachmentStream
+            return attachmentStream.attachment
         case .attachmentPointer(let attachmentPointer, _):
             return attachmentPointer.attachment
         }
     }
 
-    public var attachmentStream: ReferencedTSResourceStream? {
+    public var attachmentStream: ReferencedAttachmentStream? {
         switch state {
         case .attachmentStream(let attachmentStream, _):
             return attachmentStream
@@ -150,7 +151,7 @@ extension AudioAttachment: Dependencies {
         }
     }
 
-    public var attachmentPointer: ReferencedTSResourcePointer? {
+    public var attachmentPointer: ReferencedAttachmentPointer? {
         switch state {
         case .attachmentStream:
             return nil
@@ -182,7 +183,7 @@ extension AudioAttachment: Dependencies {
     public func markOwningMessageAsViewed() -> Bool {
         AssertIsOnMainThread()
         guard let incomingMessage = owningMessage as? TSIncomingMessage, !incomingMessage.wasViewed else { return false }
-        databaseStorage.asyncWrite { tx in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { tx in
             let uniqueId = incomingMessage.uniqueId
             guard
                 let latestMessage = TSIncomingMessage.anyFetchIncomingMessage(uniqueId: uniqueId, transaction: tx),

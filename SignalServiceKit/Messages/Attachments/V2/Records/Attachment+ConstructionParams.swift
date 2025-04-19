@@ -218,6 +218,23 @@ extension Attachment {
             )
         }
 
+        public static func forRemovingTransitTierInfo(
+            attachment: Attachment
+        ) -> ConstructionParams {
+            return .init(
+                blurHash: attachment.blurHash,
+                mimeType: attachment.mimeType,
+                encryptionKey: attachment.encryptionKey,
+                streamInfo: attachment.streamInfo,
+                transitTierInfo: nil,
+                mediaName: attachment.mediaName,
+                mediaTierInfo: attachment.mediaTierInfo,
+                thumbnailMediaTierInfo: attachment.thumbnailMediaTierInfo,
+                localRelativeFilePathThumbnail: attachment.localRelativeFilePathThumbnail,
+                originalAttachmentIdForQuotedReply: attachment.originalAttachmentIdForQuotedReply
+            )
+        }
+
         public static func forUpdatingAsDownlodedFromMediaTier(
             attachment: Attachment,
             validatedMimeType: String,
@@ -348,6 +365,25 @@ extension Attachment {
             }
             return .init(
                 blurHash: blurHash,
+                mimeType: mimeType,
+                encryptionKey: attachment.encryptionKey,
+                streamInfo: streamInfo,
+                transitTierInfo: attachment.transitTierInfo,
+                mediaName: attachment.mediaName,
+                mediaTierInfo: attachment.mediaTierInfo,
+                thumbnailMediaTierInfo: attachment.thumbnailMediaTierInfo,
+                localRelativeFilePathThumbnail: attachment.localRelativeFilePathThumbnail,
+                originalAttachmentIdForQuotedReply: attachment.originalAttachmentIdForQuotedReply
+            )
+        }
+
+        public static func forMerging(
+            streamInfo: Attachment.StreamInfo,
+            into attachment: Attachment,
+            mimeType: String
+        ) -> ConstructionParams {
+            return .init(
+                blurHash: attachment.blurHash,
                 mimeType: mimeType,
                 encryptionKey: attachment.encryptionKey,
                 streamInfo: streamInfo,

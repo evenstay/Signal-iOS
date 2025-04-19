@@ -20,7 +20,7 @@ protocol CVLoadCoordinatorDelegate: UIScrollViewDelegate {
 
     func chatColorDidChange()
 
-    func updateAccessibilityCustomActionsForCell(_ cell: CVItemCell)
+    func updateAccessibilityCustomActionsForCell(_ cell: CVCell)
 
     var isScrolledToBottom: Bool { get }
 
@@ -105,18 +105,17 @@ public class CVLoadCoordinator: NSObject {
         )
         self.messageLoader = MessageLoader(
             batchFetcher: ConversationViewBatchFetcher(interactionFinder: InteractionFinder(threadUniqueId: thread.uniqueId)),
-            interactionFetchers: [Self.modelReadCaches.interactionReadCache, SDSInteractionFetcherImpl()]
+            interactionFetchers: [SSKEnvironment.shared.modelReadCachesRef.interactionReadCache, SDSInteractionFetcherImpl()]
         )
         super.init()
     }
 
-    func configure(delegate: CVLoadCoordinatorDelegate,
-                   componentDelegate: CVComponentDelegate,
-                   focusMessageIdOnOpen: String?) {
+    @MainActor
+    func configure(delegate: CVLoadCoordinatorDelegate, componentDelegate: CVComponentDelegate, focusMessageIdOnOpen: String?) {
         self.delegate = delegate
         self.componentDelegate = componentDelegate
 
-        Self.databaseStorage.appendDatabaseChangeDelegate(self)
+        DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
 
         // Kick off async load.
         loadInitialMapping(focusMessageIdOnOpen: focusMessageIdOnOpen)
@@ -299,7 +298,7 @@ public class CVLoadCoordinator: NSObject {
 
     private var isBuildingLoad = false
 
-    private let autoLoadMoreThreshold: TimeInterval = 2 * kSecondInterval
+    private let autoLoadMoreThreshold: TimeInterval = 2 * .second
 
     private var lastLoadOlderDate: Date?
     public var didLoadOlderRecently: Bool {
@@ -440,7 +439,7 @@ public class CVLoadCoordinator: NSObject {
     private lazy var loadIfNecessaryEvent: DebouncedEvent = {
         DebouncedEvents.build(mode: .lastOnly,
                               maxFrequencySeconds: DebouncedEvents.thetaInterval,
-                              onQueue: .asyncOnQueue(queue: .main)) { [weak self] in
+                              onQueue: .main) { [weak self] in
             AssertIsOnMainThread()
             self?.loadIfNecessaryDebounced()
         }
@@ -472,7 +471,7 @@ public class CVLoadCoordinator: NSObject {
             lastLoadNewerDate = Date()
         }
 
-        let typingIndicatorsSender = typingIndicatorsImpl.typingAddress(forThread: thread)
+        let typingIndicatorsSender = SSKEnvironment.shared.typingIndicatorsRef.typingAddress(forThread: thread)
         let viewStateSnapshot = CVViewStateSnapshot.snapshot(
             viewState: viewState,
             typingIndicatorsSender: typingIndicatorsSender,
@@ -582,8 +581,6 @@ public class CVLoadCoordinator: NSObject {
 extension CVLoadCoordinator: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
-        AssertIsOnMainThread()
-
         guard databaseChanges.threadUniqueIds.contains(threadUniqueId) else {
             return
         }
@@ -592,14 +589,10 @@ extension CVLoadCoordinator: DatabaseChangeDelegate {
     }
 
     public func databaseChangesDidUpdateExternally() {
-        AssertIsOnMainThread()
-
         enqueueReloadWithoutCaches()
     }
 
     public func databaseChangesDidReset() {
-        AssertIsOnMainThread()
-
         enqueueReloadWithoutCaches()
     }
 }
@@ -721,11 +714,16 @@ extension CVLoadCoordinator: UICollectionViewDataSource {
 extension CVLoadCoordinator: UICollectionViewDelegate {
 
     public func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
-        guard let cell = cell as? CVItemCell else {
+        guard let cell = cell as? CVCell else {
             owsFailDebug("Unexpected cell type.")
             return
         }
+
         cell.isCellVisible = true
+        if let componentDelegate {
+            cell.renderItem?.rootComponent.cellWillBecomeVisible(componentDelegate: componentDelegate)
+        }
+
         let delegate = self.delegate
         DispatchQueue.main.async {
             delegate?.updateScrollingContent()
@@ -734,7 +732,7 @@ extension CVLoadCoordinator: UICollectionViewDelegate {
     }
 
     public func collectionView(_ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
-        guard let cell = cell as? CVItemCell else {
+        guard let cell = cell as? CVCell else {
             owsFailDebug("Unexpected cell type.")
             return
         }
@@ -817,19 +815,13 @@ extension CVLoadCoordinator: UIScrollViewDelegate {
 // MARK: -
 
 extension CVLoadCoordinator: CallServiceStateObserver {
-    private func doesGroupThreadCall(_ signalCall: SignalCall?, matchThread thread: TSThread) -> Bool {
-        switch signalCall?.mode {
-        case .groupThread(let call):
-            return call.groupThread.uniqueId == thread.uniqueId
-        case nil, .individual, .callLink:
-            return false
-        }
-    }
-
     func didUpdateCall(from oldValue: SignalCall?, to newValue: SignalCall?) {
+        guard let groupId = try? (thread as? TSGroupThread)?.groupIdentifier else {
+            return
+        }
         let matchesThread: Bool = (
-            doesGroupThreadCall(oldValue, matchThread: thread)
-            || doesGroupThreadCall(newValue, matchThread: thread)
+            oldValue?.mode.matches(.groupThread(groupId)) == true
+            || newValue?.mode.matches(.groupThread(groupId)) == true
         )
         guard matchesThread else {
             return

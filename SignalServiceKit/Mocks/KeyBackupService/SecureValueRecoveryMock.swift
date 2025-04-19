@@ -9,6 +9,11 @@ import Foundation
 
 public class SecureValueRecoveryMock: SecureValueRecovery {
 
+    public var hasAccountEntropyPool = false
+    public func hasAccountEntropyPool(transaction: DBReadTransaction) -> Bool {
+        return hasAccountEntropyPool
+    }
+
     public init() {}
 
     public var hasMasterKey = false
@@ -37,14 +42,10 @@ public class SecureValueRecoveryMock: SecureValueRecovery {
 
     public var reglockToken: String?
 
-    public func acquireRegistrationLockForNewNumber(with pin: String, and auth: SVRAuthCredential) -> Promise<String> {
-        return .value(reglockToken!)
-    }
+    public var backupMasterKeyMock: ((_ pin: String, _ masterKey: MasterKey, _ authMethod: SVR.AuthMethod) -> Promise<MasterKey>)?
 
-    public var generateAndBackupKeysMock: ((_ pin: String, _ authMethod: SVR.AuthMethod) -> Promise<Void>)?
-
-    public func generateAndBackupKeys(pin: String, authMethod: SVR.AuthMethod) -> Promise<Void> {
-        return generateAndBackupKeysMock!(pin, authMethod)
+    public func backupMasterKey(pin: String, masterKey: MasterKey, authMethod: SVR.AuthMethod) -> Promise<MasterKey> {
+        return backupMasterKeyMock!(pin, masterKey, authMethod)
     }
 
     public var restoreKeysMock: ((_ pin: String, _ authMethod: SVR.AuthMethod) -> Guarantee<SVR.RestoreKeysResult>)?
@@ -63,22 +64,6 @@ public class SecureValueRecoveryMock: SecureValueRecovery {
         return .value(())
     }
 
-    public func encrypt(
-        keyType: SVR.DerivedKey,
-        data: Data,
-        transaction: DBReadTransaction
-    ) -> SVR.ApplyDerivedKeyResult {
-        return .success(data)
-    }
-
-    public func decrypt(
-        keyType: SVR.DerivedKey,
-        encryptedData: Data,
-        transaction: DBReadTransaction
-    ) -> SVR.ApplyDerivedKeyResult {
-        return .success(encryptedData)
-    }
-
     public func warmCaches() {
         // Do nothing
     }
@@ -87,31 +72,26 @@ public class SecureValueRecoveryMock: SecureValueRecovery {
         hasMasterKey = false
     }
 
-    public func storeSyncedStorageServiceKey(
-        data: Data?,
-        authedAccount: AuthedAccount,
-        transaction: DBWriteTransaction
-    ) {
-        // Do nothing
-    }
+    public var syncedMasterKey: MasterKey?
 
-    public var syncedMasterKey: Data?
-
-    public func storeSyncedMasterKey(
-        data: Data,
+    public func storeKeys(
+        fromKeysSyncMessage syncMessage: SSKProtoSyncMessageKeys,
         authedDevice: AuthedDevice,
-        updateStorageService: Bool,
-        transaction: DBWriteTransaction
-    ) {
-        syncedMasterKey = data
+        tx: DBWriteTransaction
+    ) throws(SVR.KeysError) {
+        syncedMasterKey = syncMessage.master.map { try! MasterKey(data: $0) }
     }
 
-    public func masterKeyDataForKeysSyncMessage(tx: DBReadTransaction) -> Data? {
-        return nil
-    }
-
-    public func clearSyncedStorageServiceKey(transaction: DBWriteTransaction) {
-        // Do nothing
+    public func storeKeys(
+        fromProvisioningMessage provisioningMessage: LinkingProvisioningMessage,
+        authedDevice: AuthedDevice,
+        tx: DBWriteTransaction
+    ) throws(SVR.KeysError) {
+        let masterKey = switch provisioningMessage.rootKey {
+        case .accountEntropyPool(let aep): aep.getMasterKey()
+        case .masterKey(let masterKey): masterKey
+        }
+        syncedMasterKey = masterKey
     }
 
     public var hasHadBackupKeyRequestFail = false
@@ -137,24 +117,25 @@ public class SecureValueRecoveryMock: SecureValueRecovery {
     public var useDeviceLocalMasterKeyMock: ((_ authedAccount: AuthedAccount) -> Void)?
 
     public func useDeviceLocalMasterKey(
+        _ masterKey: MasterKey,
+        disablePIN: Bool,
         authedAccount: AuthedAccount,
         transaction: DBWriteTransaction
     ) {
         useDeviceLocalMasterKeyMock?(authedAccount)
+        hasMasterKey = true
     }
 
-    public var dataGenerator: (SVR.DerivedKey) -> Data? = { _ in return nil }
-
-    public func data(for key: SVR.DerivedKey) -> Data? {
-        return dataGenerator(key)
-    }
-
-    public func data(for key: SVR.DerivedKey, transaction: DBReadTransaction) -> SVR.DerivedKeyData? {
-        return SVR.DerivedKeyData(dataGenerator(key), key)
-    }
-
-    public func isKeyAvailable(_ key: SVR.DerivedKey, transaction: DBReadTransaction) -> Bool {
-        return true
+    public var useDeviceLocalAccountEntropyPoolMock: ((_ authedAccount: AuthedAccount) -> Void)?
+    public func useDeviceLocalAccountEntropyPool(
+        _ accountEntropyPool: AccountEntropyPool,
+        disablePIN: Bool,
+        authedAccount: AuthedAccount,
+        transaction: DBWriteTransaction
+    ) {
+        useDeviceLocalAccountEntropyPoolMock?(authedAccount)
+        hasAccountEntropyPool = true
+        hasMasterKey = true
     }
 }
 

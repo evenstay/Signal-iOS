@@ -292,15 +292,15 @@ private class SystemSound: NSObject {
     }
 }
 
-public class Sounds: Dependencies {
+public class Sounds {
 
     // This name is specified in the payload by the Signal Service when requesting fallback push notifications.
     fileprivate static let defaultNotificationSoundFilename = "NewMessage.aifc"
     fileprivate static let soundsStorageGlobalNotificationKey = "kOWSSoundsStorageGlobalNotificationKey"
 
-    private static let cachedSystemSounds = AnyLRUCache(maxSize: 4, nseMaxSize: 0, shouldEvacuateInBackground: false)
+    private static let cachedSystemSounds = LRUCache<String, SystemSound>(maxSize: 4, nseMaxSize: 0, shouldEvacuateInBackground: false)
 
-    private static let keyValueStore = SDSKeyValueStore(collection: "kOWSSoundsStorageNotificationCollection")
+    private static let keyValueStore = KeyValueStore(collection: "kOWSSoundsStorageNotificationCollection")
 
     private init() { }
 
@@ -343,7 +343,7 @@ public class Sounds: Dependencies {
 
     public static func systemSoundIDForSound(_ sound: Sound, quiet: Bool) -> SystemSoundID? {
         let cacheKey = String(format: "%lu:%d", sound.id, quiet)
-        if let cachedSound = cachedSystemSounds.get(key: cacheKey as NSString) as? SystemSound {
+        if let cachedSound = cachedSystemSounds.get(key: cacheKey) {
             return cachedSound.id
         }
 
@@ -354,7 +354,7 @@ public class Sounds: Dependencies {
             owsFailDebug("Failed to create system sound")
             return nil
         }
-        cachedSystemSounds.set(key: cacheKey as NSString, value: systemSound)
+        cachedSystemSounds.set(key: cacheKey, value: systemSound)
         return systemSound.id
     }
 
@@ -395,7 +395,7 @@ public class Sounds: Dependencies {
     }
 
     public static var globalNotificationSound: Sound {
-        let soundId = databaseStorage.read { transaction in
+        let soundId = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             return keyValueStore.getUInt(soundsStorageGlobalNotificationKey, transaction: transaction)
         }
         guard let soundId else { return defaultNotificationSound }
@@ -403,12 +403,12 @@ public class Sounds: Dependencies {
     }
 
     public static func setGlobalNotificationSound(_ sound: Sound) {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             setGlobalNotificationSound(sound, transaction: transaction)
         }
     }
 
-    private static func setGlobalNotificationSound(_ sound: Sound, transaction: SDSAnyWriteTransaction) {
+    private static func setGlobalNotificationSound(_ sound: Sound, transaction: DBWriteTransaction) {
         Logger.info("Setting global notification sound to: \(sound.displayName)")
 
         // Fallback push notifications play a sound specified by the server, but we don't want to store this configuration
@@ -446,7 +446,7 @@ public class Sounds: Dependencies {
     }
 
     public static func notificationSoundWithSneakyTransaction(forThreadUniqueId threadUniqueId: String) -> Sound {
-        let soundId = databaseStorage.read { transaction in
+        let soundId = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             return keyValueStore.getUInt(threadUniqueId, transaction: transaction)
         }
         guard let soundId else { return globalNotificationSound }
@@ -454,7 +454,7 @@ public class Sounds: Dependencies {
     }
 
     public static func setNotificationSound(_ sound: Sound, forThread thread: TSThread) {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             keyValueStore.setUInt(sound.id, key: thread.uniqueId, transaction: transaction)
         }
     }
@@ -504,8 +504,10 @@ public class Sounds: Dependencies {
         let allCustomSounds = CustomSound.all
         guard !allCustomSounds.isEmpty else { return }
 
-        let allInUseSoundIds = databaseStorage.read { transaction in
-            return Set(keyValueStore.allValues(transaction: transaction) as! [UInt])
+        let allInUseSoundIds = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            return Set(keyValueStore.allKeys(transaction: transaction).compactMap {
+                return keyValueStore.getUInt($0, transaction: transaction)
+            })
         }
 
         let orphanedSounds = allCustomSounds.filter { !allInUseSoundIds.contains($0.id) }

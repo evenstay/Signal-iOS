@@ -44,7 +44,6 @@ public class RecipientPickerViewController: OWSViewController, OWSNavigationChil
     public var shouldShowInvites = false
     public var shouldShowAlphabetSlider = true
     public var shouldShowNewGroup = false
-    public var shouldUseAsyncSelection = false
     public var findByPhoneNumberButtonTitle: String?
 
     // MARK: Signal Connections
@@ -68,7 +67,7 @@ public class RecipientPickerViewController: OWSViewController, OWSNavigationChil
         title = OWSLocalizedString("MESSAGE_COMPOSEVIEW_TITLE", comment: "")
 
         updateSignalConnections()
-        contactsViewHelper.addObserver(self)
+        SUIEnvironment.shared.contactsViewHelperRef.addObserver(self)
 
         // Stack View
         signalContactsStackView.isHidden = isNoContactsModeActive
@@ -112,7 +111,7 @@ public class RecipientPickerViewController: OWSViewController, OWSNavigationChil
         // Make sure we have requested contact access at this point if, e.g.
         // the user has no messages in their inbox and they choose to compose
         // a message.
-        contactsManagerImpl.requestSystemContactsOnce()
+        SSKEnvironment.shared.contactManagerImplRef.requestSystemContactsOnce()
 
         showContactAppropriateViews()
     }
@@ -167,9 +166,9 @@ public class RecipientPickerViewController: OWSViewController, OWSNavigationChil
         lastSearchText = searchText
 
         var searchResults: RecipientSearchResultSet?
-        databaseStorage.asyncRead(
+        SSKEnvironment.shared.databaseStorageRef.asyncRead(
             block: { tx in
-                searchResults = self.fullTextSearcher.searchForRecipients(
+                searchResults = FullTextSearcher.shared.searchForRecipients(
                     searchText: searchText,
                     includeLocalUser: !self.shouldHideLocalRecipient,
                     includeStories: false,
@@ -202,8 +201,6 @@ public class RecipientPickerViewController: OWSViewController, OWSNavigationChil
     }
 
     // MARK: UI
-
-    private var inviteFlow: InviteFlow?
 
     private var isNoContactsModeActive = false {
         didSet {
@@ -275,11 +272,11 @@ public class RecipientPickerViewController: OWSViewController, OWSNavigationChil
     /// to display recipient context menus in this view controller.
     private lazy var recipientContextMenuHelper = {
         return RecipientContextMenuHelper(
-            databaseStorage: databaseStorage,
-            blockingManager: blockingManager,
+            databaseStorage: SSKEnvironment.shared.databaseStorageRef,
+            blockingManager: SSKEnvironment.shared.blockingManagerRef,
             recipientHidingManager: DependenciesBridge.shared.recipientHidingManager,
             accountManager: DependenciesBridge.shared.tsAccountManager,
-            contactsManager: contactsManager,
+            contactsManager: SSKEnvironment.shared.contactManagerRef,
             fromViewController: self,
             delegate: self.delegate
         )
@@ -288,21 +285,21 @@ public class RecipientPickerViewController: OWSViewController, OWSNavigationChil
     // MARK: - Fetching Signal Connections
 
     private func updateSignalConnections() {
-        databaseStorage.read { tx in
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
             let tsAccountManager = DependenciesBridge.shared.tsAccountManager
 
             // All Signal Connections that we believe are registered. In theory, this
             // should include your system contacts and the people you chat with.
-            let whitelistedAddresses = Set(profileManager.allWhitelistedRegisteredAddresses(tx: tx))
-            let blockedAddresses = blockingManager.blockedAddresses(transaction: tx)
-            let hiddenAddresses = DependenciesBridge.shared.recipientHidingManager.hiddenAddresses(tx: tx.asV2Read)
+            let whitelistedAddresses = Set(SSKEnvironment.shared.profileManagerRef.allWhitelistedRegisteredAddresses(tx: tx))
+            let blockedAddresses = SSKEnvironment.shared.blockingManagerRef.blockedAddresses(transaction: tx)
+            let hiddenAddresses = DependenciesBridge.shared.recipientHidingManager.hiddenAddresses(tx: tx)
 
             var resolvedAddresses = Set(whitelistedAddresses).subtracting(blockedAddresses).subtracting(hiddenAddresses)
-            if shouldHideLocalRecipient, let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx.asV2Read) {
+            if shouldHideLocalRecipient, let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) {
                 resolvedAddresses.remove(localIdentifiers.aciAddress)
             }
 
-            signalConnections = contactsManagerImpl.sortedComparableNames(for: resolvedAddresses, tx: tx).filter { $0.displayName.hasKnownValue }
+            signalConnections = SSKEnvironment.shared.contactManagerImplRef.sortedComparableNames(for: resolvedAddresses, tx: tx).filter { $0.displayName.hasKnownValue }
             signalConnectionAddresses = Set(signalConnections.lazy.map { $0.address })
         }
     }
@@ -442,7 +439,7 @@ public class RecipientPickerViewController: OWSViewController, OWSNavigationChil
         }
 
         // Invite Contacts
-        if shouldShowInvites && !isSearching && contactsManagerImpl.sharingAuthorization != .denied {
+        if shouldShowInvites && !isSearching && SSKEnvironment.shared.contactManagerImplRef.sharingAuthorization != .denied {
             let bottomSection = OWSTableSection(title: OWSLocalizedString(
                 "INVITE_FRIENDS_CONTACT_TABLE_HEADER",
                 comment: "Header label above a section for more options for adding contacts"
@@ -472,7 +469,7 @@ public class RecipientPickerViewController: OWSViewController, OWSNavigationChil
 
         let refreshPromise: Promise<Void>
         if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegisteredPrimaryDevice {
-            refreshPromise = contactsManagerImpl.userRequestedSystemContactsRefresh()
+            refreshPromise = SSKEnvironment.shared.contactManagerImplRef.userRequestedSystemContactsRefresh()
         } else {
             refreshPromise = SSKEnvironment.shared.syncManagerRef.sendAllSyncRequestMessages(timeout: 20)
         }
@@ -561,29 +558,7 @@ private extension RecipientPickerViewController {
             owsFailDebug("Trying to select recipient that shouldn't be visible")
             return
         }
-        if shouldUseAsyncSelection {
-            prepareToSelectRecipient(recipient)
-        } else {
-            didPrepareToSelectRecipient(recipient)
-        }
-    }
-
-    private func prepareToSelectRecipient(_ recipient: PickedRecipient) {
-        guard let delegate = delegate else { return }
-        ModalActivityIndicatorViewController.present(fromViewController: self, canCancel: false) { modal in
-            firstly {
-                delegate.recipientPicker(self, prepareToSelectRecipient: recipient)
-            }.done(on: DispatchQueue.main) { [weak self] _ in
-                modal.dismiss {
-                    self?.didPrepareToSelectRecipient(recipient)
-                }
-            }.catch(on: DispatchQueue.main) { error in
-                owsFailDebugUnlessNetworkFailure(error)
-                modal.dismiss {
-                    OWSActionSheets.showErrorAlert(message: error.userErrorDescription)
-                }
-            }
-        }
+        didPrepareToSelectRecipient(recipient)
     }
 
     private func didPrepareToSelectRecipient(_ recipient: PickedRecipient) {
@@ -591,41 +566,7 @@ private extension RecipientPickerViewController {
 
         guard let delegate = delegate else { return }
 
-        let recipientPickerRecipientState = delegate.recipientPicker(self, getRecipientState: recipient)
-        guard recipientPickerRecipientState == .canBeSelected else {
-            showErrorAlert(recipientPickerRecipientState: recipientPickerRecipientState)
-            return
-        }
-
         delegate.recipientPicker(self, didSelectRecipient: recipient)
-    }
-
-    private func showErrorAlert(recipientPickerRecipientState: RecipientPickerRecipientState) {
-        let errorMessage: String
-        switch recipientPickerRecipientState {
-        case .duplicateGroupMember:
-            errorMessage = OWSLocalizedString(
-                "GROUPS_ERROR_MEMBER_ALREADY_IN_GROUP",
-                comment: "Error message indicating that a member can't be added to a group because they are already in the group."
-            )
-        case .userAlreadyInBlocklist:
-            errorMessage = OWSLocalizedString(
-                "BLOCK_LIST_ERROR_USER_ALREADY_IN_BLOCKLIST",
-                comment: "Error message indicating that a user can't be blocked because they are already blocked."
-            )
-        case .conversationAlreadyInBlocklist:
-            errorMessage = OWSLocalizedString(
-                "BLOCK_LIST_ERROR_CONVERSATION_ALREADY_IN_BLOCKLIST",
-                comment: "Error message indicating that a conversation can't be blocked because they are already blocked."
-            )
-        case .canBeSelected, .unknownError:
-            owsFailDebug("Unexpected value.")
-            errorMessage = OWSLocalizedString(
-                "RECIPIENT_PICKER_ERROR_USER_CANNOT_BE_SELECTED",
-                comment: "Error message indicating that a user can't be selected."
-            )
-        }
-        OWSActionSheets.showErrorAlert(message: errorMessage)
     }
 }
 
@@ -800,7 +741,7 @@ extension RecipientPickerViewController {
     /// prevented Signal from accessing their contacts, we don't show the
     /// special UX and instead allow the banner to be visible.
     private func shouldNoContactsModeBeActive() -> Bool {
-        switch contactsManagerImpl.syncingAuthorization {
+        switch SSKEnvironment.shared.contactManagerImplRef.syncingAuthorization {
         case .denied, .restricted:
             // Return false so `contactAccessReminderSection` is invoked.
             return false
@@ -810,7 +751,7 @@ extension RecipientPickerViewController {
         case .notAllowed where shouldShowContactAccessNotAllowedReminderItemWithSneakyTransaction():
             // Return false so `contactAccessReminderSection` is invoked.
             return false
-        case .authorized where !contactsManagerImpl.hasLoadedSystemContacts:
+        case .authorized where !SSKEnvironment.shared.contactManagerImplRef.hasLoadedSystemContacts:
             // Return false so `noContactsTableSection` can show a spinner.
             return false
         case .authorized, .notAllowed:
@@ -818,7 +759,7 @@ extension RecipientPickerViewController {
                 // Return false if we have any contacts; we want to show them!
                 return false
             }
-            if preferences.hasDeclinedNoContactsView {
+            if SSKEnvironment.shared.preferencesRef.hasDeclinedNoContactsView {
                 // Return false if the user has explicitly told us to hide the UX.
                 return false
             }
@@ -835,12 +776,12 @@ extension RecipientPickerViewController {
     /// Works closely with `shouldNoContactsModeBeActive` and therefore might
     /// not be invoked even if the user has no contacts.
     private func noContactsTableSection() -> OWSTableSection {
-        switch contactsManagerImpl.syncingAuthorization {
+        switch SSKEnvironment.shared.contactManagerImplRef.syncingAuthorization {
         case .denied, .restricted:
             return OWSTableSection()
         case .limited:
             return OWSTableSection()
-        case .authorized where !contactsManagerImpl.hasLoadedSystemContacts:
+        case .authorized where !SSKEnvironment.shared.contactManagerImplRef.hasLoadedSystemContacts:
             return OWSTableSection(items: [loadingContactsTableItem()])
         case .authorized, .notAllowed:
             return OWSTableSection(items: [noContactsTableItem()])
@@ -852,7 +793,7 @@ extension RecipientPickerViewController {
     /// Works closely with `shouldNoContactsModeBeActive`.
     private func contactAccessReminderSection() -> OWSTableSection? {
         let tableItem: OWSTableItem
-        switch contactsManagerImpl.syncingAuthorization {
+        switch SSKEnvironment.shared.contactManagerImplRef.syncingAuthorization {
         case .denied:
             tableItem = contactAccessDeniedReminderItem()
         case .limited:
@@ -918,7 +859,7 @@ extension RecipientPickerViewController {
                 ContactAccessLimitedReminderView {
                     Task {
                         // Fetch all contacts the app has access to.
-                        try? await NSObject.contactsManagerImpl.userRequestedSystemContactsRefresh().asVoid().awaitable()
+                        try? await SSKEnvironment.shared.contactManagerImplRef.userRequestedSystemContactsRefresh().asVoid().awaitable()
                     }
                 }
             }
@@ -926,17 +867,17 @@ extension RecipientPickerViewController {
         })
     }
 
-    private static let keyValueStore = SDSKeyValueStore(collection: "RecipientPicker.contactAccess")
+    private static let keyValueStore = KeyValueStore(collection: "RecipientPicker.contactAccess")
     private static let showNotAllowedReminderKey = "shouldShowNotAllowedReminder"
 
     private func shouldShowContactAccessNotAllowedReminderItemWithSneakyTransaction() -> Bool {
-        databaseStorage.read {
+        SSKEnvironment.shared.databaseStorageRef.read {
             Self.keyValueStore.getBool(Self.showNotAllowedReminderKey, defaultValue: true, transaction: $0)
         }
     }
 
     private func hideShowContactAccessNotAllowedReminderItem() {
-        databaseStorage.write {
+        SSKEnvironment.shared.databaseStorageRef.write {
             Self.keyValueStore.setBool(false, key: Self.showNotAllowedReminderKey, transaction: $0)
         }
         reloadContent()
@@ -963,14 +904,13 @@ extension RecipientPickerViewController {
 
     @objc
     private func hideBackgroundView() {
-        self.preferences.setHasDeclinedNoContactsView(true)
+        SSKEnvironment.shared.preferencesRef.setHasDeclinedNoContactsView(true)
         showContactAppropriateViews()
     }
 
     @objc
     private func presentInviteFlow() {
         let inviteFlow = InviteFlow(presentingViewController: self)
-        self.inviteFlow = inviteFlow
         inviteFlow.present(isAnimated: true, completion: nil)
     }
 }
@@ -1031,7 +971,7 @@ extension RecipientPickerViewController {
         // Contacts, with blocked contacts and hidden recipients removed.
         var matchedAccountPhoneNumbers = Set<String>()
         var contactsSectionItems = [OWSTableItem]()
-        databaseStorage.read { tx in
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
             for recipientAddress in searchResults.contactResults.map({ $0.recipientAddress }) {
                 if let phoneNumber = recipientAddress.phoneNumber {
                     matchedAccountPhoneNumbers.insert(phoneNumber)
@@ -1105,12 +1045,10 @@ extension RecipientPickerViewController {
 
     private func addressCell(for address: SignalServiceAddress, recipient: PickedRecipient, tableView: UITableView) -> UITableViewCell? {
         guard let cell = tableView.dequeueReusableCell(ContactTableViewCell.self) else { return nil }
-        if let delegate, delegate.recipientPicker(self, getRecipientState: recipient) != .canBeSelected {
-            cell.selectionStyle = .none
-        }
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             let configuration = ContactCellConfiguration(address: address, localUserDisplayMode: .noteToSelf)
             if let delegate {
+                cell.selectionStyle = delegate.recipientPicker(self, selectionStyleForRecipient: recipient, transaction: transaction)
                 if let accessoryView = delegate.recipientPicker(self, accessoryViewForRecipient: recipient, transaction: transaction) {
                     configuration.accessoryView = accessoryView
                 } else {
@@ -1123,7 +1061,7 @@ extension RecipientPickerViewController {
 
                 configuration.allowUserInteraction = delegate.recipientPicker(self, shouldAllowUserInteractionForRecipient: recipient, transaction: transaction)
 
-                let isSystemContact = contactsManager.fetchSignalAccount(for: address, transaction: transaction) != nil
+                let isSystemContact = SSKEnvironment.shared.contactManagerRef.fetchSignalAccount(for: address, transaction: transaction) != nil
                 configuration.shouldShowContactIcon = isSystemContact
             }
             cell.configure(configuration: configuration, transaction: transaction)
@@ -1135,10 +1073,8 @@ extension RecipientPickerViewController {
         let cell = GroupTableViewCell()
 
         if let delegate {
-            if delegate.recipientPicker(self, getRecipientState: recipient) != .canBeSelected {
-                cell.selectionStyle = .none
-            }
-            databaseStorage.read { tx in
+            SSKEnvironment.shared.databaseStorageRef.read { tx in
+                cell.selectionStyle = delegate.recipientPicker(self, selectionStyleForRecipient: recipient, transaction: tx)
                 cell.accessoryMessage = delegate.recipientPicker(self, accessoryMessageForRecipient: recipient, transaction: tx)
                 cell.customAccessoryView = delegate.recipientPicker(self, accessoryViewForRecipient: recipient, transaction: tx)?.accessoryView
             }
@@ -1231,7 +1167,7 @@ struct PhoneNumberFinder {
             potentialE164 = filteredValue
         } else if
             let localNumber,
-            let callingCode = phoneNumberUtil.parseE164(localNumber)?.getCallingCode()?.intValue
+            let callingCode = phoneNumberUtil.parseE164(localNumber)?.getCallingCode()
         {
             potentialE164 = "+\(callingCode)\(filteredValue)"
         } else {
@@ -1292,9 +1228,8 @@ struct PhoneNumberFinder {
             }
             validE164ToLookUp = validE164
         }
-        return firstly {
-            contactDiscoveryManager.lookUp(phoneNumbers: [validE164ToLookUp], mode: .oneOffUserRequest)
-        }.map { signalRecipients in
+        return Promise.wrapAsync { [contactDiscoveryManager] in
+            let signalRecipients = try await contactDiscoveryManager.lookUp(phoneNumbers: [validE164ToLookUp], mode: .oneOffUserRequest)
             if let signalRecipient = signalRecipients.first {
                 return .success(signalRecipient)
             } else {
@@ -1318,8 +1253,8 @@ extension RecipientPickerViewController {
     ) -> OWSTableSection? {
         let phoneNumberFinder = PhoneNumberFinder(
             localNumber: DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber,
-            contactDiscoveryManager: contactDiscoveryManager,
-            phoneNumberUtil: phoneNumberUtil
+            contactDiscoveryManager: SSKEnvironment.shared.contactDiscoveryManagerRef,
+            phoneNumberUtil: SSKEnvironment.shared.phoneNumberUtilRef
         )
         var phoneNumberResults = phoneNumberFinder.parseResults(for: searchResults.searchText)
         // Don't show phone numbers that are visible in other sections.
@@ -1393,7 +1328,7 @@ extension RecipientPickerViewController {
 
         case (.`default`, .notFound(validE164: let validE164)):
             // Otherwise, if we're trying to contact someone, offer to invite them.
-            presentSMSInvitationSheet(for: validE164)
+            Self.presentSMSInvitationSheet(for: validE164, fromViewController: self)
 
         case (_, .notValid(invalidE164: let invalidE164)):
             // If the number isn't valid, show an error so the user can fix it.
@@ -1401,7 +1336,11 @@ extension RecipientPickerViewController {
         }
     }
 
-    private func presentSMSInvitationSheet(for phoneNumber: String) {
+    public static func presentSMSInvitationSheet(
+        for phoneNumber: String,
+        fromViewController viewController: UIViewController,
+        dismissalDelegate: (any SheetDismissalDelegate)? = nil
+    ) {
         let actionSheet = ActionSheetController(
             title: OWSLocalizedString(
                 "RECIPIENT_PICKER_INVITE_TITLE",
@@ -1422,21 +1361,18 @@ extension RecipientPickerViewController {
                 comment: "Button. Shown after selecting a phone number that isn't a Signal user. Tapping the button will open a view that allows the user to send an SMS message to specified phone number."
             ),
             style: .default,
-            handler: { [weak self] action in
-                guard let self = self else { return }
+            handler: { [weak viewController] action in
+                guard let viewController else { return }
                 guard MFMessageComposeViewController.canSendText() else {
-                    OWSActionSheets.showErrorAlert(message: InviteFlow.unsupportedFeatureMessage)
+                    OWSActionSheets.showErrorAlert(message: InviteFlow.unsupportedFeatureMessage, fromViewController: viewController)
                     return
                 }
-                let inviteFlow = InviteFlow(presentingViewController: self)
+                let inviteFlow = InviteFlow(presentingViewController: viewController)
                 inviteFlow.sendSMSTo(phoneNumbers: [phoneNumber])
-                // We need to keep InviteFlow around until it's completed. We tie its
-                // lifetime to this view controller -- while not perfect, this avoids
-                // leaking the object.
-                self.inviteFlow = inviteFlow
             }
         ))
-        presentActionSheet(actionSheet)
+        actionSheet.dismissalDelegate = dismissalDelegate
+        viewController.presentActionSheet(actionSheet)
     }
 
     private func presentInvalidNumberSheet(for phoneNumber: String) {
@@ -1493,7 +1429,7 @@ extension RecipientPickerViewController: FindByUsernameDelegate {
 extension RecipientPickerViewController {
 
     private func parsePossibleSearchUsername(for searchText: String) -> String? {
-        let username = searchText
+        let username = FindByUsername.preParseUsername(searchText)
 
         guard let firstCharacter = username.first else {
             // Don't show username results -- the user hasn't searched for anything
@@ -1539,7 +1475,7 @@ extension RecipientPickerViewController {
     }
 
     private func findByUsername(_ username: String) {
-        databaseStorage.read { tx in
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
             UsernameQuerier().queryForUsername(
                 username: username,
                 fromViewController: self,

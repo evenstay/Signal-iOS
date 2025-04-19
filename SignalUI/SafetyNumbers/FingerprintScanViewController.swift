@@ -15,7 +15,7 @@ class FingerprintScanViewController: OWSViewController, OWSNavigationChildContro
     private let identityKey: Data
     private let fingerprint: OWSFingerprint
 
-    private lazy var qrCodeScanViewController = QRCodeScanViewController(appearance: .framed())
+    private lazy var qrCodeScanViewController = QRCodeScanViewController(appearance: .framed)
 
     init(
         recipientAci: Aci,
@@ -27,8 +27,8 @@ class FingerprintScanViewController: OWSViewController, OWSNavigationChildContro
         self.identityKey = recipientIdentity.identityKey
 
         self.fingerprint = fingerprint
-        self.contactName = Self.databaseStorage.read { tx in
-            return Self.contactsManager.displayName(for: SignalServiceAddress(recipientAci), tx: tx).resolvedValue()
+        self.contactName = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            return SSKEnvironment.shared.contactManagerRef.displayName(for: SignalServiceAddress(recipientAci), tx: tx).resolvedValue()
         }
 
         super.init()
@@ -103,7 +103,7 @@ class FingerprintScanViewController: OWSViewController, OWSNavigationChildContro
                 identityKey: identityKey,
                 recipientAci: recipientAci,
                 contactName: contactName,
-                tag: logTag
+                tag: "[\(type(of: self))]"
             )
         }
 
@@ -114,7 +114,7 @@ class FingerprintScanViewController: OWSViewController, OWSNavigationChildContro
                 localizedErrorDescription: localizedErrorDescription,
                 retry: { self.qrCodeScanViewController.tryToStartScanning() },
                 cancel: { self.navigationController?.popViewController(animated: true) },
-                tag: logTag
+                tag: "[\(type(of: self))]"
             )
         }
 
@@ -221,7 +221,6 @@ class FingerprintScanViewController: OWSViewController, OWSNavigationChildContro
 
 extension FingerprintScanViewController: QRCodeScanDelegate {
     func qrCodeScanViewScanned(
-        _ qrCodeScanViewController: QRCodeScanViewController,
         qrCodeData: Data?,
         qrCodeString: String?
     ) -> QRCodeScanOutcome {

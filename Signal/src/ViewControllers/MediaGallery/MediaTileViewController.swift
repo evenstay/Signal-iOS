@@ -71,6 +71,8 @@ class MediaTileViewController: UICollectionViewController, MediaGalleryDelegate,
                 }
             case .audio:
                 return AudioCell.reuseIdentifier
+            case .otherFiles:
+                return MediaGalleryFileCell.reuseIdentifier
             }
         }
     }
@@ -229,6 +231,7 @@ class MediaTileViewController: UICollectionViewController, MediaGalleryDelegate,
         collectionView.register(MediaTileCollectionViewCell.self, forCellWithReuseIdentifier: MediaTileCollectionViewCell.reuseIdentifier)
         collectionView.register(WidePhotoCell.self, forCellWithReuseIdentifier: WidePhotoCell.reuseIdentifier)
         collectionView.register(AudioCell.self, forCellWithReuseIdentifier: AudioCell.reuseIdentifier)
+        collectionView.register(MediaGalleryFileCell.self, forCellWithReuseIdentifier: MediaGalleryFileCell.reuseIdentifier)
         collectionView.register(
             MediaGalleryDateHeader.self,
             forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader,
@@ -300,7 +303,7 @@ class MediaTileViewController: UICollectionViewController, MediaGalleryDelegate,
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
 
-        cvAudioPlayer.shouldAutoplayNextAudioAttachment = nil
+        AppEnvironment.shared.cvAudioPlayerRef.shouldAutoplayNextAudioAttachment = nil
     }
 
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
@@ -679,7 +682,7 @@ class MediaTileViewController: UICollectionViewController, MediaGalleryDelegate,
                 return defaultView()
             }
             sectionHeader.contentType = mediaCategory
-            sectionHeader.isFilterOn = isFiltering
+            sectionHeader.isFilterOn = mediaGallery.isFiltering
             sectionHeader.clearFilterAction = { [weak self] in
                 self?.disableFiltering()
             }
@@ -778,9 +781,7 @@ class MediaTileViewController: UICollectionViewController, MediaGalleryDelegate,
                 break
             }
 
-            TSAttachmentVideoDurationHelper.shared.with(context: videoDurationContext) {
-                cell.configure(item: cellItem(for: galleryItem), spoilerState: spoilerState)
-            }
+            cell.configure(item: cellItem(for: galleryItem), spoilerState: spoilerState)
         }
         return cell
     }
@@ -802,9 +803,18 @@ class MediaTileViewController: UICollectionViewController, MediaGalleryDelegate,
                 mediaCache: mediaCache,
                 metadata: galleryItem.mediaMetadata!
             ))
+        case .otherFiles:
+            return .otherFile(MediaGalleryCellItemOtherFile(
+                message: galleryItem.message,
+                interaction: galleryItem.message,
+                thread: thread,
+                attachmentStream: galleryItem.attachmentStream,
+                receivedAtDate: galleryItem.receivedAtDate,
+                mediaCache: mediaCache,
+                metadata: galleryItem.mediaMetadata!
+            ))
         }
     }
-    private lazy var videoDurationContext = { TSAttachmentVideoDurationHelper.Context() }()
 
     override func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
         guard let cell = cell as? Cell else {
@@ -856,6 +866,10 @@ class MediaTileViewController: UICollectionViewController, MediaGalleryDelegate,
                     return WideMediaTileViewLayout(contentCardVerticalInset: WidePhotoCell.contentCardVerticalInset)
                 case .audio:
                     return WideMediaTileViewLayout(contentCardVerticalInset: AudioCell.contentCardVerticalInset)
+                case .otherFiles:
+                    return WideMediaTileViewLayout(
+                        contentCardVerticalInset: MediaGalleryFileCell.contentCardVerticalInset
+                    )
                 }
             case .grid:
                 return SquareMediaTileViewLayout()
@@ -908,6 +922,9 @@ class MediaTileViewController: UICollectionViewController, MediaGalleryDelegate,
         case .audio:
             horizontalSectionInset = 0
             cellHeight = AudioCell.defaultCellHeight
+        case .otherFiles:
+            horizontalSectionInset = 0
+            cellHeight = MediaGalleryFileCell.defaultCellHeight
         }
 
         let newItemSize = CGSize(
@@ -994,6 +1011,14 @@ class MediaTileViewController: UICollectionViewController, MediaGalleryDelegate,
                 if let galleryItem = galleryItem(at: indexPath, loadAsync: true) {
                     let cellItem = cellItem(for: galleryItem)
                     let cellHeight = AudioCell.cellHeight(for: cellItem, maxWidth: defaultCellSize.width)
+                    return CGSize(width: defaultCellSize.width, height: cellHeight)
+                }
+                return defaultCellSize
+            case .otherFiles:
+                let defaultCellSize = currentCollectionViewLayout.itemSize
+                if let galleryItem = galleryItem(at: indexPath, loadAsync: true) {
+                    let cellItem = cellItem(for: galleryItem)
+                    let cellHeight = MediaGalleryFileCell.cellHeight(for: cellItem, maxWidth: defaultCellSize.width)
                     return CGSize(width: defaultCellSize.width, height: cellHeight)
                 }
                 return defaultCellSize
@@ -1431,6 +1456,15 @@ private class MediaGalleryEmptyContentView: UICollectionReusableView {
                     "MEDIA_GALLERY_NO_AUDIO_SUBTITLE",
                     comment: "Displayed in All Media (Audio) screen when there's no audio files - second line."
                 )
+            case .otherFiles:
+                title = NSLocalizedString(
+                    "MEDIA_GALLERY_NO_FILES_TITLE",
+                    comment: "Displayed in All Media (Audio) screen when there's no non-audiovisual files - first line."
+                )
+                subtitle = NSLocalizedString(
+                    "MEDIA_GALLERY_NO_FILES_SUBTITLE",
+                    comment: "Displayed in All Media (Audio) screen when there's no non-audiovisual files - second line."
+                )
             }
         }
 
@@ -1498,10 +1532,6 @@ extension MediaTileViewController: MediaGalleryPrimaryViewController {
 
     var scrollView: UIScrollView { return collectionView }
 
-    var isFiltering: Bool {
-        return mediaGallery.mediaFilter != AllMediaFilter.defaultMediaType(for: mediaCategory)
-    }
-
     var isEmpty: Bool {
         return mediaGallery.galleryDates.isEmpty
     }
@@ -1522,58 +1552,118 @@ extension MediaTileViewController: MediaGalleryPrimaryViewController {
         }
 
         let totalSize = items.reduce(Int64(0), { result, item in
-            result + Int64(item.attachmentStream.attachmentStream.unencryptedResourceByteCount ?? 0)
+            result + Int64(item.attachmentStream.attachmentStream.unencryptedByteCount)
         })
         return (items.count, totalSize)
     }
 
+    func selectAll() {
+        let scrollPosition = collectionView.contentOffset
+        for section in 0..<collectionView.numberOfSections {
+            for index in 0..<collectionView.numberOfItems(inSection: section) {
+                collectionView.selectItem(
+                    at: IndexPath(item: index, section: section),
+                    animated: false,
+                    scrollPosition: []
+                )
+            }
+        }
+        collectionView.setContentOffset(scrollPosition, animated: false)
+    }
+
     var mediaGalleryFilterMenuItems: [MediaGalleryAccessoriesHelper.MenuItem] {
-        return [
-            MenuItem(
-                title:
-                    OWSLocalizedString(
-                        "ALL_MEDIA_FILTER_NONE",
-                        comment: "Menu option to remove content type restriction in All Media view"
-                    ),
-                isChecked: mediaGallery.mediaFilter == AllMediaFilter.defaultMediaType(for: mediaCategory),
-                handler: { [weak self] in
-                    self?.disableFiltering()
-                }
-            ),
-            MenuItem(
-                title:
-                    OWSLocalizedString(
-                        "ALL_MEDIA_FILTER_PHOTOS",
-                        comment: "Menu option to limit All Media view to displaying only photos"
-                    ),
-                isChecked: mediaGallery.mediaFilter == .photos,
-                handler: { [weak self] in
-                    self?.filter(.photos)
-                }
-            ),
-            MenuItem(
-                title:
-                    OWSLocalizedString(
-                        "ALL_MEDIA_FILTER_VIDEOS",
-                        comment: "Menu option to limit All Media view to displaying only videos"
-                    ),
-                isChecked: mediaGallery.mediaFilter == .videos,
-                handler: { [weak self] in
-                    self?.filter(.videos)
-                }
-            ),
-            MenuItem(
-                title:
-                    OWSLocalizedString(
-                        "ALL_MEDIA_FILTER_GIFS",
-                        comment: "Menu option to limit All Media view to displaying only GIFs"
-                    ),
-                isChecked: mediaGallery.mediaFilter == .gifs,
-                handler: { [weak self] in
-                    self?.filter(.gifs)
-                }
-            )
-        ]
+        let menuItems: [MenuItem]
+        switch mediaCategory {
+        case .photoVideo:
+            menuItems = [
+                MenuItem(
+                    title:
+                        OWSLocalizedString(
+                            "ALL_MEDIA_FILTER_NONE",
+                            comment: "Menu option to remove content type restriction in All Media view"
+                        ),
+                    isChecked: mediaGallery.mediaFilter == AllMediaFilter.defaultMediaType(for: mediaCategory),
+                    handler: { [weak self] in
+                        self?.disableFiltering()
+                    }
+                ),
+                MenuItem(
+                    title:
+                        OWSLocalizedString(
+                            "ALL_MEDIA_FILTER_PHOTOS",
+                            comment: "Menu option to limit All Media view to displaying only photos"
+                        ),
+                    isChecked: mediaGallery.mediaFilter == .photos,
+                    handler: { [weak self] in
+                        self?.filter(.photos)
+                    }
+                ),
+                MenuItem(
+                    title:
+                        OWSLocalizedString(
+                            "ALL_MEDIA_FILTER_VIDEOS",
+                            comment: "Menu option to limit All Media view to displaying only videos"
+                        ),
+                    isChecked: mediaGallery.mediaFilter == .videos,
+                    handler: { [weak self] in
+                        self?.filter(.videos)
+                    }
+                ),
+                MenuItem(
+                    title:
+                        OWSLocalizedString(
+                            "ALL_MEDIA_FILTER_GIFS",
+                            comment: "Menu option to limit All Media view to displaying only GIFs"
+                        ),
+                    isChecked: mediaGallery.mediaFilter == .gifs,
+                    handler: { [weak self] in
+                        self?.filter(.gifs)
+                    }
+                )
+            ]
+
+        case .audio:
+            menuItems = [
+                MenuItem(
+                    title:
+                        OWSLocalizedString(
+                            "ALL_MEDIA_AUDIO_FILTER_ALL",
+                            comment: "Menu option to remove content type restriction in All Media (Audio) view"
+                        ),
+                    isChecked: mediaGallery.mediaFilter == AllMediaFilter.defaultMediaType(for: mediaCategory),
+                    handler: { [weak self] in
+                        self?.disableFiltering()
+                    }
+                ),
+                MenuItem(
+                    title:
+                        OWSLocalizedString(
+                            "ALL_MEDIA_AUDIO_FILTER_VOICE_MSG",
+                            comment: "Menu option to limit All Media (Audio) view to displaying only Voice Messages"
+                        ),
+                    isChecked: mediaGallery.mediaFilter == .voiceMessages,
+                    handler: { [weak self] in
+                        self?.filter(.voiceMessages)
+                    }
+                ),
+                MenuItem(
+                    title:
+                        OWSLocalizedString(
+                            "ALL_MEDIA_AUDIO_FILTER_AUDIO_FILES",
+                            comment: "Menu option to limit All Media (Audio) view to displaying non-voice message audio files"
+                        ),
+                    isChecked: mediaGallery.mediaFilter == .audioFiles,
+                    handler: { [weak self] in
+                        self?.filter(.audioFiles)
+                    }
+                )
+            ]
+
+        case .otherFiles:
+            return []
+        }
+
+        return menuItems
     }
 
     func disableFiltering() {
@@ -1675,9 +1765,10 @@ extension MediaTileViewController: MediaGalleryPrimaryViewController {
             return
         }
 
-        let items: [ShareableTSResource] = indexPaths.compactMap {
-            return try? self.galleryItem(at: $0)?.attachmentStream.asShareableResource()
+        let attachments = indexPaths.compactMap {
+            self.galleryItem(at: $0)?.attachmentStream
         }
+        let items: [ShareableAttachment] = (try? attachments.asShareableAttachments()) ?? []
         guard items.count == indexPaths.count else {
             owsFailDebug("trying to delete an item that never loaded")
             return

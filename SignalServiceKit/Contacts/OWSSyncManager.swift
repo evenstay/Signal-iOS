@@ -12,18 +12,17 @@ extension Notification.Name {
     public static let syncManagerKeysSyncDidComplete = Notification.Name("OWSSyncManagerKeysSyncDidCompleteNotification")
 }
 
-@objc
-public class OWSSyncManager: NSObject {
-    private static var keyValueStore: SDSKeyValueStore {
-        SDSKeyValueStore(collection: "kTSStorageManagerOWSSyncManagerCollection")
+public class OWSSyncManager {
+    private static var keyValueStore: KeyValueStore {
+        KeyValueStore(collection: "kTSStorageManagerOWSSyncManagerCollection")
     }
-    private var isRequestInFlight: Bool = false
+
+    private let contactSyncQueue = SerialTaskQueue()
 
     fileprivate let appReadiness: AppReadiness
 
     public init(appReadiness: AppReadiness) {
         self.appReadiness = appReadiness
-        super.init()
         SwiftSingletons.register(self)
         appReadiness.runNowOrWhenMainAppDidBecomeReadyAsync {
             self.addObservers()
@@ -44,7 +43,6 @@ public class OWSSyncManager: NSObject {
 
     private func addObservers() {
         NotificationCenter.default.addObserver(self, selector: #selector(signalAccountsDidChange(_:)), name: .OWSContactsManagerSignalAccountsDidChange, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(profileKeyDidChange(_:)), name: UserProfileNotifications.localProfileKeyDidChange, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(registrationStateDidChange(_:)), name: RegistrationStateChangeNotifications.registrationStateDidChange, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(willEnterForeground(_:)), name: .OWSApplicationWillEnterForeground, object: nil)
     }
@@ -53,12 +51,6 @@ public class OWSSyncManager: NSObject {
 
     @objc
     private func signalAccountsDidChange(_ notification: AnyObject) {
-        AssertIsOnMainThread()
-        syncAllContactsIfNecessary()
-    }
-
-    @objc
-    private func profileKeyDidChange(_ notification: AnyObject) {
         AssertIsOnMainThread()
         syncAllContactsIfNecessary()
     }
@@ -80,11 +72,9 @@ extension OWSSyncManager: SyncManagerProtocolObjc {
 
     // MARK: - Configuration Sync
 
-    private func _sendConfigurationSyncMessage(tx: SDSAnyWriteTransaction) {
-        Logger.info("")
-
+    private func _sendConfigurationSyncMessage(tx: DBWriteTransaction) {
         let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-        guard tsAccountManager.registrationState(tx: tx.asV2Read).isRegistered else {
+        guard tsAccountManager.registrationState(tx: tx).isRegistered else {
             return
         }
 
@@ -93,17 +83,18 @@ extension OWSSyncManager: SyncManagerProtocolObjc {
             return
         }
 
-        let linkPreviews = DependenciesBridge.shared.linkPreviewSettingStore.areLinkPreviewsEnabled(tx: tx.asV2Read)
+        let linkPreviews = DependenciesBridge.shared.linkPreviewSettingStore.areLinkPreviewsEnabled(tx: tx)
         let readReceipts = OWSReceiptManager.areReadReceiptsEnabled(transaction: tx)
-        let sealedSenderIndicators = preferences.shouldShowUnidentifiedDeliveryIndicators(transaction: tx)
-        let typingIndicators = typingIndicatorsImpl.areTypingIndicatorsEnabled()
+        let sealedSenderIndicators = SSKEnvironment.shared.preferencesRef.shouldShowUnidentifiedDeliveryIndicators(transaction: tx)
+        let typingIndicators = SSKEnvironment.shared.typingIndicatorsRef.areTypingIndicatorsEnabled()
 
         let configurationSyncMessage = OWSSyncConfigurationMessage(
-            thread: thread,
+            localThread: thread,
             readReceiptsEnabled: readReceipts,
             showUnidentifiedDeliveryIndicators: sealedSenderIndicators,
             showTypingIndicators: typingIndicators,
             sendLinkPreviews: linkPreviews,
+            provisioningVersion: LinkingProvisioningMessage.Constants.provisioningVersion,
             transaction: tx
         )
         let preparedMessage = PreparedOutgoingMessage.preprepared(
@@ -115,7 +106,7 @@ extension OWSSyncManager: SyncManagerProtocolObjc {
 
     public func sendConfigurationSyncMessage() {
         appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
-            Task { await self.databaseStorage.awaitableWrite(block: self._sendConfigurationSyncMessage(tx:)) }
+            Task { await SSKEnvironment.shared.databaseStorageRef.awaitableWrite(block: self._sendConfigurationSyncMessage(tx:)) }
         }
     }
 }
@@ -133,19 +124,20 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
     // MARK: - Sync Requests
 
     public func sendAllSyncRequestMessagesIfNecessary() -> Promise<Void> {
-        _sendAllSyncRequestMessages(onlyIfNecessary: true)
+        return Promise.wrapAsync { try await self._sendAllSyncRequestMessages(onlyIfNecessary: true) }
     }
 
     public func sendAllSyncRequestMessages(timeout: TimeInterval) -> Promise<Void> {
-        _sendAllSyncRequestMessages(onlyIfNecessary: false).timeout(seconds: timeout, substituteValue: ())
+        return Promise.wrapAsync { try await self._sendAllSyncRequestMessages(onlyIfNecessary: false) }.timeout(seconds: timeout, substituteValue: ())
     }
 
-    private func _sendAllSyncRequestMessages(onlyIfNecessary: Bool) -> Promise<Void> {
+    private func _sendAllSyncRequestMessages(onlyIfNecessary: Bool) async throws {
         guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
-            return Promise(error: OWSAssertionError("Unexpectedly tried to send sync request before registration."))
+            throw OWSAssertionError("Unexpectedly tried to send sync request before registration.")
         }
 
-        return databaseStorage.write(.promise) { (transaction) -> Promise<Void> in
+        let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+        let completionGuarantees = await databaseStorage.awaitableWrite { (transaction) -> [Guarantee<Notification>] in
             let currentAppVersion = AppVersionImpl.shared.currentAppVersion
             let syncRequestedAppVersion = {
                 Self.keyValueStore.getString(
@@ -156,7 +148,7 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
 
             // If we don't need to send sync messages, don't send them.
             if onlyIfNecessary, currentAppVersion == syncRequestedAppVersion() {
-                return .value(())
+                return []
             }
 
             // Otherwise, send them & mark that we sent them for this app version.
@@ -171,13 +163,16 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
                 transaction: transaction
             )
 
-            return Promise.when(fulfilled: [
-                NotificationCenter.default.observe(once: .incomingContactSyncDidComplete).asVoid(),
-                NotificationCenter.default.observe(once: .syncManagerConfigurationSyncDidComplete).asVoid(),
-                NotificationCenter.default.observe(once: BlockingManager.blockedSyncDidComplete).asVoid(),
-                NotificationCenter.default.observe(once: .syncManagerKeysSyncDidComplete).asVoid()
-            ])
-        }.then(on: DependenciesBridge.shared.schedulers.sync) { $0 }
+            return [
+                NotificationCenter.default.observe(once: .incomingContactSyncDidComplete),
+                NotificationCenter.default.observe(once: .syncManagerConfigurationSyncDidComplete),
+                NotificationCenter.default.observe(once: BlockingManager.blockedSyncDidComplete),
+                NotificationCenter.default.observe(once: .syncManagerKeysSyncDidComplete),
+            ]
+        }
+        for completionGuarantee in completionGuarantees {
+            _ = await completionGuarantee.awaitable()
+        }
     }
 
     public func sendKeysSyncMessage() {
@@ -191,15 +186,15 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
             return owsFailDebug("Keys sync should only be initiated from the primary device")
         }
 
-        databaseStorage.asyncWrite { [weak self] transaction in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { [weak self] transaction in
             self?.sendKeysSyncMessage(tx: transaction)
         }
     }
 
-    public func sendKeysSyncMessage(tx: SDSAnyWriteTransaction) {
+    public func sendKeysSyncMessage(tx: DBWriteTransaction) {
         Logger.info("")
 
-        guard DependenciesBridge.shared.tsAccountManager.registrationState(tx: tx.asV2Write).isRegisteredPrimaryDevice else {
+        guard DependenciesBridge.shared.tsAccountManager.registrationState(tx: tx).isRegisteredPrimaryDevice else {
             return owsFailDebug("Keys sync should only be initiated from the registered primary device")
         }
 
@@ -207,12 +202,31 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
             return owsFailDebug("Missing thread")
         }
 
-        let storageServiceKey = DependenciesBridge.shared.svr.data(for: .storageService, transaction: tx.asV2Read)
-        let masterKey = DependenciesBridge.shared.svr.masterKeyDataForKeysSyncMessage(tx: tx.asV2Read)
+        let accountEntropyPool: AccountEntropyPool?
+        if FeatureFlags.enableAccountEntropyPool {
+            accountEntropyPool = DependenciesBridge.shared.accountKeyStore.getAccountEntropyPool(tx: tx)
+        } else {
+            accountEntropyPool = nil
+        }
+
+        if FeatureFlags.enableAccountEntropyPool,
+           accountEntropyPool == nil
+        {
+            Logger.warn("Expecting AEP present for sync message")
+        }
+        let masterKey = DependenciesBridge.shared.accountKeyStore.getMasterKey(tx: tx)
+
+        guard accountEntropyPool != nil || masterKey != nil else {
+            return owsFailDebug("Missing root key")
+        }
+
+        let mrbk = DependenciesBridge.shared.accountKeyStore.getOrGenerateMediaRootBackupKey(tx: tx)
+
         let syncKeysMessage = OWSSyncKeysMessage(
-            thread: thread,
-            storageServiceKey: storageServiceKey?.rawData,
-            masterKey: masterKey,
+            localThread: thread,
+            accountEntropyPool: accountEntropyPool?.rawData,
+            masterKey: masterKey?.rawData,
+            mediaRootBackupKey: mrbk.serialize().asData,
             transaction: tx
         )
         let preparedMessage = PreparedOutgoingMessage.preprepared(
@@ -221,54 +235,61 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
         SSKEnvironment.shared.messageSenderJobQueueRef.add(message: preparedMessage, transaction: tx)
     }
 
-    public func processIncomingKeysSyncMessage(_ syncMessage: SSKProtoSyncMessageKeys, transaction: SDSAnyWriteTransaction) {
-        guard !DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegisteredPrimaryDevice else {
+    public func processIncomingKeysSyncMessage(_ syncMessage: SSKProtoSyncMessageKeys, transaction: DBWriteTransaction) {
+        guard !DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction).isRegisteredPrimaryDevice else {
             return owsFailDebug("Key sync messages should only be processed on linked devices")
         }
 
-        if let masterKey = syncMessage.master {
-            DependenciesBridge.shared.svr.storeSyncedMasterKey(
-                data: masterKey,
+        do {
+            try DependenciesBridge.shared.svr.storeKeys(
+                fromKeysSyncMessage: syncMessage,
                 authedDevice: .implicit,
-                updateStorageService: true,
-                transaction: transaction.asV2Write
+                tx: transaction
             )
-        } else {
-            DependenciesBridge.shared.svr.storeSyncedStorageServiceKey(
-                data: syncMessage.storageService,
-                authedAccount: .implicit(),
-                transaction: transaction.asV2Write
-            )
+        } catch {
+            switch error {
+            case .missingMasterKey:
+                Logger.warn("Key sync messages missing master key")
+            case .missingMediaRootBackupKey:
+                Logger.warn("Key sync messages missing media root backup key")
+            }
         }
 
-        transaction.addAsyncCompletionOffMain {
-            NotificationCenter.default.postNotificationNameAsync(.syncManagerKeysSyncDidComplete, object: nil)
+        transaction.addSyncCompletion {
+            NotificationCenter.default.postOnMainThread(name: .syncManagerKeysSyncDidComplete, object: nil)
         }
     }
 
-    public func sendKeysSyncRequestMessage(transaction: SDSAnyWriteTransaction) {
+    public func sendKeysSyncRequestMessage(transaction: DBWriteTransaction) {
         sendSyncRequestMessage(.keys, transaction: transaction)
     }
 
     public func processIncomingFetchLatestSyncMessage(
         _ syncMessage: SSKProtoSyncMessageFetchLatest,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         switch syncMessage.unwrappedType {
         case .unknown:
             owsFailDebug("Unknown fetch latest type")
         case .localProfile:
-            _ = profileManager.fetchLocalUsersProfile(authedAccount: .implicit())
+            let pendingTask = MessageReceiver.buildPendingTask()
+            Task {
+                defer { pendingTask.complete() }
+                _ = try await SSKEnvironment.shared.profileManagerRef.fetchLocalUsersProfile(authedAccount: .implicit())
+            }
         case .storageManifest:
-            storageServiceManager.restoreOrCreateManifestIfNecessary(authedDevice: .implicit)
+            SSKEnvironment.shared.storageServiceManagerRef.restoreOrCreateManifestIfNecessary(
+                authedDevice: .implicit,
+                masterKeySource: .implicit
+            )
         case .subscriptionStatus:
-            SubscriptionManagerImpl.performDeviceSubscriptionExpiryUpdate()
+            Logger.warn("Ignoring subscription status update fetch-latest sync message.")
         }
     }
 
     public func processIncomingMessageRequestResponseSyncMessage(
         _ syncMessage: SSKProtoSyncMessageMessageRequestResponse,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         guard let thread: TSThread = {
             if let groupId = syncMessage.groupID {
@@ -284,7 +305,7 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
 
         switch syncMessage.type {
         case .accept:
-            blockingManager.removeBlockedThread(thread, wasLocallyInitiated: false, transaction: transaction)
+            SSKEnvironment.shared.blockingManagerRef.removeBlockedThread(thread, wasLocallyInitiated: false, transaction: transaction)
             if let thread = thread as? TSContactThread {
                 /// When we accept a message request on a linked device,
                 /// we unhide the message sender. We will eventually also
@@ -292,13 +313,17 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
                 /// since the linked device should mark unhidden in
                 /// StorageService. But it doesn't hurt to get ahead of the
                 /// game and unhide here.
-                DependenciesBridge.shared.recipientHidingManager.removeHiddenRecipient(
-                    thread.contactAddress,
-                    wasLocallyInitiated: false,
-                    tx: transaction.asV2Write
-                )
+                do {
+                    try DependenciesBridge.shared.recipientHidingManager.removeHiddenRecipient(
+                        thread.contactAddress,
+                        wasLocallyInitiated: false,
+                        tx: transaction
+                    )
+                } catch {
+                    owsFailDebug("Unable to unhide recipient after accept sync message")
+                }
             }
-            profileManager.addThread(
+            SSKEnvironment.shared.profileManagerRef.addThread(
                 toProfileWhitelist: thread,
                 userProfileWriter: .localUser,
                 transaction: transaction
@@ -307,21 +332,21 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
             DependenciesBridge.shared.threadSoftDeleteManager.softDelete(
                 threads: [thread],
                 sendDeleteForMeSyncMessage: false,
-                tx: transaction.asV2Write
+                tx: transaction
             )
         case .block:
-            blockingManager.addBlockedThread(thread, blockMode: .remote, transaction: transaction)
+            SSKEnvironment.shared.blockingManagerRef.addBlockedThread(thread, blockMode: .remote, transaction: transaction)
         case .blockAndDelete:
             DependenciesBridge.shared.threadSoftDeleteManager.softDelete(
                 threads: [thread],
                 sendDeleteForMeSyncMessage: false,
-                tx: transaction.asV2Write
+                tx: transaction
             )
-            blockingManager.addBlockedThread(thread, blockMode: .remote, transaction: transaction)
+            SSKEnvironment.shared.blockingManagerRef.addBlockedThread(thread, blockMode: .remote, transaction: transaction)
         case .spam:
             TSInfoMessage(thread: thread, messageType: .reportedSpam).anyInsert(transaction: transaction)
         case .blockAndSpam:
-            blockingManager.addBlockedThread(thread, blockMode: .remote, transaction: transaction)
+            SSKEnvironment.shared.blockingManagerRef.addBlockedThread(thread, blockMode: .remote, transaction: transaction)
             TSInfoMessage(thread: thread, messageType: .reportedSpam).anyInsert(transaction: transaction)
         case .unknown, .none:
             owsFailDebug("unexpected message request response type")
@@ -335,7 +360,7 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
             return owsFailDebug("Unexpectedly tried to send sync message before registration.")
         }
 
-        databaseStorage.asyncWrite { [weak self] transaction in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { [weak self] transaction in
             self?.sendMessageRequestResponseSyncMessage(thread: thread, responseType: responseType, transaction: transaction)
         }
     }
@@ -343,15 +368,25 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
     public func sendMessageRequestResponseSyncMessage(
         thread: TSThread,
         responseType: OWSSyncMessageRequestResponseType,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         Logger.info("")
 
-        guard DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegistered else {
+        guard DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction).isRegistered else {
             return owsFailDebug("Unexpectedly tried to send sync message before registration.")
         }
 
-        let syncMessageRequestResponse = OWSSyncMessageRequestResponseMessage(thread: thread, responseType: responseType, transaction: transaction)
+        guard let localThread = TSContactThread.getOrCreateLocalThread(transaction: transaction) else {
+            owsFailDebug("Couldn't get localThread.")
+            return
+        }
+
+        let syncMessageRequestResponse = OWSSyncMessageRequestResponseMessage(
+            localThread: localThread,
+            messageRequestThread: thread,
+            responseType: responseType,
+            transaction: transaction
+        )
         let preparedMessage = PreparedOutgoingMessage.preprepared(
             transientMessageWithoutAttachments: syncMessageRequestResponse
         )
@@ -392,8 +427,6 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
         return true
     }
 
-    private static let contactSyncQueue = DispatchQueue(label: "org.signal.contact-sync", autoreleaseFrequency: .workItem)
-
     private func syncContacts(mode: ContactSyncMode) -> Promise<Void> {
         if DebugFlags.dontSendContactOrGroupSyncMessages.get() {
             Logger.info("Skipping contact sync message.")
@@ -404,51 +437,55 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
             return Promise(error: OWSGenericError("Not ready to sync contacts."))
         }
 
-        return Promise { future in
-            Self.contactSyncQueue.async {
-                do {
-                    future.resolve(on: SyncScheduler(), with: try self._syncContacts(mode: mode))
-                } catch {
-                    future.reject(error)
-                }
-            }
+        let syncTask = contactSyncQueue.enqueue {
+            return try await self._syncContacts(mode: mode)
         }
+
+        return Promise.wrapAsync { try await syncTask.value }
     }
 
-    private func _syncContacts(mode: ContactSyncMode) throws -> Promise<Void> {
+    private func _syncContacts(mode: ContactSyncMode) async throws {
         // Don't bother sending sync messages with the same data as the last
         // successfully sent contact sync message.
         let opportunistic = mode == .allSignalAccountsIfChanged
-        // Only have one sync message in flight at a time.
-        let debounce = mode == .allSignalAccountsIfChanged
-
-        if debounce, self.isRequestInFlight {
-            // De-bounce. It's okay if we ignore some new changes;
-            // `syncAllContactsIfNecessary` is called fairly often so we'll sync soon.
-            return .value(())
-        }
 
         if CurrentAppContext().isNSE {
             // If a full sync is specifically requested in the NSE, mark it so that the
             // main app can send that request the next time in runs.
             if mode == .allSignalAccounts {
-                databaseStorage.write { tx in
+                await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
                     Self.keyValueStore.setString(UUID().uuidString, key: Constants.fullSyncRequestIdKey, transaction: tx)
                 }
             }
             // If a full sync sync is requested in NSE, ignore it. Opportunistic syncs
             // shouldn't be requested, but this guards against cases where they are.
-            return .value(())
+            return
         }
 
-        guard let thread = TSContactThread.getOrCreateLocalThreadWithSneakyTransaction() else {
-            owsFailDebug("Missing thread.")
-            throw OWSError(error: .contactSyncFailed, description: "Could not sync contacts.", isRetryable: false)
+        let recipientDatabaseTable = DependenciesBridge.shared.recipientDatabaseTable
+        let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+
+        let (localIdentifiers, hasAnyLinkedDevice) = try SSKEnvironment.shared.databaseStorageRef.read { tx in
+            guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) else {
+                throw OWSError(error: .contactSyncFailed, description: "Not registered.", isRetryable: false)
+            }
+            let localRecipient = recipientDatabaseTable.fetchRecipient(serviceId: localIdentifiers.aci, transaction: tx)
+            return (localIdentifiers, (localRecipient?.deviceIds ?? []).count >= 2)
         }
 
-        let result = try databaseStorage.read { tx in try buildContactSyncMessage(in: thread, mode: mode, tx: tx) }
+        // Don't bother building the message if nobody will receive it. If a new
+        // device is linked, they will request a re-send.
+        guard hasAnyLinkedDevice else {
+            return
+        }
+
+        let thread = await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
+            return TSContactThread.getOrCreateThread(withContactAddress: localIdentifiers.aciAddress, transaction: tx)
+        }
+
+        let result = try SSKEnvironment.shared.databaseStorageRef.read { tx in try buildContactSyncMessage(in: thread, mode: mode, tx: tx) }
         guard let result else {
-            return .value(())
+            return
         }
 
         let messageHash: Data
@@ -464,27 +501,15 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
         // someone is waiting to receive this message.
         if opportunistic, result.fullSyncRequestId == nil, messageHash == result.previousMessageHash {
             // Ignore redundant contacts sync message.
-            return .value(())
+            return
         }
 
         let dataSource = try DataSourcePath(fileUrl: result.syncFileUrl, shouldDeleteOnDeallocation: true)
 
-        if debounce {
-            self.isRequestInFlight = true
-        }
-        return Promise.wrapAsync {
-            defer {
-                if debounce {
-                    Self.contactSyncQueue.async {
-                        self.isRequestInFlight = false
-                    }
-                }
-            }
-            try await self.messageSender.sendTransientContactSyncAttachment(dataSource: dataSource, thread: thread)
-            await self.databaseStorage.awaitableWrite { tx in
-                Self.keyValueStore.setData(messageHash, key: Constants.lastContactSyncKey, transaction: tx)
-                self.clearFullSyncRequestId(ifMatches: result.fullSyncRequestId, tx: tx)
-            }
+        try await SSKEnvironment.shared.messageSenderRef.sendTransientContactSyncAttachment(dataSource: dataSource, localThread: thread)
+        await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
+            Self.keyValueStore.setData(messageHash, key: Constants.lastContactSyncKey, transaction: tx)
+            self.clearFullSyncRequestId(ifMatches: result.fullSyncRequestId, tx: tx)
         }
     }
 
@@ -497,7 +522,7 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
     private func buildContactSyncMessage(
         in thread: TSThread,
         mode: ContactSyncMode,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) throws -> BuildContactSyncMessageResult? {
         // Check if there's a pending request from the NSE. Any full sync in the
         // main app can clear this flag, even if it's not started in response to
@@ -511,7 +536,7 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
         }
 
         guard let syncFileUrl = ContactSyncAttachmentBuilder.buildAttachmentFile(
-            contactsManager: Self.contactsManagerImpl,
+            contactsManager: SSKEnvironment.shared.contactManagerImplRef,
             tx: tx
         ) else {
             owsFailDebug("Failed to serialize contacts sync message.")
@@ -524,7 +549,7 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
         )
     }
 
-    private func clearFullSyncRequestId(ifMatches requestId: String?, tx: SDSAnyWriteTransaction) {
+    private func clearFullSyncRequestId(ifMatches requestId: String?, tx: DBWriteTransaction) {
         guard let requestId else {
             return
         }
@@ -540,21 +565,23 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
 
     // MARK: - Fetch Latest
 
-    public func sendFetchLatestProfileSyncMessage(tx: SDSAnyWriteTransaction) {
+    public func sendFetchLatestProfileSyncMessage(tx: DBWriteTransaction) {
         _sendFetchLatestSyncMessage(type: .localProfile, tx: tx)
     }
 
-    public func sendFetchLatestStorageManifestSyncMessage() { sendFetchLatestSyncMessage(type: .storageManifest) }
+    public func sendFetchLatestStorageManifestSyncMessage() async {
+        await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in self._sendFetchLatestSyncMessage(type: .storageManifest, tx: tx) }
+    }
 
     public func sendFetchLatestSubscriptionStatusSyncMessage() { sendFetchLatestSyncMessage(type: .subscriptionStatus) }
 
     private func sendFetchLatestSyncMessage(type: OWSSyncFetchType) {
-        Task { await self.databaseStorage.awaitableWrite { tx in self._sendFetchLatestSyncMessage(type: type, tx: tx) } }
+        Task { await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in self._sendFetchLatestSyncMessage(type: type, tx: tx) } }
     }
 
-    private func _sendFetchLatestSyncMessage(type: OWSSyncFetchType, tx: SDSAnyWriteTransaction) {
+    private func _sendFetchLatestSyncMessage(type: OWSSyncFetchType, tx: DBWriteTransaction) {
         let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-        guard tsAccountManager.registrationState(tx: tx.asV2Read).isRegistered else {
+        guard tsAccountManager.registrationState(tx: tx).isRegistered else {
             owsFailDebug("Tried to send sync message before registration.")
             return
         }
@@ -564,34 +591,34 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
             return
         }
 
-        let fetchLatestSyncMessage = OWSSyncFetchLatestMessage(thread: thread, fetchType: type, transaction: tx)
+        let fetchLatestSyncMessage = OWSSyncFetchLatestMessage(localThread: thread, fetchType: type, transaction: tx)
         let preparedMessage = PreparedOutgoingMessage.preprepared(
             transientMessageWithoutAttachments: fetchLatestSyncMessage
         )
         SSKEnvironment.shared.messageSenderJobQueueRef.add(message: preparedMessage, transaction: tx)
     }
 
-    public func processIncomingConfigurationSyncMessage(_ syncMessage: SSKProtoSyncMessageConfiguration, transaction: SDSAnyWriteTransaction) {
+    public func processIncomingConfigurationSyncMessage(_ syncMessage: SSKProtoSyncMessageConfiguration, transaction: DBWriteTransaction) {
         if syncMessage.hasReadReceipts {
-            SSKEnvironment.shared.receiptManager.setAreReadReceiptsEnabled(syncMessage.readReceipts, transaction: transaction)
+            SSKEnvironment.shared.receiptManagerRef.setAreReadReceiptsEnabled(syncMessage.readReceipts, transaction: transaction)
         }
         if syncMessage.hasUnidentifiedDeliveryIndicators {
             let updatedValue = syncMessage.unidentifiedDeliveryIndicators
-            self.preferences.setShouldShowUnidentifiedDeliveryIndicators(updatedValue, transaction: transaction)
+            SSKEnvironment.shared.preferencesRef.setShouldShowUnidentifiedDeliveryIndicators(updatedValue, transaction: transaction)
         }
         if syncMessage.hasTypingIndicators {
-            self.typingIndicatorsImpl.setTypingIndicatorsEnabled(value: syncMessage.typingIndicators, transaction: transaction)
+            SSKEnvironment.shared.typingIndicatorsRef.setTypingIndicatorsEnabled(value: syncMessage.typingIndicators, transaction: transaction)
         }
         if syncMessage.hasLinkPreviews {
             let linkPreviewSettingStore = DependenciesBridge.shared.linkPreviewSettingStore
-            linkPreviewSettingStore.setAreLinkPreviewsEnabled(syncMessage.linkPreviews, tx: transaction.asV2Write)
+            linkPreviewSettingStore.setAreLinkPreviewsEnabled(syncMessage.linkPreviews, tx: transaction)
         }
-        transaction.addAsyncCompletionOffMain {
-            NotificationCenter.default.postNotificationNameAsync(.syncManagerConfigurationSyncDidComplete, object: nil)
+        transaction.addSyncCompletion {
+            NotificationCenter.default.postOnMainThread(name: .syncManagerConfigurationSyncDidComplete, object: nil)
         }
     }
 
-    public func processIncomingContactsSyncMessage(_ syncMessage: SSKProtoSyncMessageContacts, transaction: SDSAnyWriteTransaction) {
+    public func processIncomingContactsSyncMessage(_ syncMessage: SSKProtoSyncMessageContacts, transaction: DBWriteTransaction) {
         guard
             syncMessage.blob.hasCdnNumber,
             let cdnKey = syncMessage.blob.cdnKey?.nilIfEmpty,
@@ -602,7 +629,7 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
             owsFailDebug("failed to create attachment download info from incoming contacts sync message")
             return
         }
-        self.smJobQueues.incomingContactSyncJobQueue.add(
+        SSKEnvironment.shared.smJobQueuesRef.incomingContactSyncJobQueue.add(
             cdnNumber: syncMessage.blob.cdnNumber,
             cdnKey: cdnKey,
             encryptionKey: encryptionKey,
@@ -612,19 +639,14 @@ extension OWSSyncManager: SyncManagerProtocol, SyncManagerProtocolSwift {
             tx: transaction
         )
     }
-}
 
-// MARK: -
-
-public extension OWSSyncManager {
-
-    func sendInitialSyncRequestsAwaitingCreatedThreadOrdering(timeoutSeconds: TimeInterval) -> Promise<[String]> {
+    public func sendInitialSyncRequestsAwaitingCreatedThreadOrdering(timeoutSeconds: TimeInterval) -> Promise<[String]> {
         Logger.info("")
         guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
             return Promise(error: OWSAssertionError("Unexpectedly tried to send sync request before registration."))
         }
 
-        databaseStorage.asyncWrite { transaction in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { transaction in
             self.sendSyncRequestMessage(.blocked, transaction: transaction)
             self.sendSyncRequestMessage(.configuration, transaction: transaction)
             self.sendSyncRequestMessage(.contacts, transaction: transaction)
@@ -641,8 +663,10 @@ public extension OWSSyncManager {
         }
     }
 
-    fileprivate func sendSyncRequestMessage(_ requestType: SSKProtoSyncMessageRequestType,
-                                            transaction: SDSAnyWriteTransaction) {
+    private func sendSyncRequestMessage(
+        _ requestType: SSKProtoSyncMessageRequestType,
+        transaction: DBWriteTransaction
+    ) {
         switch requestType {
         case .unknown:
             owsFailDebug("should not request unknown")
@@ -668,7 +692,7 @@ public extension OWSSyncManager {
             return owsFailDebug("Missing thread")
         }
 
-        let syncRequestMessage = OWSSyncRequestMessage(thread: thread, requestType: requestType.rawValue, transaction: transaction)
+        let syncRequestMessage = OWSSyncRequestMessage(localThread: thread, requestType: requestType.rawValue, transaction: transaction)
         let preparedMessage = PreparedOutgoingMessage.preprepared(
             transientMessageWithoutAttachments: syncRequestMessage
         )

@@ -24,6 +24,12 @@ public protocol BackupAttachmentDownloadStore {
     /// rows into the normal AttachmentDownloadQueue, as this table serves only as an intermediary.
     func enqueue(_ reference: AttachmentReference, tx: DBWriteTransaction) throws
 
+    /// Returns whether a download is enqueued for a target attachment.
+    func hasEnqueuedDownload(
+        attachmentRowId: Attachment.IDType,
+        tx: DBReadTransaction
+    ) throws -> Bool
+
     /// Read the next highest priority downloads off the queue, up to count.
     /// Returns an empty array if nothing is left to download.
     func peek(count: UInt, tx: DBReadTransaction) throws -> [QueuedBackupAttachmentDownload]
@@ -42,32 +48,22 @@ public class BackupAttachmentDownloadStoreImpl: BackupAttachmentDownloadStore {
 
     private let kvStore: KeyValueStore
 
-    public init(
-        keyValueStoreFactory: KeyValueStoreFactory
-    ) {
-        self.kvStore = keyValueStoreFactory.keyValueStore(collection: "BackupAttachmentDownloadStoreImpl")
+    public init() {
+        self.kvStore = KeyValueStore(collection: "BackupAttachmentDownloadStoreImpl")
     }
 
     private let shouldStoreAllMediaLocallyKey = "shouldStoreAllMediaLocallyKey"
 
-    public func getShouldStoreAllMediaLocally(tx: any DBReadTransaction) -> Bool {
+    public func getShouldStoreAllMediaLocally(tx: DBReadTransaction) -> Bool {
         return kvStore.getBool(shouldStoreAllMediaLocallyKey, defaultValue: true, transaction: tx)
     }
 
-    public func setShouldStoreAllMediaLocally(_ newValue: Bool, tx: any DBWriteTransaction) {
+    public func setShouldStoreAllMediaLocally(_ newValue: Bool, tx: DBWriteTransaction) {
         kvStore.setBool(newValue, key: shouldStoreAllMediaLocallyKey, transaction: tx)
     }
 
-    public func enqueue(_ reference: AttachmentReference, tx: any DBWriteTransaction) throws {
-        let db = SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite.database
-        try enqueue(reference, tx: tx, db: db)
-    }
-
-    internal func enqueue(
-        _ reference: AttachmentReference,
-        tx: any DBWriteTransaction,
-        db: GRDB.Database
-    ) throws {
+    public func enqueue(_ reference: AttachmentReference, tx: DBWriteTransaction) throws {
+        let db = tx.database
         let timestamp: UInt64? = {
             switch reference.owner {
             case .message(.bodyAttachment(let metadata)):
@@ -112,23 +108,23 @@ public class BackupAttachmentDownloadStoreImpl: BackupAttachmentDownloadStore {
         try record.insert(db)
     }
 
+    public func hasEnqueuedDownload(
+        attachmentRowId: Attachment.IDType,
+        tx: DBReadTransaction
+    ) throws -> Bool {
+        let existingRecord = try QueuedBackupAttachmentDownload
+            .filter(Column(QueuedBackupAttachmentDownload.CodingKeys.attachmentRowId) == attachmentRowId)
+            .fetchOne(tx.database)
+
+        return existingRecord != nil
+    }
+
     public func peek(
         count: UInt,
         tx: DBReadTransaction
     ) throws -> [QueuedBackupAttachmentDownload] {
-        return try self.peek(
-            count: count,
-            db: SDSDB.shimOnlyBridge(tx).unwrapGrdbRead.database,
-            tx: tx
-        )
-    }
-
-    internal func peek(
-        count: UInt,
-        db: GRDB.Database,
-        tx: DBReadTransaction
-    ) throws -> [QueuedBackupAttachmentDownload] {
-        try QueuedBackupAttachmentDownload
+        let db = tx.database
+        return try QueuedBackupAttachmentDownload
             // We want to dequeue in _reverse_ insertion order.
             .order([Column(QueuedBackupAttachmentDownload.CodingKeys.id).desc])
             .limit(Int(count))
@@ -139,66 +135,13 @@ public class BackupAttachmentDownloadStoreImpl: BackupAttachmentDownloadStore {
         _ record: QueuedBackupAttachmentDownload,
         tx: DBWriteTransaction
     ) throws {
-        try self.removeQueuedDownload(
-            record,
-            db: SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite.database,
-            tx: tx
-        )
-    }
-
-    internal func removeQueuedDownload(
-        _ record: QueuedBackupAttachmentDownload,
-        db: Database,
-        tx: DBWriteTransaction
-    ) throws {
+        let db = tx.database
         try QueuedBackupAttachmentDownload
             .filter(Column(QueuedBackupAttachmentDownload.CodingKeys.id) == record.id)
             .deleteAll(db)
     }
 
     public func removeAll(tx: DBWriteTransaction) throws {
-        try self.removeAll(db: SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite.database, tx: tx)
-    }
-
-    internal func removeAll(db: GRDB.Database, tx: DBWriteTransaction) throws {
-        try QueuedBackupAttachmentDownload.deleteAll(db)
+        try QueuedBackupAttachmentDownload.deleteAll(tx.database)
     }
 }
-
-#if TESTABLE_BUILD
-
-open class BackupAttachmentDownloadStoreMock: BackupAttachmentDownloadStore {
-
-    public init() {}
-
-    public var shouldStoreAllMediaLocally = true
-
-    public func getShouldStoreAllMediaLocally(tx: any DBReadTransaction) -> Bool {
-        return shouldStoreAllMediaLocally
-    }
-
-    public func setShouldStoreAllMediaLocally(_ newValue: Bool, tx: any DBWriteTransaction) {
-        shouldStoreAllMediaLocally = newValue
-    }
-
-    open func enqueue(_ reference: AttachmentReference, tx: any DBWriteTransaction) throws {
-        // Do nothing
-    }
-
-    open func peek(count: UInt, tx: DBReadTransaction) throws -> [QueuedBackupAttachmentDownload] {
-        return []
-    }
-
-    open func removeQueuedDownload(
-        _ record: QueuedBackupAttachmentDownload,
-        tx: DBWriteTransaction
-    ) throws {
-        // Do nothing
-    }
-
-    open func removeAll(tx: DBWriteTransaction) throws {
-        // Do nothing
-    }
-}
-
-#endif

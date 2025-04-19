@@ -6,13 +6,13 @@
 import Foundation
 import SignalServiceKit
 
-class NSEEnvironment: Dependencies {
+class NSEEnvironment {
     let appReadiness: AppReadinessSetter
     let appContext: NSEContext
 
     init() {
         self.appContext = NSEContext()
-        SetCurrentAppContext(self.appContext)
+        SetCurrentAppContext(self.appContext, isRunningTests: false)
         appReadiness = AppReadinessImpl()
     }
 
@@ -27,10 +27,13 @@ class NSEEnvironment: Dependencies {
 
     private static var mainAppDarwinQueue: DispatchQueue { .global(qos: .userInitiated) }
 
-    func askMainAppToHandleReceipt(
-        logger: NSELogger,
-        handledCallback: @escaping (_ mainAppHandledReceipt: Bool) -> Void
-    ) {
+    func askMainAppToHandleReceipt(logger: NSELogger) async -> Bool {
+        await withCheckedContinuation { continuation in
+            _askMainAppToHandleReceipt(logger: logger, continuation: continuation)
+        }
+    }
+
+    private func _askMainAppToHandleReceipt(logger: NSELogger, continuation: CheckedContinuation<Bool, Never>) {
         Self.mainAppDarwinQueue.async {
             // We track whether we've ever handled the call back to ensure
             // we only notify the caller once and avoid any races that may
@@ -52,7 +55,7 @@ class NSEEnvironment: Dependencies {
                     logger.info("Main app ack'd.")
                 }
 
-                handledCallback(true)
+                continuation.resume(returning: true)
             }
 
             // Notify the main app that we received new content to process.
@@ -72,7 +75,7 @@ class NSEEnvironment: Dependencies {
                 // If we haven't called back yet and removed the observer token,
                 // the main app is not running and will not handle receipt of this
                 // notification.
-                handledCallback(false)
+                continuation.resume(returning: false)
             }
         }
     }
@@ -99,20 +102,18 @@ class NSEEnvironment: Dependencies {
 
     // MARK: - Setup
 
-    private var didStartAppSetup = false
-    private var didFinishDatabaseSetup = false
+    @MainActor private var didStartAppSetup = false
+    @MainActor private var finalContinuation: AppSetup.FinalContinuation?
 
     /// Called for each notification the NSE receives.
     ///
     /// Will be invoked multiple times in the same NSE process.
     @MainActor
-    func setUp(logger: NSELogger) throws {
+    func setUp(logger: NSELogger) {
         let debugLogger = DebugLogger.shared
 
-        // Do this every time in case the setting is changed.
-        debugLogger.setUpFileLoggingIfNeeded(appContext: appContext, canLaunchInBackground: true)
-
         if !didStartAppSetup {
+            debugLogger.enableFileLogging(appContext: appContext, canLaunchInBackground: true)
             debugLogger.enableTTYLoggingIfNeeded()
             DebugLogger.registerLibsignal()
             DebugLogger.registerRingRTC()
@@ -123,9 +124,12 @@ class NSEEnvironment: Dependencies {
             "pid: \(ProcessInfo.processInfo.processIdentifier), memoryUsage: \(LocalDevice.memoryUsageString)",
             flushImmediately: true
         )
+    }
 
-        if didFinishDatabaseSetup {
-            return
+    @MainActor
+    func setUpDatabase(logger: NSELogger) async throws -> AppSetup.FinalContinuation {
+        if let finalContinuation {
+            return finalContinuation
         }
 
         let keychainStorage = KeychainStorageImpl(isUsingProductionService: TSConstants.isUsingProductionService)
@@ -136,38 +140,31 @@ class NSEEnvironment: Dependencies {
         )
         databaseStorage.grdbStorage.setUpDatabasePathKVO()
 
-        didFinishDatabaseSetup = true
-
-        let databaseContinuation = AppSetup().start(
+        let finalContinuation = await AppSetup().start(
             appContext: CurrentAppContext(),
             appReadiness: appReadiness,
             databaseStorage: databaseStorage,
+            deviceSleepManager: nil,
             paymentsEvents: PaymentsEventsAppExtension(),
             mobileCoinHelper: MobileCoinHelperMinimal(),
             callMessageHandler: NSECallMessageHandler(),
             currentCallProvider: CurrentCallNoOpProvider(),
             notificationPresenter: NotificationPresenterImpl(),
-            incrementalTSAttachmentMigrator: NoOpIncrementalMessageTSAttachmentMigrator()
-        )
-
-        databaseContinuation.prepareDatabase().done(on: DispatchQueue.main) { finalSetupContinuation in
-            switch finalSetupContinuation.finish(willResumeInProgressRegistration: false) {
-            case .corruptRegistrationState:
-                // TODO: Maybe notify that you should open the main app.
-                return owsFailDebug("Couldn't launch because of corrupted registration state.")
-            case nil:
-                self.setAppIsReady()
-            }
-        }
-
-        logger.info("completed.")
+            incrementalMessageTSAttachmentMigratorFactory: NoOpIncrementalMessageTSAttachmentMigratorFactory(),
+            messageBackupErrorPresenterFactory: NoOpMessageBackupErrorPresenterFactory()
+        ).prepareDatabase()
+        self.finalContinuation = finalContinuation
 
         listenForMainAppLaunch(logger: logger)
+
+        return finalContinuation
     }
 
     @MainActor
-    private func setAppIsReady() {
-        owsPrecondition(!appReadiness.isAppReady)
+    func setAppIsReady() {
+        if appReadiness.isAppReady {
+            return
+        }
 
         // Note that this does much more than set a flag; it will also run all deferred blocks.
         appReadiness.setAppIsReady()

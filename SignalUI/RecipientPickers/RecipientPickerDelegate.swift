@@ -5,53 +5,40 @@
 
 public import SignalServiceKit
 
-public enum RecipientPickerRecipientState: Int {
-    case canBeSelected
-    case duplicateGroupMember
-    case userAlreadyInBlocklist
-    case conversationAlreadyInBlocklist
-    case unknownError
-}
-
 public protocol RecipientPickerDelegate: RecipientContextMenuHelperDelegate {
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
-        getRecipientState recipient: PickedRecipient
-    ) -> RecipientPickerRecipientState
+        selectionStyleForRecipient recipient: PickedRecipient,
+        transaction: DBReadTransaction
+    ) -> UITableViewCell.SelectionStyle
 
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         didSelectRecipient recipient: PickedRecipient
     )
 
-    /// This delegate method is only used if shouldUseAsyncSelection is set.
-    func recipientPicker(
-        _ recipientPickerViewController: RecipientPickerViewController,
-        prepareToSelectRecipient recipient: PickedRecipient
-    ) -> Promise<Void>
-
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         accessoryMessageForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> String?
 
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         accessoryViewForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> ContactCellAccessoryView?
 
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         attributedSubtitleForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> NSAttributedString?
 
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         shouldAllowUserInteractionForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> Bool
 
     func recipientPickerTableViewWillBeginDragging(_ recipientPickerViewController: RecipientPickerViewController)
@@ -65,36 +52,27 @@ public protocol RecipientPickerDelegate: RecipientContextMenuHelperDelegate {
 }
 
 public extension RecipientPickerDelegate {
-
-    func recipientPicker(
-        _ recipientPickerViewController: RecipientPickerViewController,
-        prepareToSelectRecipient recipient: PickedRecipient
-    ) -> Promise<Void> {
-        owsFailDebug("Not implemented")
-        return Promise.value(())
-    }
-
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         accessoryMessageForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction) -> String? { nil }
+        transaction: DBReadTransaction) -> String? { nil }
 
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         accessoryViewForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> ContactCellAccessoryView? { nil }
 
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         attributedSubtitleForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> NSAttributedString? { nil }
 
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
         shouldAllowUserInteractionForRecipient recipient: PickedRecipient,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> Bool { false }
 
     func recipientPickerTableViewWillBeginDragging(_ recipientPickerViewController: RecipientPickerViewController) {}

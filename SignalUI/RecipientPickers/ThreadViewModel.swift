@@ -26,6 +26,10 @@ public class ThreadViewModel: NSObject {
     public var mutedUntilDate: Date? { associatedData.mutedUntilDate }
     public var isMarkedUnread: Bool { associatedData.isMarkedUnread }
 
+    public var threadUniqueId: String {
+        return threadRecord.uniqueId
+    }
+
     public var isContactThread: Bool {
         return !isGroupThread
     }
@@ -39,15 +43,29 @@ public class ThreadViewModel: NSObject {
     // This property is only populated if forChatList is true.
     public let chatListInfo: ChatListInfo?
 
-    public init(thread: TSThread, forChatList: Bool, transaction: SDSAnyReadTransaction) {
+    /// Instantiate a view model for the thread with the given uniqueId.
+    /// - Important
+    /// Crashes if the corresponding thread does not exist.
+    public convenience init(threadUniqueId: String, forChatList: Bool, transaction tx: DBReadTransaction) {
+        guard let thread = DependenciesBridge.shared.threadStore.fetchThread(
+            uniqueId: threadUniqueId,
+            tx: tx
+        ) else {
+            owsFail("Unexpectedly missing thread for unique ID!")
+        }
+
+        self.init(thread: thread, forChatList: forChatList, transaction: tx)
+    }
+
+    public init(thread: TSThread, forChatList: Bool, transaction: DBReadTransaction) {
         self.threadRecord = thread
 
         let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-        self.disappearingMessagesConfiguration = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: transaction.asV2Read)
+        self.disappearingMessagesConfiguration = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: transaction)
 
         self.isGroupThread = thread.isGroupThread
 
-        let threadDisplayName = Self.contactsManager.displayName(for: thread, tx: transaction)
+        let threadDisplayName = SSKEnvironment.shared.contactManagerRef.displayName(for: thread, tx: transaction)
         self.name = threadDisplayName?.resolvedValue() ?? ""
 
         if case .contactThread(let displayName) = threadDisplayName {
@@ -83,8 +101,8 @@ public class ThreadViewModel: NSObject {
             chatListInfo = nil
         }
 
-        isBlocked = Self.blockingManager.isThreadBlocked(thread, transaction: transaction)
-        isPinned = DependenciesBridge.shared.pinnedThreadStore.isThreadPinned(thread, tx: transaction.asV2Read)
+        isBlocked = SSKEnvironment.shared.blockingManagerRef.isThreadBlocked(thread, transaction: transaction)
+        isPinned = DependenciesBridge.shared.pinnedThreadStore.isThreadPinned(thread, tx: transaction)
     }
 
     override public func isEqual(_ object: Any?) -> Bool {
@@ -98,7 +116,7 @@ public class ThreadViewModel: NSObject {
 
 // MARK: -
 
-public class ChatListInfo: Dependencies {
+public class ChatListInfo {
 
     public let lastMessageDate: Date?
     public let lastMessageOutgoingStatus: MessageReceiptStatus?
@@ -108,7 +126,7 @@ public class ChatListInfo: Dependencies {
         thread: TSThread,
         lastMessageForInbox: TSInteraction?,
         hasPendingMessageRequest: Bool,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) {
 
         self.lastMessageDate = lastMessageForInbox?.timestampDate
@@ -148,10 +166,10 @@ public class ChatListInfo: Dependencies {
         thread: TSThread,
         hasPendingMessageRequest: Bool,
         lastMessageForInbox: TSInteraction?,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> CLVSnippet {
 
-        let isBlocked = blockingManager.isThreadBlocked(thread, transaction: transaction)
+        let isBlocked = SSKEnvironment.shared.blockingManagerRef.isThreadBlocked(thread, transaction: transaction)
 
         func loadDraftText() -> HydratedMessageBody? {
             guard let draftMessageBody = thread.currentDraft(shouldFetchLatest: false,
@@ -160,7 +178,7 @@ public class ChatListInfo: Dependencies {
             }
             return draftMessageBody
                 .hydrating(
-                    mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: transaction.asV2Read)
+                    mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: transaction)
                 )
         }
         func hasVoiceMemoDraft() -> Bool {
@@ -182,7 +200,7 @@ public class ChatListInfo: Dependencies {
                 return nil
             }
             if let incomingMessage = lastMessageForInbox as? TSIncomingMessage {
-                return Self.contactsManagerImpl.shortestDisplayName(
+                return SSKEnvironment.shared.contactManagerImplRef.shortestDisplayName(
                     forGroupMember: incomingMessage.authorAddress,
                     inGroup: groupThread.groupModel,
                     transaction: transaction
@@ -200,7 +218,7 @@ public class ChatListInfo: Dependencies {
             else {
                 return nil
             }
-            return Self.contactsManager.displayName(for: addedByAddress, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
+            return SSKEnvironment.shared.contactManagerRef.displayName(for: addedByAddress, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
         }
 
         if isBlocked {

@@ -5,41 +5,24 @@
 
 import Foundation
 
-@objc
-public class ExperienceUpgradeFinder: NSObject {
+public class ExperienceUpgradeFinder {
 
     // MARK: -
 
-    public class func next(transaction: GRDBReadTransaction) -> ExperienceUpgrade? {
-        return allKnownExperienceUpgrades(transaction: transaction.asAnyRead)
-            .first(where: { upgrade in
-                if
-                    !upgrade.isComplete,
-                    !upgrade.isSnoozed,
-                    !upgrade.hasPassedNumberOfDaysToShow,
-                    upgrade.manifest.shouldBeShown(transaction: transaction.asAnyRead)
-                {
-                    return true
-                }
-
-                return false
-            })
-    }
-
-    public class func markAsViewed(experienceUpgrade: ExperienceUpgrade, transaction: GRDBWriteTransaction) {
+    public class func markAsViewed(experienceUpgrade: ExperienceUpgrade, transaction: DBWriteTransaction) {
         Logger.info("marking experience upgrade as seen \(experienceUpgrade.uniqueId)")
-        experienceUpgrade.markAsViewed(transaction: transaction.asAnyWrite)
+        experienceUpgrade.markAsViewed(transaction: transaction)
     }
 
-    public class func markAsSnoozed(experienceUpgrade: ExperienceUpgrade, transaction: GRDBWriteTransaction) {
+    public class func markAsSnoozed(experienceUpgrade: ExperienceUpgrade, transaction: DBWriteTransaction) {
         Logger.info("marking experience upgrade as snoozed \(experienceUpgrade.uniqueId)")
 
-        experienceUpgrade.markAsSnoozed(transaction: transaction.asAnyWrite)
+        experienceUpgrade.markAsSnoozed(transaction: transaction)
     }
 
     public class func markAsComplete(
         experienceUpgradeManifest manifest: ExperienceUpgradeManifest,
-        transaction: GRDBWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         markAsComplete(
             experienceUpgrade: ExperienceUpgrade.makeNew(withManifest: manifest),
@@ -47,18 +30,17 @@ public class ExperienceUpgradeFinder: NSObject {
         )
     }
 
-    public class func markAsComplete(experienceUpgrade: ExperienceUpgrade, transaction: GRDBWriteTransaction) {
+    public class func markAsComplete(experienceUpgrade: ExperienceUpgrade, transaction: DBWriteTransaction) {
         guard experienceUpgrade.manifest.shouldComplete else {
             return Logger.info("Skipping marking complete for experience upgrade with uniqueId: \(experienceUpgrade.uniqueId)")
         }
 
         Logger.info("Marking complete experience upgrade with uniqueId: \(experienceUpgrade.uniqueId)")
-        experienceUpgrade.markAsComplete(transaction: transaction.asAnyWrite)
+        experienceUpgrade.markAsComplete(transaction: transaction)
     }
 
-    @objc
-    public class func markAllCompleteForNewUser(transaction: GRDBWriteTransaction) {
-        allKnownExperienceUpgrades(transaction: transaction.asAnyRead)
+    public class func markAllCompleteForNewUser(transaction: DBWriteTransaction) {
+        allKnownExperienceUpgrades(transaction: transaction)
             .filter { $0.manifest.skipForNewUsers }
             .forEach { markAsComplete(experienceUpgrade: $0, transaction: transaction) }
     }
@@ -68,8 +50,8 @@ public class ExperienceUpgradeFinder: NSObject {
     /// Returns an array of all recognized ``ExperienceUpgrade``s. Contains the
     /// persisted record if one exists and is applicable, and an in-memory
     /// model otherwise.
-    private class func allKnownExperienceUpgrades(
-        transaction: SDSAnyReadTransaction
+    public class func allKnownExperienceUpgrades(
+        transaction: DBReadTransaction
     ) -> [ExperienceUpgrade] {
         var experienceUpgrades = [ExperienceUpgrade]()
         var localManifestsWithoutRecords = ExperienceUpgradeManifest.wellKnownLocalUpgradeManifests
@@ -122,6 +104,6 @@ public extension ExperienceUpgrade {
         guard firstViewedTimestamp > 0 else { return 0 }
 
         let secondsSinceFirstView = -Date(timeIntervalSince1970: firstViewedTimestamp).timeIntervalSinceNow
-        return Int(secondsSinceFirstView / kDayInterval)
+        return Int(secondsSinceFirstView / .day)
     }
 }

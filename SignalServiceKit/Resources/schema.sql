@@ -54,7 +54,7 @@ CREATE
             ,"receivedAtTimestamp" INTEGER NOT NULL
             ,"timestamp" INTEGER NOT NULL
             ,"uniqueThreadId" TEXT NOT NULL
-            ,"attachmentIds" BLOB
+            ,"deprecated_attachmentIds" BLOB
             ,"authorId" TEXT
             ,"authorPhoneNumber" TEXT
             ,"authorUUID" TEXT
@@ -159,58 +159,6 @@ CREATE
 
 CREATE
     TABLE
-        IF NOT EXISTS "model_KnownStickerPack" (
-            "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
-            ,"recordType" INTEGER NOT NULL
-            ,"uniqueId" TEXT NOT NULL UNIQUE
-                ON CONFLICT FAIL
-            ,"dateCreated" DOUBLE NOT NULL
-            ,"info" BLOB NOT NULL
-            ,"referenceCount" INTEGER NOT NULL
-        )
-;
-
-CREATE
-    TABLE
-        IF NOT EXISTS "model_TSAttachment" (
-            "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
-            ,"recordType" INTEGER NOT NULL
-            ,"uniqueId" TEXT NOT NULL UNIQUE
-                ON CONFLICT FAIL
-            ,"albumMessageId" TEXT
-            ,"attachmentType" INTEGER NOT NULL
-            ,"blurHash" TEXT
-            ,"byteCount" INTEGER NOT NULL
-            ,"caption" TEXT
-            ,"contentType" TEXT NOT NULL
-            ,"encryptionKey" BLOB
-            ,"serverId" INTEGER NOT NULL
-            ,"sourceFilename" TEXT
-            ,"cachedAudioDurationSeconds" DOUBLE
-            ,"cachedImageHeight" DOUBLE
-            ,"cachedImageWidth" DOUBLE
-            ,"creationTimestamp" DOUBLE
-            ,"digest" BLOB
-            ,"isUploaded" INTEGER
-            ,"isValidImageCached" INTEGER
-            ,"isValidVideoCached" INTEGER
-            ,"lazyRestoreFragmentId" TEXT
-            ,"localRelativeFilePath" TEXT
-            ,"mediaSize" BLOB
-            ,"pointerType" INTEGER
-            ,"state" INTEGER
-            ,"uploadTimestamp" INTEGER NOT NULL DEFAULT 0
-            ,"cdnKey" TEXT NOT NULL DEFAULT ''
-            ,"cdnNumber" INTEGER NOT NULL DEFAULT 0
-            ,"isAnimatedCached" INTEGER
-            ,"attachmentSchemaVersion" INTEGER DEFAULT 0
-            ,"videoDuration" DOUBLE
-            ,"clientUuid" TEXT
-        )
-;
-
-CREATE
-    TABLE
         IF NOT EXISTS "model_SSKJobRecord" (
             "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
             ,"recordType" INTEGER NOT NULL
@@ -219,14 +167,12 @@ CREATE
             ,"failureCount" INTEGER NOT NULL
             ,"label" TEXT NOT NULL
             ,"status" INTEGER NOT NULL
-            ,"attachmentIdMap" BLOB
             ,"contactThreadId" TEXT
             ,"envelopeData" BLOB
             ,"invisibleMessage" BLOB
             ,"messageId" TEXT
             ,"removeMessageAfterSending" INTEGER
             ,"threadId" TEXT
-            ,"attachmentId" TEXT
             ,"isMediaMessage" BOOLEAN
             ,"serverDeliveryTimestamp" INTEGER
             ,"exclusiveProcessIdentifier" TEXT
@@ -241,7 +187,6 @@ CREATE
             ,"receiptCredentialPresentation" BLOB
             ,"amount" NUMERIC
             ,"currencyCode" TEXT
-            ,"unsavedMessagesToSend" BLOB
             ,"messageText" TEXT
             ,"paymentIntentClientSecret" TEXT
             ,"paymentMethodId" TEXT
@@ -267,21 +212,8 @@ CREATE
             ,"BDIJR_anchorMessageRowId" INTEGER
             ,"BDIJR_fullThreadDeletionAnchorMessageRowId" INTEGER
             ,"BDIJR_threadUniqueId" TEXT
-        )
-;
-
-CREATE
-    TABLE
-        IF NOT EXISTS "model_OWSMessageContentJob" (
-            "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
-            ,"recordType" INTEGER NOT NULL
-            ,"uniqueId" TEXT NOT NULL UNIQUE
-                ON CONFLICT FAIL
-            ,"createdAt" DOUBLE NOT NULL
-            ,"envelopeData" BLOB NOT NULL
-            ,"plaintextData" BLOB
-            ,"wasReceivedByUD" INTEGER NOT NULL
-            ,"serverDeliveryTimestamp" INTEGER NOT NULL DEFAULT 0
+            ,"receiptCredential" BLOB
+            ,"BRCRJR_state" BLOB
         )
 ;
 
@@ -399,13 +331,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_interactions_on_view_once"
-        ON "model_TSInteraction"("isViewOnceMessage"
-    ,"isViewOnceComplete"
-)
-;
-
-CREATE
     INDEX "index_key_value_store_on_collection_and_key"
         ON "keyvalue"("collection"
     ,"key"
@@ -417,20 +342,6 @@ CREATE
         ON "model_TSInteraction"("recordType"
     ,"uniqueThreadId"
     ,"errorType"
-)
-;
-
-CREATE
-    INDEX "index_attachments_on_albumMessageId"
-        ON "model_TSAttachment"("albumMessageId"
-    ,"recordType"
-)
-;
-
-CREATE
-    INDEX "index_interactions_on_uniqueId_and_threadUniqueId"
-        ON "model_TSInteraction"("uniqueThreadId"
-    ,"uniqueId"
 )
 ;
 
@@ -455,35 +366,6 @@ CREATE
 CREATE
     INDEX "index_user_profiles_on_recipientUUID"
         ON "model_OWSUserProfile"("recipientUUID"
-)
-;
-
-CREATE
-    INDEX "index_interactions_on_timestamp_sourceDeviceId_and_authorUUID"
-        ON "model_TSInteraction"("timestamp"
-    ,"deprecated_sourceDeviceId"
-    ,"authorUUID"
-)
-;
-
-CREATE
-    INDEX "index_interactions_on_timestamp_sourceDeviceId_and_authorPhoneNumber"
-        ON "model_TSInteraction"("timestamp"
-    ,"deprecated_sourceDeviceId"
-    ,"authorPhoneNumber"
-)
-;
-
-CREATE
-    INDEX "index_interactions_on_expiresInSeconds_and_expiresAt"
-        ON "model_TSInteraction"("expiresAt"
-    ,"expiresInSeconds"
-)
-;
-
-CREATE
-    INDEX "index_attachments_on_lazyRestoreFragmentId"
-        ON "model_TSAttachment"("lazyRestoreFragmentId"
 )
 ;
 
@@ -517,24 +399,6 @@ CREATE
 CREATE
     INDEX "index_signal_accounts_on_recipientUUID"
         ON "model_SignalAccount"("recipientUUID"
-)
-;
-
-CREATE
-    TABLE
-        IF NOT EXISTS "media_gallery_items" (
-            "attachmentId" INTEGER NOT NULL UNIQUE
-            ,"albumMessageId" INTEGER NOT NULL
-            ,"threadId" INTEGER NOT NULL
-            ,"originalAlbumOrder" INTEGER NOT NULL
-        )
-;
-
-CREATE
-    INDEX "index_media_gallery_items_for_gallery"
-        ON "media_gallery_items"("threadId"
-    ,"albumMessageId"
-    ,"originalAlbumOrder"
 )
 ;
 
@@ -749,24 +613,10 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_model_TSAttachment_on_uniqueId_and_contentType"
-        ON "model_TSAttachment"("uniqueId"
-    ,"contentType"
-)
-;
-
-CREATE
     INDEX "index_model_TSInteraction_on_uniqueThreadId_recordType_messageType"
         ON "model_TSInteraction"("uniqueThreadId"
     ,"recordType"
     ,"messageType"
-)
-;
-
-CREATE
-    INDEX "index_model_TSInteraction_on_uniqueThreadId_and_attachmentIds"
-        ON "model_TSInteraction"("uniqueThreadId"
-    ,"attachmentIds"
 )
 ;
 
@@ -795,22 +645,6 @@ CREATE
     UNIQUE INDEX "index_model_TSMention_on_uniqueMessageId_and_uuidString"
         ON "model_TSMention"("uniqueMessageId"
     ,"uuidString"
-)
-;
-
-CREATE
-    INDEX "index_model_TSInteraction_on_uniqueThreadId_and_hasEnded_and_recordType"
-        ON "model_TSInteraction"("uniqueThreadId"
-    ,"hasEnded"
-    ,"recordType"
-)
-;
-
-CREATE
-    INDEX "index_model_TSInteraction_on_uniqueThreadId_and_eraId_and_recordType"
-        ON "model_TSInteraction"("uniqueThreadId"
-    ,"eraId"
-    ,"recordType"
 )
 ;
 
@@ -1054,30 +888,6 @@ CREATE
 ;
 
 CREATE
-    INDEX index_model_TSInteraction_ConversationLoadInteractionCount
-        ON model_TSInteraction (
-        uniqueThreadId
-        ,isGroupStoryReply
-        ,recordType
-    )
-WHERE
-    recordType IS NOT 70
-;
-
-CREATE
-    INDEX index_model_TSInteraction_ConversationLoadInteractionDistance
-        ON model_TSInteraction (
-        uniqueThreadId
-        ,id
-        ,isGroupStoryReply
-        ,recordType
-        ,uniqueId
-    )
-WHERE
-    recordType IS NOT 70
-;
-
-CREATE
     INDEX "index_model_TSInteraction_UnreadMessages"
         ON "model_TSInteraction" (
         "read"
@@ -1087,14 +897,6 @@ CREATE
         ,"editState"
         ,"recordType"
     )
-;
-
-CREATE
-    INDEX "index_model_TSInteraction_on_StoryContext"
-        ON "model_TSInteraction"("storyTimestamp"
-    ,"storyAuthorUuidString"
-    ,"isGroupStoryReply"
-)
 ;
 
 CREATE
@@ -1205,20 +1007,6 @@ CREATE
 ;
 
 CREATE
-    INDEX "index_attachments_toMarkAsFailed"
-        ON "model_TSAttachment" (
-        "recordType"
-        ,"state"
-    )
-WHERE
-    "recordType" = 3
-    AND "state" IN (
-        0
-        ,1
-    )
-;
-
-CREATE
     TABLE
         IF NOT EXISTS "EditRecord" (
             "id" INTEGER PRIMARY KEY AUTOINCREMENT
@@ -1276,98 +1064,6 @@ CREATE
 CREATE
     UNIQUE INDEX "index_signal_recipients_on_pni"
         ON "model_SignalRecipient"("pni"
-)
-;
-
-CREATE
-    TABLE
-        IF NOT EXISTS "CallRecord" (
-            "id" INTEGER PRIMARY KEY NOT NULL
-            ,"callId" TEXT NOT NULL
-            ,"interactionRowId" INTEGER NOT NULL UNIQUE REFERENCES "model_TSInteraction"("id"
-        )
-            ON DELETE
-                CASCADE
-                ,"threadRowId" INTEGER NOT NULL REFERENCES "model_TSThread"("id"
-)
-    ON DELETE
-        RESTRICT
-        ,"type" INTEGER NOT NULL
-        ,"direction" INTEGER NOT NULL
-        ,"status" INTEGER NOT NULL
-        ,"timestamp" INTEGER NOT NULL
-        ,"groupCallRingerAci" BLOB
-        ,"unreadStatus" INTEGER NOT NULL DEFAULT 0
-        ,"callEndedTimestamp" INTEGER NOT NULL DEFAULT 0
-)
-;
-
-CREATE
-    UNIQUE INDEX "index_call_record_on_callId_and_threadId"
-        ON "CallRecord"("callId"
-    ,"threadRowId"
-)
-;
-
-CREATE
-    INDEX "index_call_record_on_timestamp"
-        ON "CallRecord"("timestamp"
-)
-;
-
-CREATE
-    INDEX "index_call_record_on_status_and_timestamp"
-        ON "CallRecord"("status"
-    ,"timestamp"
-)
-;
-
-CREATE
-    INDEX "index_call_record_on_threadRowId_and_timestamp"
-        ON "CallRecord"("threadRowId"
-    ,"timestamp"
-)
-;
-
-CREATE
-    INDEX "index_call_record_on_threadRowId_and_status_and_timestamp"
-        ON "CallRecord"("threadRowId"
-    ,"status"
-    ,"timestamp"
-)
-;
-
-CREATE
-    TABLE
-        IF NOT EXISTS "DeletedCallRecord" (
-            "id" INTEGER PRIMARY KEY NOT NULL
-            ,"callId" TEXT NOT NULL
-            ,"threadRowId" INTEGER NOT NULL REFERENCES "model_TSThread"("id"
-        )
-            ON DELETE
-                RESTRICT
-                ,"deletedAtTimestamp" INTEGER NOT NULL
-)
-;
-
-CREATE
-    UNIQUE INDEX "index_deleted_call_record_on_threadRowId_and_callId"
-        ON "DeletedCallRecord"("threadRowId"
-    ,"callId"
-)
-;
-
-CREATE
-    INDEX "index_deleted_call_record_on_deletedAtTimestamp"
-        ON "DeletedCallRecord"("deletedAtTimestamp"
-)
-;
-
-CREATE
-    INDEX "index_call_record_on_callStatus_and_unreadStatus_and_timestamp"
-        ON "CallRecord"("status"
-    ,"unreadStatus"
-    ,"timestamp"
 )
 ;
 
@@ -1493,15 +1189,6 @@ END
 ;
 
 CREATE
-    INDEX "index_call_record_on_threadRowId_and_callStatus_and_unreadStatus_and_timestamp"
-        ON "CallRecord"("threadRowId"
-    ,"status"
-    ,"unreadStatus"
-    ,"timestamp"
-)
-;
-
-CREATE
     TABLE
         IF NOT EXISTS "NicknameRecord" (
             "recipientRowID" INTEGER PRIMARY KEY NOT NULL REFERENCES "model_SignalRecipient"("id"
@@ -1607,6 +1294,7 @@ CREATE
             OR contentType = 1
         ) VIRTUAL
         ,"isViewOnce" BOOLEAN NOT NULL DEFAULT 0
+        ,"ownerIsPastEditRevision" BOOLEAN DEFAULT 0
 )
 ;
 
@@ -1980,32 +1668,6 @@ CREATE
 ;
 
 CREATE
-    TABLE
-        IF NOT EXISTS "TSAttachmentMigration" (
-            "tsAttachmentUniqueId" TEXT NOT NULL
-            ,"interactionRowId" INTEGER
-            ,"storyMessageRowId" INTEGER
-            ,"reservedV2AttachmentPrimaryFileId" BLOB NOT NULL
-            ,"reservedV2AttachmentAudioWaveformFileId" BLOB NOT NULL
-            ,"reservedV2AttachmentVideoStillFrameFileId" BLOB NOT NULL
-        )
-;
-
-CREATE
-    INDEX "index_TSAttachmentMigration_on_interactionRowId"
-        ON "TSAttachmentMigration" ("interactionRowId")
-WHERE
-    "interactionRowId" IS NOT NULL
-;
-
-CREATE
-    INDEX "index_TSAttachmentMigration_on_storyMessageRowId"
-        ON "TSAttachmentMigration" ("storyMessageRowId")
-WHERE
-    "storyMessageRowId" IS NOT NULL
-;
-
-CREATE
     INDEX "index_message_attachment_reference_on_receivedAtTimestamp"
         ON "MessageAttachmentReference"("receivedAtTimestamp"
 )
@@ -2057,14 +1719,6 @@ CREATE
 
 CREATE
     TABLE
-        IF NOT EXISTS "VersionedDMTimerCapabilities" (
-            "serviceId" BLOB NOT NULL UNIQUE
-            ,"isEnabled" BOOLEAN NOT NULL
-        )
-;
-
-CREATE
-    TABLE
         IF NOT EXISTS "AttachmentValidationBackfillQueue" (
             "attachmentId" INTEGER PRIMARY KEY
                 ON CONFLICT IGNORE NOT NULL REFERENCES "Attachment"("id"
@@ -2108,15 +1762,22 @@ CREATE
         IF NOT EXISTS "OrphanedBackupAttachment" (
             "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
             ,"cdnNumber" INTEGER NOT NULL
-            ,"mediaName" TEXT NOT NULL
-            ,"type" INTEGER NOT NULL
-            ,UNIQUE (
-                "mediaName"
-                ,"type"
-                ,"cdnNumber"
-            )
-                ON CONFLICT IGNORE
+            ,"mediaName" TEXT
+            ,"mediaId" BLOB
+            ,"type" INTEGER
         )
+;
+
+CREATE
+    INDEX "index_OrphanedBackupAttachment_on_mediaName"
+        ON "OrphanedBackupAttachment"("mediaName"
+)
+;
+
+CREATE
+    INDEX "index_OrphanedBackupAttachment_on_mediaId"
+        ON "OrphanedBackupAttachment"("mediaId"
+)
 ;
 
 CREATE
@@ -2129,11 +1790,13 @@ CREATE
                     OrphanedBackupAttachment (
                         cdnNumber
                         ,mediaName
+                        ,mediaId
                         ,type
                     )
                 VALUES (
                     OLD.mediaTierCdnNumber
                     ,OLD.mediaName
+                    ,NULL
                     ,0
                 )
 ;
@@ -2151,14 +1814,506 @@ CREATE
                     OrphanedBackupAttachment (
                         cdnNumber
                         ,mediaName
+                        ,mediaId
                         ,type
                     )
                 VALUES (
                     OLD.thumbnailCdnNumber
                     ,OLD.mediaName
+                    ,NULL
                     ,1
                 )
 ;
 
 END
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "CallLink" (
+            "id" INTEGER PRIMARY KEY
+            ,"roomId" BLOB NOT NULL UNIQUE
+            ,"rootKey" BLOB NOT NULL
+            ,"adminPasskey" BLOB
+            ,"adminDeletedAtTimestampMs" INTEGER
+            ,"activeCallId" INTEGER
+            ,"isUpcoming" BOOLEAN
+            ,"pendingActionCounter" INTEGER NOT NULL DEFAULT 0
+            ,"name" TEXT
+            ,"restrictions" INTEGER
+            ,"revoked" BOOLEAN
+            ,"expiration" INTEGER
+            ,CHECK (
+                LENGTH( "roomId" ) IS 32
+            )
+            ,CHECK (
+                LENGTH( "rootKey" ) IS 16
+            )
+            ,CHECK (
+                LENGTH( "adminPasskey" ) > 0
+                OR "adminPasskey" IS NULL
+            )
+            ,CHECK (
+                NOT (
+                    "isUpcoming" IS TRUE
+                    AND "expiration" IS NULL
+                )
+            )
+        )
+;
+
+CREATE
+    INDEX "CallLink_Upcoming"
+        ON "CallLink"("expiration"
+)
+WHERE
+"isUpcoming" = 1
+;
+
+CREATE
+    INDEX "CallLink_Pending"
+        ON "CallLink"("pendingActionCounter"
+)
+WHERE
+"pendingActionCounter" > 0
+;
+
+CREATE
+    INDEX "CallLink_AdminDeleted"
+        ON "CallLink"("adminDeletedAtTimestampMs"
+)
+WHERE
+"adminDeletedAtTimestampMs" IS NOT NULL
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "CallRecord" (
+            "id" INTEGER PRIMARY KEY NOT NULL
+            ,"callId" TEXT NOT NULL
+            ,"interactionRowId" INTEGER UNIQUE REFERENCES "model_TSInteraction"("id"
+        )
+            ON DELETE
+                RESTRICT
+                    ON UPDATE
+                        CASCADE
+                        ,"threadRowId" INTEGER REFERENCES "model_TSThread"("id"
+)
+    ON DELETE
+        RESTRICT
+            ON UPDATE
+                CASCADE
+                ,"callLinkRowId" INTEGER REFERENCES "CallLink"("id"
+)
+    ON DELETE
+        RESTRICT
+            ON UPDATE
+                CASCADE
+                ,"type" INTEGER NOT NULL
+                ,"direction" INTEGER NOT NULL
+                ,"status" INTEGER NOT NULL
+                ,"unreadStatus" INTEGER NOT NULL
+                ,"callBeganTimestamp" INTEGER NOT NULL
+                ,"callEndedTimestamp" INTEGER NOT NULL
+                ,"groupCallRingerAci" BLOB
+                ,CHECK (
+                    IIF (
+                        "threadRowId" IS NOT NULL
+                        ,"callLinkRowId" IS NULL
+                        ,"callLinkRowId" IS NOT NULL
+                    )
+                )
+                ,CHECK (
+                    IIF (
+                        "threadRowId" IS NOT NULL
+                        ,"interactionRowId" IS NOT NULL
+                        ,"interactionRowId" IS NULL
+                    )
+                )
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "DeletedCallRecord" (
+            "id" INTEGER PRIMARY KEY NOT NULL
+            ,"callId" TEXT NOT NULL
+            ,"threadRowId" INTEGER REFERENCES "model_TSThread"("id"
+        )
+            ON DELETE
+                RESTRICT
+                    ON UPDATE
+                        CASCADE
+                        ,"callLinkRowId" INTEGER REFERENCES "CallLink"("id"
+)
+    ON DELETE
+        RESTRICT
+            ON UPDATE
+                CASCADE
+                ,"deletedAtTimestamp" INTEGER NOT NULL
+                ,CHECK (
+                    IIF (
+                        "threadRowId" IS NOT NULL
+                        ,"callLinkRowId" IS NULL
+                        ,"callLinkRowId" IS NOT NULL
+                    )
+                )
+)
+;
+
+CREATE
+    UNIQUE INDEX "CallRecord_threadRowId_callId"
+        ON "CallRecord"("threadRowId"
+    ,"callId"
+)
+WHERE
+"threadRowId" IS NOT NULL
+;
+
+CREATE
+    UNIQUE INDEX "CallRecord_callLinkRowId_callId"
+        ON "CallRecord"("callLinkRowId"
+    ,"callId"
+)
+WHERE
+"callLinkRowId" IS NOT NULL
+;
+
+CREATE
+    INDEX "CallRecord_callBeganTimestamp"
+        ON "CallRecord"("callBeganTimestamp"
+)
+;
+
+CREATE
+    INDEX "CallRecord_status_callBeganTimestamp"
+        ON "CallRecord"("status"
+    ,"callBeganTimestamp"
+)
+;
+
+CREATE
+    INDEX "CallRecord_threadRowId_callBeganTimestamp"
+        ON "CallRecord"("threadRowId"
+    ,"callBeganTimestamp"
+)
+WHERE
+"threadRowId" IS NOT NULL
+;
+
+CREATE
+    INDEX "CallRecord_callLinkRowId_callBeganTimestamp"
+        ON "CallRecord"("callLinkRowId"
+    ,"callBeganTimestamp"
+)
+WHERE
+"callLinkRowId" IS NOT NULL
+;
+
+CREATE
+    INDEX "CallRecord_threadRowId_status_callBeganTimestamp"
+        ON "CallRecord"("threadRowId"
+    ,"status"
+    ,"callBeganTimestamp"
+)
+WHERE
+"threadRowId" IS NOT NULL
+;
+
+CREATE
+    INDEX "CallRecord_callStatus_unreadStatus_callBeganTimestamp"
+        ON "CallRecord"("status"
+    ,"unreadStatus"
+    ,"callBeganTimestamp"
+)
+;
+
+CREATE
+    INDEX "CallRecord_threadRowId_callStatus_unreadStatus_callBeganTimestamp"
+        ON "CallRecord"("threadRowId"
+    ,"status"
+    ,"unreadStatus"
+    ,"callBeganTimestamp"
+)
+WHERE
+"threadRowId" IS NOT NULL
+;
+
+CREATE
+    UNIQUE INDEX "DeletedCallRecord_threadRowId_callId"
+        ON "DeletedCallRecord"("threadRowId"
+    ,"callId"
+)
+WHERE
+"threadRowId" IS NOT NULL
+;
+
+CREATE
+    UNIQUE INDEX "DeletedCallRecord_callLinkRowId_callId"
+        ON "DeletedCallRecord"("callLinkRowId"
+    ,"callId"
+)
+WHERE
+"callLinkRowId" IS NOT NULL
+;
+
+CREATE
+    INDEX "DeletedCallRecord_deletedAtTimestamp"
+        ON "DeletedCallRecord"("deletedAtTimestamp"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "MessageBackupAvatarFetchQueue" (
+            "id" INTEGER PRIMARY KEY NOT NULL
+            ,"groupThreadRowId" INTEGER REFERENCES "model_TSThread"("id"
+        )
+            ON DELETE
+                CASCADE
+                ,"groupAvatarUrl" TEXT
+                ,"serviceId" BLOB
+                ,"numRetries" INTEGER NOT NULL DEFAULT 0
+                ,"nextRetryTimestamp" INTEGER NOT NULL DEFAULT 0
+)
+;
+
+CREATE
+    INDEX "index_MessageBackupAvatarFetchQueue_on_nextRetryTimestamp"
+        ON "MessageBackupAvatarFetchQueue"("nextRetryTimestamp"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "model_TSAttachment" (
+            "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+            ,"recordType" INTEGER NOT NULL
+            ,"uniqueId" TEXT NOT NULL UNIQUE
+                ON CONFLICT FAIL
+            ,"albumMessageId" TEXT
+            ,"attachmentType" INTEGER NOT NULL
+            ,"blurHash" TEXT
+            ,"byteCount" INTEGER NOT NULL
+            ,"caption" TEXT
+            ,"contentType" TEXT NOT NULL
+            ,"encryptionKey" BLOB
+            ,"serverId" INTEGER NOT NULL
+            ,"sourceFilename" TEXT
+            ,"cachedAudioDurationSeconds" DOUBLE
+            ,"cachedImageHeight" DOUBLE
+            ,"cachedImageWidth" DOUBLE
+            ,"creationTimestamp" DOUBLE
+            ,"digest" BLOB
+            ,"isUploaded" INTEGER
+            ,"isValidImageCached" INTEGER
+            ,"isValidVideoCached" INTEGER
+            ,"lazyRestoreFragmentId" TEXT
+            ,"localRelativeFilePath" TEXT
+            ,"mediaSize" BLOB
+            ,"pointerType" INTEGER
+            ,"state" INTEGER
+            ,"uploadTimestamp" INTEGER NOT NULL DEFAULT 0
+            ,"cdnKey" TEXT NOT NULL DEFAULT ''
+            ,"cdnNumber" INTEGER NOT NULL DEFAULT 0
+            ,"isAnimatedCached" INTEGER
+            ,"attachmentSchemaVersion" INTEGER DEFAULT 0
+            ,"videoDuration" DOUBLE
+            ,"clientUuid" TEXT
+        )
+;
+
+CREATE
+    INDEX "index_model_TSAttachment_on_uniqueId_and_contentType"
+        ON "model_TSAttachment"("uniqueId"
+    ,"contentType"
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "TSAttachmentMigration" (
+            "tsAttachmentUniqueId" TEXT NOT NULL
+            ,"interactionRowId" INTEGER
+            ,"storyMessageRowId" INTEGER
+            ,"reservedV2AttachmentPrimaryFileId" BLOB NOT NULL
+            ,"reservedV2AttachmentAudioWaveformFileId" BLOB NOT NULL
+            ,"reservedV2AttachmentVideoStillFrameFileId" BLOB NOT NULL
+        )
+;
+
+CREATE
+    INDEX "index_TSAttachmentMigration_on_interactionRowId"
+        ON "TSAttachmentMigration" ("interactionRowId")
+WHERE
+    "interactionRowId" IS NOT NULL
+;
+
+CREATE
+    INDEX "index_TSAttachmentMigration_on_storyMessageRowId"
+        ON "TSAttachmentMigration" ("storyMessageRowId")
+WHERE
+    "storyMessageRowId" IS NOT NULL
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "BlockedGroup" (
+            "groupId" BLOB PRIMARY KEY NOT NULL
+        ) WITHOUT ROWID
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "CombinedGroupSendEndorsement" (
+            "threadId" INTEGER PRIMARY KEY REFERENCES "model_TSThread"("id"
+        )
+            ON DELETE
+                CASCADE
+                    ON UPDATE
+                        CASCADE
+                        ,"endorsement" BLOB NOT NULL
+                        ,"expiration" INTEGER NOT NULL
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "IndividualGroupSendEndorsement" (
+            "threadId" INTEGER NOT NULL REFERENCES "CombinedGroupSendEndorsement"("threadId"
+        )
+            ON DELETE
+                CASCADE
+                    ON UPDATE
+                        CASCADE
+                        ,"recipientId" INTEGER NOT NULL REFERENCES "model_SignalRecipient"("id"
+)
+    ON DELETE
+        CASCADE
+            ON UPDATE
+                CASCADE
+                ,"endorsement" BLOB NOT NULL
+                ,PRIMARY KEY (
+                    "threadId"
+                    ,"recipientId"
+                )
+)
+;
+
+CREATE
+    INDEX "IndividualGroupSendEndorsement_recipientId"
+        ON "IndividualGroupSendEndorsement"("recipientId"
+)
+;
+
+CREATE
+    INDEX "Interaction_incompleteViewOnce_partial"
+        ON "model_TSInteraction"("isViewOnceMessage"
+    ,"isViewOnceComplete"
+)
+WHERE
+(
+    "isViewOnceMessage" = 1
+)
+AND (
+    "isViewOnceComplete" = 0
+)
+;
+
+CREATE
+    INDEX "Interaction_disappearingMessages_partial"
+        ON "model_TSInteraction"("expiresAt"
+)
+WHERE
+"expiresAt" > 0
+;
+
+CREATE
+    INDEX "Interaction_timestamp"
+        ON "model_TSInteraction"("timestamp"
+)
+;
+
+CREATE
+    INDEX "Interaction_unendedGroupCall_partial"
+        ON "model_TSInteraction"("recordType"
+    ,"hasEnded"
+    ,"uniqueThreadId"
+)
+WHERE
+(
+    "recordType" = 65
+)
+AND (
+    "hasEnded" = 0
+)
+;
+
+CREATE
+    INDEX "Interaction_groupCallEraId_partial"
+        ON "model_TSInteraction"("uniqueThreadId"
+    ,"recordType"
+    ,"eraId"
+)
+WHERE
+"eraId" IS NOT NULL
+;
+
+CREATE
+    INDEX "Interaction_storyReply_partial"
+        ON "model_TSInteraction"("storyAuthorUuidString"
+    ,"storyTimestamp"
+    ,"isGroupStoryReply"
+)
+WHERE
+(
+    "storyAuthorUuidString" IS NOT NULL
+)
+AND (
+    "storyTimestamp" IS NOT NULL
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "AvatarDefaultColor" (
+            "recipientRowId" INTEGER UNIQUE REFERENCES "model_SignalRecipient"("id"
+        )
+            ON DELETE
+                CASCADE
+                    ON UPDATE
+                        CASCADE
+                        ,"groupId" BLOB UNIQUE
+                        ,"defaultColorIndex" INTEGER NOT NULL
+)
+;
+
+CREATE
+    TABLE
+        IF NOT EXISTS "StoryRecipient" (
+            "threadId" INTEGER NOT NULL
+            ,"recipientId" INTEGER NOT NULL
+            ,PRIMARY KEY (
+                "threadId"
+                ,"recipientId"
+            )
+            ,FOREIGN KEY ("threadId") REFERENCES "model_TSThread"("id"
+        )
+            ON DELETE
+                CASCADE
+                    ON UPDATE
+                        CASCADE
+                        ,FOREIGN KEY ("recipientId") REFERENCES "model_SignalRecipient"("id"
+)
+    ON DELETE
+        CASCADE
+            ON UPDATE
+                CASCADE
+) WITHOUT ROWID
+;
+
+CREATE
+    INDEX "StoryRecipient_on_recipientId"
+        ON "StoryRecipient"("recipientId"
+)
 ;

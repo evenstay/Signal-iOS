@@ -5,7 +5,6 @@
 
 #import "TSCall.h"
 #import "TSContactThread.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -150,7 +149,7 @@ NSUInteger TSCallCurrentSchemaVersion = 1;
     return OWSInteractionType_Call;
 }
 
-- (NSString *)previewTextWithTransaction:(SDSAnyReadTransaction *)transaction
+- (NSString *)previewTextWithTransaction:(DBReadTransaction *)transaction
 {
     // We don't actually use the `transaction` but other sibling classes do.
     switch (_callType) {

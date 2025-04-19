@@ -11,7 +11,7 @@ protocol CameraFirstCaptureDelegate: AnyObject {
     func cameraFirstCaptureSendFlowDidCancel(_ cameraFirstCaptureSendFlow: CameraFirstCaptureSendFlow)
 }
 
-class CameraFirstCaptureSendFlow: Dependencies {
+class CameraFirstCaptureSendFlow {
 
     private weak var delegate: CameraFirstCaptureDelegate?
 
@@ -41,7 +41,7 @@ class CameraFirstCaptureSendFlow: Dependencies {
             return
         }
 
-        let groupThread = databaseStorage.read { readTx in
+        let groupThread = SSKEnvironment.shared.databaseStorageRef.read { readTx in
             TSGroupThread.anyFetchGroupThread(uniqueId: groupThreadId, transaction: readTx)
         }
 
@@ -150,7 +150,7 @@ extension CameraFirstCaptureSendFlow: ConversationPickerDelegate {
             }
 
             firstly {
-                TSResourceMultisend.sendTextAttachment(
+                AttachmentMultisend.sendTextAttachment(
                     textAttachment,
                     to: selectedStoryItems
                 ).enqueuedPromise
@@ -171,9 +171,9 @@ extension CameraFirstCaptureSendFlow: ConversationPickerDelegate {
 
         let conversations = selectedConversations
         firstly {
-            TSResourceMultisend.sendApprovedMedia(
+            AttachmentMultisend.sendApprovedMedia(
                 conversations: conversations,
-                approvalMessageBody: self.approvalMessageBody,
+                approvedMessageBody: self.approvalMessageBody,
                 approvedAttachments: approvedAttachments
             ).enqueuedPromise
         }.done { _ in

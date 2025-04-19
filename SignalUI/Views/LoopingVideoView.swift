@@ -19,19 +19,11 @@ public class LoopingVideo: NSObject {
         self.init(decryptedLocalFileUrl: url)
     }
 
-    public convenience init?(_ attachment: TSResourceStream) {
-        switch attachment.concreteStreamType {
-        case .legacy(let tsAttachmentStream):
-            guard let url = tsAttachmentStream.originalMediaURL else {
-                return nil
-            }
-            self.init(decryptedLocalFileUrl: url)
-        case .v2(let attachmentStream):
-            guard let asset = try? attachmentStream.decryptedAVAsset() else {
-                return nil
-            }
-            self.init(asset: asset)
+    public convenience init?(_ attachment: AttachmentStream) {
+        guard let asset = try? attachment.decryptedAVAsset() else {
+            return nil
         }
+        self.init(asset: asset)
     }
 
     public convenience init?(decryptedLocalFileUrl url: URL) {
@@ -148,20 +140,11 @@ public class LoopingVideoView: UIView {
             invalidateIntrinsicContentSize()
 
             if let asset = video?.asset {
-                firstly(on: DispatchQueue.global(qos: .userInitiated)) { [weak self] () -> Void in
-                    guard let self = self else {
-                        return
-                    }
-                    let playerItem = AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: ["tracks"])
-                    self.player.replaceCurrentItem(with: playerItem)
-                    self.player.play()
-                }.done(on: DispatchQueue.main) { [weak self] in
-                    guard let self = self else {
-                        return
-                    }
-                    self.invalidateIntrinsicContentSize()
-                    self.delegate?.loopingVideoViewChangedPlayerItem()
-                }
+                let playerItem = AVPlayerItem(asset: asset, automaticallyLoadedAssetKeys: ["tracks"])
+                self.player.replaceCurrentItem(with: playerItem)
+                self.player.play()
+                self.invalidateIntrinsicContentSize()
+                self.delegate?.loopingVideoViewChangedPlayerItem()
             }
         }
     }

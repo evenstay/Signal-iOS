@@ -42,7 +42,6 @@ class OrphanedAttachmentCleanerTest: XCTestCase {
             try attachmentStore.insert(
                 attachmentParams,
                 reference: referenceParams,
-                db: InMemoryDB.shimOnlyBridge(tx).db,
                 tx: tx
             )
         }
@@ -55,7 +54,7 @@ class OrphanedAttachmentCleanerTest: XCTestCase {
         mockTaskScheduler.tasks = []
 
         try db.write { tx in
-            try Attachment.Record.deleteAll(InMemoryDB.shimOnlyBridge(tx).db)
+            try Attachment.Record.deleteAll(tx.database)
 
             // No deletions until the transaction commits!
             XCTAssertEqual(mockTaskScheduler.tasks.count, 0)
@@ -73,7 +72,7 @@ class OrphanedAttachmentCleanerTest: XCTestCase {
 
         // And no rows left.
         try db.read { tx in
-            XCTAssertNil(try OrphanedAttachmentRecord.fetchOne(InMemoryDB.shimOnlyBridge(tx).db))
+            XCTAssertNil(try OrphanedAttachmentRecord.fetchOne(tx.database))
         }
     }
 
@@ -88,7 +87,7 @@ class OrphanedAttachmentCleanerTest: XCTestCase {
                     localRelativeFilePathAudioWaveform: nil,
                     localRelativeFilePathVideoStillFrame: nil
                 )
-                try record.insert(InMemoryDB.shimOnlyBridge(tx).db)
+                try record.insert(tx.database)
             }
         }
 
@@ -108,7 +107,7 @@ class OrphanedAttachmentCleanerTest: XCTestCase {
 
         // And no rows left.
         try db.read { tx in
-            XCTAssertNil(try OrphanedAttachmentRecord.fetchOne(InMemoryDB.shimOnlyBridge(tx).db))
+            XCTAssertNil(try OrphanedAttachmentRecord.fetchOne(tx.database))
         }
     }
 
@@ -126,7 +125,7 @@ class OrphanedAttachmentCleanerTest: XCTestCase {
                     localRelativeFilePathAudioWaveform: nil,
                     localRelativeFilePathVideoStillFrame: nil
                 )
-                try record.insert(InMemoryDB.shimOnlyBridge(tx).db)
+                try record.insert(tx.database)
             }
         }
 
@@ -167,7 +166,7 @@ class OrphanedAttachmentCleanerTest: XCTestCase {
 
         // The first row should still be around.
         try db.read { tx in
-            let record = try OrphanedAttachmentRecord.fetchOne(InMemoryDB.shimOnlyBridge(tx).db)
+            let record = try OrphanedAttachmentRecord.fetchOne(tx.database)
             XCTAssertEqual(record?.localRelativeFilePath, filePath1)
         }
 
@@ -194,7 +193,7 @@ class OrphanedAttachmentCleanerTest: XCTestCase {
                 localRelativeFilePathAudioWaveform: nil,
                 localRelativeFilePathVideoStillFrame: nil
             )
-            try record.insert(InMemoryDB.shimOnlyBridge(tx).db)
+            try record.insert(tx.database)
         }
 
         XCTAssertEqual(mockTaskScheduler.tasks.count, 1)
@@ -209,8 +208,67 @@ class OrphanedAttachmentCleanerTest: XCTestCase {
 
         // The first row should still be around.
         try db.read { tx in
-            let record = try OrphanedAttachmentRecord.fetchOne(InMemoryDB.shimOnlyBridge(tx).db)
+            let record = try OrphanedAttachmentRecord.fetchOne(tx.database)
             XCTAssertEqual(record?.localRelativeFilePath, filePath1)
+        }
+    }
+
+    func testTooManySkippedRowIds() async throws {
+        // Set up 1001 records to skip; this would overwhelm
+        // GRDB/SQLite if we tried to filter each one in SQL.
+        var skippedIds: [Int64] = []
+        for _ in 0..<1001 {
+            let record = OrphanedAttachmentRecord(
+                localRelativeFilePath: UUID().uuidString,
+                localRelativeFilePathThumbnail: nil,
+                localRelativeFilePathAudioWaveform: nil,
+                localRelativeFilePathVideoStillFrame: nil
+            )
+            skippedIds.append(try orphanedAttachmentCleaner
+                .commitPendingAttachmentWithSneakyTransaction(record)
+            )
+        }
+
+        // Insert one record we actually want to delete
+        var record = OrphanedAttachmentRecord(
+            localRelativeFilePath: UUID().uuidString,
+            localRelativeFilePathThumbnail: UUID().uuidString,
+            localRelativeFilePathAudioWaveform: UUID().uuidString,
+            localRelativeFilePathVideoStillFrame: UUID().uuidString
+        )
+
+        try db.write { tx in
+            try record.insert(tx.database)
+            let count = try OrphanedAttachmentRecord.fetchCount(tx.database)
+            XCTAssertEqual(count, skippedIds.count + 1)
+        }
+
+        // Should delete all existing rows as soon as we start observing.
+        orphanedAttachmentCleaner.beginObserving()
+
+        await mockTaskScheduler.tasks[0].await()
+
+        // Should have deleted the first record and none of the others.
+        try db.read { tx in
+            let count = try OrphanedAttachmentRecord.fetchCount(tx.database)
+            XCTAssertEqual(count, skippedIds.count)
+        }
+
+        // Mark all the ids as not needing skipping anymore.
+        db.write { tx in
+            for id in skippedIds {
+                orphanedAttachmentCleaner.releasePendingAttachment(withId: id, tx: tx)
+            }
+        }
+
+        orphanedAttachmentCleaner.beginObserving()
+
+        await mockTaskScheduler.tasks[1].await()
+
+        // Everything should be deleted
+        try db.read { tx in
+            let count = try OrphanedAttachmentRecord.fetchCount(tx.database)
+            XCTAssertEqual(count, 0)
         }
     }
 
@@ -223,7 +281,7 @@ class OrphanedAttachmentCleanerTest: XCTestCase {
         )
 
         try db.write { tx in
-            try record.insert(InMemoryDB.shimOnlyBridge(tx).db)
+            try record.insert(tx.database)
         }
 
         // Should delete all existing rows as soon as we start observing.

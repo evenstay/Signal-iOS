@@ -5,9 +5,28 @@
 
 import Foundation
 
+public struct DeviceProvisioningTokenId {
+    public let id: String
+
+    fileprivate init(id: String) {
+        self.id = id
+    }
+}
+
+public struct DeviceProvisioningCodeResponse: Decodable {
+    /// An opaque token to send to a new linked device that authorizes the
+    /// new device to link itself to the account that requested this token.
+    public var verificationCode: String
+    /// An opaque identifier for the generated token that the caller may use
+    /// to watch for a new device to complete the linking process.
+    var tokenIdentifier: String
+
+    public var tokenId: DeviceProvisioningTokenId { .init(id: tokenIdentifier) }
+}
+
 public protocol DeviceProvisioningService {
-    func requestDeviceProvisioningCode() -> Promise<String>
-    func provisionDevice(messageBody: Data, ephemeralDeviceId: String) -> Promise<Void>
+    func requestDeviceProvisioningCode() async throws -> DeviceProvisioningCodeResponse
+    func provisionDevice(messageBody: Data, ephemeralDeviceId: String) async throws
 }
 
 public class DeviceProvisioningServiceImpl: DeviceProvisioningService {
@@ -19,37 +38,31 @@ public class DeviceProvisioningServiceImpl: DeviceProvisioningService {
         self.schedulers = schedulers
     }
 
-    public func requestDeviceProvisioningCode() -> Promise<String> {
-        let request = OWSRequestFactory.deviceProvisioningCode()
-        return firstly(on: schedulers.sharedUserInitiated) {
-            self.networkManager.makePromise(request: request, canUseWebSocket: true)
-        }.map(on: schedulers.sharedUserInitiated) { (httpResponse: HTTPResponse) -> String in
+    public func requestDeviceProvisioningCode() async throws -> DeviceProvisioningCodeResponse {
+        do {
+            let request = OWSRequestFactory.deviceProvisioningCode()
+            let httpResponse = try await networkManager.asyncRequest(request)
             guard let httpResponseData = httpResponse.responseBodyData else {
                 throw OWSAssertionError("Missing responseBodyData.")
             }
             let response = try JSONDecoder().decode(DeviceProvisioningCodeResponse.self, from: httpResponseData)
-            guard let nonEmptyVerificationCode = response.verificationCode.nilIfEmpty else {
+            guard response.verificationCode.nilIfEmpty != nil else {
                 throw OWSAssertionError("Empty verificationCode.")
             }
-            return nonEmptyVerificationCode
-        }.recover(on: schedulers.sharedUserInitiated) { (error: Error) -> Promise<String> in
+            return response
+        } catch {
             throw DeviceLimitExceededError(error) ?? error
         }
     }
 
-    private struct DeviceProvisioningCodeResponse: Decodable {
-        var verificationCode: String
-    }
-
-    public func provisionDevice(messageBody: Data, ephemeralDeviceId: String) -> Promise<Void> {
+    public func provisionDevice(messageBody: Data, ephemeralDeviceId: String) async throws {
         let request = OWSRequestFactory.provisionDevice(
             withMessageBody: messageBody,
             ephemeralDeviceId: ephemeralDeviceId
         )
-        return firstly(on: schedulers.sharedUserInitiated) {
-            self.networkManager.makePromise(request: request, canUseWebSocket: true)
-                .asVoid(on: self.schedulers.sync)
-        }.recover(on: schedulers.sharedUserInitiated) { (error: Error) -> Promise<Void> in
+        do {
+            _ = try await networkManager.asyncRequest(request)
+        } catch {
             owsFailDebugUnlessNetworkFailure(error)
             throw error
         }

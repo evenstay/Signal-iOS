@@ -62,7 +62,11 @@ final class OutgoingCallEventSyncMessageManagerImpl: OutgoingCallEventSyncMessag
             return
         }
 
-        guard let conversationId = callRecordConversationIdAdapter.getConversationId(callRecord: callRecord, tx: tx) else {
+        let conversationId: Data
+        do {
+            conversationId = try callRecordConversationIdAdapter.getConversationId(callRecord: callRecord, tx: tx)
+        } catch {
+            owsFailDebug("\(error)")
             return
         }
 
@@ -117,7 +121,7 @@ final class OutgoingCallEventSyncMessageManagerImpl: OutgoingCallEventSyncMessag
 
     private func _sendSyncMessage(
         outgoingCallEvent: OutgoingCallEvent,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         guard let localThread = TSContactThread.getOrCreateLocalThread(transaction: tx) else {
             owsFailDebug("Missing local thread for sync message!")
@@ -125,7 +129,7 @@ final class OutgoingCallEventSyncMessageManagerImpl: OutgoingCallEventSyncMessag
         }
 
         let outgoingCallEventMessage = OutgoingCallEventSyncMessage(
-            thread: localThread,
+            localThread: localThread,
             event: outgoingCallEvent,
             tx: tx
         )

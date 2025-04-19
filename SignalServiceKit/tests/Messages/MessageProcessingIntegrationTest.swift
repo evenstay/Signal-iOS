@@ -33,14 +33,14 @@ class MessageProcessingIntegrationTest: SSKBaseTest {
         let identityManager = DependenciesBridge.shared.identityManager
         identityManager.generateAndPersistNewIdentityKey(for: .aci)
         identityManager.generateAndPersistNewIdentityKey(for: .pni)
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: .init(
                     aci: localAci,
                     pni: Pni.randomForTesting(),
                     e164: .init(localE164Identifier)!
                 ),
-                tx: tx.asV2Write
+                tx: tx
             )
         }
 
@@ -50,7 +50,7 @@ class MessageProcessingIntegrationTest: SSKBaseTest {
     }
 
     override func tearDown() {
-        databaseStorage.grdbStorage.testing_tearDownDatabaseChangeObserver()
+        try! SSKEnvironment.shared.databaseStorageRef.grdbStorage.testing_tearDownDatabaseChangeObserver()
 
         super.tearDown()
     }
@@ -105,18 +105,14 @@ class MessageProcessingIntegrationTest: SSKBaseTest {
                 }
             }
         }
-        guard let observer = databaseStorage.grdbStorage.databaseChangeObserver else {
-            owsFailDebug("observer was unexpectedly nil")
-            return
-        }
-        observer.appendDatabaseWriteDelegate(snapshotDelegate)
+        SSKEnvironment.shared.databaseStorageRef.databaseChangeObserver.appendDatabaseWriteDelegate(snapshotDelegate)
 
         let envelopeBuilder = try! fakeService.envelopeBuilder(fromSenderClient: bobClient, bodyText: "Those who stands for nothing will fall for anything")
         envelopeBuilder.setSourceServiceID(bobClient.serviceId.serviceIdString)
         envelopeBuilder.setServerTimestamp(NSDate.ows_millisecondTimeStamp())
         envelopeBuilder.setServerGuid(UUID().uuidString)
         let envelopeData = try! envelopeBuilder.buildSerializedData()
-        messageProcessor.processReceivedEnvelopeData(
+        SSKEnvironment.shared.messageProcessorRef.processReceivedEnvelopeData(
             envelopeData,
             serverDeliveryTimestamp: NSDate.ows_millisecondTimeStamp(),
             envelopeSource: .tests
@@ -153,7 +149,7 @@ class MessageProcessingIntegrationTest: SSKBaseTest {
         envelopeBuilder.setServerGuid(UUID().uuidString)
         envelopeBuilder.setDestinationServiceID(Aci.randomForTesting().serviceIdString)
         let envelopeData = try! envelopeBuilder.buildSerializedData()
-        messageProcessor.processReceivedEnvelopeData(
+        SSKEnvironment.shared.messageProcessorRef.processReceivedEnvelopeData(
             envelopeData,
             serverDeliveryTimestamp: NSDate.ows_millisecondTimeStamp(),
             envelopeSource: .tests
@@ -187,11 +183,12 @@ class MessageProcessingIntegrationTest: SSKBaseTest {
         read { transaction in
             XCTAssertEqual(0, TSMessage.anyCount(transaction: transaction))
             XCTAssertEqual(0, TSThread.anyCount(transaction: transaction))
-            XCTAssertFalse(identityManager.shouldSharePhoneNumber(with: bobClient.serviceId, tx: transaction.asV2Read))
+            XCTAssertFalse(identityManager.shouldSharePhoneNumber(with: bobClient.serviceId, tx: transaction))
         }
 
-        let content = try! fakeService.buildContentData(bodyText: "Those who stands for nothing will fall for anything")
-        let ciphertext = databaseStorage.write { transaction in
+        let timestamp = MessageTimestampGenerator.sharedInstance.generateTimestamp()
+        let content = try! fakeService.buildContentData(timestamp: timestamp, bodyText: "Those who stands for nothing will fall for anything")
+        let ciphertext = SSKEnvironment.shared.databaseStorageRef.write { transaction in
             try! runner.encrypt(content,
                                 senderClient: bobClient,
                                 recipient: localPniClient.protocolAddress,
@@ -201,13 +198,14 @@ class MessageProcessingIntegrationTest: SSKBaseTest {
         let envelopeBuilder = SSKProtoEnvelope.builder(timestamp: 100)
         envelopeBuilder.setContent(Data(ciphertext.serialize()))
         envelopeBuilder.setType(.prekeyBundle)
+        envelopeBuilder.setTimestamp(timestamp)
         envelopeBuilder.setSourceServiceID(bobClient.serviceId.serviceIdString)
         envelopeBuilder.setSourceDevice(1)
         envelopeBuilder.setServerTimestamp(NSDate.ows_millisecondTimeStamp())
         envelopeBuilder.setServerGuid(UUID().uuidString)
         envelopeBuilder.setDestinationServiceID(DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction!.pni!.serviceIdString)
         let envelopeData = try! envelopeBuilder.buildSerializedData()
-        messageProcessor.processReceivedEnvelopeData(
+        SSKEnvironment.shared.messageProcessorRef.processReceivedEnvelopeData(
             envelopeData,
             serverDeliveryTimestamp: NSDate.ows_millisecondTimeStamp(),
             envelopeSource: .tests
@@ -219,51 +217,54 @@ class MessageProcessingIntegrationTest: SSKBaseTest {
                 break
             }
             self.read { transaction in
-                XCTAssert(identityManager.shouldSharePhoneNumber(with: self.bobClient.serviceId, tx: transaction.asV2Read))
+                XCTAssert(identityManager.shouldSharePhoneNumber(with: self.bobClient.serviceId, tx: transaction))
             }
         }
         waitForExpectations(timeout: 1.0)
     }
 
-    func testEarlyServerGeneratedDeliveryReceipt() throws {
-        write { transaction in
-            try! self.runner.initializePreKeys(senderClient: self.linkedClient,
-                                               recipientClient: localClient,
-                                               transaction: transaction)
+    func testEarlyServerGeneratedDeliveryReceipt() async throws {
+        try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
+            try self.runner.initializePreKeys(senderClient: self.linkedClient, recipientClient: localClient, transaction: tx)
         }
-
-        let expectation = expectation(description: "message processed")
 
         // Handle a server-generated delivery receipt "from" bob
         let timestamp = UInt64(101)
 
-        let envelopeBuilder = SSKProtoEnvelope.builder(timestamp: UInt64(timestamp))
-        envelopeBuilder.setType(.receipt)
-        envelopeBuilder.setServerTimestamp(103)
-        envelopeBuilder.setSourceDevice(2)
-        envelopeBuilder.setSourceServiceID(self.bobClient.serviceId.serviceIdString)
-        let envelopeData = try envelopeBuilder.buildSerializedData()
-        messageProcessor.processReceivedEnvelopeData(
-            envelopeData,
-            serverDeliveryTimestamp: 102,
-            envelopeSource: .websocketUnidentified
-        ) { error in
-            XCTAssertNil(error)
-
-            // Handle a sync message
-            // Build message content
-            let content = try! self.fakeService.buildSyncSentMessage(bodyText: "Hello world",
-                                                                     recipient: self.bobClient.address,
-                                                                     timestamp: timestamp)
-
-            // Encrypt message content
-            let ciphertext = self.databaseStorage.write { transaction in
-                try! self.runner.encrypt(content,
-                                         senderClient: self.linkedClient,
-                                         recipient: self.localClient.protocolAddress,
-                                         context: transaction)
+        do {
+            let envelopeBuilder = SSKProtoEnvelope.builder(timestamp: UInt64(timestamp))
+            envelopeBuilder.setType(.receipt)
+            envelopeBuilder.setServerTimestamp(103)
+            envelopeBuilder.setSourceDevice(2)
+            envelopeBuilder.setSourceServiceID(self.bobClient.serviceId.serviceIdString)
+            let envelopeData = try envelopeBuilder.buildSerializedData()
+            try await withCheckedThrowingContinuation { continuation in
+                SSKEnvironment.shared.messageProcessorRef.processReceivedEnvelopeData(
+                    envelopeData,
+                    serverDeliveryTimestamp: 102,
+                    envelopeSource: .websocketUnidentified
+                ) { error in
+                    continuation.resume(with: error.map({ .failure($0) }) ?? .success(()))
+                }
             }
+        }
 
+        await SSKEnvironment.shared.messageProcessorRef.waitForProcessingComplete().awaitable()
+
+        // Handle a sync message
+        // Build message content
+        let content = try self.fakeService.buildSyncSentMessage(
+            bodyText: "Hello world",
+            recipient: self.bobClient.address,
+            timestamp: timestamp
+        )
+
+        // Encrypt message content
+        let ciphertext = try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
+            try self.runner.encrypt(content, senderClient: self.linkedClient, recipient: self.localClient.protocolAddress, context: tx)
+        }
+
+        do {
             // Build the message
             let envelopeBuilder = SSKProtoEnvelope.builder(timestamp: timestamp)
             envelopeBuilder.setContent(Data(ciphertext.serialize()))
@@ -273,41 +274,38 @@ class MessageProcessingIntegrationTest: SSKBaseTest {
             envelopeBuilder.setServerTimestamp(NSDate.ows_millisecondTimeStamp())
             envelopeBuilder.setServerGuid(UUID().uuidString)
             envelopeBuilder.setDestinationServiceID(self.localClient.serviceId.serviceIdString)
-            let envelopeData = try! envelopeBuilder.buildSerializedData()
+            let envelopeData = try envelopeBuilder.buildSerializedData()
 
             // Process the message
-            self.messageProcessor.processReceivedEnvelopeData(
-                envelopeData,
-                serverDeliveryTimestamp: NSDate.ows_millisecondTimeStamp(),
-                envelopeSource: .tests
-            ) { error in
-                switch error {
-                case let error?:
-                    XCTFail("failure \(error)")
-                case nil:
-                    self.read { transaction in
-                        // Now make sure the status is delivered.
-                        let fetched = try! InteractionFinder.interactions(withTimestamp: timestamp,
-                                                                          filter: { _ in true },
-                                                                          transaction: transaction).compactMap { $0 as? TSOutgoingMessage }
-                        XCTAssertNotNil(fetched.first)
-                        let message = fetched.first!
-                        let recipientState = message.recipientState(for: self.bobClient.address)
-                        XCTAssertNotNil(recipientState)
-                        XCTAssertEqual(recipientState?.status, .delivered)
-                        let deliveryTimestamp = recipientState?.statusTimestamp
-                        XCTAssertNotNil(deliveryTimestamp)
-                        XCTAssert((deliveryTimestamp ?? 0) > 1650000000000)
-                        expectation.fulfill()
-                    }
+            try await withCheckedThrowingContinuation { continuation in
+                SSKEnvironment.shared.messageProcessorRef.processReceivedEnvelopeData(
+                    envelopeData,
+                    serverDeliveryTimestamp: NSDate.ows_millisecondTimeStamp(),
+                    envelopeSource: .tests
+                ) { error in
+                    continuation.resume(with: error.map({ .failure($0) }) ?? .success(()))
                 }
             }
         }
-
-        wait(for: [expectation], timeout: IsDebuggerAttached() ? .infinity : 1.0)
+        try SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            // Now make sure the status is delivered.
+            let fetched = try InteractionFinder.fetchInteractions(
+                timestamp: timestamp,
+                transaction: transaction
+            ).compactMap { $0 as? TSOutgoingMessage }
+            XCTAssertNotNil(fetched.first)
+            let message = fetched.first!
+            let recipientState = message.recipientState(for: self.bobClient.address)
+            XCTAssertNotNil(recipientState)
+            XCTAssertEqual(recipientState?.status, .delivered)
+            let deliveryTimestamp = recipientState?.statusTimestamp
+            XCTAssertNotNil(deliveryTimestamp)
+            XCTAssert((deliveryTimestamp ?? 0) > 1650000000000)
+        }
     }
 
-    func testEarlyUDDeliveryReceipt() throws {
+    @MainActor
+    func testEarlyUDDeliveryReceipt() async throws {
         write { transaction in
             try! self.runner.initialize(senderClient: self.linkedClient,
                                         recipientClient: localClient,
@@ -317,33 +315,43 @@ class MessageProcessingIntegrationTest: SSKBaseTest {
                                         transaction: transaction)
         }
 
-        let expectation = expectation(description: "message processed")
-
         // Handle a UD receipt from Bob.
         // It's okay that sealed sender isn't actually being used here. It's a receipt for a message as if /sent/ by UD,
         // not /received/ by UD.
         let timestamp = UInt64(101)
-
-        let ciphertextData = try fakeService.buildEncryptedContentData(fromSenderClient: self.bobClient,
-                                                                       deliveryReceiptForMessage: timestamp)
         let deliveryTimestamp = UInt64(103)
-        let envelopeBuilder = SSKProtoEnvelope.builder(timestamp: deliveryTimestamp)
-        envelopeBuilder.setContent(ciphertextData)
-        envelopeBuilder.setType(.ciphertext)
-        envelopeBuilder.setSourceServiceID(bobClient.serviceId.serviceIdString)
-        envelopeBuilder.setSourceDevice(1)
-        envelopeBuilder.setServerTimestamp(NSDate.ows_millisecondTimeStamp())
-        envelopeBuilder.setServerGuid(UUID().uuidString)
-        envelopeBuilder.setDestinationServiceID(self.localClient.serviceId.serviceIdString)
-        let envelopeData = try envelopeBuilder.buildSerializedData()
 
-        messageProcessor.processReceivedEnvelopeData(
-            envelopeData,
-            serverDeliveryTimestamp: 102,
-            envelopeSource: .websocketUnidentified
-        ) { error in
-            XCTAssertNil(error)
+        do {
+            let ciphertextData = try fakeService.buildEncryptedContentData(
+                fromSenderClient: self.bobClient,
+                deliveryReceiptForMessage: timestamp
+            )
+            let envelopeBuilder = SSKProtoEnvelope.builder(timestamp: deliveryTimestamp)
+            envelopeBuilder.setContent(ciphertextData)
+            envelopeBuilder.setType(.ciphertext)
+            envelopeBuilder.setSourceServiceID(bobClient.serviceId.serviceIdString)
+            envelopeBuilder.setSourceDevice(1)
+            envelopeBuilder.setServerTimestamp(NSDate.ows_millisecondTimeStamp())
+            envelopeBuilder.setServerGuid(UUID().uuidString)
+            envelopeBuilder.setDestinationServiceID(self.localClient.serviceId.serviceIdString)
+            let envelopeData = try envelopeBuilder.buildSerializedData()
 
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                SSKEnvironment.shared.messageProcessorRef.processReceivedEnvelopeData(
+                    envelopeData,
+                    serverDeliveryTimestamp: 102,
+                    envelopeSource: .websocketUnidentified
+                ) { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: ())
+                    }
+                }
+            }
+        }
+
+        do {
             // Handle a sync message
             // Build message content
             let content = try! self.fakeService.buildSyncSentMessage(bodyText: "Hello world",
@@ -351,7 +359,7 @@ class MessageProcessingIntegrationTest: SSKBaseTest {
                                                                      timestamp: timestamp)
 
             // Encrypt message content
-            let ciphertext = self.databaseStorage.write { transaction in
+            let ciphertext = SSKEnvironment.shared.databaseStorageRef.write { transaction in
                 try! self.runner.encrypt(content,
                                          senderClient: self.linkedClient,
                                          recipient: self.localClient.protocolAddress,
@@ -369,36 +377,36 @@ class MessageProcessingIntegrationTest: SSKBaseTest {
             envelopeBuilder.setDestinationServiceID(self.localClient.serviceId.serviceIdString)
             let envelopeData = try! envelopeBuilder.buildSerializedData()
 
-            // Process the message
-            self.messageProcessor.processReceivedEnvelopeData(
-                envelopeData,
-                serverDeliveryTimestamp: NSDate.ows_millisecondTimeStamp(),
-                envelopeSource: .tests
-            ) { error in
-                switch error {
-                case let error?:
-                    XCTFail("failure \(error)")
-                case nil:
-                    self.read { transaction in
-                        // Now make sure the status is delivered.
-                        let fetched = try! InteractionFinder.interactions(withTimestamp: timestamp,
-                                                                          filter: { _ in true },
-                                                                          transaction: transaction).compactMap { $0 as? TSOutgoingMessage }
-                        XCTAssertNotNil(fetched.first)
-                        let message = fetched.first!
-                        let recipientState = message.recipientState(for: self.bobClient.address)
-                        XCTAssertNotNil(recipientState)
-                        XCTAssertEqual(recipientState?.status, .delivered)
-                        let actualDeliveryTimestamp = recipientState?.statusTimestamp
-                        XCTAssertNotNil(actualDeliveryTimestamp)
-                        XCTAssertEqual(actualDeliveryTimestamp, deliveryTimestamp)
-                        expectation.fulfill()
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                // Process the message
+                SSKEnvironment.shared.messageProcessorRef.processReceivedEnvelopeData(
+                    envelopeData,
+                    serverDeliveryTimestamp: NSDate.ows_millisecondTimeStamp(),
+                    envelopeSource: .tests
+                ) { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: ())
                     }
                 }
             }
+            self.read { transaction in
+                // Now make sure the status is delivered.
+                let fetched = try! InteractionFinder.fetchInteractions(
+                    timestamp: timestamp,
+                    transaction: transaction
+                ).compactMap { $0 as? TSOutgoingMessage }
+                XCTAssertNotNil(fetched.first)
+                let message = fetched.first!
+                let recipientState = message.recipientState(for: self.bobClient.address)
+                XCTAssertNotNil(recipientState)
+                XCTAssertEqual(recipientState?.status, .delivered)
+                let actualDeliveryTimestamp = recipientState?.statusTimestamp
+                XCTAssertNotNil(actualDeliveryTimestamp)
+                XCTAssertEqual(actualDeliveryTimestamp, deliveryTimestamp)
+            }
         }
-
-        wait(for: [expectation], timeout: IsDebuggerAttached() ? .infinity : 1.0)
     }
 }
 

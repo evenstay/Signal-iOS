@@ -9,7 +9,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class AciObjC;
-@class SDSAnyReadTransaction;
+@class DBReadTransaction;
 @class SignalServiceAddress;
 
 @interface OWSLinkedDeviceViewedReceipt : MTLModel
@@ -33,14 +33,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
-- (instancetype)initWithThread:(TSThread *)thread transaction:(SDSAnyReadTransaction *)transaction NS_UNAVAILABLE;
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
+                        transaction:(DBReadTransaction *)transaction NS_UNAVAILABLE;
 - (instancetype)initWithTimestamp:(uint64_t)timestamp
-                           thread:(TSThread *)thread
-                      transaction:(SDSAnyReadTransaction *)transaction NS_UNAVAILABLE;
+                      localThread:(TSContactThread *)localThread
+                      transaction:(DBReadTransaction *)transaction NS_UNAVAILABLE;
 
-- (instancetype)initWithThread:(TSThread *)thread
-                viewedReceipts:(NSArray<OWSLinkedDeviceViewedReceipt *> *)readReceipts
-                   transaction:(SDSAnyReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
+                     viewedReceipts:(NSArray<OWSLinkedDeviceViewedReceipt *> *)readReceipts
+                        transaction:(DBReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
 
 @end

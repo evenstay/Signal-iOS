@@ -8,11 +8,14 @@ public import SignalServiceKit
 import SignalUI
 
 public enum CVAttachment: Equatable {
-    case stream(ReferencedTSResourceStream)
-    case pointer(ReferencedTSResourcePointer, transitTierDownloadState: AttachmentDownloadState)
-    case backupThumbnail(ReferencedTSResourceBackupThumbnail)
+    case stream(ReferencedAttachmentStream)
+    case pointer(ReferencedAttachmentPointer, downloadState: AttachmentDownloadState)
+    case backupThumbnail(ReferencedAttachmentBackupThumbnail)
+    /// The attachment has no stream and cannot be downloaded because there is no cdn info.
+    /// Typically happens if we restore from a free-tier backup with old media expired from transit tier.
+    case undownloadable(ReferencedAttachment)
 
-    public var attachment: ReferencedTSResource {
+    public var attachment: ReferencedAttachment {
         switch self {
         case .stream(let stream):
             return stream
@@ -20,73 +23,90 @@ public enum CVAttachment: Equatable {
             return pointer
         case .backupThumbnail(let thumbnail):
             return thumbnail
+        case .undownloadable(let attachment):
+            return attachment
         }
     }
 
-    public var attachmentStream: TSResourceStream? {
+    public var attachmentStream: AttachmentStream? {
         switch self {
         case .stream(let stream):
             return stream.attachmentStream
         case .pointer, .backupThumbnail:
             return nil
+        case .undownloadable:
+            return nil
         }
     }
 
-    public var attachmentPointer: TSResourcePointer? {
+    public var attachmentPointer: AttachmentPointer? {
         switch self {
         case .stream, .backupThumbnail:
             return nil
         case .pointer(let pointer, _):
             return pointer.attachmentPointer
+        case .undownloadable:
+            return nil
         }
     }
 
-    public var attachmentBackupThumbnail: TSResourceBackupThumbnail? {
+    public var attachmentBackupThumbnail: AttachmentBackupThumbnail? {
         switch self {
         case .stream, .pointer:
             return nil
         case .backupThumbnail(let thumbnail):
             return thumbnail.attachmentBackupThumbnail
+        case .undownloadable:
+            return nil
         }
     }
 
-    public static func from(_ attachment: ReferencedTSResource, tx: SDSAnyReadTransaction) -> CVAttachment? {
+    public static func from(_ attachment: ReferencedAttachment, tx: DBReadTransaction) -> CVAttachment {
         if let stream = attachment.asReferencedStream {
             return .stream(stream)
-        } else if let pointer = attachment.asReferencedPointer {
-            return .pointer(pointer, transitTierDownloadState: pointer.attachmentPointer.downloadState(tx: tx.asV2Read))
+        } else if let pointer = attachment.asReferencedAnyPointer {
+            return .pointer(pointer, downloadState: pointer.attachmentPointer.downloadState(tx: tx))
         } else if let thumbnail = attachment.asReferencedBackupThumbnail {
             return .backupThumbnail(thumbnail)
         } else {
-            return nil
+            return .undownloadable(attachment)
         }
     }
 
     public static func == (lhs: CVAttachment, rhs: CVAttachment) -> Bool {
         switch (lhs, rhs) {
         case (.stream(let lhsStream), .stream(let rhsStream)):
-            return lhsStream.attachment.resourceId == rhsStream.attachment.resourceId
+            return lhsStream.attachment.id == rhsStream.attachment.id
                 && lhsStream.reference.hasSameOwner(as: rhsStream.reference)
         case (.pointer(let lhsPointer, let lhsState), .pointer(let rhsPointer, let rhsState)):
-            return lhsPointer.attachment.resourceId == rhsPointer.attachment.resourceId
+            return lhsPointer.attachment.id == rhsPointer.attachment.id
                 && lhsPointer.reference.hasSameOwner(as: rhsPointer.reference)
                 && lhsState == rhsState
         case (.backupThumbnail(let lhsThumbnail), .backupThumbnail(let rhsThumbnail)):
-            return lhsThumbnail.attachment.resourceId == rhsThumbnail.attachment.resourceId
+            return lhsThumbnail.attachment.id == rhsThumbnail.attachment.id
                 && lhsThumbnail.reference.hasSameOwner(as: rhsThumbnail.reference)
+        case (.undownloadable(let lhsAttachment), .undownloadable(let rhsAttachment)):
+            return lhsAttachment.attachment.id == rhsAttachment.attachment.id
+                && lhsAttachment.reference.hasSameOwner(as: rhsAttachment.reference)
         case
             (.stream, .pointer),
             (.stream, .backupThumbnail),
+            (.stream, .undownloadable),
             (.pointer, .stream),
             (.pointer, .backupThumbnail),
+            (.pointer, .undownloadable),
             (.backupThumbnail, .pointer),
-            (.backupThumbnail, .stream):
+            (.backupThumbnail, .stream),
+            (.backupThumbnail, .undownloadable),
+            (.undownloadable, .stream),
+            (.undownloadable, .pointer),
+            (.undownloadable, .backupThumbnail):
             return false
         }
     }
 }
 
-public class CVComponentState: Equatable, Dependencies {
+public class CVComponentState: Equatable {
     let messageCellType: CVMessageCellType
 
     struct SenderName: Equatable {
@@ -101,26 +121,30 @@ public class CVComponentState: Equatable, Dependencies {
     let senderAvatar: SenderAvatar?
 
     enum BodyText: Equatable {
-        case bodyText(displayableText: DisplayableText)
+        case bodyText(displayableText: DisplayableText, hasTapForMore: Bool)
 
         // TODO: Should we have oversizeTextFailed?
         case oversizeTextDownloading
+
+        case oversizeTextUndownloadable(truncatedBody: DisplayableText)
 
         // We use the "body text" component to
         // render the "remotely deleted" indicator.
         case remotelyDeleted
 
         var displayableText: DisplayableText? {
-            if case .bodyText(let displayableText) = self {
-                return displayableText
+            switch self {
+            case .bodyText(let text, _), .oversizeTextUndownloadable(let text):
+                return text
+            default:
+                return nil
             }
-            return nil
         }
 
         func textValue(isTextExpanded: Bool) -> CVTextValue? {
             switch self {
-            case .bodyText(let displayableText):
-                return displayableText.textValue(isTextExpanded: isTextExpanded)
+            case .bodyText(let text, _), .oversizeTextUndownloadable(let text):
+                return text.textValue(isTextExpanded: isTextExpanded)
             default:
                 return nil
             }
@@ -128,8 +152,8 @@ public class CVComponentState: Equatable, Dependencies {
 
         var jumbomojiCount: UInt? {
             switch self {
-            case .bodyText(let displayableText):
-                return displayableText.jumbomojiCount
+            case .bodyText(let text, _), .oversizeTextUndownloadable(let text):
+                return text.jumbomojiCount
             default:
                 return nil
             }
@@ -154,21 +178,21 @@ public class CVComponentState: Equatable, Dependencies {
     struct GenericAttachment: Equatable {
         let attachment: CVAttachment
 
-        var attachmentStream: TSResourceStream? {
+        var attachmentStream: AttachmentStream? {
             attachment.attachmentStream
         }
 
-        var attachmentPointer: TSResourcePointer? {
+        var attachmentPointer: AttachmentPointer? {
             attachment.attachmentPointer
         }
 
-        var attachmentBackupThumbnail: TSResourceBackupThumbnail? {
+        var attachmentBackupThumbnail: AttachmentBackupThumbnail? {
             attachment.attachmentBackupThumbnail
         }
     }
     let genericAttachment: GenericAttachment?
 
-    public struct PaymentAttachment: Equatable, Dependencies {
+    public struct PaymentAttachment: Equatable {
         let notification: TSPaymentNotification
         let model: TSPaymentModel?
         let otherUserShortName: String
@@ -219,12 +243,12 @@ public class CVComponentState: Equatable, Dependencies {
     enum Sticker: Equatable {
         case available(
             stickerMetadata: any StickerMetadata,
-            attachmentStream: ReferencedTSResourceStream
+            attachmentStream: ReferencedAttachmentStream
         )
-        case downloading(attachmentPointer: ReferencedTSResourcePointer)
+        case downloading(attachmentPointer: ReferencedAttachmentPointer)
         case failedOrPending(
-            attachmentPointer: ReferencedTSResourcePointer,
-            transitTierDownloadState: AttachmentDownloadState
+            attachmentPointer: ReferencedAttachmentPointer,
+            downloadState: AttachmentDownloadState
         )
 
         public var stickerMetadata: (any StickerMetadata)? {
@@ -235,7 +259,7 @@ public class CVComponentState: Equatable, Dependencies {
                 return nil
             }
         }
-        public var attachmentStream: ReferencedTSResourceStream? {
+        public var attachmentStream: ReferencedAttachmentStream? {
             switch self {
             case .available(_, let attachmentStream):
                 return attachmentStream
@@ -245,7 +269,7 @@ public class CVComponentState: Equatable, Dependencies {
                 return nil
             }
         }
-        public var attachmentPointer: ReferencedTSResourcePointer? {
+        public var attachmentPointer: ReferencedAttachmentPointer? {
             switch self {
             case .available:
                 return nil
@@ -260,13 +284,13 @@ public class CVComponentState: Equatable, Dependencies {
             switch (lhs, rhs) {
             case let (.available(lhsData, lhsStream), .available(rhsData, rhsStream)):
                 return lhsData.stickerInfo.asKey() == rhsData.stickerInfo.asKey()
-                    && lhsStream.attachment.resourceId == rhsStream.attachment.resourceId
+                    && lhsStream.attachment.id == rhsStream.attachment.id
                     && lhsStream.reference.hasSameOwner(as: rhsStream.reference)
             case let (.downloading(lhsPointer), .downloading(rhsPointer)):
-                return lhsPointer.attachment.resourceId == rhsPointer.attachment.resourceId
+                return lhsPointer.attachment.id == rhsPointer.attachment.id
                     && lhsPointer.reference.hasSameOwner(as: rhsPointer.reference)
             case let (.failedOrPending(lhsPointer, lhsState), .failedOrPending(rhsPointer, rhsState)):
-                return lhsPointer.attachment.resourceId == rhsPointer.attachment.resourceId
+                return lhsPointer.attachment.id == rhsPointer.attachment.id
                     && lhsPointer.reference.hasSameOwner(as: rhsPointer.reference)
                     && lhsState == rhsState
             case (.available, _), (.downloading, _), (.failedOrPending, _):
@@ -276,6 +300,14 @@ public class CVComponentState: Equatable, Dependencies {
     }
     let sticker: Sticker?
 
+    /// The attachment has no stream and cannot be downloaded because there is no cdn info.
+    /// Typically happens if we restore from a free-tier backup with old media expired from transit tier.
+    enum UndownloadableAttachment: Equatable {
+        case audio
+        case sticker
+    }
+    let undownloadableAttachment: UndownloadableAttachment?
+
     struct ContactShare: Equatable {
         let state: CVContactShareView.State
     }
@@ -284,7 +316,6 @@ public class CVComponentState: Equatable, Dependencies {
     struct LinkPreview: Equatable {
         // TODO: convert OWSLinkPreview to Swift?
         let linkPreview: OWSLinkPreview
-        let linkPreviewAttachment: TSResource?
         let state: LinkPreviewState
 
         // MARK: - Equatable
@@ -375,19 +406,26 @@ public class CVComponentState: Equatable, Dependencies {
     let typingIndicator: TypingIndicator?
 
     struct ThreadDetails: Equatable {
-        enum MutualGroupsTapAction: Equatable {
-            case showContactSafetyTip
-            case showGroupSafetyTip
+        struct SafetySection: Equatable {
+            /// For "⚠️ Review Carefully"
+            let shouldShowLowTrustWarning: Bool
+            /// For "Profile names are not verified"
+            let shouldShowProfileNamesEducation: Bool
+            /// For phone numbers or group member count
+            let detailsText: NSAttributedString?
+            /// For mutual groups, lack thereof and note-to-self description.
+            let mutualGroupsText: NSAttributedString?
+            let threadType: SafetyTipsType
+            let shouldShowSafetyTipsButton: Bool
         }
 
         let avatarDataSource: ConversationAvatarDataSource?
         let isAvatarBlurred: Bool
+        let isAvatarBeingDownloaded: Bool
         let titleText: String
         let shouldShowVerifiedBadge: Bool
         let bioText: String?
-        let detailsText: String?
-        let mutualGroupsText: NSAttributedString?
-        let mutualGroupsTapAction: MutualGroupsTapAction?
+        let safetySection: SafetySection?
         let groupDescriptionText: String?
     }
     let threadDetails: ThreadDetails?
@@ -404,10 +442,10 @@ public class CVComponentState: Equatable, Dependencies {
     let bottomButtons: BottomButtons?
 
     struct FailedOrPendingDownloads: Equatable {
-        let attachmentPointers: [TSResourcePointer]
+        let attachmentPointers: [AttachmentPointer]
 
         static func == (lhs: CVComponentState.FailedOrPendingDownloads, rhs: CVComponentState.FailedOrPendingDownloads) -> Bool {
-            return lhs.attachmentPointers.map(\.resourceId) == rhs.attachmentPointers.map(\.resourceId)
+            return lhs.attachmentPointers.map(\.id) == rhs.attachmentPointers.map(\.id)
         }
     }
     let failedOrPendingDownloads: FailedOrPendingDownloads?
@@ -419,34 +457,37 @@ public class CVComponentState: Equatable, Dependencies {
 
     let messageHasBodyAttachments: Bool
 
-    fileprivate init(messageCellType: CVMessageCellType,
-                     senderName: SenderName?,
-                     senderAvatar: SenderAvatar?,
-                     bodyText: BodyText?,
-                     bodyMedia: BodyMedia?,
-                     genericAttachment: GenericAttachment?,
-                     paymentAttachment: PaymentAttachment?,
-                     archivedPaymentAttachment: ArchivedPaymentAttachment?,
-                     audioAttachment: AudioAttachment?,
-                     viewOnce: ViewOnce?,
-                     quotedReply: QuotedReply?,
-                     sticker: Sticker?,
-                     contactShare: ContactShare?,
-                     linkPreview: LinkPreview?,
-                     giftBadge: GiftBadge?,
-                     systemMessage: SystemMessage?,
-                     dateHeader: DateHeader?,
-                     unreadIndicator: UnreadIndicator?,
-                     reactions: Reactions?,
-                     typingIndicator: TypingIndicator?,
-                     threadDetails: ThreadDetails?,
-                     unknownThreadWarning: UnknownThreadWarning?,
-                     defaultDisappearingMessageTimer: DefaultDisappearingMessageTimer?,
-                     bottomButtons: BottomButtons?,
-                     failedOrPendingDownloads: FailedOrPendingDownloads?,
-                     sendFailureBadge: SendFailureBadge?,
-                     messageHasBodyAttachments: Bool,
-                     hasRenderableContent: Bool) {
+    fileprivate init(
+        messageCellType: CVMessageCellType,
+        senderName: SenderName?,
+        senderAvatar: SenderAvatar?,
+        bodyText: BodyText?,
+        bodyMedia: BodyMedia?,
+        genericAttachment: GenericAttachment?,
+        paymentAttachment: PaymentAttachment?,
+        archivedPaymentAttachment: ArchivedPaymentAttachment?,
+        audioAttachment: AudioAttachment?,
+        viewOnce: ViewOnce?,
+        quotedReply: QuotedReply?,
+        sticker: Sticker?,
+        undownloadableAttachment: UndownloadableAttachment?,
+        contactShare: ContactShare?,
+        linkPreview: LinkPreview?,
+        giftBadge: GiftBadge?,
+        systemMessage: SystemMessage?,
+        dateHeader: DateHeader?,
+        unreadIndicator: UnreadIndicator?,
+        reactions: Reactions?,
+        typingIndicator: TypingIndicator?,
+        threadDetails: ThreadDetails?,
+        unknownThreadWarning: UnknownThreadWarning?,
+        defaultDisappearingMessageTimer: DefaultDisappearingMessageTimer?,
+        bottomButtons: BottomButtons?,
+        failedOrPendingDownloads: FailedOrPendingDownloads?,
+        sendFailureBadge: SendFailureBadge?,
+        messageHasBodyAttachments: Bool,
+        hasRenderableContent: Bool
+    ) {
 
         self.messageCellType = messageCellType
         self.senderName = senderName
@@ -460,6 +501,7 @@ public class CVComponentState: Equatable, Dependencies {
         self.viewOnce = viewOnce
         self.quotedReply = quotedReply
         self.sticker = sticker
+        self.undownloadableAttachment = undownloadableAttachment
         self.contactShare = contactShare
         self.linkPreview = linkPreview
         self.giftBadge = giftBadge
@@ -493,6 +535,7 @@ public class CVComponentState: Equatable, Dependencies {
                     lhs.viewOnce == rhs.viewOnce &&
                     lhs.quotedReply == rhs.quotedReply &&
                     lhs.sticker == rhs.sticker &&
+                    lhs.undownloadableAttachment == rhs.undownloadableAttachment &&
                     lhs.contactShare == rhs.contactShare &&
                     lhs.linkPreview == rhs.linkPreview &&
                     lhs.giftBadge == rhs.giftBadge &&
@@ -522,6 +565,7 @@ public class CVComponentState: Equatable, Dependencies {
         typealias ViewOnce = CVComponentState.ViewOnce
         typealias QuotedReply = CVComponentState.QuotedReply
         typealias Sticker = CVComponentState.Sticker
+        typealias UndownloadableAttachment = CVComponentState.UndownloadableAttachment
         typealias SystemMessage = CVComponentState.SystemMessage
         typealias ContactShare = CVComponentState.ContactShare
         typealias Reactions = CVComponentState.Reactions
@@ -555,6 +599,7 @@ public class CVComponentState: Equatable, Dependencies {
         var viewOnce: ViewOnce?
         var quotedReply: QuotedReply?
         var sticker: Sticker?
+        var undownloadableAttachment: UndownloadableAttachment?
         var systemMessage: SystemMessage?
         var contactShare: ContactShare?
         var linkPreview: LinkPreview?
@@ -586,34 +631,37 @@ public class CVComponentState: Equatable, Dependencies {
                 bottomButtons = BottomButtons(actions: bottomButtonsActions)
             }
 
-            return CVComponentState(messageCellType: messageCellType,
-                                    senderName: senderName,
-                                    senderAvatar: senderAvatar,
-                                    bodyText: bodyText,
-                                    bodyMedia: bodyMedia,
-                                    genericAttachment: genericAttachment,
-                                    paymentAttachment: paymentAttachment,
-                                    archivedPaymentAttachment: archivedPaymentAttachment,
-                                    audioAttachment: audioAttachment,
-                                    viewOnce: viewOnce,
-                                    quotedReply: quotedReply,
-                                    sticker: sticker,
-                                    contactShare: contactShare,
-                                    linkPreview: linkPreview,
-                                    giftBadge: giftBadge,
-                                    systemMessage: systemMessage,
-                                    dateHeader: dateHeader,
-                                    unreadIndicator: unreadIndicator,
-                                    reactions: reactions,
-                                    typingIndicator: typingIndicator,
-                                    threadDetails: threadDetails,
-                                    unknownThreadWarning: unknownThreadWarning,
-                                    defaultDisappearingMessageTimer: defaultDisappearingMessageTimer,
-                                    bottomButtons: bottomButtons,
-                                    failedOrPendingDownloads: failedOrPendingDownloads,
-                                    sendFailureBadge: sendFailureBadge,
-                                    messageHasBodyAttachments: messageHasBodyAttachments,
-                                    hasRenderableContent: hasRenderableContent)
+            return CVComponentState(
+                messageCellType: messageCellType,
+                senderName: senderName,
+                senderAvatar: senderAvatar,
+                bodyText: bodyText,
+                bodyMedia: bodyMedia,
+                genericAttachment: genericAttachment,
+                paymentAttachment: paymentAttachment,
+                archivedPaymentAttachment: archivedPaymentAttachment,
+                audioAttachment: audioAttachment,
+                viewOnce: viewOnce,
+                quotedReply: quotedReply,
+                sticker: sticker,
+                undownloadableAttachment: undownloadableAttachment,
+                contactShare: contactShare,
+                linkPreview: linkPreview,
+                giftBadge: giftBadge,
+                systemMessage: systemMessage,
+                dateHeader: dateHeader,
+                unreadIndicator: unreadIndicator,
+                reactions: reactions,
+                typingIndicator: typingIndicator,
+                threadDetails: threadDetails,
+                unknownThreadWarning: unknownThreadWarning,
+                defaultDisappearingMessageTimer: defaultDisappearingMessageTimer,
+                bottomButtons: bottomButtons,
+                failedOrPendingDownloads: failedOrPendingDownloads,
+                sendFailureBadge: sendFailureBadge,
+                messageHasBodyAttachments: messageHasBodyAttachments,
+                hasRenderableContent: hasRenderableContent
+            )
         }
 
         // MARK: -
@@ -648,8 +696,11 @@ public class CVComponentState: Equatable, Dependencies {
             if systemMessage != nil {
                 return .systemMessage
             }
-            if let sticker = self.sticker {
+            if self.sticker != nil {
                 return .stickerMessage
+            }
+            if self.undownloadableAttachment != nil {
+                return .undownloadableAttachment
             }
             if viewOnce != nil {
                 return .viewOnce
@@ -689,7 +740,7 @@ public class CVComponentState: Equatable, Dependencies {
 
     // MARK: - Convenience
 
-    lazy var isSticker: Bool = {
+    lazy var shouldRenderAsSticker: Bool = {
         sticker != nil
     }()
 
@@ -894,10 +945,10 @@ fileprivate extension CVComponentState.Builder {
                                                    avatarDataSource: avatarDataSource)
             return build()
         case .info, .error, .call:
-            let currentGroupCallThreadUniqueId = viewStateSnapshot.currentGroupCallThreadUniqueId
+            let currentGroupThreadCallGroupId = viewStateSnapshot.currentGroupThreadCallGroupId
             self.systemMessage = CVComponentSystemMessage.buildComponentState(interaction: interaction,
                                                                               threadViewModel: threadViewModel,
-                                                                              currentGroupCallThreadUniqueId: currentGroupCallThreadUniqueId,
+                                                                              currentGroupThreadCallGroupId: currentGroupThreadCallGroupId,
                                                                               transaction: transaction)
             return build()
         case .unreadIndicator:
@@ -1016,14 +1067,19 @@ fileprivate extension CVComponentState.Builder {
         }
 
         if let archivedPaymentMessage = message as? OWSArchivedPaymentMessage {
-            let archivedPayment = DependenciesBridge.shared.archivedPaymentStore.fetch(
-                for: archivedPaymentMessage,
-                tx: transaction.asV2Read
-            )
-            return buildArchivedPaymentAttachment(
-                archivedPaymentMessage: archivedPaymentMessage,
-                archivedPayment: archivedPayment
-            )
+            do {
+                let archivedPayment = try DependenciesBridge.shared.archivedPaymentStore.fetch(
+                    for: archivedPaymentMessage,
+                    interactionUniqueId: message.uniqueId,
+                    tx: transaction
+                )
+                return buildArchivedPaymentAttachment(
+                    archivedPaymentMessage: archivedPaymentMessage,
+                    archivedPayment: archivedPayment
+                )
+            } catch {
+                owsFail("\(error.grdbErrorForLogging)")
+            }
         }
 
         if let giftBadge = message.giftBadge {
@@ -1031,10 +1087,12 @@ fileprivate extension CVComponentState.Builder {
         }
 
         do {
-            let bodyAttachments = DependenciesBridge.shared.tsResourceStore.referencedBodyMediaAttachments(
-                for: message,
-                tx: transaction.asV2Read
-            )
+            let bodyAttachments = message.sqliteRowId.map {
+                DependenciesBridge.shared.attachmentStore.fetchReferencedAttachments(
+                    for: .messageBodyAttachment(messageRowId: $0),
+                    tx: transaction
+                )
+            } ?? []
             let mediaAlbumItems = buildMediaAlbumItems(for: bodyAttachments, message: message)
             if mediaAlbumItems.count > 0 {
                 var mediaAlbumHasFailedAttachment = false
@@ -1042,12 +1100,12 @@ fileprivate extension CVComponentState.Builder {
                 // TODO
                 for attachment in bodyAttachments {
                     guard
-                        attachment.attachment.asResourceStream() == nil,
-                        let pointer = attachment.attachment.asTransitTierPointer()
+                        attachment.attachment.asStream() == nil,
+                        let pointer = attachment.attachment.asAnyPointer()
                     else {
                         continue
                     }
-                    switch pointer.downloadState(tx: transaction.asV2Read) {
+                    switch pointer.downloadState(tx: transaction) {
                     case .enqueuedOrDownloading:
                         continue
                     case .failed:
@@ -1119,14 +1177,19 @@ fileprivate extension CVComponentState.Builder {
                 }
             }
             return buildViewOnce(viewOnceState: viewOnceState)
-        } else if nil != message as? TSIncomingMessage {
+        } else if message is TSIncomingMessage {
             if message.isViewOnceComplete {
                 return buildViewOnce(viewOnceState: .incomingExpired)
             }
-            let attachmentRefs = DependenciesBridge.shared.tsResourceStore.bodyAttachments(
-                for: message,
-                tx: transaction.asV2Read
-            )
+            let attachmentRefs = message.sqliteRowId.map {
+                DependenciesBridge.shared.attachmentStore.fetchReferences(
+                    owners: [
+                        .messageOversizeText(messageRowId: $0),
+                        .messageBodyAttachment(messageRowId: $0)
+                    ],
+                    tx: transaction
+                )
+            } ?? []
             let hasMoreThanOneAttachment: Bool = attachmentRefs.count > 1
             let hasBodyText: Bool = !(message.body?.isEmpty ?? true)
             if hasMoreThanOneAttachment || hasBodyText {
@@ -1135,19 +1198,21 @@ fileprivate extension CVComponentState.Builder {
                 owsFailDebug("Invalid content.")
                 return buildViewOnce(viewOnceState: .incomingInvalidContent)
             }
-            let mediaAttachments: [ReferencedTSResource] = DependenciesBridge.shared.tsResourceStore
-                .referencedBodyMediaAttachments(
-                    for: message,
-                    tx: transaction.asV2Read
-                )
+            let mediaAttachments: [ReferencedAttachment] = message.sqliteRowId.map {
+                DependenciesBridge.shared.attachmentStore
+                    .fetchReferencedAttachments(
+                        for: .messageBodyAttachment(messageRowId: $0),
+                        tx: transaction
+                    )
+            } ?? []
             // We currently only support single attachments for view-once messages.
             guard let mediaAttachment = mediaAttachments.first else {
                 owsFailDebug("Missing attachment.")
                 return buildViewOnce(viewOnceState: .incomingInvalidContent)
             }
             let renderingFlag = mediaAttachment.reference.renderingFlag
-            if let attachmentStream = mediaAttachment.attachment.asResourceStream() {
-                if attachmentStream.computeIsValidVisualMedia()
+            if let attachmentStream = mediaAttachment.attachment.asStream() {
+                if attachmentStream.contentType.isVisualMedia
                     && (
                         MimeTypeUtil.isSupportedImageMimeType(attachmentStream.mimeType)
                         || MimeTypeUtil.isSupportedMaybeAnimatedMimeType(attachmentStream.mimeType)
@@ -1159,8 +1224,8 @@ fileprivate extension CVComponentState.Builder {
                         renderingFlag: renderingFlag
                     ))
                 }
-            } else if let attachmentPointer = mediaAttachment.attachment.asTransitTierPointer() {
-                switch attachmentPointer.downloadState(tx: transaction.asV2Read) {
+            } else if let attachmentPointer = mediaAttachment.attachment.asAnyPointer() {
+                switch attachmentPointer.downloadState(tx: transaction) {
                 case .enqueuedOrDownloading:
                     return buildViewOnce(viewOnceState: .incomingDownloading(
                         attachmentPointer: attachmentPointer,
@@ -1171,6 +1236,8 @@ fileprivate extension CVComponentState.Builder {
                 case .none:
                     return buildViewOnce(viewOnceState: .incomingPending)
                 }
+            } else {
+                return buildViewOnce(viewOnceState: .incomingUndownloadable)
             }
 
             owsFailDebug("Invalid content.")
@@ -1236,56 +1303,40 @@ fileprivate extension CVComponentState.Builder {
     mutating func buildSticker(message: TSMessage, messageSticker: MessageSticker) throws -> CVComponentState {
 
         guard
-            let attachmentReference = DependenciesBridge.shared.tsResourceStore.stickerAttachment(
-                for: message,
-                tx: transaction.asV2Read
-            ),
-            let attachment = attachmentReference.fetch(tx: transaction)
+            let rowId = message.sqliteRowId,
+            let attachment = DependenciesBridge.shared.attachmentStore.fetchFirstReferencedAttachment(
+                for: .messageSticker(messageRowId: rowId),
+                tx: transaction
+            )
         else {
             throw OWSAssertionError("Missing sticker attachment.")
         }
-        if let attachmentStream = attachment.asResourceStream() {
-            switch attachmentStream.computeContentType() {
-            case .image(let pixelSize), .animatedImage(let pixelSize):
-                let pixelSize = pixelSize.compute()
-                guard pixelSize.isNonEmpty else {
-                    fallthrough
-                }
-            default:
-                throw OWSAssertionError("Invalid sticker.")
-            }
-            let stickerType = StickerManager.stickerType(forContentType: attachmentStream.mimeType)
-            guard
-                let stickerMetadata = attachmentStream.asStickerMetadata(
-                    stickerInfo: messageSticker.info,
-                    stickerType: stickerType,
-                    emojiString: messageSticker.emoji
-                )
-            else {
-                throw OWSAssertionError("Invalid sticker.")
-            }
+        if let attachmentStream = attachment.asReferencedStream {
+            let stickerMetadata = attachmentStream.attachmentStream.asStickerMetadata(
+                stickerInfo: messageSticker.info,
+                stickerType: StickerManager.stickerType(forContentType: attachmentStream.attachment.mimeType),
+                emojiString: messageSticker.emoji
+            )
             self.sticker = .available(
                 stickerMetadata: stickerMetadata,
-                attachmentStream: .init(reference: attachmentReference, attachmentStream: attachmentStream)
+                attachmentStream: attachmentStream
             )
             return build()
-        } else if let attachmentPointer = attachment.asTransitTierPointer() {
-            let downloadState = attachmentPointer.downloadState(tx: transaction.asV2Read)
+        } else if let attachmentPointer = attachment.asReferencedAnyPointer {
+            let downloadState = attachmentPointer.attachmentPointer.downloadState(tx: transaction)
             switch downloadState {
             case .enqueuedOrDownloading:
-                self.sticker = .downloading(attachmentPointer: .init(
-                    reference: attachmentReference,
-                    attachmentPointer: attachmentPointer
-                ))
+                self.sticker = .downloading(attachmentPointer: attachmentPointer)
             case .failed, .none:
                 self.sticker = .failedOrPending(
-                    attachmentPointer: .init(reference: attachmentReference, attachmentPointer: attachmentPointer),
-                    transitTierDownloadState: downloadState
+                    attachmentPointer: attachmentPointer,
+                    downloadState: downloadState
                 )
             }
             return build()
         } else {
-            throw OWSAssertionError("Invalid sticker.")
+            self.undownloadableAttachment = .sticker
+            return build()
         }
     }
 
@@ -1297,12 +1348,11 @@ fileprivate extension CVComponentState.Builder {
         let quotedReplyModel: QuotedReplyModel? = {
             if
                 message.isStoryReply,
-                let storyTimestamp = message.storyTimestamp?.uint64Value,
                 let storyAuthorAci = message.storyAuthorAci?.wrappedAciValue
             {
                 return QuotedReplyModel.build(
                     storyReplyMessage: message,
-                    storyTimestamp: storyTimestamp,
+                    storyTimestamp: message.storyTimestamp?.uint64Value,
                     storyAuthorAci: storyAuthorAci,
                     transaction: transaction
                 )
@@ -1336,13 +1386,16 @@ fileprivate extension CVComponentState.Builder {
     }
 
     mutating func buildBodyText(message: TSMessage) throws {
-        bodyText = try CVComponentBodyText.buildComponentState(message: message,
-                                                               transaction: transaction)
+        bodyText = try CVComponentBodyText.buildComponentState(
+            message: message,
+            viewStateSnapshot: viewStateSnapshot,
+            transaction: transaction
+        )
     }
 
     // MARK: -
 
-    func buildMediaAlbumItems(for mediaAttachments: [ReferencedTSResource],
+    func buildMediaAlbumItems(for mediaAttachments: [ReferencedAttachment],
                               message: TSMessage) -> [CVMediaAlbumItem] {
 
         let threadHasPendingMessageRequest = message.thread(tx: transaction)?
@@ -1353,7 +1406,7 @@ fileprivate extension CVComponentState.Builder {
         for attachment in mediaAttachments {
             guard
                 // Use the validated content type and only fall back to the mime type.
-                (attachment.attachment.asResourceStream()?.cachedContentType)?.isVisualMedia
+                attachment.attachment.asStream()?.contentType.isVisualMedia
                 ?? MimeTypeUtil.isSupportedVisualMediaMimeType(attachment.attachment.mimeType)
             else {
                 // Well behaving clients should not send a mix of visual media (like JPG) and non-visual media (like PDF's)
@@ -1362,10 +1415,7 @@ fileprivate extension CVComponentState.Builder {
                 return []
             }
 
-            guard let cvAttachment = CVAttachment.from(attachment, tx: transaction) else {
-                owsFailDebug("Invalid attachment!")
-                continue
-            }
+            let cvAttachment = CVAttachment.from(attachment, tx: transaction)
 
             let caption = attachment.reference.legacyMessageCaption
             let hasCaption = caption.map {
@@ -1394,7 +1444,7 @@ fileprivate extension CVComponentState.Builder {
                 continue
             case .stream(let attachmentStream):
                 let attachmentStream = attachmentStream.attachmentStream
-                guard attachmentStream.computeIsValidVisualMedia() else {
+                guard attachmentStream.contentType.isVisualMedia else {
                     Logger.warn("Filtering invalid media.")
                     mediaAlbumItems.append(CVMediaAlbumItem(
                         attachment: cvAttachment,
@@ -1407,9 +1457,8 @@ fileprivate extension CVComponentState.Builder {
                     continue
                 }
                 let mediaSizePixels: CGSize
-                switch attachmentStream.computeContentType() {
-                case let .image(pixelSize), let .video(_, pixelSize), let .animatedImage(pixelSize):
-                    let pixelSize = pixelSize.compute()
+                switch attachmentStream.contentType {
+                case let .image(pixelSize), let .video(_, pixelSize, _), let .animatedImage(pixelSize):
                     guard pixelSize.isNonEmpty else {
                         Logger.warn("Filtering media with invalid size.")
                         fallthrough
@@ -1455,26 +1504,41 @@ fileprivate extension CVComponentState.Builder {
                     threadHasPendingMessageRequest: threadHasPendingMessageRequest
                 ))
                 continue
+            case .undownloadable(let attachment):
+                var mediaSize: CGSize = .zero
+                if let sourceMediaSizePixels = attachment.reference.sourceMediaSizePixels {
+                    mediaSize = sourceMediaSizePixels
+                } else {
+                    owsFailDebug("Invalid attachment.")
+                }
+                mediaAlbumItems.append(CVMediaAlbumItem(
+                    attachment: cvAttachment,
+                    attachmentStream: nil,
+                    hasCaption: hasCaption,
+                    mediaSize: mediaSize,
+                    isBroken: true,
+                    threadHasPendingMessageRequest: threadHasPendingMessageRequest
+                ))
+                continue
             }
         }
         return mediaAlbumItems
     }
 
-    mutating func buildNonMediaAttachment(bodyAttachment: ReferencedTSResource?) throws {
+    mutating func buildNonMediaAttachment(bodyAttachment: ReferencedAttachment?) throws {
 
         guard let attachment = bodyAttachment else {
             throw OWSAssertionError("Missing attachment.")
         }
 
         func buildGenericAttachment() {
-            if let cvAttachment = CVAttachment.from(attachment, tx: transaction) {
-                self.genericAttachment = .init(attachment: cvAttachment)
-            }
+            let cvAttachment = CVAttachment.from(attachment, tx: transaction)
+            self.genericAttachment = .init(attachment: cvAttachment)
         }
 
         guard
             // Use the validated content type and only fall back to the mime type.
-            (attachment.attachment.asResourceStream()?.cachedContentType)?.isAudio
+            attachment.attachment.asStream()?.contentType.isAudio
             ?? MimeTypeUtil.isSupportedAudioMimeType(attachment.attachment.mimeType)
         else {
             buildGenericAttachment()
@@ -1491,16 +1555,16 @@ fileprivate extension CVComponentState.Builder {
             )
         {
             self.audioAttachment = audioAttachment
-        } else if let attachmentPointer = attachment.asReferencedPointer {
+        } else if let attachmentPointer = attachment.asReferencedAnyPointer {
             self.audioAttachment = AudioAttachment(
                 attachmentPointer: attachmentPointer,
                 owningMessage: interaction as? TSMessage,
                 metadata: nil,
                 receivedAtDate: interaction.receivedAtDate,
-                transitTierDownloadState: attachmentPointer.attachmentPointer.downloadState(tx: transaction.asV2Read)
+                downloadState: attachmentPointer.attachmentPointer.downloadState(tx: transaction)
             )
         } else {
-            buildGenericAttachment()
+            self.undownloadableAttachment = .audio
         }
     }
 
@@ -1570,54 +1634,76 @@ fileprivate extension CVComponentState.Builder {
                 )
                 self.linkPreview = LinkPreview(
                     linkPreview: linkPreview,
-                    linkPreviewAttachment: nil,
                     state: state
                 )
             }
-        } else if let _ = CallLink(url: url) {
-            let state = LinkPreviewCallLink(previewType: .sent(linkPreview, conversationStyle))
+        } else if let callLink = CallLink(url: url) {
+            let bottomButtonAction = CVMessageAction(
+                title: OWSLocalizedString(
+                    "CONVERSATION_VIEW_JOIN_CALL",
+                    comment: "Message shown in conversation view that offers to join a Call Link call."
+                ),
+                accessibilityIdentifier: "join_call_link_call",
+                action: .didTapJoinCallLinkCall(callLink: callLink)
+            )
+            bottomButtonsActions.append(bottomButtonAction)
+            let state = LinkPreviewCallLink(previewType: .sent(linkPreview, conversationStyle), callLink: callLink)
             self.linkPreview = LinkPreview(
                 linkPreview: linkPreview,
-                linkPreviewAttachment: nil,
                 state: state
             )
         } else {
-            let linkPreviewAttachment = { () -> TSResource? in
+            let linkPreviewAttachment = { () -> ReferencedAttachment? in
                 guard
-                    let linkPreviewAttachmentRef = DependenciesBridge.shared.tsResourceStore.linkPreviewAttachment(
-                        for: message,
-                        tx: transaction.asV2Read
-                    ),
-                    let linkPreviewAttachment = DependenciesBridge.shared.tsResourceStore.fetch(
-                        linkPreviewAttachmentRef.resourceId,
-                        tx: transaction.asV2Read
+                    let rowId = message.sqliteRowId,
+                    let linkPreviewAttachment = DependenciesBridge.shared.attachmentStore.fetchFirstReferencedAttachment(
+                        for: .messageLinkPreview(messageRowId: rowId),
+                        tx: transaction
                     )
                 else {
                     return nil
                 }
 
-                guard MimeTypeUtil.isSupportedImageMimeType(linkPreviewAttachment.mimeType) else {
+                guard MimeTypeUtil.isSupportedImageMimeType(linkPreviewAttachment.attachment.mimeType) else {
                     owsFailDebug("Link preview attachment isn't an image.")
                     return nil
                 }
-                guard let attachmentStream = linkPreviewAttachment.asResourceStream() else {
+                if let attachmentStream = linkPreviewAttachment.asReferencedStream {
+                    guard attachmentStream.attachmentStream.contentType.isImage else {
+                        owsFailDebug("Link preview image attachment isn't valid.")
+                        return nil
+                    }
+                    return attachmentStream
+                } else if
+                    let blurHash = linkPreviewAttachment.attachment.blurHash,
+                    BlurHash.isValidBlurHash(blurHash)
+                {
+                    return linkPreviewAttachment
+                } else {
                     return nil
                 }
-                guard attachmentStream.computeContentType().isImage else {
-                    owsFailDebug("Link preview image attachment isn't valid.")
-                    return nil
-                }
-                return attachmentStream
             }()
+
+            let isFailedImageAttachmentDownload: Bool
+            if linkPreviewAttachment?.attachment.asStream() == nil {
+                switch linkPreviewAttachment?.attachment.asAnyPointer()?.downloadState(tx: transaction) ?? .none {
+                case .none, .enqueuedOrDownloading:
+                    isFailedImageAttachmentDownload = false
+                case .failed:
+                    isFailedImageAttachmentDownload = true
+                }
+            } else {
+                isFailedImageAttachmentDownload = false
+            }
 
             let state = LinkPreviewSent(
                 linkPreview: linkPreview,
                 imageAttachment: linkPreviewAttachment,
+                isFailedImageAttachmentDownload: isFailedImageAttachmentDownload,
                 conversationStyle: conversationStyle
             )
             self.linkPreview = LinkPreview(
                 linkPreview: linkPreview,
-                linkPreviewAttachment: linkPreviewAttachment,
                 state: state
             )
         }
@@ -1628,7 +1714,7 @@ fileprivate extension CVComponentState.Builder {
         self.giftBadge = GiftBadge(
             messageUniqueId: messageUniqueId,
             otherUserShortName: threadViewModel.shortName ?? threadViewModel.name,
-            cachedBadge: SubscriptionManagerImpl.getCachedBadge(level: .giftBadge(level)),
+            cachedBadge: DonationSubscriptionManager.getCachedBadge(level: .giftBadge(level)),
             expirationDate: expirationDate,
             redemptionState: giftBadge.redemptionState
         )
@@ -1643,17 +1729,17 @@ public extension CVComponentState {
     static func displayableBodyText(text: String,
                                     ranges: MessageBodyRanges?,
                                     interaction: TSInteraction,
-                                    transaction: SDSAnyReadTransaction) -> DisplayableText {
+                                    transaction: DBReadTransaction) -> DisplayableText {
         return DisplayableText.displayableText(
             withMessageBody: MessageBody(text: text, ranges: ranges ?? .empty),
             transaction: transaction)
     }
 
     static func displayableBodyText(
-        oversizeTextAttachment attachmentStream: TSResourceStream,
+        oversizeTextAttachment attachmentStream: AttachmentStream,
         ranges: MessageBodyRanges?,
         interaction: TSInteraction,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> DisplayableText {
 
         let text = { () -> String in
@@ -1680,7 +1766,7 @@ fileprivate extension CVComponentState {
         ranges: MessageBodyRanges?,
         interaction: TSInteraction,
         revealedSpoilerIdsSnapshot: Set<StyleIdType>,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> DisplayableText {
         return DisplayableText.displayableText(
             withMessageBody: MessageBody(text: text, ranges: ranges ?? .empty),
@@ -1690,7 +1776,7 @@ fileprivate extension CVComponentState {
 
     static func displayableCaption(
         text: String,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> DisplayableText {
         return DisplayableText.displayableText(
             withMessageBody: MessageBody(text: text, ranges: .empty),
@@ -1731,6 +1817,8 @@ public extension CVComponentState {
                 break
             case .paymentAttachment, .archivedPaymentAttachment:
                 // Payments can't be forwarded.
+                break
+            case .undownloadableAttachment:
                 break
             }
         }

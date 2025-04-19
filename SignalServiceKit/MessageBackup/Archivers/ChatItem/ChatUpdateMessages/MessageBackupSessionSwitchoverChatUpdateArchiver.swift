@@ -11,9 +11,9 @@ final class MessageBackupSessionSwitchoverChatUpdateArchiver {
     private typealias ArchiveFrameError = MessageBackup.ArchiveFrameError<MessageBackup.InteractionUniqueId>
     private typealias RestoreFrameError = MessageBackup.RestoreFrameError<MessageBackup.ChatItemId>
 
-    private let interactionStore: any InteractionStore
+    private let interactionStore: MessageBackupInteractionStore
 
-    init(interactionStore: any InteractionStore) {
+    init(interactionStore: MessageBackupInteractionStore) {
         self.interactionStore = interactionStore
     }
 
@@ -21,7 +21,7 @@ final class MessageBackupSessionSwitchoverChatUpdateArchiver {
 
     func archiveSessionSwitchoverChatUpdate(
         infoMessage: TSInfoMessage,
-        thread: TSThread,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveChatUpdateMessageResult {
         func messageFailure(
@@ -39,15 +39,16 @@ final class MessageBackupSessionSwitchoverChatUpdateArchiver {
             let sessionSwitchoverPhoneNumberString = infoMessage.sessionSwitchoverPhoneNumber,
             let sessionSwitchoverPhoneNumber = E164(sessionSwitchoverPhoneNumberString)
         else {
-            return .skippableChatUpdate(.legacyInfoMessage(.sessionSwitchoverWithoutPhoneNumber))
+            return .skippableInteraction(.legacyInfoMessage(.sessionSwitchoverWithoutPhoneNumber))
         }
 
-        guard let switchedOverContactAddress = (thread as? TSContactThread)?.contactAddress.asSingleServiceIdBackupAddress() else {
+        let switchedOverContactAddress: MessageBackup.ContactAddress
+        switch threadInfo {
+        case .contactThread(let contactAddress):
+            guard let contactAddress else { fallthrough }
+            switchedOverContactAddress = contactAddress
+        case .groupThread:
             return messageFailure(.sessionSwitchoverUpdateMissingAuthor)
-        }
-
-        guard let threadRecipientId = context.recipientContext[.contact(switchedOverContactAddress)] else {
-            return messageFailure(.referencedRecipientIdMissing(.contact(switchedOverContactAddress)))
         }
 
         var sessionSwitchoverChatUpdate = BackupProto_SessionSwitchoverChatUpdate()
@@ -56,18 +57,19 @@ final class MessageBackupSessionSwitchoverChatUpdateArchiver {
         var chatUpdateMessage = BackupProto_ChatUpdateMessage()
         chatUpdateMessage.update = .sessionSwitchover(sessionSwitchoverChatUpdate)
 
-        let interactionArchiveDetails = Details(
-            author: threadRecipientId,
+        return Details.validateAndBuild(
+            interactionUniqueId: infoMessage.uniqueInteractionId,
+            author: .contact(switchedOverContactAddress),
             directionalDetails: .directionless(BackupProto_ChatItem.DirectionlessMessageDetails()),
             dateCreated: infoMessage.timestamp,
             expireStartDate: nil,
             expiresInMs: nil,
             isSealedSender: false,
             chatItemType: .updateMessage(chatUpdateMessage),
-            isSmsPreviouslyRestoredFromBackup: false
+            isSmsPreviouslyRestoredFromBackup: false,
+            threadInfo: threadInfo,
+            context: context.recipientContext
         )
-
-        return .success(interactionArchiveDetails)
     }
 
     // MARK: -
@@ -76,7 +78,7 @@ final class MessageBackupSessionSwitchoverChatUpdateArchiver {
         _ sessionSwitchoverUpdateProto: BackupProto_SessionSwitchoverChatUpdate,
         chatItem: BackupProto_ChatItem,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreChatUpdateMessageResult {
         func invalidProtoData(
             _ error: RestoreFrameError.ErrorType.InvalidProtoDataError,
@@ -102,7 +104,24 @@ final class MessageBackupSessionSwitchoverChatUpdateArchiver {
             timestamp: chatItem.dateSent,
             phoneNumber: e164.stringValue
         )
-        interactionStore.insertInteraction(sessionSwitchoverInfoMessage, tx: context.tx)
+
+        guard let directionalDetails = chatItem.directionalDetails else {
+            return .unrecognizedEnum(MessageBackup.UnrecognizedEnumError(
+                enumType: BackupProto_ChatItem.OneOf_DirectionalDetails.self
+            ))
+        }
+
+        do {
+            try interactionStore.insert(
+                sessionSwitchoverInfoMessage,
+                in: chatThread,
+                chatId: chatItem.typedChatId,
+                directionalDetails: directionalDetails,
+                context: context
+            )
+        } catch let error {
+            return .messageFailure([.restoreFrameError(.databaseInsertionFailed(error), chatItem.id)])
+        }
 
         return .success(())
     }

@@ -20,9 +20,6 @@ public class OutgoingEditMessage: TSOutgoingMessage {
     // MARK: - Overrides
 
     @objc
-    public override var isUrgent: Bool { false }
-
-    @objc
     public override var shouldBeSaved: Bool { false }
 
     @objc
@@ -41,7 +38,7 @@ public class OutgoingEditMessage: TSOutgoingMessage {
         thread: TSThread,
         targetMessageTimestamp: UInt64,
         editMessage: TSOutgoingMessage,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) {
         self.targetMessageTimestamp = targetMessageTimestamp
         self.editedMessage = editMessage
@@ -104,7 +101,7 @@ public class OutgoingEditMessage: TSOutgoingMessage {
 
     public override func contentBuilder(
         thread: TSThread,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> SSKProtoContentBuilder? {
 
         let editBuilder = SSKProtoEditMessage.builder()
@@ -133,7 +130,7 @@ public class OutgoingEditMessage: TSOutgoingMessage {
 
     public override func dataMessageBuilder(
         with thread: TSThread,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> SSKProtoDataMessageBuilder? {
         editedMessage.dataMessageBuilder(
             with: thread,
@@ -142,8 +139,8 @@ public class OutgoingEditMessage: TSOutgoingMessage {
     }
 
     public override func buildTranscriptSyncMessage(
-        localThread: TSThread,
-        transaction: SDSAnyWriteTransaction
+        localThread: TSContactThread,
+        transaction: DBWriteTransaction
     ) -> OWSOutgoingSyncMessage? {
         guard let thread = thread(tx: transaction) else {
             owsFailDebug("Missing thread for interaction.")
@@ -166,7 +163,7 @@ public class OutgoingEditMessage: TSOutgoingMessage {
     /// Instead, when updating this message, ensure that the `recipientAddressStates` are
     /// in sync between the OutgoingEditMesasge and it's wrapped TSOutgoingMessage
     public override func anyUpdateOutgoingMessage(
-        transaction: SDSAnyWriteTransaction,
+        transaction: DBWriteTransaction,
         block: (TSOutgoingMessage) -> Void
     ) {
         super.anyUpdateOutgoingMessage(transaction: transaction, block: block)

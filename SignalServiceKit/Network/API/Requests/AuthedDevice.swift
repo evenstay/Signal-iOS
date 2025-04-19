@@ -10,20 +10,6 @@ public enum AuthedDevice {
     case implicit
     case explicit(Explicit)
 
-    public enum DeviceId: Equatable {
-        case primary
-        case secondary(UInt32)
-
-        public func authUsername(aci: Aci) -> String {
-            switch self {
-            case .primary:
-                return aci.serviceIdString
-            case .secondary(let deviceId):
-                return "\(aci.serviceIdString).\(deviceId)"
-            }
-        }
-    }
-
     public struct Explicit {
         public let aci: Aci
         public let phoneNumber: E164
@@ -42,6 +28,16 @@ public enum AuthedDevice {
 
         public var localIdentifiers: LocalIdentifiers {
             return LocalIdentifiers(aci: aci, pni: pni, e164: phoneNumber)
+        }
+
+        public var authedAccount: AuthedAccount.Explicit {
+            return .init(
+                aci: aci,
+                pni: pni,
+                e164: phoneNumber,
+                deviceId: deviceId,
+                authPassword: authPassword
+            )
         }
     }
 

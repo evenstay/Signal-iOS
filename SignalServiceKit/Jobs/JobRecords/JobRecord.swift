@@ -24,15 +24,10 @@ extension JobRecord: NeedsFactoryInitializationFromRecordType {
 
         // MARK: Values originally from SDSRecordType
 
-        case tsAttachmentMultisend = 58
         case incomingContactSync = 61
-        /// This job record type is deprecated, but left around in case any are
-        /// currently-persisted and need to be cleaned up.
-        case deprecated_incomingGroupSync = 60
-        case legacyMessageDecrypt = 53
         case localUserLeaveGroup = 74
         case messageSender = 35
-        case receiptCredentialRedemption = 71
+        case donationReceiptCredentialRedemption = 71
         case sendGiftBadge = 73
         case sessionReset = 52
 
@@ -40,6 +35,7 @@ extension JobRecord: NeedsFactoryInitializationFromRecordType {
 
         case callRecordDeleteAll = 100
         case bulkDeleteInteractionJobRecord = 101
+        case backupReceiptsCredentialRedemption = 102
     }
 
     static var recordTypeCodingKey: JobRecordColumns {
@@ -52,17 +48,15 @@ extension JobRecord: NeedsFactoryInitializationFromRecordType {
         }
 
         switch jobRecordType {
-        case .tsAttachmentMultisend: return TSAttachmentMultisendJobRecord.self
         case .incomingContactSync: return IncomingContactSyncJobRecord.self
-        case .deprecated_incomingGroupSync: return IncomingGroupSyncJobRecord.self
-        case .legacyMessageDecrypt: return LegacyMessageDecryptJobRecord.self
         case .localUserLeaveGroup: return LocalUserLeaveGroupJobRecord.self
         case .messageSender: return MessageSenderJobRecord.self
-        case .receiptCredentialRedemption: return ReceiptCredentialRedemptionJobRecord.self
+        case .donationReceiptCredentialRedemption: return DonationReceiptCredentialRedemptionJobRecord.self
         case .sendGiftBadge: return SendGiftBadgeJobRecord.self
         case .sessionReset: return SessionResetJobRecord.self
         case .callRecordDeleteAll: return CallRecordDeleteAllJobRecord.self
         case .bulkDeleteInteractionJobRecord: return BulkDeleteInteractionJobRecord.self
+        case .backupReceiptsCredentialRedemption: return BackupReceiptCredentialRedemptionJobRecord.self
         }
     }
 }
@@ -71,20 +65,13 @@ extension JobRecord.JobRecordType {
     var jobRecordLabel: String {
         // These values are persisted and must not change, even if they're misspelled.
         switch self {
-        case .tsAttachmentMultisend:
-            // label is serialized and must remain unchanged.
-            return "BroadcastMediaMessage"
         case .incomingContactSync:
             return "IncomingContactSync"
-        case .deprecated_incomingGroupSync:
-            return "IncomingGroupSync"
-        case .legacyMessageDecrypt:
-            return "SSKMessageDecrypt"
         case .localUserLeaveGroup:
             return "LocalUserLeaveGroup"
         case .messageSender:
             return "MessageSender"
-        case .receiptCredentialRedemption:
+        case .donationReceiptCredentialRedemption:
             return "SubscriptionReceiptCredentailRedemption"
         case .sendGiftBadge:
             return "SendGiftBadge"
@@ -94,6 +81,8 @@ extension JobRecord.JobRecordType {
             return "CallRecordDeleteAll"
         case .bulkDeleteInteractionJobRecord:
             return "BulkDeleteInteraction"
+        case .backupReceiptsCredentialRedemption:
+            return "BackupReceiptCredentialRedemption"
         }
     }
 }
@@ -116,19 +105,22 @@ public class JobRecord: SDSCodableModel {
     public let uniqueId: String
 
     let label: String
-    private(set) var exclusiveProcessIdentifier: String?
+    #if TESTABLE_BUILD
+    var exclusiveProcessIdentifier: String?
+    #else
+    let exclusiveProcessIdentifier: String?
+    #endif
     public private(set) var failureCount: UInt
     private(set) var status: Status
 
     init(
-        exclusiveProcessIdentifier: String?,
         failureCount: UInt,
         status: Status
     ) {
         uniqueId = UUID().uuidString
 
         self.label = Self.jobRecordType.jobRecordLabel
-        self.exclusiveProcessIdentifier = exclusiveProcessIdentifier
+        self.exclusiveProcessIdentifier = nil
         self.failureCount = failureCount
         self.status = status
     }
@@ -165,98 +157,12 @@ public class JobRecord: SDSCodableModel {
         try container.encode(status.rawValue, forKey: .status)
         try container.encodeIfPresent(exclusiveProcessIdentifier, forKey: .exclusiveProcessIdentifier)
     }
-
-    // MARK: - Process Exclusivity
-
-    /// An identifier for the current process.
-    ///
-    /// If a persisted job has a process identifier that does not match the
-    /// current one, it will be cleaned up by ``JobQueue.pruneStaleJobs()``,
-    /// which finds and removes "stale" records.
-    private static let currentProcessIdentifier: String = UUID().uuidString
-
-    var canBeRunByCurrentProcess: Bool {
-        if let exclusiveProcessIdentifier, exclusiveProcessIdentifier != Self.currentProcessIdentifier {
-            return false
-        }
-        return true
-    }
-
-    func flagAsExclusiveForCurrentProcessIdentifier() {
-        self.exclusiveProcessIdentifier = Self.currentProcessIdentifier
-    }
-}
-
-// MARK: - JobRecordError
-
-enum JobRecordError: Error {
-    case illegalStateTransition
-    case assertionError(message: String)
-}
-
-// MARK: - Setting status
-
-extension JobRecord {
-    func saveRunningAsReady(transaction: SDSAnyWriteTransaction) throws {
-        switch status {
-        case .running:
-            updateStatus(to: .ready, withTransaction: transaction)
-        case
-                .ready,
-                .permanentlyFailed,
-                .obsolete,
-                .unknown:
-            throw JobRecordError.illegalStateTransition
-        }
-    }
-
-    func saveReadyAsRunning(transaction: SDSAnyWriteTransaction) throws {
-        switch status {
-        case .ready:
-            updateStatus(to: .running, withTransaction: transaction)
-        case
-                .running,
-                .permanentlyFailed,
-                .obsolete,
-                .unknown:
-            throw JobRecordError.illegalStateTransition
-        }
-    }
-
-    func saveAsPermanentlyFailed(transaction: SDSAnyWriteTransaction) {
-        updateStatus(to: .permanentlyFailed, withTransaction: transaction)
-    }
-
-    func saveAsObsolete(transaction: SDSAnyWriteTransaction) {
-        updateStatus(to: .obsolete, withTransaction: transaction)
-    }
-
-    private func updateStatus(to newStatus: Status, withTransaction transaction: SDSAnyWriteTransaction) {
-        anyUpdate(transaction: transaction) { record in
-            record.status = newStatus
-        }
-    }
 }
 
 // MARK: - Failures
 
 extension JobRecord {
-    func addFailure(transaction: SDSAnyWriteTransaction) throws {
-        switch status {
-        case .running:
-            anyUpdate(transaction: transaction) { record in
-                record.failureCount = min(record.failureCount + 1, UInt.max)
-            }
-        case
-                .ready,
-                .permanentlyFailed,
-                .obsolete,
-                .unknown:
-            throw JobRecordError.illegalStateTransition
-        }
-    }
-
-    public func addFailure(tx: SDSAnyWriteTransaction) {
+    public func addFailure(tx: DBWriteTransaction) {
         anyUpdate(transaction: tx) { record in record.failureCount += 1 }
     }
 }

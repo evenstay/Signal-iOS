@@ -30,7 +30,13 @@ public class RemoteMegaphoneFetcher {
 
         Logger.info("Beginning remote megaphone fetch.")
 
-        let megaphones = try await fetchRemoteMegaphones()
+        let megaphones: [RemoteMegaphoneModel]
+        do {
+            megaphones = try await fetchRemoteMegaphones()
+        } catch {
+            Logger.warn("\(error)")
+            throw error
+        }
 
         Logger.info("Syncing \(megaphones.count) fetched remote megaphones with local state.")
 
@@ -54,11 +60,11 @@ private extension String {
 }
 
 private extension RemoteMegaphoneFetcher {
-    private static let fetcherStore = SDSKeyValueStore(collection: .fetcherStoreCollection)
+    private static let fetcherStore = KeyValueStore(collection: .fetcherStoreCollection)
 
-    private static let delayBetweenSyncs: TimeInterval = 3 * kDayInterval
+    private static let delayBetweenSyncs: TimeInterval = 3 * .day
 
-    func shouldSync(transaction: SDSAnyReadTransaction) -> Bool {
+    func shouldSync(transaction: DBReadTransaction) -> Bool {
         guard
             let appVersionAtLastFetch = Self.fetcherStore.getString(.appVersionAtLastFetchKey, transaction: transaction),
             let lastFetchDate = Self.fetcherStore.getDate(.lastFetchDateKey, transaction: transaction)
@@ -73,7 +79,7 @@ private extension RemoteMegaphoneFetcher {
         return hasChangedAppVersion || hasWaitedEnoughSinceLastSync
     }
 
-    func recordCompletedSync(transaction: SDSAnyWriteTransaction) {
+    func recordCompletedSync(transaction: DBWriteTransaction) {
         Self.fetcherStore.setString(
             AppVersionImpl.shared.currentAppVersion,
             key: .appVersionAtLastFetchKey,
@@ -97,7 +103,7 @@ private extension RemoteMegaphoneFetcher {
     /// megaphones that no longer exist on the service.
     func updatePersistedMegaphones(
         withFetchedMegaphones serviceMegaphones: [RemoteMegaphoneModel],
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         // Get the current remote megaphones.
         var localRemoteMegaphones: [String: ExperienceUpgrade] = [:]
@@ -167,10 +173,10 @@ private extension RemoteMegaphoneFetcher {
         var remainingRetries = remainingRetries
         while true {
             do {
-                let response = try await getUrlSession().dataTaskPromise(
+                let response = try await getUrlSession().performRequest(
                     .manifestUrlPath,
                     method: .get
-                ).awaitable()
+                )
 
                 guard let responseJson = response.responseBodyJson else {
                     throw OWSAssertionError("Missing body JSON for manifest!")
@@ -178,6 +184,7 @@ private extension RemoteMegaphoneFetcher {
 
                 return try RemoteMegaphoneModel.Manifest.parseFrom(responseJson: responseJson)
             } catch where remainingRetries > 0 && error.isNetworkFailureOrTimeout {
+                Logger.warn("Retrying after failure: \(error)")
                 remainingRetries -= 1
                 continue
             }
@@ -228,12 +235,13 @@ private extension RemoteMegaphoneFetcher {
                 ) else {
                     throw OWSAssertionError("Failed to create translation URL path for manifest \(manifest.id)")
                 }
-                let response = try await getUrlSession().dataTaskPromise(translationUrlPath, method: .get).awaitable()
+                let response = try await getUrlSession().performRequest(translationUrlPath, method: .get)
                 guard let responseJson = response.responseBodyJson else {
                     throw OWSAssertionError("Missing body JSON for translation!")
                 }
                 return try RemoteMegaphoneModel.Translation.parseFrom(responseJson: responseJson)
             } catch where remainingRetries > 0 && error.isNetworkFailureOrTimeout {
+                Logger.warn("Retrying after failure: \(error)")
                 remainingRetries -= 1
                 continue
             }
@@ -257,10 +265,10 @@ private extension RemoteMegaphoneFetcher {
         var remainingRetries = remainingRetries
         while !FileManager.default.fileExists(atPath: imageFileUrl.path) {
             do {
-                let response = try await getUrlSession().downloadTaskPromise(
+                let response = try await getUrlSession().performDownload(
                     imageRemoteUrlPath,
                     method: .get
-                ).awaitable()
+                )
 
                 do {
                     try FileManager.default.moveItem(

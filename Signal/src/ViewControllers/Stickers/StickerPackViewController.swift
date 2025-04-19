@@ -314,7 +314,7 @@ public class StickerPackViewController: OWSViewController {
             canCancel: false,
             presentationDelay: 0,
             backgroundBlock: { modal in
-                self.databaseStorage.write { (transaction) in
+                SSKEnvironment.shared.databaseStorageRef.write { (transaction) in
                     StickerManager.installStickerPack(
                         stickerPack: stickerPack,
                         wasLocallyInitiated: true,
@@ -342,7 +342,7 @@ public class StickerPackViewController: OWSViewController {
             canCancel: false,
             presentationDelay: 0,
             backgroundBlock: { modal in
-                self.databaseStorage.write { (transaction) in
+                SSKEnvironment.shared.databaseStorageRef.write { (transaction) in
                     StickerManager.uninstallStickerPack(
                         stickerPackInfo: stickerPackInfo,
                         wasLocallyInitiated: true,
@@ -382,11 +382,12 @@ public class StickerPackViewController: OWSViewController {
 
         let navigationController = OWSNavigationController()
         let messageBody = MessageBody(text: packUrl, ranges: .empty)
-        let unapprovedContent = SendMessageUnapprovedContent.text(messageBody: messageBody)
+        guard let unapprovedContent = SendMessageUnapprovedContent(messageBody: messageBody) else {
+            owsFailDebug("Missing messageBody.")
+            return
+        }
         let sendMessageFlow = SendMessageFlow(
-            flowType: .`default`,
             unapprovedContent: unapprovedContent,
-            useConversationComposeForSingleRecipient: true,
             presentationStyle: .pushOnto(navigationController),
             delegate: self
         )
@@ -521,6 +522,14 @@ extension StickerPackViewController: SendMessageDelegate {
         sendMessageFlow = nil
 
         dismiss(animated: true)
+    }
+
+    public func sendMessageFlowWillShowConversation() {
+        AssertIsOnMainThread()
+
+        sendMessageFlow = nil
+
+        // Don't dismiss anything -- the flow does that itself.
     }
 
     public func sendMessageFlowDidCancel() {

@@ -13,24 +13,24 @@ public extension GroupsV2Impl {
     // A list of all groups we've learned of from the storage service.
     //
     // Values are irrelevant (bools).
-    private static let allStorageServiceGroupIds = SDSKeyValueStore(collection: "GroupsV2Impl.groupsFromStorageService_All")
+    private static let allStorageServiceGroupMasterKeys = KeyValueStore(collection: "GroupsV2Impl.groupsFromStorageService_All")
 
     // A list of the groups we need to try to restore. Values are serialized GroupV2Records.
-    private static let storageServiceGroupsToRestore = SDSKeyValueStore(collection: "GroupsV2Impl.groupsFromStorageService_EnqueuedRecordForRestore")
+    private static let storageServiceGroupsToRestore = KeyValueStore(collection: "GroupsV2Impl.groupsFromStorageService_EnqueuedRecordForRestore")
 
     // A deprecated list of the groups we need to restore. Values are master keys.
-    private static let legacyStorageServiceGroupsToRestore = SDSKeyValueStore(collection: "GroupsV2Impl.groupsFromStorageService_EnqueuedForRestore")
+    private static let legacyStorageServiceGroupsToRestore = KeyValueStore(collection: "GroupsV2Impl.groupsFromStorageService_EnqueuedForRestore")
 
     // A list of the groups we failed to restore.
     //
     // Values are irrelevant (bools).
-    private static let failedStorageServiceGroupIds = SDSKeyValueStore(collection: "GroupsV2Impl.groupsFromStorageService_Failed")
+    private static let failedStorageServiceGroupMasterKeys = KeyValueStore(collection: "GroupsV2Impl.groupsFromStorageService_Failed")
 
-    static func isGroupKnownToStorageService(groupModel: TSGroupModelV2, transaction: SDSAnyReadTransaction) -> Bool {
+    static func isGroupKnownToStorageService(groupModel: TSGroupModelV2, transaction: DBReadTransaction) -> Bool {
         do {
             let masterKeyData = try groupModel.masterKey().serialize().asData
             let key = restoreGroupKey(forMasterKeyData: masterKeyData)
-            return allStorageServiceGroupIds.hasValue(forKey: key, transaction: transaction)
+            return allStorageServiceGroupMasterKeys.hasValue(key, transaction: transaction)
         } catch {
             owsFailDebug("Error: \(error)")
             return false
@@ -39,7 +39,7 @@ public extension GroupsV2Impl {
 
     static func enqueuedGroupRecordForRestore(
         masterKeyData: Data,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> StorageServiceProtoGroupV2Record? {
         let key = restoreGroupKey(forMasterKeyData: masterKeyData)
         guard let recordData = storageServiceGroupsToRestore.getData(key, transaction: transaction) else {
@@ -51,7 +51,7 @@ public extension GroupsV2Impl {
     static func enqueueGroupRestore(
         groupRecord: StorageServiceProtoGroupV2Record,
         account: AuthedAccount,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         guard GroupMasterKey.isValid(groupRecord.masterKey) else {
             owsFailDebug("Invalid master key.")
@@ -60,11 +60,11 @@ public extension GroupsV2Impl {
 
         let key = restoreGroupKey(forMasterKeyData: groupRecord.masterKey)
 
-        if !allStorageServiceGroupIds.hasValue(forKey: key, transaction: transaction) {
-            allStorageServiceGroupIds.setBool(true, key: key, transaction: transaction)
+        if !allStorageServiceGroupMasterKeys.hasValue(key, transaction: transaction) {
+            allStorageServiceGroupMasterKeys.setBool(true, key: key, transaction: transaction)
         }
 
-        guard !failedStorageServiceGroupIds.hasValue(forKey: key, transaction: transaction) else {
+        guard !failedStorageServiceGroupMasterKeys.hasValue(key, transaction: transaction) else {
             // Past restore attempts failed in an unrecoverable way.
             return
         }
@@ -80,7 +80,7 @@ public extension GroupsV2Impl {
         // Store the record for restoration.
         storageServiceGroupsToRestore.setData(serializedData, key: key, transaction: transaction)
 
-        transaction.addAsyncCompletionOffMain {
+        transaction.addSyncCompletion {
             self.enqueueRestoreGroupPass(authedAccount: account)
         }
     }
@@ -92,7 +92,7 @@ public extension GroupsV2Impl {
     private static func canProcessGroupRestore(authedAccount: AuthedAccount) async -> Bool {
         return await (
             self.isMainAppAndActive()
-            && reachabilityManager.isReachable
+            && SSKEnvironment.shared.reachabilityManagerRef.isReachable
             && isRegisteredWithSneakyTransaction(authedAccount: authedAccount)
         )
     }
@@ -153,7 +153,7 @@ public extension GroupsV2Impl {
         }
     }
 
-    private static func anyEnqueuedGroupRecord(transaction: SDSAnyReadTransaction) -> StorageServiceProtoGroupV2Record? {
+    private static func anyEnqueuedGroupRecord(transaction: DBReadTransaction) -> StorageServiceProtoGroupV2Record? {
         guard let serializedData = storageServiceGroupsToRestore.anyDataValue(transaction: transaction) else {
             return nil
         }
@@ -170,7 +170,7 @@ public extension GroupsV2Impl {
             return false
         }
 
-        let (masterKeyData, groupRecord) = self.databaseStorage.read { transaction -> (Data?, StorageServiceProtoGroupV2Record?) in
+        let (masterKeyData, groupRecord) = SSKEnvironment.shared.databaseStorageRef.read { transaction -> (Data?, StorageServiceProtoGroupV2Record?) in
             if let groupRecord = self.anyEnqueuedGroupRecord(transaction: transaction) {
                 return (groupRecord.masterKey, groupRecord)
             } else {
@@ -188,37 +188,42 @@ public extension GroupsV2Impl {
         // If we have an unrecoverable failure, remove the key from the store so
         // that we stop retrying until storage service asks us to try again.
         let markAsFailed = {
-            await databaseStorage.awaitableWrite { transaction in
+            await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
                 self.storageServiceGroupsToRestore.removeValue(forKey: key, transaction: transaction)
                 self.legacyStorageServiceGroupsToRestore.removeValue(forKey: key, transaction: transaction)
-                self.failedStorageServiceGroupIds.setBool(true, key: key, transaction: transaction)
+                self.failedStorageServiceGroupMasterKeys.setBool(true, key: key, transaction: transaction)
             }
         }
 
         let markAsComplete = {
-            await databaseStorage.awaitableWrite { transaction in
+            await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
+                let isPrimaryDevice = DependenciesBridge.shared.tsAccountManager
+                    .registrationState(tx: tx).isRegisteredPrimaryDevice
+
                 // Now that the thread exists, re-apply the pending group record from
                 // storage service.
                 if var groupRecord {
                     // First apply any migrations
-                    if StorageServiceUnknownFieldMigrator.shouldInterceptRemoteManifestBeforeMerging(tx: transaction) {
+                    if StorageServiceUnknownFieldMigrator.shouldInterceptRemoteManifestBeforeMerging(tx: tx) {
                         groupRecord = StorageServiceUnknownFieldMigrator.interceptRemoteManifestBeforeMerging(
                             record: groupRecord,
-                            tx: transaction
+                            tx: tx
                         )
                     }
 
                     let recordUpdater = StorageServiceGroupV2RecordUpdater(
                         authedAccount: authedAccount,
-                        blockingManager: blockingManager,
-                        groupsV2: groupsV2,
-                        profileManager: profileManager
+                        isPrimaryDevice: isPrimaryDevice,
+                        avatarDefaultColorManager: DependenciesBridge.shared.avatarDefaultColorManager,
+                        blockingManager: SSKEnvironment.shared.blockingManagerRef,
+                        groupsV2: SSKEnvironment.shared.groupsV2Ref,
+                        profileManager: SSKEnvironment.shared.profileManagerRef
                     )
-                    _ = recordUpdater.mergeRecord(groupRecord, transaction: transaction)
+                    _ = recordUpdater.mergeRecord(groupRecord, transaction: tx)
                 }
 
-                self.storageServiceGroupsToRestore.removeValue(forKey: key, transaction: transaction)
-                self.legacyStorageServiceGroupsToRestore.removeValue(forKey: key, transaction: transaction)
+                self.storageServiceGroupsToRestore.removeValue(forKey: key, transaction: tx)
+                self.legacyStorageServiceGroupsToRestore.removeValue(forKey: key, transaction: tx)
             }
         }
 
@@ -231,7 +236,7 @@ public extension GroupsV2Impl {
             return true
         }
 
-        let isGroupInDatabase = self.databaseStorage.read { transaction in
+        let isGroupInDatabase = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             TSGroupThread.fetch(groupId: groupContextInfo.groupId, transaction: transaction) != nil
         }
         if isGroupInDatabase {
@@ -242,13 +247,10 @@ public extension GroupsV2Impl {
 
         // This will try to update the group using incremental "changes" but
         // failover to using a "snapshot".
-        let groupUpdateMode = GroupUpdateMode.upToCurrentRevisionAfterMessageProcessWithThrottling
         do {
-            _ = try await self.groupV2Updates.tryToRefreshV2GroupThread(
-                groupId: groupContextInfo.groupId,
-                spamReportingMetadata: .learnedByLocallyInitatedRefresh,
-                groupSecretParams: groupContextInfo.groupSecretParams,
-                groupUpdateMode: groupUpdateMode
+            try await SSKEnvironment.shared.groupV2UpdatesRef.refreshGroup(
+                secretParams: groupContextInfo.groupSecretParams,
+                options: [.throttle]
             )
             await markAsComplete()
             return true

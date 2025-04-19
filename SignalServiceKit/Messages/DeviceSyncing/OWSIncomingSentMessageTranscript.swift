@@ -6,7 +6,7 @@
 import Foundation
 import LibSignalClient
 
-public class OWSIncomingSentMessageTranscript: Dependencies, SentMessageTranscript {
+public class OWSIncomingSentMessageTranscript: SentMessageTranscript {
 
     public let type: SentMessageTranscriptType
 
@@ -233,7 +233,6 @@ public class OWSIncomingSentMessageTranscript: Dependencies, SentMessageTranscri
                     return try DependenciesBridge.shared.linkPreviewManager.validateAndBuildLinkPreview(
                         from: linkPreview,
                         dataMessage: dataMessage,
-                        ownerType: .message,
                         tx: tx
                     )
                 } catch let error as LinkPreviewError {

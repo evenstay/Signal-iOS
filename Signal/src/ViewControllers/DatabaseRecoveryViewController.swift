@@ -9,19 +9,22 @@ import SignalUI
 class DatabaseRecoveryViewController<SetupResult>: OWSViewController {
     private let appReadiness: AppReadiness
     private let corruptDatabaseStorage: SDSDatabaseStorage
+    private let deviceSleepManager: DeviceSleepManagerImpl
     private let keychainStorage: any KeychainStorage
-    private let setupSskEnvironment: (SDSDatabaseStorage) -> Guarantee<SetupResult>
+    private let setupSskEnvironment: (SDSDatabaseStorage) -> Task<SetupResult, Never>
     private let launchApp: (SetupResult) -> Void
 
     public init(
         appReadiness: AppReadiness,
         corruptDatabaseStorage: SDSDatabaseStorage,
+        deviceSleepManager: DeviceSleepManagerImpl,
         keychainStorage: any KeychainStorage,
-        setupSskEnvironment: @escaping (SDSDatabaseStorage) -> Guarantee<SetupResult>,
+        setupSskEnvironment: @escaping (SDSDatabaseStorage) -> Task<SetupResult, Never>,
         launchApp: @escaping (SetupResult) -> Void
     ) {
         self.appReadiness = appReadiness
         self.corruptDatabaseStorage = corruptDatabaseStorage
+        self.deviceSleepManager = deviceSleepManager
         self.keychainStorage = keychainStorage
         self.setupSskEnvironment = setupSskEnvironment
         self.launchApp = launchApp
@@ -29,6 +32,8 @@ class DatabaseRecoveryViewController<SetupResult>: OWSViewController {
     }
 
     // MARK: - State
+
+    private let sleepBlock = DeviceSleepBlockObject(blockReason: "Database Recovery")
 
     enum State {
         case awaitingUserConfirmation
@@ -194,8 +199,8 @@ class DatabaseRecoveryViewController<SetupResult>: OWSViewController {
                 comment: "The user has tried to recover their data after it was lost due to corruption. (They have not been hacked.) If they want to delete the app and restart, they will be presented with a confirmation dialog. This is the final button they will press before their data is reset."
             ),
             proceedStyle: .destructive
-        ) { _ in
-            SignalApp.resetAppDataWithUI()
+        ) { [keychainStorage] _ in
+            SignalApp.resetAppDataWithUI(keyFetcher: GRDBKeyFetcher(keychainStorage: keychainStorage))
         }
     }
 
@@ -286,7 +291,9 @@ class DatabaseRecoveryViewController<SetupResult>: OWSViewController {
                     databaseFileUrl: self.corruptDatabaseStorage.databaseFileUrl,
                     keychainStorage: self.keychainStorage
                 )
-                return self.setupSskEnvironment(databaseStorage).map(on: DispatchQueue.sharedUserInitiated) { setupResult in
+                return Guarantee.wrapAsync {
+                    await self.setupSskEnvironment(databaseStorage).value
+                }.map(on: DispatchQueue.sharedUserInitiated) { setupResult in
                     if shouldDumpAndRecreate {
                         let manualRecreation = DatabaseRecovery.ManualRecreation(databaseStorage: databaseStorage)
                         progress.addChild(manualRecreation.progress, withPendingUnitCount: 1)
@@ -298,8 +305,8 @@ class DatabaseRecoveryViewController<SetupResult>: OWSViewController {
                 }
             }
         case .corruptedButAlreadyDumpedAndRestored:
-            promise = firstly(on: DispatchQueue.sharedUserInitiated) {
-                self.setupSskEnvironment(self.corruptDatabaseStorage)
+            promise = Guarantee.wrapAsync {
+                await self.setupSskEnvironment(self.corruptDatabaseStorage).value
             }.map(on: DispatchQueue.sharedUserInitiated) { setupResult in
                 let manualRecreation = DatabaseRecovery.ManualRecreation(databaseStorage: self.corruptDatabaseStorage)
                 progress.addChild(
@@ -421,7 +428,7 @@ class DatabaseRecoveryViewController<SetupResult>: OWSViewController {
         stackView.addArrangedSubview(continueButton)
         continueButton.autoPinWidthToSuperviewMargins()
 
-        UIApplication.shared.isIdleTimerDisabled = false
+        deviceSleepManager.removeBlock(blockObject: sleepBlock)
     }
 
     private func renderDeviceSpaceWarning() {
@@ -461,7 +468,7 @@ class DatabaseRecoveryViewController<SetupResult>: OWSViewController {
 
         continueButton.autoPinWidthToSuperviewMargins()
 
-        UIApplication.shared.isIdleTimerDisabled = false
+        deviceSleepManager.removeBlock(blockObject: sleepBlock)
     }
 
     private func renderRecovering(fractionCompleted: Double) {
@@ -491,7 +498,7 @@ class DatabaseRecoveryViewController<SetupResult>: OWSViewController {
 
             progressStack.autoPinWidthToSuperviewMargins()
 
-            UIApplication.shared.isIdleTimerDisabled = true
+            deviceSleepManager.addBlock(blockObject: sleepBlock)
         }
 
         progressLabel.text = Self.render(fractionCompleted: fractionCompleted)
@@ -541,7 +548,7 @@ class DatabaseRecoveryViewController<SetupResult>: OWSViewController {
         resetSignalButton.autoPinWidthToSuperviewMargins()
         submitDebugLogsButton.autoPinWidthToSuperviewMargins()
 
-        UIApplication.shared.isIdleTimerDisabled = false
+        deviceSleepManager.removeBlock(blockObject: sleepBlock)
     }
 
     private func renderRecoverySucceeded() {
@@ -572,7 +579,7 @@ class DatabaseRecoveryViewController<SetupResult>: OWSViewController {
 
         launchAppButton.autoPinWidthToSuperviewMargins()
 
-        UIApplication.shared.isIdleTimerDisabled = false
+        deviceSleepManager.removeBlock(blockObject: sleepBlock)
     }
 
     // MARK: - Utilities

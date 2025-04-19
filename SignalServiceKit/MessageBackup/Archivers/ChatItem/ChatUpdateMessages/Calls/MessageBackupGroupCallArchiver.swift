@@ -12,12 +12,12 @@ final class MessageBackupGroupCallArchiver {
 
     private let callRecordStore: CallRecordStore
     private let groupCallRecordManager: GroupCallRecordManager
-    private let interactionStore: InteractionStore
+    private let interactionStore: MessageBackupInteractionStore
 
     init(
         callRecordStore: CallRecordStore,
         groupCallRecordManager: GroupCallRecordManager,
-        interactionStore: InteractionStore
+        interactionStore: MessageBackupInteractionStore
     ) {
         self.callRecordStore = callRecordStore
         self.groupCallRecordManager = groupCallRecordManager
@@ -26,6 +26,7 @@ final class MessageBackupGroupCallArchiver {
 
     func archiveGroupCall(
         _ groupCallInteraction: OWSGroupCallMessage,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveChatUpdateMessageResult {
         let associatedCallRecord: CallRecord? = callRecordStore.fetch(
@@ -58,11 +59,23 @@ final class MessageBackupGroupCallArchiver {
             groupCallState = .generic
         }
 
+        var partialErrors = [MessageBackup.ArchiveFrameError<MessageBackup.InteractionUniqueId>]()
+
         /// The call record will store the best record of when the call began,
         /// since we update its timestamp if we learn the group call started
         /// earlier than we originally learned about it. If there's no call
         /// record, though, we can fall back to the interaction.
         let startedCallTimestamp: UInt64 = associatedCallRecord?.callBeganTimestamp ?? groupCallInteraction.timestamp
+
+        switch
+            MessageBackup.Timestamps.validateTimestamp(startedCallTimestamp)
+                .bubbleUp(Details.self, partialErrors: &partialErrors)
+        {
+        case .continue:
+            break
+        case .bubbleUpError(let error):
+            return error
+        }
 
         var groupCallUpdate = BackupProto_GroupCall()
         groupCallUpdate.state = groupCallState
@@ -73,7 +86,18 @@ final class MessageBackupGroupCallArchiver {
             case .read: true
             case .unread: false
             }
-            groupCallUpdate.endedCallTimestamp = associatedCallRecord.callEndedTimestamp
+            MessageBackup.Timestamps.setTimestampIfValid(
+                from: associatedCallRecord,
+                \.callEndedTimestamp,
+                on: &groupCallUpdate,
+                \.endedCallTimestamp,
+                allowZero: false
+            )
+        } else {
+            /// This property is non-optional, but we only track it for calls
+            /// with an `associatedCallRecord`. For those without, mark them as
+            /// read.
+            groupCallUpdate.read = true
         }
 
         if let ringerAci = associatedCallRecord?.groupCallRingerAci {
@@ -97,25 +121,35 @@ final class MessageBackupGroupCallArchiver {
         var chatUpdateMessage = BackupProto_ChatUpdateMessage()
         chatUpdateMessage.update = .groupCall(groupCallUpdate)
 
-        let interactionArchiveDetails = Details(
-            author: context.recipientContext.localRecipientId,
+        switch Details.validateAndBuild(
+            interactionUniqueId: groupCallInteraction.uniqueInteractionId,
+            author: .localUser,
             directionalDetails: .directionless(BackupProto_ChatItem.DirectionlessMessageDetails()),
             dateCreated: groupCallInteraction.timestamp,
             expireStartDate: nil,
             expiresInMs: nil,
             isSealedSender: false,
             chatItemType: .updateMessage(chatUpdateMessage),
-            isSmsPreviouslyRestoredFromBackup: false
-        )
-
-        return .success(interactionArchiveDetails)
+            isSmsPreviouslyRestoredFromBackup: false,
+            threadInfo: threadInfo,
+            context: context.recipientContext
+        ).bubbleUp(Details.self, partialErrors: &partialErrors) {
+        case .continue(let details):
+            if partialErrors.isEmpty {
+                return .success(details)
+            } else {
+                return .partialFailure(details, partialErrors)
+            }
+        case .bubbleUpError(let error):
+            return error
+        }
     }
 
     func restoreGroupCall(
         _ groupCall: BackupProto_GroupCall,
         chatItem: BackupProto_ChatItem,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreChatUpdateMessageResult {
         let groupThread: TSGroupThread
         switch chatThread.threadType {
@@ -147,14 +181,28 @@ final class MessageBackupGroupCallArchiver {
             thread: groupThread,
             sentAtTimestamp: chatItem.dateSent
         )
-        interactionStore.insertInteraction(groupCallInteraction, tx: context.tx)
+
+        do {
+            try interactionStore.insert(
+                groupCallInteraction,
+                in: chatThread,
+                chatId: chatItem.typedChatId,
+                startedCallAci: startedCallAci,
+                wasRead: groupCall.read,
+                context: context
+            )
+        } catch let error {
+            return .messageFailure([.restoreFrameError(.databaseInsertionFailed(error), chatItem.id)])
+        }
 
         if groupCall.hasCallID {
             let callDirection: CallRecord.CallDirection
             let callStatus: CallRecord.CallStatus.GroupCallStatus
             switch groupCall.state {
             case .unknownState, .UNRECOGNIZED:
-                return .messageFailure([.restoreFrameError(.invalidProtoData(.groupCallUnrecognizedState), chatItem.id)])
+                // Fallback to generic
+                callDirection = .incoming
+                callStatus = .generic
             case .generic:
                 callDirection = .incoming
                 callStatus = .generic
@@ -194,26 +242,32 @@ final class MessageBackupGroupCallArchiver {
                 groupCallRingerAci = nil
             }
 
-            let callRecord = groupCallRecordManager.createGroupCallRecord(
-                callId: groupCall.callID,
-                groupCallInteraction: groupCallInteraction,
-                groupCallInteractionRowId: groupCallInteraction.sqliteRowId!,
-                groupThreadRowId: chatThread.threadRowId,
-                callDirection: callDirection,
-                groupCallStatus: callStatus,
-                groupCallRingerAci: groupCallRingerAci,
-                callEventTimestamp: groupCall.startedCallTimestamp,
-                shouldSendSyncMessage: false,
-                tx: context.tx
-            )
-            callRecordStore.updateCallEndedTimestamp(
-                callRecord: callRecord,
-                callEndedTimestamp: groupCall.endedCallTimestamp,
-                tx: context.tx
-            )
-
-            if groupCall.read {
-                callRecordStore.markAsRead(callRecord: callRecord, tx: context.tx)
+            let callRecord: CallRecord
+            do {
+                callRecord = try groupCallRecordManager.createGroupCallRecord(
+                    callId: groupCall.callID,
+                    groupCallInteraction: groupCallInteraction,
+                    groupCallInteractionRowId: groupCallInteraction.sqliteRowId!,
+                    groupThreadRowId: chatThread.threadRowId,
+                    callDirection: callDirection,
+                    groupCallStatus: callStatus,
+                    groupCallRingerAci: groupCallRingerAci,
+                    callEventTimestamp: groupCall.startedCallTimestamp,
+                    shouldSendSyncMessage: false,
+                    tx: context.tx
+                )
+                if groupCall.hasEndedCallTimestamp {
+                    try callRecordStore.updateCallEndedTimestamp(
+                        callRecord: callRecord,
+                        callEndedTimestamp: groupCall.endedCallTimestamp,
+                        tx: context.tx
+                    )
+                }
+                if groupCall.read {
+                    try callRecordStore.markAsRead(callRecord: callRecord, tx: context.tx)
+                }
+            } catch {
+                return .messageFailure([.restoreFrameError(.databaseInsertionFailed(error), chatItem.id)])
             }
         }
 
@@ -273,7 +327,7 @@ private extension MessageBackup.RecipientRestoringContext {
         case .contact(let contactAddress):
             guard let aci = contactAddress.aci else { fallthrough }
             return .found(aci)
-        case .group, .distributionList, .releaseNotesChannel:
+        case .group, .distributionList, .releaseNotesChannel, .callLink:
             return .missing(.restoreFrameError(
                 .invalidProtoData(.groupCallRecipientIdNotAnAci(recipientId)),
                 chatItemId

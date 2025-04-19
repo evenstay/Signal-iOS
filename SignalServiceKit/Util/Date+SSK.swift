@@ -20,7 +20,6 @@ private let internetDateFormatter: ISO8601DateFormatter = {
     return formatter
 }()
 
-@objc
 public extension NSDate {
     static func ows_parseFromHTTPDateString(_ string: String) -> NSDate? {
         return httpDateFormatter.date(from: string) as NSDate?
@@ -30,34 +29,27 @@ public extension NSDate {
         return internetDateFormatter.date(from: string) as NSDate?
     }
 
+    @objc
     var ows_millisecondsSince1970: UInt64 {
         (self as Date).ows_millisecondsSince1970
     }
 
+    @objc
     static func ows_millisecondsSince1970(forDate date: NSDate) -> UInt64 {
         date.ows_millisecondsSince1970
     }
 
+    @objc
     static func ows_millisecondTimeStamp() -> UInt64 {
         Date.ows_millisecondTimestamp()
     }
 
+    @objc
     static func ows_date(withMillisecondsSince1970 milliseconds: UInt64) -> NSDate {
         NSDate(timeIntervalSince1970: Double(milliseconds) / 1000)
     }
 
-    static var distantFutureForMillisecondTimestamp: Date {
-        Date.distantFutureForMillisecondTimestamp
-    }
-
-    static var distantFutureMillisecondTimestamp: UInt64 {
-        Date.distantFutureMillisecondTimestamp
-    }
-
-    func isBefore(date: NSDate) -> Bool {
-        (self as Date).isBefore(date as Date)
-    }
-
+    @objc
     func isAfterNow() -> Bool {
         (self as Date).isAfterNow
     }
@@ -92,20 +84,8 @@ public extension Date {
         return result
     }
 
-    static var distantFutureMillisecondTimestamp: UInt64 {
-        distantFutureForMillisecondTimestamp.ows_millisecondsSince1970
-    }
-
-    func isBefore(_ date: Date) -> Bool {
-        self < date
-    }
-
     var isBeforeNow: Bool {
         self < Date()
-    }
-
-    func isAfter(_ date: Date) -> Bool {
-        self > date
     }
 
     var isAfterNow: Bool {

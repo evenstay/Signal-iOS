@@ -70,9 +70,11 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
         return Promise.wrapAsync {
             await self.registerUserNotificationSettings()
         }.then { (_) -> Promise<ApnRegistrationId> in
-            guard !Platform.isSimulator else {
-                throw PushRegistrationError.pushNotSupported(description: "Push not supported on simulators")
+            #if targetEnvironment(simulator)
+            if TSConstants.isUsingProductionService {
+                throw PushRegistrationError.pushNotSupported(description: "Production APNs isn't supported on simulators.")
             }
+            #endif
 
             return self
                 .registerForVanillaPushToken(
@@ -176,59 +178,7 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
             return
         }
 
-        if let challenge = payload.dictionaryPayload["challenge"] as? String {
-            Logger.info("received preauth challenge")
-            DispatchQueue.main.sync {
-                self.preauthChallengeFuture.resolve(challenge)
-            }
-            return
-        }
-
-        Logger.info("Fetching messages.")
-        var backgroundTask: OWSBackgroundTask? = OWSBackgroundTask(label: "Push fetch.")
-        firstly { () -> Promise<Void> in
-            self.messageFetcherJob.run()
-        }.done(on: DispatchQueue.main) {
-            owsAssertDebug(backgroundTask != nil)
-            backgroundTask = nil
-        }.catch { error in
-            owsFailDebug("Error: \(error)")
-        }
-
-        Self.handleUnexpectedVoipPush()
-    }
-
-    private static func handleUnexpectedVoipPush() {
-        assertOnQueue(calloutQueue)
-
-        Logger.info("")
-
-        // If the main app receives an unexpected VOIP push on iOS 15,
-        // we need to:
-        //
-        // * Post a generic incoming message notification.
-        // * Try to sync push tokens.
-        // * Block on completion of both activities for reasons?
-        let completionSignal = DispatchSemaphore(value: 0)
-        Task {
-            defer {
-                completionSignal.signal()
-            }
-            await notificationPresenterImpl.postGenericIncomingMessageNotification()
-            do {
-                try await SyncPushTokensJob(mode: .forceUpload).run()
-            } catch {
-                owsFailDebugUnlessNetworkFailure(error)
-            }
-        }
-        let waitInterval = DispatchTimeInterval.seconds(20)
-        let didTimeout = (completionSignal.wait(timeout: .now() + waitInterval) == .timedOut)
-        if didTimeout {
-            owsFailDebug("Timed out.")
-        } else {
-            Logger.info("Complete.")
-            Logger.flush()
-        }
+        owsFailDebug("Ignoring PKPush without a valid payload.")
     }
 
     public func pushRegistry(_ registry: PKPushRegistry, didUpdate credentials: PKPushCredentials, for type: PKPushType) {
@@ -246,9 +196,7 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
     // User notification settings must be registered *before* AppDelegate will
     // return any requested push tokens.
     public func registerUserNotificationSettings() async {
-        Logger.info("registering user notification settings")
-
-        await notificationPresenterImpl.registerNotificationSettings()
+        await SSKEnvironment.shared.notificationPresenterRef.registerNotificationSettings()
     }
 
     /**
@@ -290,7 +238,7 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
             let promise = vanillaTokenPromise!
             owsAssertDebug(!promise.isSealed)
             Logger.info("already pending promise for vanilla push token")
-            return promise.map { $0.hexEncodedString }
+            return promise.map { $0.toHex() }
         }
 
         // No pending vanilla token yet. Create a new promise
@@ -338,7 +286,7 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
                 }
 
                 Logger.info("successfully registered for vanilla push notifications")
-                return pushTokenData.hexEncodedString
+                return pushTokenData.toHex()
             }
         }.ensure {
             self.vanillaTokenPromise = nil
@@ -357,12 +305,5 @@ public class PushRegistrationManager: NSObject, PKPushRegistryDelegate {
         self.voipRegistry  = voipRegistry
         voipRegistry.desiredPushTypes = [.voIP]
         voipRegistry.delegate = self
-    }
-}
-
-// We transmit pushToken data as hex encoded string to the server
-fileprivate extension Data {
-    var hexEncodedString: String {
-        return map { String(format: "%02hhx", $0) }.joined()
     }
 }

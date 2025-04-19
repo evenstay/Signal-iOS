@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+#if TESTABLE_BUILD
+
 import Foundation
 public import LibSignalClient
 
-#if TESTABLE_BUILD
 /// A helper for tests which can initializes Signal Protocol sessions
 /// and then encrypt and decrypt messages for those sessions.
 public struct TestProtocolRunner {
@@ -18,7 +19,7 @@ public struct TestProtocolRunner {
     /// Messages from `senderClient` will be PreKey messages.
     public func initializePreKeys(senderClient: TestSignalClient,
                                   recipientClient: TestSignalClient,
-                                  transaction: SDSAnyWriteTransaction) throws {
+                                  transaction: DBWriteTransaction) throws {
         senderClient.ensureRecipientId(tx: transaction)
         recipientClient.ensureRecipientId(tx: transaction)
 
@@ -73,7 +74,7 @@ public struct TestProtocolRunner {
     /// Messages between both clients will be "Whisper" / "ciphertext" / "Signal" messages.
     public func initialize(senderClient: TestSignalClient,
                            recipientClient: TestSignalClient,
-                           transaction: SDSAnyWriteTransaction) throws {
+                           transaction: DBWriteTransaction) throws {
 
         try initializePreKeys(senderClient: senderClient, recipientClient: recipientClient, transaction: transaction)
 
@@ -162,8 +163,8 @@ public extension TestSignalClient {
         return ProtocolAddress(serviceId, deviceId: deviceId)
     }
 
-    func ensureRecipientId(tx: SDSAnyWriteTransaction) {
-        _ = DependenciesBridge.shared.recipientFetcher.fetchOrCreate(serviceId: serviceId, tx: tx.asV2Write)
+    func ensureRecipientId(tx: DBWriteTransaction) {
+        _ = DependenciesBridge.shared.recipientFetcher.fetchOrCreate(serviceId: serviceId, tx: tx)
     }
 }
 
@@ -221,14 +222,14 @@ public struct LocalSignalClient: TestSignalClient {
         self.identity = identity
         self.protocolStore = SignalProtocolStoreImpl(
             for: identity,
-            keyValueStoreFactory: DependenciesBridge.shared.keyValueStoreFactory,
-            recipientIdFinder: DependenciesBridge.shared.recipientIdFinder
+            recipientIdFinder: DependenciesBridge.shared.recipientIdFinder,
+            remoteConfigProvider: SSKEnvironment.shared.remoteConfigManagerRef
         )
     }
 
     public var identityKeyPair: ECKeyPair {
-        return SSKEnvironment.shared.databaseStorage.read { tx in
-            return DependenciesBridge.shared.identityManager.identityKeyPair(for: identity, tx: tx.asV2Read)!
+        return SSKEnvironment.shared.databaseStorageRef.read { tx in
+            return DependenciesBridge.shared.identityManager.identityKeyPair(for: identity, tx: tx)!
         }
     }
 
@@ -263,8 +264,8 @@ public struct LocalSignalClient: TestSignalClient {
     }
 
     public var identityKeyStore: IdentityKeyStore {
-        return SSKEnvironment.shared.databaseStorage.read { transaction in
-            return try! DependenciesBridge.shared.identityManager.libSignalStore(for: identity, tx: transaction.asV2Read)
+        return SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            return try! DependenciesBridge.shared.identityManager.libSignalStore(for: identity, tx: transaction)
         }
     }
 
@@ -280,7 +281,7 @@ public struct LocalSignalClient: TestSignalClient {
 
 var envelopeId: UInt64 = 0
 
-public struct FakeService: Dependencies {
+public struct FakeService {
     public let localClient: LocalSignalClient
     public let runner: TestProtocolRunner
 
@@ -295,7 +296,10 @@ public struct FakeService: Dependencies {
         builder.setType(.ciphertext)
         builder.setSourceDevice(senderClient.deviceId)
 
-        let content = try buildEncryptedContentData(fromSenderClient: senderClient, bodyText: bodyText)
+        let timestamp = MessageTimestampGenerator.sharedInstance.generateTimestamp()
+        builder.setTimestamp(timestamp)
+
+        let content = try buildEncryptedContentData(fromSenderClient: senderClient, timestamp: timestamp, bodyText: bodyText)
         builder.setContent(content)
 
         // builder.setServerTimestamp(serverTimestamp)
@@ -351,9 +355,9 @@ public struct FakeService: Dependencies {
         return builder
     }
 
-    public func buildEncryptedContentData(fromSenderClient senderClient: TestSignalClient, bodyText: String?) throws -> Data {
-        let plaintext = try buildContentData(bodyText: bodyText)
-        let cipherMessage: CiphertextMessage = databaseStorage.write { transaction in
+    public func buildEncryptedContentData(fromSenderClient senderClient: TestSignalClient, timestamp: UInt64, bodyText: String?) throws -> Data {
+        let plaintext = try buildContentData(timestamp: timestamp, bodyText: bodyText)
+        let cipherMessage: CiphertextMessage = SSKEnvironment.shared.databaseStorageRef.write { transaction in
             return try! self.runner.encrypt(plaintext,
                                             senderClient: senderClient,
                                             recipient: self.localClient.protocolAddress,
@@ -366,7 +370,7 @@ public struct FakeService: Dependencies {
 
     public func buildEncryptedContentData(fromSenderClient senderClient: TestSignalClient, groupV2Context: SSKProtoGroupContextV2) throws -> Data {
         let plaintext = try buildContentData(groupV2Context: groupV2Context)
-        let cipherMessage: CiphertextMessage = databaseStorage.write { transaction in
+        let cipherMessage: CiphertextMessage = SSKEnvironment.shared.databaseStorageRef.write { transaction in
             return try! self.runner.encrypt(plaintext,
                                             senderClient: senderClient,
                                             recipient: self.localClient.protocolAddress,
@@ -380,7 +384,7 @@ public struct FakeService: Dependencies {
     public func buildEncryptedContentData(fromSenderClient senderClient: TestSignalClient,
                                           deliveryReceiptForMessage timestamp: UInt64) throws -> Data {
         let plaintext = try buildContentData(deliveryReceiptForMessage: timestamp)
-        let cipherMessage: CiphertextMessage = databaseStorage.write { transaction in
+        let cipherMessage: CiphertextMessage = SSKEnvironment.shared.databaseStorageRef.write { transaction in
             return try! self.runner.encrypt(plaintext,
                                             senderClient: senderClient,
                                             recipient: self.localClient.protocolAddress,
@@ -391,8 +395,9 @@ public struct FakeService: Dependencies {
         return Data(cipherMessage.serialize())
     }
 
-    public func buildContentData(bodyText: String?) throws -> Data {
+    public func buildContentData(timestamp: UInt64, bodyText: String?) throws -> Data {
         let dataMessageBuilder = SSKProtoDataMessage.builder()
+        dataMessageBuilder.setTimestamp(timestamp)
         if let bodyText = bodyText {
             dataMessageBuilder.setBody(bodyText)
         } else {

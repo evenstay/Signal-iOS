@@ -896,7 +896,7 @@ class CameraCaptureSession: NSObject {
         assertIsOnSessionQueue()
 
         // This check will fail if we do not have recording permissions.
-        guard audioSession.startAudioActivity(recordingAudioActivity) else {
+        guard SUIEnvironment.shared.audioSessionRef.startAudioActivity(recordingAudioActivity) else {
             Logger.warn("Unable to start recording audio activity!")
             return false
         }
@@ -935,7 +935,7 @@ class CameraCaptureSession: NSObject {
         audioCaptureSession.removeInput(audioCaptureInput)
         self.audioCaptureInput = nil
 
-        audioSession.endAudioActivity(recordingAudioActivity)
+        SUIEnvironment.shared.audioSessionRef.endAudioActivity(recordingAudioActivity)
     }
 
     // MARK: Volume Button observation
@@ -1172,6 +1172,7 @@ private class VideoCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     private var isAssetWriterSessionStarted = false
     private var isAssetWriterAcceptingSampleBuffers = false
     private var needsFinishAssetWriterSession = false
+    private var errorSheetPromise: Promise<Void>?
 
     weak var delegate: VideoCaptureDelegate?
 
@@ -1323,8 +1324,16 @@ private class VideoCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
                 } else {
                     result = .failure(PhotoCaptureError.invalidVideo)
                 }
-                DispatchQueue.main.async {
-                    self.delegate?.videoCapture(self, didFinishWith: result)
+                if let errorSheetPromise = self.errorSheetPromise {
+                    errorSheetPromise.ensure(on: DispatchQueue.main) {
+                        DispatchQueue.main.async {
+                            self.delegate?.videoCapture(self, didFinishWith: result)
+                        }
+                    }.cauterize()
+                } else {
+                    DispatchQueue.main.async {
+                        self.delegate?.videoCapture(self, didFinishWith: result)
+                    }
                 }
 
                 self.cleanUp()
@@ -1371,6 +1380,27 @@ private class VideoCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
             Logger.error("Input failed to append sample buffer.")
             needsFinishAssetWriterSession = true
             return
+        }
+
+        if
+            let fileSize = OWSFileSystem.fileSize(of: assetWriter.outputURL)?.uintValue,
+            fileSize >= UInt(Double(OWSMediaUtils.kMaxFileSizeVideo) * 0.95)
+        {
+            Logger.warn("Stopping recording before hitting max file size")
+            needsFinishAssetWriterSession = true
+            let (promise, future) = Promise<Void>.pending()
+            self.errorSheetPromise = promise
+            DispatchQueue.main.async {
+                OWSActionSheets.showActionSheet(
+                    message: OWSLocalizedString(
+                        "MAX_VIDEO_RECORDING_LENGTH_ALERT",
+                        comment: "Title for error sheet shown when the max video length is recorded with the in-app camera"
+                    ),
+                    buttonAction: { _ in
+                        future.resolve(())
+                    }
+                )
+            }
         }
 
         if assetWriterInput == videoWriterInput {
@@ -1442,15 +1472,13 @@ private protocol PhotoCaptureDelegate: AnyObject {
     func photoCaptureDidProduce(result: Result<Data, Error>)
 }
 
-private class PhotoCapture: NSObject {
+private class PhotoCapture {
 
     let avCaptureOutput = AVCapturePhotoOutput()
 
     var flashMode: AVCaptureDevice.FlashMode = .off
 
-    override init() {
-        super.init()
-
+    init() {
         avCaptureOutput.isLivePhotoCaptureEnabled = false
         avCaptureOutput.isHighResolutionCaptureEnabled = true
     }
@@ -1672,7 +1700,7 @@ extension UIImage.Orientation: @retroactive CustomStringConvertible {
 // MARK: -
 
 extension CGSize {
-    func scaledToFit(max: CGFloat) -> CGSize {
+    fileprivate func scaledToFit(max: CGFloat) -> CGSize {
         if width > height {
             if width > max {
                 let scale = max / width
@@ -1690,7 +1718,7 @@ extension CGSize {
         }
     }
 
-    func cropped(toAspectRatio aspectRatio: CGFloat) -> CGSize {
+    fileprivate func cropped(toAspectRatio aspectRatio: CGFloat) -> CGSize {
         guard aspectRatio > 0, aspectRatio <= 1 else {
             owsFailDebug("invalid aspectRatio: \(aspectRatio)")
             return self
@@ -1707,7 +1735,7 @@ extension CGSize {
 // MARK: -
 
 extension AVCaptureDevice.FlashMode {
-    var toTorchMode: AVCaptureDevice.TorchMode {
+    fileprivate var toTorchMode: AVCaptureDevice.TorchMode {
         switch self {
         case .auto:
             return .auto
@@ -1724,7 +1752,7 @@ extension AVCaptureDevice.FlashMode {
 
 extension CMAcceleration {
 
-    var deviceOrientation: AVCaptureVideoOrientation? {
+    fileprivate var deviceOrientation: AVCaptureVideoOrientation? {
         if x >= 0.75 {
             return .landscapeLeft
         } else if x <= -0.75 {

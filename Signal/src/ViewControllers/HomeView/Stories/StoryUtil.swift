@@ -3,18 +3,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-public import SignalServiceKit
+import SignalServiceKit
 import SignalUI
 
 /// Container for util methods related to story authors.
-public enum StoryUtil: Dependencies {
+public enum StoryUtil {
 
     static func authorDisplayName(
         for storyMessage: StoryMessage,
         contactsManager: any ContactManager,
         useFullNameForLocalAddress: Bool = true,
         useShortGroupName: Bool = true,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> String {
         guard !storyMessage.authorAddress.isSystemStoryAddress else {
             return OWSLocalizedString(
@@ -62,7 +62,7 @@ public enum StoryUtil: Dependencies {
     /// Avatar for the _context_ of a story message. e.g. the group avatar if a group thread story, or the author's avatar otherwise.
     static func contextAvatarDataSource(
         for storyMessage: StoryMessage,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) throws -> ConversationAvatarDataSource {
         guard let groupId = storyMessage.groupId else {
             return try authorAvatarDataSource(for: storyMessage, transaction: transaction)
@@ -76,7 +76,7 @@ public enum StoryUtil: Dependencies {
     /// Avatar for the author of a story message, regardless of its context.
     static func authorAvatarDataSource(
         for storyMessage: StoryMessage,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) throws -> ConversationAvatarDataSource {
         guard !storyMessage.authorAddress.isSystemStoryAddress else {
             return systemStoryAvatar
@@ -111,13 +111,13 @@ public enum StoryUtil: Dependencies {
 
         let actionSheet = ActionSheetController(message: title)
         actionSheet.addAction(.init(title: CommonStrings.deleteButton, style: .destructive, handler: { _ in
-            Self.databaseStorage.write { transaction in
+            SSKEnvironment.shared.databaseStorageRef.write { transaction in
                 message.remotelyDelete(for: thread, transaction: transaction)
             }
             completion()
         }))
         actionSheet.addAction(.init(title: CommonStrings.sendMessage, handler: { _ in
-            Self.databaseStorage.write { transaction in
+            SSKEnvironment.shared.databaseStorageRef.write { transaction in
                 message.resendMessageToFailedRecipients(transaction: transaction)
             }
             completion()
@@ -137,7 +137,7 @@ public enum StoryUtil: Dependencies {
             confirmationText: MessageStrings.sendButton
         ) { confirmedSafetyNumberChange in
             guard confirmedSafetyNumberChange else { return }
-            Self.databaseStorage.write { transaction in
+            SSKEnvironment.shared.databaseStorageRef.write { transaction in
                 message.resendMessageToFailedRecipients(transaction: transaction)
             }
         }

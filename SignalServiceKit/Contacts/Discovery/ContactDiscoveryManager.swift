@@ -45,7 +45,7 @@ public protocol ContactDiscoveryManager {
     ///     results. It's worthwhile noting that the discovery process has side
     ///     effects, so callers may choose to ignore the result type and fetch
     ///     updated state directly from the database.
-    func lookUp(phoneNumbers: Set<String>, mode: ContactDiscoveryMode) -> Promise<Set<SignalRecipient>>
+    func lookUp(phoneNumbers: Set<String>, mode: ContactDiscoveryMode) async throws -> Set<SignalRecipient>
 }
 
 private enum Constant {
@@ -55,7 +55,7 @@ private enum Constant {
     /// result, the phone number will still be missing a UUID, so we may try to
     /// fetch it again, and again, and again. This timeout controls how long
     /// we'll cache these negative lookup results.
-    static let undiscoverableCacheTimeout = 6 * kHourInterval
+    static let undiscoverableCacheTimeout: TimeInterval = 6 * .hour
 }
 
 public enum ContactDiscoveryMode {
@@ -86,7 +86,7 @@ public enum ContactDiscoveryMode {
     ]
 }
 
-public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManager {
+public final class ContactDiscoveryManagerImpl: ContactDiscoveryManager {
 
     /// Locks all internal state for this object.
     private var lock = UnfairLock()
@@ -95,19 +95,17 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
 
     init(contactDiscoveryTaskQueue: ContactDiscoveryTaskQueue) {
         self.contactDiscoveryTaskQueue = contactDiscoveryTaskQueue
-        super.init()
         SwiftSingletons.register(self)
     }
 
     public convenience init(
-        db: DB,
+        db: any DB,
         recipientDatabaseTable: RecipientDatabaseTable,
         recipientFetcher: RecipientFetcher,
         recipientManager: any SignalRecipientManager,
         recipientMerger: RecipientMerger,
         tsAccountManager: TSAccountManager,
         udManager: OWSUDManager,
-        websocketFactory: WebSocketFactory,
         libsignalNet: Net
     ) {
         self.init(
@@ -119,20 +117,28 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
                 recipientMerger: recipientMerger,
                 tsAccountManager: tsAccountManager,
                 udManager: udManager,
-                websocketFactory: websocketFactory,
                 libsignalNet: libsignalNet
             )
         )
     }
 
-    public func lookUp(phoneNumbers: Set<String>, mode: ContactDiscoveryMode) -> Promise<Set<SignalRecipient>> {
-        let (promise, future) = Promise<Set<SignalRecipient>>.pending()
-        let pendingRequest = PendingRequest(mode: mode, phoneNumbers: phoneNumbers, future: future)
-        lock.withLock {
-            pendingRequests.append(pendingRequest)
-            processPendingRequests()
+    public func lookUp(phoneNumbers: Set<String>, mode: ContactDiscoveryMode) async throws -> Set<SignalRecipient> {
+        let isStateful = try await withCheckedThrowingContinuation { continuation in
+            let pendingRequest = PendingRequest(mode: mode, continuation: continuation)
+            lock.withLock {
+                pendingRequests.append(pendingRequest)
+                processPendingRequests()
+            }
         }
-        return promise
+        defer {
+            if isStateful {
+                lock.withLock {
+                    hasActiveStatefulRequest = false
+                    processPendingRequests()
+                }
+            }
+        }
+        return try await sendRequest(forPhoneNumbers: phoneNumbers, mode: mode)
     }
 
     // MARK: - Sending Requests
@@ -145,8 +151,10 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
 
     private struct PendingRequest {
         let mode: ContactDiscoveryMode
-        let phoneNumbers: Set<String>
-        let future: Future<Set<SignalRecipient>>
+        /// A continuation that, when resumed, allows the request to proceed. If the
+        /// boolean is true, this is a stateful request that should clear the flag &
+        /// check for another request when it finishes.
+        let continuation: CheckedContinuation<Bool, any Error>
     }
 
     /// Handles any pending requests.
@@ -172,18 +180,13 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
         for pendingRequest in pendingRequests {
             // If this request is being rate limited, throw an error.
             if let retryDate = retryDates[pendingRequest.mode] {
-                pendingRequest.future.reject(ContactDiscoveryError(
-                    kind: .rateLimit,
-                    debugDescription: "cached rate limit",
-                    retryable: true,
-                    retryAfterDate: retryDate
-                ))
+                pendingRequest.continuation.resume(throwing: ContactDiscoveryError.rateLimit(retryAfter: retryDate))
                 continue
             }
 
             // If this is a stateless request, start it immediately.
             if pendingRequest.mode == .oneOffUserRequest {
-                sendRequest(pendingRequest)
+                pendingRequest.continuation.resume(returning: false)
                 continue
             }
 
@@ -195,43 +198,23 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
 
             // If there's not a stateful request, start this one.
             hasActiveStatefulRequest = true
-            sendRequest(pendingRequest) {
-                self.lock.withLock {
-                    self.hasActiveStatefulRequest = false
-                    self.processPendingRequests()
-                }
-            }
+            pendingRequest.continuation.resume(returning: true)
         }
 
         pendingRequests = remainingRequests
     }
 
-    private func sendRequest(_ request: PendingRequest, completion: (() -> Void)? = nil) {
-        DispatchQueue.global().async {
-            self._sendRequest(request) {
-                if let completion {
-                    DispatchQueue.global().async(execute: completion)
-                }
-            }
-        }
-    }
-
-    private func _sendRequest(_ request: PendingRequest, completion: @escaping () -> Void) {
+    private func sendRequest(forPhoneNumbers phoneNumbers: Set<String>, mode: ContactDiscoveryMode) async throws -> Set<SignalRecipient> {
         lock.assertNotOwner()
 
-        let fetchedPhoneNumbers = undiscoverableCache.phoneNumbersToFetch(for: request)
-        firstly {
-            contactDiscoveryTaskQueue.perform(for: fetchedPhoneNumbers, mode: request.mode)
-        }.recover(on: DispatchQueue.global()) { error -> Promise<Set<SignalRecipient>> in
-            self.handleRateLimitErrorIfNeeded(error: error, request: request)
-            throw error
-        }.done(on: DispatchQueue.global()) { signalRecipients in
-            request.future.resolve(signalRecipients)
+        let fetchedPhoneNumbers = undiscoverableCache.filterPhoneNumbers(phoneNumbers, mode: mode)
+        do {
+            let signalRecipients = try await contactDiscoveryTaskQueue.perform(for: fetchedPhoneNumbers, mode: mode)
             self.undiscoverableCache.processResults(signalRecipients, requestedPhoneNumbers: fetchedPhoneNumbers)
-            completion()
-        }.catch(on: DispatchQueue.global()) { error in
-            request.future.reject(error)
-            completion()
+            return signalRecipients
+        } catch {
+            self.handleRateLimitErrorIfNeeded(error: error, mode: mode)
+            throw error
         }
     }
 
@@ -268,13 +251,14 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
         }
     }
 
-    private func handleRateLimitErrorIfNeeded(error: Error, request: PendingRequest) {
-        guard let newRetryDate = (error as? ContactDiscoveryError)?.retryAfterDate else {
-            return
-        }
-        lock.withLock {
-            let mode = request.mode
-            rawRetryDates[mode] = [rawRetryDates[mode], newRetryDate].compacted().max()
+    private func handleRateLimitErrorIfNeeded(error: Error, mode: ContactDiscoveryMode) {
+        switch error as? ContactDiscoveryError {
+        case nil, .invalidToken, .retryableError, .terminalError:
+            break
+        case .rateLimit(let retryAfter):
+            lock.withLock {
+                rawRetryDates[mode] = [rawRetryDates[mode], retryAfter].compacted().max()
+            }
         }
     }
 
@@ -286,7 +270,7 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
         /// Maps undiscoverable phone numbers to the time we most recently fetched them.
         private var phoneNumberFetchDates = LRUCache<String, Date>(maxSize: 1024)
 
-        func phoneNumbersToFetch(for request: PendingRequest) -> Set<String> {
+        func filterPhoneNumbers(_ phoneNumbers: Set<String>, mode: ContactDiscoveryMode) -> Set<String> {
             // Because of how CDSv2 operates, there's no additional cost to re-fetching
             // numbers in the cache if we're going to send a request. If we've already
             // fetched the numbers once, they'll be part of “previous E164s”.
@@ -312,11 +296,11 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
             // number we're fetching was recently undiscoverable. Even given this
             // restriction, the cache is useful in practice since there are many cases
             // where we'll try to fetch the same set of phone numbers multiple times.
-            return shouldFetchAnyPhoneNumber(for: request) ? request.phoneNumbers : []
+            return shouldFetchAnyPhoneNumber(phoneNumbers, mode: mode) ? phoneNumbers : []
         }
 
-        private func shouldFetchAnyPhoneNumber(for request: PendingRequest) -> Bool {
-            switch request.mode {
+        private func shouldFetchAnyPhoneNumber(_ phoneNumbers: Set<String>, mode: ContactDiscoveryMode) -> Bool {
+            switch mode {
             case .oneOffUserRequest, .contactIntersection:
                 // These always perform a fetch -- no need to consult the cache.
                 return true
@@ -325,7 +309,7 @@ public final class ContactDiscoveryManagerImpl: NSObject, ContactDiscoveryManage
                 break
             }
 
-            for phoneNumber in request.phoneNumbers {
+            for phoneNumber in phoneNumbers {
                 guard let fetchDate = phoneNumberFetchDates[phoneNumber] else {
                     // We haven't fetched it yet, so send a request.
                     return true

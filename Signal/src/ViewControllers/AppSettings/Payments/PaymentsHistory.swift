@@ -18,7 +18,8 @@ protocol PaymentsHistoryDataSourceDelegate: AnyObject {
 
 // MARK: -
 
-class PaymentsHistoryDataSource: Dependencies {
+@MainActor
+class PaymentsHistoryDataSource {
 
     public enum RecordType: Int, CustomStringConvertible {
         case all = 0
@@ -56,7 +57,7 @@ class PaymentsHistoryDataSource: Dependencies {
     }
 
     public init() {
-        Self.databaseStorage.appendDatabaseChangeDelegate(self)
+        DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
 
         updateContent()
     }
@@ -70,7 +71,7 @@ class PaymentsHistoryDataSource: Dependencies {
     }
 
     private func loadAllPaymentsHistoryItems(delegate: PaymentsHistoryDataSourceDelegate) -> [PaymentsHistoryItem] {
-        Self.databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             // PAYMENTS TODO: Should we using paging, etc?
             // PAYMENTS TODO: Sort in query?
             var paymentModels: [TSPaymentModel] = TSPaymentModel.anyFetchAll(transaction: transaction)
@@ -95,7 +96,7 @@ class PaymentsHistoryDataSource: Dependencies {
                 if paymentModel.isUnidentified {
                     displayName = PaymentsViewUtils.buildUnidentifiedTransactionString(paymentModel: paymentModel)
                 } else if let senderOrRecipientAci = paymentModel.senderOrRecipientAci?.wrappedAciValue {
-                    displayName = Self.contactsManager.displayName(for: SignalServiceAddress(senderOrRecipientAci), tx: transaction).resolvedValue()
+                    displayName = SSKEnvironment.shared.contactManagerRef.displayName(for: SignalServiceAddress(senderOrRecipientAci), tx: transaction).resolvedValue()
                 } else if paymentModel.isOutgoingTransfer {
                     displayName = OWSLocalizedString("PAYMENTS_TRANSFER_OUT_PAYMENT",
                                                     comment: "Label for 'transfer out' payments.")
@@ -137,8 +138,6 @@ class PaymentsHistoryDataSource: Dependencies {
 extension PaymentsHistoryDataSource: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
-        AssertIsOnMainThread()
-
         guard databaseChanges.didUpdate(tableName: TSPaymentModel.table.tableName) else {
             return
         }
@@ -147,14 +146,10 @@ extension PaymentsHistoryDataSource: DatabaseChangeDelegate {
     }
 
     public func databaseChangesDidUpdateExternally() {
-        AssertIsOnMainThread()
-
         updateContent()
     }
 
     public func databaseChangesDidReset() {
-        AssertIsOnMainThread()
-
         updateContent()
     }
 }

@@ -9,13 +9,13 @@ import SignalRingRTC
 
 public class CallOfferHandlerImpl {
     private let identityManager: any OWSIdentityManager
-    private let notificationPresenter: NotificationPresenterImpl
+    private let notificationPresenter: NotificationPresenter
     private let profileManager: any ProfileManager
     private let tsAccountManager: any TSAccountManager
 
     public init(
         identityManager: any OWSIdentityManager,
-        notificationPresenter: NotificationPresenterImpl,
+        notificationPresenter: NotificationPresenter,
         profileManager: any ProfileManager,
         tsAccountManager: any TSAccountManager
     ) {
@@ -29,6 +29,7 @@ public class CallOfferHandlerImpl {
         public let identityKeys: CallIdentityKeys
         public let offerMediaType: TSRecentCallOfferType
         public let thread: TSContactThread
+        public let localDeviceId: DeviceId
     }
 
     public func insertMissedCallInteraction(
@@ -37,7 +38,7 @@ public class CallOfferHandlerImpl {
         outcome: RPRecentCallType,
         callType: TSRecentCallOfferType,
         sentAtTimestamp: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         let callEventInserter = CallEventInserter(
             thread: thread,
@@ -50,11 +51,12 @@ public class CallOfferHandlerImpl {
 
     public func startHandlingOffer(
         caller: Aci,
-        sourceDevice: UInt32,
+        sourceDevice: DeviceId,
+        localIdentity: OWSIdentity,
         callId: UInt64,
         callType: SSKProtoCallMessageOfferType,
         sentAtTimestamp: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> PartialResult? {
         let thread = TSContactThread.getOrCreateThread(
             withContactAddress: SignalServiceAddress(caller),
@@ -69,7 +71,7 @@ public class CallOfferHandlerImpl {
             offerMediaType = .video
         }
 
-        func insertMissedCallInteraction(outcome: RPRecentCallType, tx: SDSAnyWriteTransaction) {
+        func insertMissedCallInteraction(outcome: RPRecentCallType, tx: DBWriteTransaction) {
             return self.insertMissedCallInteraction(
                 for: callId,
                 in: thread,
@@ -80,7 +82,10 @@ public class CallOfferHandlerImpl {
             )
         }
 
-        guard tsAccountManager.registrationState(tx: tx.asV2Read).isRegistered else {
+        guard
+            tsAccountManager.registrationState(tx: tx).isRegistered,
+            let localDeviceId = tsAccountManager.storedDeviceId(tx: tx).ifValid
+        else {
             Logger.warn("user is not registered, skipping call.")
             insertMissedCallInteraction(outcome: .incomingMissed, tx: tx)
             return nil
@@ -89,12 +94,12 @@ public class CallOfferHandlerImpl {
         let untrustedIdentity = identityManager.untrustedIdentityForSending(
             to: SignalServiceAddress(caller),
             untrustedThreshold: nil,
-            tx: tx.asV2Read
+            tx: tx
         )
         if let untrustedIdentity {
             Logger.warn("missed a call due to untrusted identity")
 
-            let notificationInfo = NotificationPresenterImpl.CallNotificationInfo(
+            let notificationInfo = CallNotificationInfo(
                 groupingId: UUID(),
                 thread: thread,
                 caller: caller
@@ -104,19 +109,19 @@ public class CallOfferHandlerImpl {
             case .verified, .defaultAcknowledged:
                 owsFailDebug("shouldn't have missed a call due to untrusted identity if the identity is verified")
                 let sentAtTimestamp = Date(millisecondsSince1970: sentAtTimestamp)
-                self.notificationPresenter.presentMissedCall(
+                self.notificationPresenter.notifyUserOfMissedCall(
                     notificationInfo: notificationInfo,
                     offerMediaType: offerMediaType,
                     sentAt: sentAtTimestamp,
                     tx: tx
                 )
             case .default:
-                self.notificationPresenter.presentMissedCallBecauseOfNewIdentity(
+                self.notificationPresenter.notifyUserOfMissedCallBecauseOfNewIdentity(
                     notificationInfo: notificationInfo,
                     tx: tx
                 )
             case .noLongerVerified:
-                self.notificationPresenter.presentMissedCallBecauseOfNoLongerVerifiedIdentity(
+                self.notificationPresenter.notifyUserOfMissedCallBecauseOfNoLongerVerifiedIdentity(
                     notificationInfo: notificationInfo,
                     tx: tx
                 )
@@ -136,14 +141,20 @@ public class CallOfferHandlerImpl {
             Logger.info("Ignoring call offer from \(caller) due to insufficient permissions.")
 
             // Send the need permission message to the caller, so they know why we rejected their call.
-            _ = CallHangupSender.sendHangup(
-                thread: thread,
-                callId: callId,
-                hangupType: .hangupNeedPermission,
-                localDeviceId: tsAccountManager.storedDeviceId(tx: tx.asV2Read),
-                remoteDeviceId: sourceDevice,
-                tx: tx
-            )
+            switch localIdentity {
+            case .aci:
+                _ = CallHangupSender.sendHangup(
+                    thread: thread,
+                    callId: callId,
+                    hangupType: .hangupNeedPermission,
+                    localDeviceId: localDeviceId.uint32Value,
+                    remoteDeviceId: sourceDevice.uint32Value,
+                    tx: tx
+                )
+            case .pni:
+                // Don't respond if they sent the offer to our PNI.
+                break
+            }
 
             // Store the call as a missed call for the local user. They will see it in the conversation
             // along with the message request dialog. When they accept the dialog, they can call back
@@ -155,11 +166,12 @@ public class CallOfferHandlerImpl {
         return PartialResult(
             identityKeys: identityKeys,
             offerMediaType: offerMediaType,
-            thread: thread
+            thread: thread,
+            localDeviceId: localDeviceId
         )
     }
 
-    private func allowsInboundCalls(from caller: Aci, tx: SDSAnyReadTransaction) -> Bool {
+    private func allowsInboundCalls(from caller: Aci, tx: DBReadTransaction) -> Bool {
         // If the thread is in our whitelist, then we've either trusted it manually
         // or it's a chat with someone in our system contacts.
         return profileManager.isUser(inProfileWhitelist: SignalServiceAddress(caller), transaction: tx)
@@ -174,13 +186,13 @@ public struct CallIdentityKeys {
 extension OWSIdentityManager {
     public func getCallIdentityKeys(
         remoteAci: Aci,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> CallIdentityKeys? {
-        guard let localIdentityKey = identityKeyPair(for: .aci, tx: tx.asV2Read)?.keyPair.identityKey else {
+        guard let localIdentityKey = identityKeyPair(for: .aci, tx: tx)?.keyPair.identityKey else {
             owsFailDebug("missing localIdentityKey")
             return nil
         }
-        guard let contactIdentityKey = try? identityKey(for: remoteAci, tx: tx.asV2Read) else {
+        guard let contactIdentityKey = try? identityKey(for: remoteAci, tx: tx) else {
             owsFailDebug("missing contactIdentityKey")
             return nil
         }
@@ -189,13 +201,15 @@ extension OWSIdentityManager {
 }
 
 public enum CallHangupSender {
+    /// - parameter localDeviceId: The localDeviceId or 0 if it's not relevant.
+    /// - parameter remoteDeviceId: The remoteDeviceId or nil if it's not relevant.
     public static func sendHangup(
         thread: TSContactThread,
         callId: UInt64,
         hangupType: SSKProtoCallMessageHangupType,
         localDeviceId: UInt32,
         remoteDeviceId: UInt32?,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> Promise<Void> {
         let hangupBuilder = SSKProtoCallMessageHangup.builder(id: callId)
 

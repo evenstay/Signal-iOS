@@ -13,9 +13,9 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
     public var componentKey: CVComponentKey { .genericAttachment }
 
     private let genericAttachment: CVComponentState.GenericAttachment
-    private var attachment: ReferencedTSResource { genericAttachment.attachment.attachment }
-    private var attachmentStream: TSResourceStream? { genericAttachment.attachmentStream }
-    private var attachmentPointer: TSResourcePointer? { genericAttachment.attachmentPointer }
+    private var attachment: ReferencedAttachment { genericAttachment.attachment.attachment }
+    private var attachmentStream: AttachmentStream? { genericAttachment.attachmentStream }
+    private var attachmentPointer: AttachmentPointer? { genericAttachment.attachmentPointer }
 
     init(itemModel: CVItemModel, genericAttachment: CVComponentState.GenericAttachment) {
         self.genericAttachment = genericAttachment
@@ -30,6 +30,12 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
 
     public func buildComponentView(componentDelegate: CVComponentDelegate) -> CVComponentView {
         CVComponentViewGenericAttachment()
+    }
+
+    var isIncomingOverride: Bool?
+
+    var isIncoming: Bool {
+        return isIncomingOverride ?? (interaction is TSIncomingMessage)
     }
 
     public func configureForRendering(componentView componentViewParam: CVComponentView,
@@ -51,7 +57,7 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
         } else {
             let iconImageView = componentView.iconImageView
             if let icon = UIImage(named: "generic-attachment") {
-                owsAssertDebug(icon.size == iconSize)
+                owsAssertDebug(icon.size == Self.iconSize)
                 iconImageView.image = icon
             } else {
                 owsFailDebug("Missing icon.")
@@ -83,42 +89,51 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
         let topLabel = componentView.topLabel
         let bottomLabel = componentView.bottomLabel
 
-        topLabelConfig.applyForRendering(label: topLabel)
-        bottomLabelConfig.applyForRendering(label: bottomLabel)
+        Self.topLabelConfig(
+            genericAttachment: genericAttachment,
+            textColor: conversationStyle.bubbleTextColor(isIncoming: isIncoming)
+        ).applyForRendering(label: topLabel)
+        Self.bottomLabelConfig(
+            genericAttachment: genericAttachment,
+            textColor: conversationStyle.bubbleSecondaryTextColor(isIncoming: isIncoming)
+        ).applyForRendering(label: bottomLabel)
 
         let vSubviews = [
             componentView.topLabel,
             componentView.bottomLabel
         ]
-        vStackView.configure(config: vStackConfig,
+        vStackView.configure(config: Self.vStackConfig,
                              cellMeasurement: cellMeasurement,
                              measurementKey: Self.measurementKey_vStack,
                              subviews: vSubviews)
         hSubviews.append(vStackView)
-        hStackView.configure(config: hStackConfig,
+        hStackView.configure(config: Self.hStackConfig,
                                  cellMeasurement: cellMeasurement,
                                  measurementKey: Self.measurementKey_hStack,
                                  subviews: hSubviews)
     }
 
-    private var hStackConfig: CVStackViewConfig {
+    private static var hStackConfig: CVStackViewConfig {
         CVStackViewConfig(axis: .horizontal,
                           alignment: .center,
                           spacing: hSpacing,
                           layoutMargins: UIEdgeInsets(top: 5, leading: 0, bottom: 5, trailing: 0))
     }
 
-    private var vStackConfig: CVStackViewConfig {
+    private static var vStackConfig: CVStackViewConfig {
         CVStackViewConfig(axis: .vertical,
                           alignment: .leading,
                           spacing: labelVSpacing,
                           layoutMargins: .zero)
     }
 
-    private var topLabelConfig: CVLabelConfig {
-        var text: String = attachment.reference.sourceFilename?.ows_stripped() ?? ""
+    private static func topLabelConfig(
+        genericAttachment: CVComponentState.GenericAttachment,
+        textColor: UIColor
+    ) -> CVLabelConfig {
+        var text: String = genericAttachment.attachment.attachment.reference.sourceFilename?.ows_stripped() ?? ""
         if text.isEmpty,
-           let fileExtension = MimeTypeUtil.fileExtensionForMimeType(attachment.attachment.mimeType) {
+           let fileExtension = MimeTypeUtil.fileExtensionForMimeType(genericAttachment.attachment.attachment.attachment.mimeType) {
             text = (fileExtension as NSString).localizedUppercase
         }
         if text.isEmpty {
@@ -127,27 +142,31 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
         return CVLabelConfig.unstyledText(
             text,
             font: UIFont.dynamicTypeBody2.semibold(),
-            textColor: conversationStyle.bubbleTextColor(isIncoming: isIncoming),
+            textColor: textColor,
             lineBreakMode: .byTruncatingMiddle
         )
     }
 
-    private var bottomLabelConfig: CVLabelConfig {
+    private static func bottomLabelConfig(
+        genericAttachment: CVComponentState.GenericAttachment,
+        textColor: UIColor
+    ) -> CVLabelConfig {
+        let font = UIFont.dynamicTypeCaption1
 
         // We don't want to show the file size while the attachment is downloading.
         // To avoid layout jitter when the download completes, we reserve space in
         // the layout using a whitespace string.
         var text = " "
 
-        if let attachmentPointer = self.genericAttachment.attachmentPointer {
+        if let attachmentPointer = genericAttachment.attachmentPointer {
             var textComponents = [String]()
 
-            if let byteCount = attachmentPointer.resource.unencryptedResourceByteCount, byteCount > 0 {
+            if let byteCount = attachmentPointer.unencryptedByteCount, byteCount > 0 {
                 textComponents.append(OWSFormat.localizedFileSizeString(from: Int64(byteCount)))
             }
 
             switch genericAttachment.attachment {
-            case .stream, .pointer(_, .enqueuedOrDownloading), .backupThumbnail:
+            case .stream, .pointer(_, .enqueuedOrDownloading), .backupThumbnail, .undownloadable:
                 break
             case .pointer(_, .failed), .pointer(_, .none):
                 textComponents.append(OWSLocalizedString("ACTION_TAP_TO_DOWNLOAD", comment: "A label for 'tap to download' buttons."))
@@ -156,21 +175,38 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
             if !textComponents.isEmpty {
                 text = textComponents.joined(separator: " • ")
             }
-        } else if let attachmentStream = attachmentStream {
-            if let fileSize = attachmentStream.unencryptedResourceByteCount {
-                text = OWSFormat.localizedFileSizeString(from: Int64(fileSize))
-            }
-        } else if let _ = self.genericAttachment.attachmentBackupThumbnail {
+        } else if let attachmentStream = genericAttachment.attachmentStream {
+            let fileSize = attachmentStream.unencryptedByteCount
+            text = OWSFormat.localizedFileSizeString(from: Int64(fileSize))
+        } else if let _ = genericAttachment.attachmentBackupThumbnail {
             // TODO[Backups]: Handle similar to attachment pointers above
             owsFailDebug("Not implemented yet")
         } else {
-            owsFailDebug("Invalid attachment")
+            let attributedString = NSAttributedString.composed(of: [
+                NSAttributedString.with(
+                    image: UIImage(named: "error-circle-20")!,
+                    font: font
+                ),
+                " ",
+                OWSLocalizedString(
+                    "FILE_UNAVAILABLE_FOOTER",
+                    comment: "Footer for message cell for documents/files when they are expired and unavailable for download"
+                )
+            ])
+
+            return CVLabelConfig(
+                text: .attributedText(attributedString),
+                displayConfig: .forUnstyledText(font: font, textColor: textColor),
+                font: font,
+                textColor: textColor,
+                lineBreakMode: .byTruncatingMiddle
+            )
         }
 
         return CVLabelConfig.unstyledText(
             text,
-            font: UIFont.dynamicTypeCaption1,
-            textColor: conversationStyle.bubbleSecondaryTextColor(isIncoming: isIncoming),
+            font: font,
+            textColor: textColor,
             lineBreakMode: .byTruncatingMiddle
         )
     }
@@ -206,12 +242,12 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
         case .pendingDownload(let attachmentPointer):
             direction = .download(
                 attachmentPointer: attachmentPointer,
-                transitTierDownloadState: .none
+                downloadState: .none
             )
-        case .downloading(let attachmentPointer, let transitTierDownloadState):
+        case .downloading(let attachmentPointer, let downloadState):
             direction = .download(
                 attachmentPointer: attachmentPointer,
-                transitTierDownloadState: transitTierDownloadState
+                downloadState: downloadState
             )
         case .unknown:
             owsFailDebug("Unknown progress type.")
@@ -219,12 +255,15 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
         }
 
         return CVAttachmentProgressView(direction: direction,
-                                        diameter: progressSize,
+                                        diameter: Self.progressSize,
                                         isDarkThemeEnabled: conversationStyle.isDarkThemeEnabled,
                                         mediaCache: mediaCache)
     }
 
-    private var hasProgressView: Bool {
+    private static func hasProgressView(
+        genericAttachment: CVComponentState.GenericAttachment,
+        interaction: TSInteraction
+    ) -> Bool {
         switch CVAttachmentProgressView.progressType(
             forAttachment: genericAttachment.attachment,
             interaction: interaction
@@ -242,17 +281,35 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
         }
     }
 
-    private let hSpacing: CGFloat = 8
-    private let labelVSpacing: CGFloat = 1
-    private let iconSize = CGSize(width: 36, height: CGFloat(AvatarBuilder.standardAvatarSizePoints))
-    private let progressSize: CGFloat = 36
+    private static let hSpacing: CGFloat = 8
+    private static let labelVSpacing: CGFloat = 1
+    private static let iconSize = CGSize(width: 36, height: CGFloat(AvatarBuilder.standardAvatarSizePoints))
+    private static let progressSize: CGFloat = 36
 
     private static let measurementKey_hStack = "CVComponentGenericAttachment.measurementKey_hStack"
     private static let measurementKey_vStack = "CVComponentGenericAttachment.measurementKey_vStack"
 
     public func measure(maxWidth: CGFloat, measurementBuilder: CVCellMeasurement.Builder) -> CGSize {
+        return Self.measure(
+            maxWidth: maxWidth,
+            measurementBuilder: measurementBuilder,
+            genericAttachment: genericAttachment,
+            interaction: interaction
+        )
+    }
+
+    static func measure(
+        maxWidth: CGFloat,
+        measurementBuilder: CVCellMeasurement.Builder,
+        genericAttachment: CVComponentState.GenericAttachment,
+        interaction: TSInteraction
+    ) -> CGSize {
         owsAssertDebug(maxWidth > 0)
 
+        let hasProgressView = Self.hasProgressView(
+            genericAttachment: genericAttachment,
+            interaction: interaction
+        )
         let leftViewSize: CGSize = (hasProgressView
                                         ? .square(progressSize)
                                         : iconSize)
@@ -261,7 +318,15 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
                                                 hSpacing +
                                                 hStackConfig.layoutMargins.totalWidth +
                                                 vStackConfig.layoutMargins.totalWidth))
+        let topLabelConfig = Self.topLabelConfig(
+            genericAttachment: genericAttachment,
+            textColor: .black // Irrelevant for sizing
+        )
         let topLabelSize = CVText.measureLabel(config: topLabelConfig, maxWidth: maxLabelWidth)
+        let bottomLabelConfig = Self.bottomLabelConfig(
+            genericAttachment: genericAttachment,
+            textColor: .black // Irrelevant for sizing
+        )
         let bottomLabelSize = CVText.measureLabel(config: bottomLabelConfig, maxWidth: maxLabelWidth)
 
         var vSubviewInfos = [ManualStackSubviewInfo]()
@@ -299,8 +364,8 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
             case .default:
                 showShareUI(from: componentView.rootView)
             }
-        case .pointer(_, let transitTierDownloadState):
-            switch transitTierDownloadState {
+        case .pointer(_, let downloadState):
+            switch downloadState {
             case .failed, .none:
                 guard let message = renderItem.interaction as? TSMessage else {
                     owsFailDebug("Invalid interaction.")
@@ -311,8 +376,13 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
                 break
             }
         case .backupThumbnail:
-            // TODO[Backups]: Check media tier download state (mirror the pointer behavior)
-            break
+            guard let message = renderItem.interaction as? TSMessage else {
+                owsFailDebug("Invalid interaction.")
+                return true
+            }
+            componentDelegate.didTapFailedOrPendingDownloads(message)
+        case .undownloadable:
+            componentDelegate.didTapUndownloadableGenericFile()
         }
 
         return true
@@ -329,27 +399,20 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
     public func createQLPreviewController() -> QLPreviewController? {
         guard #available(iOS 14.8, *) else { return nil }
 
-        switch attachmentStream?.concreteStreamType {
-        case nil:
+        guard let attachmentStream else {
             return nil
-        case .legacy(let tsAttachmentStream):
-            guard
-                let url = tsAttachmentStream.originalMediaURL,
-                QLPreviewController.canPreview(url as NSURL)
-            else {
-                return nil
-            }
-        case .v2(let attachmentStream):
-            let sourceFilename = genericAttachment.attachment.attachment.reference.sourceFilename
-            guard let url = try? attachmentStream.makeDecryptedCopy(filename: sourceFilename) else {
-                return nil
-            }
-            guard QLPreviewController.canPreview(url as NSURL) else {
-                try? OWSFileSystem.deleteFile(url: url)
-                return nil
-            }
-            self.qlPreviewTmpFileUrl = url
         }
+
+        let sourceFilename = genericAttachment.attachment.attachment.reference.sourceFilename
+        guard let url = try? attachmentStream.makeDecryptedCopy(filename: sourceFilename) else {
+            return nil
+        }
+        guard QLPreviewController.canPreview(url as NSURL) else {
+            try? OWSFileSystem.deleteFile(url: url)
+            return nil
+        }
+        self.qlPreviewTmpFileUrl = url
+
         let previewController = QLPreviewController()
         previewController.dataSource = self
         previewController.delegate = self
@@ -368,7 +431,7 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
     }
 
     public func showShareUI(from view: UIView) {
-        guard let attachmentStream = try? genericAttachment.attachment.attachment.asReferencedStream?.asShareableResource() else {
+        guard let attachmentStream = (try? [genericAttachment.attachment.attachment.asReferencedStream].compacted().asShareableAttachments())?.first else {
             owsFailDebug("should not show the share UI unless there's a downloaded attachment")
             return
         }
@@ -419,12 +482,9 @@ extension CVComponentGenericAttachment: QLPreviewControllerDataSource, QLPreview
         owsAssertDebug(index == 0)
 
         let url: URL? = {
-            switch attachmentStream?.concreteStreamType {
-            case .legacy(let tsAttachmentStream):
-                return tsAttachmentStream.originalMediaURL
-            case .v2:
+            if attachmentStream != nil {
                 return qlPreviewTmpFileUrl
-            case nil:
+            } else {
                 return nil
             }
         }()

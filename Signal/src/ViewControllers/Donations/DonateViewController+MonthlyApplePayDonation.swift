@@ -31,7 +31,9 @@ extension DonateViewController {
             if let existingSubscriberId = monthly.subscriberID {
                 Logger.info("[Donations] Cancelling existing subscription")
 
-                return SubscriptionManagerImpl.cancelSubscription(for: existingSubscriberId)
+                return Promise.wrapAsync {
+                    try await DonationSubscriptionManager.cancelSubscription(for: existingSubscriberId)
+                }
             } else {
                 Logger.info("[Donations] No existing subscription to cancel")
 
@@ -40,48 +42,54 @@ extension DonateViewController {
         }.then(on: DispatchQueue.sharedUserInitiated) { () -> Promise<Data> in
             Logger.info("[Donations] Preparing new monthly subscription with Apple Pay")
 
-            return SubscriptionManagerImpl.prepareNewSubscription(
-                currencyCode: monthly.selectedCurrencyCode
-            )
+            return Promise.wrapAsync {
+                try await DonationSubscriptionManager.prepareNewSubscription(
+                    currencyCode: monthly.selectedCurrencyCode
+                )
+            }
         }.then(on: DispatchQueue.sharedUserInitiated) { subscriberId -> Promise<(Data, String)> in
-            firstly { () -> Promise<String> in
+            Promise.wrapAsync { () -> String in
                 Logger.info("[Donations] Creating Signal payment method for new monthly subscription with Apple Pay")
-
-                return Stripe.createSignalPaymentMethodForSubscription(subscriberId: subscriberId)
+                return try await Stripe.createSignalPaymentMethodForSubscription(subscriberId: subscriberId)
             }.then(on: DispatchQueue.sharedUserInitiated) { clientSecret -> Promise<Stripe.ConfirmedSetupIntent> in
                 Logger.info("[Donations] Authorizing payment for new monthly subscription with Apple Pay")
 
-                return Stripe.setupNewSubscription(
-                    clientSecret: clientSecret,
-                    paymentMethod: .applePay(payment: payment)
-                )
+                return Promise.wrapAsync {
+                    return try await Stripe.setupNewSubscription(
+                        clientSecret: clientSecret,
+                        paymentMethod: .applePay(payment: payment)
+                    )
+                }
             }.map(on: DispatchQueue.sharedUserInitiated) { confirmedIntent in
                 (subscriberId, confirmedIntent.paymentMethodId)
             }
         }.then(on: DispatchQueue.sharedUserInitiated) { (subscriberId, paymentMethodId) -> Promise<Data> in
             Logger.info("[Donations] Finalizing new subscription for Apple Pay donation")
 
-            return SubscriptionManagerImpl.finalizeNewSubscription(
-                forSubscriberId: subscriberId,
-                paymentType: .applePay(paymentMethodId: paymentMethodId),
-                subscription: selectedSubscriptionLevel,
-                currencyCode: monthly.selectedCurrencyCode
-            ).map(on: DispatchQueue.sharedUserInitiated) { _ in subscriberId }
+            return Promise.wrapAsync {
+                try await DonationSubscriptionManager.finalizeNewSubscription(
+                    forSubscriberId: subscriberId,
+                    paymentType: .applePay(paymentMethodId: paymentMethodId),
+                    subscription: selectedSubscriptionLevel,
+                    currencyCode: monthly.selectedCurrencyCode
+                )
+            }.map(on: DispatchQueue.sharedUserInitiated) { _ in subscriberId }
         }.done(on: DispatchQueue.main) { subscriberID in
             let authResult = PKPaymentAuthorizationResult(status: .success, errors: nil)
             completion(authResult)
 
             Logger.info("[Donations] Redeeming monthly receipt for Apple Pay donation")
 
-            let redemptionPromise = SubscriptionManagerImpl.requestAndRedeemReceipt(
-                subscriberId: subscriberID,
-                subscriptionLevel: selectedSubscriptionLevel.level,
-                priorSubscriptionLevel: monthly.currentSubscriptionLevel?.level,
-                paymentProcessor: .stripe,
-                paymentMethod: .applePay,
-                isNewSubscription: true,
-                shouldSuppressPaymentAlreadyRedeemed: false
-            )
+            let redemptionPromise = Promise.wrapAsync {
+                try await DonationSubscriptionManager.requestAndRedeemReceipt(
+                    subscriberId: subscriberID,
+                    subscriptionLevel: selectedSubscriptionLevel.level,
+                    priorSubscriptionLevel: monthly.currentSubscriptionLevel?.level,
+                    paymentProcessor: .stripe,
+                    paymentMethod: .applePay,
+                    isNewSubscription: true
+                )
+            }
 
             DonationViewsUtil.wrapPromiseInProgressView(
                 from: self,

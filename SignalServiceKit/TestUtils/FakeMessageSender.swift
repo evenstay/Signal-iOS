@@ -12,17 +12,21 @@ class FakeMessageSender: MessageSender {
     public var sentMessages = [TSOutgoingMessage]()
     public var sendMessageWasCalledBlock: ((TSOutgoingMessage) -> Void)?
 
+    init() {
+        super.init(groupSendEndorsementStore: GroupSendEndorsementStoreImpl())
+    }
+
     override func sendMessage(_ preparedMessage: PreparedOutgoingMessage) async throws {
         try await preparedMessage.send { message in
-            sendMessageWasCalledBlock?(message)
             sentMessages.append(message)
+            sendMessageWasCalledBlock?(message)
         }
         if let stubbedFailingError = stubbedFailingErrors.removeFirst() { throw stubbedFailingError }
     }
 
     override func sendTransientContactSyncAttachment(
         dataSource: DataSource,
-        thread: TSThread
+        localThread: TSContactThread
     ) async throws {
         if let stubbedFailingError = stubbedFailingErrors.removeFirst() { throw stubbedFailingError }
     }

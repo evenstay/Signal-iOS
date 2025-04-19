@@ -7,11 +7,15 @@ import Foundation
 
 #if TESTABLE_BUILD
 
-@objc
-public class OWSMockSyncManager: NSObject, SyncManagerProtocol {
-    @objc
+public class OWSMockSyncManager: SyncManagerProtocol {
     public func sendConfigurationSyncMessage() {
         Logger.info("")
+    }
+
+    public func sendInitialSyncRequestsAwaitingCreatedThreadOrdering(timeoutSeconds: TimeInterval) -> Promise<[String]> {
+        Logger.info("")
+
+        return Promise.value([])
     }
 
     public func sendAllSyncRequestMessagesIfNecessary() -> Promise<Void> {
@@ -26,11 +30,11 @@ public class OWSMockSyncManager: NSObject, SyncManagerProtocol {
         return Promise.value(())
     }
 
-    public func sendFetchLatestProfileSyncMessage(tx: SDSAnyWriteTransaction) {
+    public func sendFetchLatestProfileSyncMessage(tx: DBWriteTransaction) {
         Logger.info("")
     }
 
-    public func sendFetchLatestStorageManifestSyncMessage() {
+    public func sendFetchLatestStorageManifestSyncMessage() async {
         Logger.info("")
     }
 
@@ -42,31 +46,31 @@ public class OWSMockSyncManager: NSObject, SyncManagerProtocol {
         Logger.info("")
     }
 
-    public func sendKeysSyncMessage(tx: SDSAnyWriteTransaction) {
+    public func sendKeysSyncMessage(tx: DBWriteTransaction) {
         Logger.info("")
     }
 
-    public func processIncomingConfigurationSyncMessage(_ syncMessage: SSKProtoSyncMessageConfiguration, transaction: SDSAnyWriteTransaction) {
+    public func processIncomingConfigurationSyncMessage(_ syncMessage: SSKProtoSyncMessageConfiguration, transaction: DBWriteTransaction) {
         Logger.info("")
     }
 
-    public func processIncomingFetchLatestSyncMessage(_ syncMessage: SSKProtoSyncMessageFetchLatest, transaction: SDSAnyWriteTransaction) {
+    public func processIncomingFetchLatestSyncMessage(_ syncMessage: SSKProtoSyncMessageFetchLatest, transaction: DBWriteTransaction) {
         Logger.info("")
     }
 
-    public func processIncomingContactsSyncMessage(_ syncMessage: SSKProtoSyncMessageContacts, transaction: SDSAnyWriteTransaction) {
+    public func processIncomingContactsSyncMessage(_ syncMessage: SSKProtoSyncMessageContacts, transaction: DBWriteTransaction) {
         Logger.info("")
     }
 
-    public func processIncomingKeysSyncMessage(_ syncMessage: SSKProtoSyncMessageKeys, transaction: SDSAnyWriteTransaction) {
+    public func processIncomingKeysSyncMessage(_ syncMessage: SSKProtoSyncMessageKeys, transaction: DBWriteTransaction) {
         Logger.info("")
     }
 
-    public func sendKeysSyncRequestMessage(transaction: SDSAnyWriteTransaction) {
+    public func sendKeysSyncRequestMessage(transaction: DBWriteTransaction) {
         Logger.info("")
     }
 
-    public func processIncomingMessageRequestResponseSyncMessage(_ syncMessage: SSKProtoSyncMessageMessageRequestResponse, transaction: SDSAnyWriteTransaction) {
+    public func processIncomingMessageRequestResponseSyncMessage(_ syncMessage: SSKProtoSyncMessageMessageRequestResponse, transaction: DBWriteTransaction) {
         Logger.info("")
     }
 
@@ -74,7 +78,7 @@ public class OWSMockSyncManager: NSObject, SyncManagerProtocol {
         Logger.info("")
     }
 
-    public func sendMessageRequestResponseSyncMessage(thread: TSThread, responseType: OWSSyncMessageRequestResponseType, transaction: SDSAnyWriteTransaction) {
+    public func sendMessageRequestResponseSyncMessage(thread: TSThread, responseType: OWSSyncMessageRequestResponseType, transaction: DBWriteTransaction) {
         Logger.info("")
     }
 

@@ -3,29 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
 public import GRDB
 
-public protocol DBChangeDelegate: AnyObject {
-    func dbChangesDidUpdateExternally()
-}
-
-/// Wrapper around `SDSDatabaseStorage` that allows for an access pattern identical
-/// to the original (you get a transaction object you pass around to perform database operations)
-/// but which is easily stubbed out in tests.
-/// Method signatures are identical to those in `SDSDatabaseStorage`.
-///
-/// This protocol is **not** for testing or stubbing actual database operations (SQL statements).
-/// It allows you to write classes that utilize persistent storage, in the abstract, but which hand off the
-/// actual queries to lower level helper classes (e.g. the "FooFinder" and "FooModel: SDSCodableModel" classes.)
-///
-/// Consumers of this protocol should **never** inspect the transaction objects, and should treat them
-/// as black boxes. Any class that _actually_ wants to talk to the database to perform reads
-/// and writes should use SDS- classes directly, unwrapping these transactions by using `SDSDB.shimOnlyBridge`.
-///
-/// Check out ToyExample.swift in the SDSDatabaseStorage/V2 directory under SignalServiceKitTests for a walkthrough
-/// of the reasoning and how to use this class.
 public protocol DB {
+
     // MARK: - Async Methods
 
     func asyncRead<T>(
@@ -46,30 +27,30 @@ public protocol DB {
         completion: ((T) -> Void)?
     )
 
+    func asyncWriteWithTxCompletion<T>(
+        file: String,
+        function: String,
+        line: Int,
+        block: @escaping (DBWriteTransaction) -> TransactionCompletion<T>,
+        completionQueue: DispatchQueue,
+        completion: ((T) -> Void)?
+    )
+
     // MARK: - Awaitable Methods
 
     func awaitableWrite<T>(
         file: String,
         function: String,
         line: Int,
-        block: @escaping (DBWriteTransaction) throws -> T
+        block: (DBWriteTransaction) throws -> T
     ) async rethrows -> T
 
-    // MARK: - Promises
-
-    func readPromise<T>(
+    func awaitableWriteWithTxCompletion<T>(
         file: String,
         function: String,
         line: Int,
-        _ block: @escaping (DBReadTransaction) throws -> T
-    ) -> Promise<T>
-
-    func writePromise<T>(
-        file: String,
-        function: String,
-        line: Int,
-        _ block: @escaping (DBWriteTransaction) throws -> T
-    ) -> Promise<T>
+        block: (DBWriteTransaction) -> TransactionCompletion<T>
+    ) async -> T
 
     // MARK: - Value Methods
 
@@ -87,9 +68,14 @@ public protocol DB {
         block: (DBWriteTransaction) throws -> T
     ) rethrows -> T
 
-    // MARK: - Observation
+    func writeWithTxCompletion<T>(
+        file: String,
+        function: String,
+        line: Int,
+        block: (DBWriteTransaction) -> TransactionCompletion<T>
+    ) -> T
 
-    func appendDbChangeDelegate(_ dbChangeDelegate: DBChangeDelegate)
+    // MARK: - Observation
 
     func add(
         transactionObserver: TransactionObserver,
@@ -98,17 +84,18 @@ public protocol DB {
 
     // MARK: - Touching
 
-    func touch(_ interaction: TSInteraction, shouldReindex: Bool, tx: DBWriteTransaction)
+    func touch(interaction: TSInteraction, shouldReindex: Bool, tx: DBWriteTransaction)
 
     /// See note on `shouldUpdateChatListUi` parameter in docs for ``TSGroupThread.updateWithGroupModel:shouldUpdateChatListUi:transaction``.
-    func touch(_ thread: TSThread, shouldReindex: Bool, shouldUpdateChatListUi: Bool, tx: DBWriteTransaction)
+    func touch(thread: TSThread, shouldReindex: Bool, shouldUpdateChatListUi: Bool, tx: DBWriteTransaction)
 
-    func touch(_ storyMessage: StoryMessage, tx: DBWriteTransaction)
+    func touch(storyMessage: StoryMessage, tx: DBWriteTransaction)
 }
 
 // MARK: - Default arguments
 
 extension DB {
+
     // MARK: - Async Methods
 
     public func asyncRead<T>(
@@ -133,35 +120,35 @@ extension DB {
         asyncWrite(file: file, function: function, line: line, block: block, completionQueue: completionQueue, completion: completion)
     }
 
+    public func asyncWriteWithTxCompletion<T>(
+        file: String = #file,
+        function: String = #function,
+        line: Int = #line,
+        block: @escaping (DBWriteTransaction) -> TransactionCompletion<T>,
+        completionQueue: DispatchQueue = .main,
+        completion: ((T) -> Void)? = nil
+    ) {
+        asyncWriteWithTxCompletion(file: file, function: function, line: line, block: block, completionQueue: completionQueue, completion: completion)
+    }
+
     // MARK: - Awaitable Methods
 
     public func awaitableWrite<T>(
         file: String = #file,
         function: String = #function,
         line: Int = #line,
-        block: @escaping (DBWriteTransaction) throws -> T
+        block: (DBWriteTransaction) throws -> T
     ) async rethrows -> T {
         return try await awaitableWrite(file: file, function: function, line: line, block: block)
     }
 
-    // MARK: - Promises
-
-    public func readPromise<T>(
+    public func awaitableWriteWithTxCompletion<T>(
         file: String = #file,
         function: String = #function,
         line: Int = #line,
-        _ block: @escaping (DBReadTransaction) throws -> T
-    ) -> Promise<T> {
-        return readPromise(file: file, function: function, line: line, block)
-    }
-
-    public func writePromise<T>(
-        file: String = #file,
-        function: String = #function,
-        line: Int = #line,
-        _ block: @escaping (DBWriteTransaction) throws -> T
-    ) -> Promise<T> {
-        return writePromise(file: file, function: function, line: line, block)
+        block: (DBWriteTransaction) -> TransactionCompletion<T>
+    ) async -> T {
+        return await awaitableWriteWithTxCompletion(file: file, function: function, line: line, block: block)
     }
 
     // MARK: - Value Methods
@@ -184,15 +171,12 @@ extension DB {
         return try write(file: file, function: function, line: line, block: block)
     }
 
-    // MARK: - Touching
-
-    public func touch(_ thread: TSThread, shouldReindex: Bool, tx: DBWriteTransaction) {
-        self.touch(thread, shouldReindex: shouldReindex, shouldUpdateChatListUi: true, tx: tx)
-    }
-
-    // MARK: - Observation
-
-    public func add(transactionObserver: TransactionObserver) {
-        self.add(transactionObserver: transactionObserver, extent: .observerLifetime)
+    public func writeWithTxCompletion<T>(
+        file: String = #file,
+        function: String = #function,
+        line: Int = #line,
+        block: (DBWriteTransaction) -> TransactionCompletion<T>
+    ) -> T {
+        return writeWithTxCompletion(file: file, function: function, line: line, block: block)
     }
 }

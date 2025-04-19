@@ -12,106 +12,107 @@ import XCTest
 class BlockingManagerTests: SSKBaseTest {
     // Some tests will use this to simulate the state as seen by another process
     private var otherBlockingManager: BlockingManager!
+    private var blockingManager: BlockingManager { SSKEnvironment.shared.blockingManagerRef }
 
     override func setUp() {
         super.setUp()
         otherBlockingManager = BlockingManager(
             appReadiness: AppReadinessMock(),
-            blockedRecipientStore: BlockedRecipientStoreImpl()
+            blockedGroupStore: BlockedGroupStore(),
+            blockedRecipientStore: BlockedRecipientStore()
         )
     }
 
     override func tearDown() {
+        let flushTask = blockingManager.flushSyncQueueTask()
+        let otherFlushTask = otherBlockingManager.flushSyncQueueTask()
+        let flushExpectation = self.expectation(description: "flush sync queues")
+        Task {
+            try! await flushTask.value
+            try! await otherFlushTask.value
+            flushExpectation.fulfill()
+        }
+        self.wait(for: [flushExpectation], timeout: 60)
         super.tearDown()
-        BlockingManager.TestingFlags.optimisticallyCommitSyncToken = false
     }
 
     func testAddBlockedAddress() {
         // Setup
-        let generatedAddress = SignalServiceAddress.randomForTesting()
-        let generatedThread = ContactThreadFactory().create()
+        let aci = Aci.randomForTesting()
 
         // Test
         expectation(forNotification: BlockingManager.blockListDidChange, object: nil)
-        databaseStorage.write { writeTx in
-            _ = otherBlockingManager.blockedAddresses(transaction: writeTx)
-            blockingManager.addBlockedThread(generatedThread, blockMode: .localShouldNotLeaveGroups, transaction: writeTx)
-            blockingManager.addBlockedAddress(generatedAddress, blockMode: .localShouldNotLeaveGroups, transaction: writeTx)
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
+            _ = otherBlockingManager.blockedAddresses(transaction: tx)
+            let oldChangeToken = blockingManager.fetchChangeToken(tx: tx)
+            blockingManager.addBlockedAci(aci, blockMode: .localShouldNotLeaveGroups, tx: tx)
+            let newChangeToken = blockingManager.fetchChangeToken(tx: tx)
+            // Since this was a local change, we expect to need a sync message
+            XCTAssertGreaterThan(newChangeToken, oldChangeToken)
         }
 
         // Verify
-        databaseStorage.read { readTx in
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
             // First, query the whole set of blocked addresses:
-            let allFetchedBlockedAddresses = blockingManager.blockedAddresses(transaction: readTx)
-            let allExpectedBlockedAddresses = [generatedAddress, generatedThread.contactAddress]
-            XCTAssertEqual(Set(allFetchedBlockedAddresses), Set(allExpectedBlockedAddresses))
+            let blockedAddresses = blockingManager.blockedAddresses(transaction: tx)
+            XCTAssertEqual(blockedAddresses.map { $0.aci }, [aci])
 
-            XCTAssertTrue(blockingManager.isAddressBlocked(generatedAddress, transaction: readTx))
-            XCTAssertTrue(blockingManager.isAddressBlocked(generatedThread.contactAddress, transaction: readTx))
-            XCTAssertTrue(blockingManager.isThreadBlocked(generatedThread, transaction: readTx))
-
-            // Since this was a local change, we expect to need a sync message
-            XCTAssertTrue(blockingManager._testingOnly_needsSyncMessage(readTx))
+            XCTAssertTrue(blockingManager.isAddressBlocked(SignalServiceAddress(aci), transaction: tx))
 
             // Reload the remote state and ensure it sees the up-to-date block list.
-            XCTAssertEqual(Set(allFetchedBlockedAddresses), Set(otherBlockingManager.blockedAddresses(transaction: readTx)))
+            XCTAssertEqual(otherBlockingManager.blockedAddresses(transaction: tx).map { $0.aci }, [aci])
         }
         waitForExpectations(timeout: 3)
     }
 
     func testRemoveBlockedAddress() {
         // Setup
-        let blockedContact = SignalServiceAddress.randomForTesting()
-        let unblockedContact = SignalServiceAddress.randomForTesting()
-        let blockedThread = ContactThreadFactory().create()
-        let unblockedThread = ContactThreadFactory().create()
-        databaseStorage.write {
-            blockingManager.addBlockedAddress(blockedContact, blockMode: .localShouldLeaveGroups, transaction: $0)
-            blockingManager.addBlockedAddress(blockedContact, blockMode: .localShouldLeaveGroups, transaction: $0)
-            blockingManager.addBlockedThread(blockedThread, blockMode: .localShouldLeaveGroups, transaction: $0)
-            blockingManager.addBlockedThread(unblockedThread, blockMode: .localShouldLeaveGroups, transaction: $0)
-            _ = otherBlockingManager.blockedAddresses(transaction: $0)
-            blockingManager._testingOnly_clearNeedsSyncMessage($0)
+        let blockedAci = Aci.randomForTesting()
+        let unblockedAci = Aci.randomForTesting()
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
+            blockingManager.addBlockedAci(blockedAci, blockMode: .localShouldLeaveGroups, tx: tx)
+            blockingManager.addBlockedAci(unblockedAci, blockMode: .localShouldLeaveGroups, tx: tx)
+            _ = otherBlockingManager.blockedAddresses(transaction: tx)
+        }
+
+        let oldChangeToken = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            return blockingManager.fetchChangeToken(tx: tx)
         }
 
         // Test
-        databaseStorage.write {
-            blockingManager.removeBlockedAddress(unblockedContact, wasLocallyInitiated: true, transaction: $0)
-            blockingManager.removeBlockedThread(unblockedThread, wasLocallyInitiated: true, transaction: $0)
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
+            blockingManager.removeBlockedAddress(SignalServiceAddress(unblockedAci), wasLocallyInitiated: true, transaction: tx)
         }
 
         // Verify
-        databaseStorage.read { readTx in
-            XCTAssertTrue(blockingManager.isAddressBlocked(blockedContact, transaction: readTx))
-            XCTAssertTrue(blockingManager.isThreadBlocked(blockedThread, transaction: readTx))
-            XCTAssertFalse(blockingManager.isAddressBlocked(unblockedContact, transaction: readTx))
-            XCTAssertFalse(blockingManager.isThreadBlocked(unblockedThread, transaction: readTx))
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
+            XCTAssertTrue(blockingManager.isAddressBlocked(SignalServiceAddress(blockedAci), transaction: tx))
+            XCTAssertFalse(blockingManager.isAddressBlocked(SignalServiceAddress(unblockedAci), transaction: tx))
 
             // Since this was a local change, we expect to need a sync message
-            XCTAssertTrue(blockingManager._testingOnly_needsSyncMessage(readTx))
+            let newChangeToken = blockingManager.fetchChangeToken(tx: tx)
+            XCTAssertGreaterThan(newChangeToken, oldChangeToken)
 
             // Reload the remote state and ensure it sees the up-to-date block list.
-            let otherBlockedAddresses = otherBlockingManager.blockedAddresses(transaction: readTx)
-            let expectedBlockedAddresses = [blockedContact, blockedThread.contactAddress]
-            XCTAssertEqual(Set(otherBlockedAddresses), Set(expectedBlockedAddresses))
+            XCTAssertEqual(otherBlockingManager.blockedAddresses(transaction: tx).map(\.aci), [blockedAci])
         }
     }
 
-    func testIncomingSyncMessage() {
+    func testIncomingSyncMessage() throws {
         // Setup
         let noLongerBlockedAci = Aci.randomForTesting()
         let noLongerBlockedPhoneNumber = E164("+17635550100")!
-        let noLongerBlockedGroupId = TSGroupModel.generateRandomV1GroupId()
+        let noLongerBlockedGroupParams = try GroupSecretParams.generate()
 
         let stillBlockedAci = Aci.randomForTesting()
         let stillBlockedPhoneNumber = E164("+17635550101")!
-        let stillBlockedGroupId = TSGroupModel.generateRandomV1GroupId()
+        let stillBlockedGroupParams = try GroupSecretParams.generate()
 
         let newlyBlockedAci = Aci.randomForTesting()
         let newlyBlockedPhoneNumber = E164("+17635550101")!
-        let newlyBlockedGroupId = TSGroupModel.generateRandomV1GroupId()
+        let newlyBlockedGroupParams = try GroupSecretParams.generate()
 
-        databaseStorage.write { tx in
+        try SSKEnvironment.shared.databaseStorageRef.write { tx in
             blockingManager.addBlockedAddress(
                 SignalServiceAddress(noLongerBlockedAci),
                 blockMode: .localShouldNotLeaveGroups,
@@ -122,8 +123,11 @@ class BlockingManagerTests: SSKBaseTest {
                 blockMode: .localShouldNotLeaveGroups,
                 transaction: tx
             )
-            blockingManager.addBlockedGroup(
-                groupId: noLongerBlockedGroupId,
+            TSGroupThread.forUnitTest(
+                masterKey: try noLongerBlockedGroupParams.getMasterKey()
+            ).anyInsert(transaction: tx)
+            blockingManager.addBlockedGroupId(
+                try noLongerBlockedGroupParams.getPublicParams().getGroupIdentifier().serialize().asData,
                 blockMode: .localShouldNotLeaveGroups,
                 transaction: tx
             )
@@ -138,8 +142,11 @@ class BlockingManagerTests: SSKBaseTest {
                 blockMode: .localShouldNotLeaveGroups,
                 transaction: tx
             )
-            blockingManager.addBlockedGroup(
-                groupId: stillBlockedGroupId,
+            TSGroupThread.forUnitTest(
+                masterKey: try stillBlockedGroupParams.getMasterKey()
+            ).anyInsert(transaction: tx)
+            blockingManager.addBlockedGroupId(
+                try stillBlockedGroupParams.getPublicParams().getGroupIdentifier().serialize().asData,
                 blockMode: .localShouldNotLeaveGroups,
                 transaction: tx
             )
@@ -147,32 +154,38 @@ class BlockingManagerTests: SSKBaseTest {
         }
 
         // Test
-        databaseStorage.write { tx in
+        try SSKEnvironment.shared.databaseStorageRef.write { tx in
             blockingManager.processIncomingSync(
                 blockedPhoneNumbers: Set([stillBlockedPhoneNumber, newlyBlockedPhoneNumber].map(\.stringValue)),
                 blockedAcis: [stillBlockedAci, newlyBlockedAci],
-                blockedGroupIds: [stillBlockedGroupId, newlyBlockedGroupId],
+                blockedGroupIds: [
+                    try stillBlockedGroupParams.getPublicParams().getGroupIdentifier().serialize().asData,
+                    try newlyBlockedGroupParams.getPublicParams().getGroupIdentifier().serialize().asData,
+                ],
                 tx: tx
             )
         }
 
         // Verify
-        databaseStorage.read { readTx in
+        try SSKEnvironment.shared.databaseStorageRef.read { readTx in
             // First, our incoming sync message should've cleared our "NeedsSync" flag
-            XCTAssertFalse(blockingManager._testingOnly_needsSyncMessage(readTx))
+            XCTAssertEqual(
+                blockingManager.fetchChangeToken(tx: readTx),
+                blockingManager.fetchLastSyncedChangeToken(tx: readTx)
+            )
 
             // Verify our victims aren't blocked anymore
             XCTAssertFalse(blockingManager.isAddressBlocked(SignalServiceAddress(noLongerBlockedAci), transaction: readTx))
             XCTAssertFalse(blockingManager.isAddressBlocked(SignalServiceAddress(noLongerBlockedPhoneNumber), transaction: readTx))
-            XCTAssertFalse(blockingManager.isGroupIdBlocked(noLongerBlockedGroupId, transaction: readTx))
+            XCTAssertFalse(blockingManager.isGroupIdBlocked(try noLongerBlockedGroupParams.getPublicParams().getGroupIdentifier().serialize().asData, transaction: readTx))
 
             XCTAssertTrue(blockingManager.isAddressBlocked(SignalServiceAddress(stillBlockedAci), transaction: readTx))
             XCTAssertTrue(blockingManager.isAddressBlocked(SignalServiceAddress(stillBlockedPhoneNumber), transaction: readTx))
-            XCTAssertTrue(blockingManager.isGroupIdBlocked(stillBlockedGroupId, transaction: readTx))
+            XCTAssertTrue(blockingManager.isGroupIdBlocked(try stillBlockedGroupParams.getPublicParams().getGroupIdentifier().serialize().asData, transaction: readTx))
 
             XCTAssertTrue(blockingManager.isAddressBlocked(SignalServiceAddress(newlyBlockedAci), transaction: readTx))
             XCTAssertTrue(blockingManager.isAddressBlocked(SignalServiceAddress(newlyBlockedPhoneNumber), transaction: readTx))
-            XCTAssertTrue(blockingManager.isGroupIdBlocked(newlyBlockedGroupId, transaction: readTx))
+            XCTAssertTrue(blockingManager.isGroupIdBlocked(try newlyBlockedGroupParams.getPublicParams().getGroupIdentifier().serialize().asData, transaction: readTx))
 
             // Finally, verify that any remote state agrees
             let otherBlockedAddresses = otherBlockingManager.blockedAddresses(transaction: readTx)
@@ -183,40 +196,43 @@ class BlockingManagerTests: SSKBaseTest {
                 SignalServiceAddress(newlyBlockedPhoneNumber),
             ]
             XCTAssertEqual(Set(otherBlockedAddresses), Set(expectedBlockedAddresses))
-            let otherBlockedGroupIds = otherBlockingManager.blockedGroupModels(transaction: readTx).map(\.groupId)
+            let otherBlockedGroupIds = try otherBlockingManager.blockedGroupIds(transaction: readTx)
             let expectedBlockedGroupIds = [
-                stillBlockedGroupId,
-                newlyBlockedGroupId,
+                try stillBlockedGroupParams.getPublicParams().getGroupIdentifier().serialize().asData,
+                try newlyBlockedGroupParams.getPublicParams().getGroupIdentifier().serialize().asData,
             ]
             XCTAssertEqual(Set(otherBlockedGroupIds), Set(expectedBlockedGroupIds))
         }
     }
 
-    func testSendSyncMessage() {
+    @MainActor
+    func testSendSyncMessage() async {
         // Setup
         // ensure local client has necessary "registered" state
         let identityManager = DependenciesBridge.shared.identityManager
         identityManager.generateAndPersistNewIdentityKey(for: .aci)
-        Self.databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: .forUnitTests,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
-        BlockingManager.TestingFlags.optimisticallyCommitSyncToken = true
 
-        // Test
-        expectation(forNotification: BlockingManager.blockListDidChange, object: nil)
-        let neededSyncMessage = databaseStorage.write { writeTx -> Bool in
-            blockingManager.addBlockedAddress(SignalServiceAddress.randomForTesting(), blockMode: .localShouldLeaveGroups, transaction: writeTx)
-            return blockingManager._testingOnly_needsSyncMessage(writeTx)
+        SSKEnvironment.shared.messageSenderJobQueueRef.setUp()
+
+        let messageSender = SSKEnvironment.shared.messageSenderRef as! FakeMessageSender
+        messageSender.stubbedFailingErrors = [nil]
+
+        await withCheckedContinuation { continuation in
+            messageSender.sendMessageWasCalledBlock = { _ in continuation.resume() }
+            // Test
+            SSKEnvironment.shared.databaseStorageRef.write { tx in
+                blockingManager.addBlockedAci(Aci.randomForTesting(), blockMode: .localShouldLeaveGroups, tx: tx)
+            }
         }
-        waitForExpectations(timeout: 3)
 
         // Verify
-        databaseStorage.read {
-            XCTAssertTrue(neededSyncMessage)
-            XCTAssertFalse(blockingManager._testingOnly_needsSyncMessage($0))
-        }
+        XCTAssertEqual(messageSender.sentMessages.count, 1)
+        XCTAssert(messageSender.sentMessages.first! is OWSBlockedPhoneNumbersMessage)
     }
 }

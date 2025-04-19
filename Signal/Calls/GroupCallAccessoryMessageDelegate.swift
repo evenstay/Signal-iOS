@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 import SignalRingRTC
 import SignalServiceKit
 
@@ -36,7 +37,7 @@ protocol GroupCallAccessoryMessageDelegate: AnyObject, CallServiceStateObserver 
     /// state is `.joined` and we have an era ID for the call.
     func localDeviceMaybeJoinedGroupCall(
         eraId: String,
-        groupThread: TSGroupThread,
+        groupId: GroupIdentifier,
         groupCallRingState: GroupThreadCall.GroupCallRingState
     )
 
@@ -50,7 +51,7 @@ protocol GroupCallAccessoryMessageDelegate: AnyObject, CallServiceStateObserver 
     /// - Important
     /// This method must be called on the main thread.
     func localDeviceMaybeLeftGroupCall(
-        groupThread: TSGroupThread,
+        groupId: GroupIdentifier,
         groupCall: SignalRingRTC.GroupCall
     )
 
@@ -67,7 +68,7 @@ protocol GroupCallAccessoryMessageDelegate: AnyObject, CallServiceStateObserver 
     /// This method must be called on the main thread.
     func localDeviceDeclinedGroupRing(
         ringId: Int64,
-        groupThread: TSGroupThread
+        groupId: GroupIdentifier
     )
 }
 
@@ -107,7 +108,7 @@ class GroupCallAccessoryMessageHandler: GroupCallAccessoryMessageDelegate {
             return
         }
         localDeviceMaybeLeftGroupCall(
-            groupThread: oldGroupThreadCall.groupThread,
+            groupId: oldGroupThreadCall.groupId,
             groupCall: oldGroupThreadCall.ringRtcCall
         )
         localDeviceGroupCallDidEnd()
@@ -117,7 +118,7 @@ class GroupCallAccessoryMessageHandler: GroupCallAccessoryMessageDelegate {
 
     func localDeviceMaybeJoinedGroupCall(
         eraId: String,
-        groupThread: TSGroupThread,
+        groupId: GroupIdentifier,
         groupCallRingState: GroupThreadCall.GroupCallRingState
     ) {
         AssertIsOnMainThread()
@@ -128,6 +129,11 @@ class GroupCallAccessoryMessageHandler: GroupCallAccessoryMessageDelegate {
         logger.info("Sending join messages for call.")
 
         databaseStorage.asyncWrite { tx in
+            guard let groupThread = TSGroupThread.fetch(forGroupId: groupId, tx: tx) else {
+                owsFailDebug("Missing thread for group call.")
+                return
+            }
+
             let groupCallUpdateMessage = self.sendGroupCallUpdateMessage(
                 groupThread: groupThread,
                 eraId: eraId,
@@ -150,7 +156,7 @@ class GroupCallAccessoryMessageHandler: GroupCallAccessoryMessageDelegate {
     }
 
     func localDeviceMaybeLeftGroupCall(
-        groupThread: TSGroupThread,
+        groupId: GroupIdentifier,
         groupCall: SignalRingRTC.GroupCall
     ) {
         AssertIsOnMainThread()
@@ -161,6 +167,11 @@ class GroupCallAccessoryMessageHandler: GroupCallAccessoryMessageDelegate {
         logger.info("Sending leave message for call.")
 
         databaseStorage.asyncWrite { tx in
+            guard let groupThread = TSGroupThread.fetch(forGroupId: groupId, tx: tx) else {
+                owsFailDebug("Missing thread for group call.")
+                return
+            }
+
             _ = self.sendGroupCallUpdateMessage(
                 groupThread: groupThread,
                 eraId: groupCall.peekInfo?.eraId,
@@ -177,11 +188,16 @@ class GroupCallAccessoryMessageHandler: GroupCallAccessoryMessageDelegate {
 
     func localDeviceDeclinedGroupRing(
         ringId: Int64,
-        groupThread: TSGroupThread
+        groupId: GroupIdentifier
     ) {
         AssertIsOnMainThread()
 
         databaseStorage.asyncWrite { tx in
+            guard let groupThread = TSGroupThread.fetch(forGroupId: groupId, tx: tx) else {
+                owsFailDebug("Missing thread for group call.")
+                return
+            }
+
             self.groupCallRecordManager.createOrUpdateCallRecordForDeclinedRing(
                 ringId: ringId,
                 groupThread: groupThread,
@@ -195,7 +211,7 @@ class GroupCallAccessoryMessageHandler: GroupCallAccessoryMessageDelegate {
     private func sendGroupCallUpdateMessage(
         groupThread: TSGroupThread,
         eraId: String?,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> OutgoingGroupCallUpdateMessage {
         let updateMessage = OutgoingGroupCallUpdateMessage(
             thread: groupThread,
@@ -227,7 +243,7 @@ private extension GroupCallRecordManager {
         groupThread: TSGroupThread,
         groupCallRingState: GroupThreadCall.GroupCallRingState,
         joinTimestamp: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         guard let groupThreadRowId = groupThread.sqliteRowId else {
             logger.error("Missing SQLite row ID for thread!")
@@ -265,16 +281,20 @@ private extension GroupCallRecordManager {
         }
 
         logger.info("Creating or updating record for group call join.")
-        createOrUpdateCallRecord(
-            callId: callId,
-            groupThread: groupThread,
-            groupThreadRowId: groupThreadRowId,
-            callDirection: callDirection,
-            groupCallStatus: groupCallStatus,
-            callEventTimestamp: joinTimestamp,
-            shouldSendSyncMessage: true,
-            tx: tx.asV2Write
-        )
+        do {
+            try createOrUpdateCallRecord(
+                callId: callId,
+                groupThread: groupThread,
+                groupThreadRowId: groupThreadRowId,
+                callDirection: callDirection,
+                groupCallStatus: groupCallStatus,
+                callEventTimestamp: joinTimestamp,
+                shouldSendSyncMessage: true,
+                tx: tx
+            )
+        } catch let error {
+            owsFailBeta("Failed to insert call record: \(error)")
+        }
     }
 
     /// Create or update a call record in response to the local declining a ring
@@ -285,7 +305,7 @@ private extension GroupCallRecordManager {
     func createOrUpdateCallRecordForDeclinedRing(
         ringId: Int64,
         groupThread: TSGroupThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         guard let groupThreadRowId = groupThread.sqliteRowId else {
             logger.error("Missing SQLite row ID for thread!")
@@ -293,15 +313,19 @@ private extension GroupCallRecordManager {
         }
 
         logger.info("Creating or updating record for group ring decline.")
-        createOrUpdateCallRecord(
-            callId: callIdFromRingId(ringId),
-            groupThread: groupThread,
-            groupThreadRowId: groupThreadRowId,
-            callDirection: .incoming,
-            groupCallStatus: .ringingDeclined,
-            callEventTimestamp: Date().ows_millisecondsSince1970,
-            shouldSendSyncMessage: true,
-            tx: tx.asV2Write
-        )
+        do {
+            try createOrUpdateCallRecord(
+                callId: callIdFromRingId(ringId),
+                groupThread: groupThread,
+                groupThreadRowId: groupThreadRowId,
+                callDirection: .incoming,
+                groupCallStatus: .ringingDeclined,
+                callEventTimestamp: Date().ows_millisecondsSince1970,
+                shouldSendSyncMessage: true,
+                tx: tx
+            )
+        } catch let error {
+            owsFailBeta("Failed to insert call record: \(error)")
+        }
     }
 }

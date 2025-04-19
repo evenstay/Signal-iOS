@@ -30,7 +30,7 @@ extension GroupUpdateInfoMessageInserterImpl {
         localIdentifiers: LocalIdentifiers,
         groupThread: TSGroupThread,
         newGroupModel: TSGroupModel,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> CollapsibleMembershipChangeResult? {
         guard
             let (mostRecentInfoMsg, secondMostRecentInfoMsgMaybe) =
@@ -82,7 +82,7 @@ extension GroupUpdateInfoMessageInserterImpl {
         mostRecentInfoMsg: TSInfoMessage,
         withNewJoinRequestFrom requestingAci: Aci,
         localIdentifiers: LocalIdentifiers,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> CollapsibleMembershipChangeResult? {
 
         // For a new join request we always want a new info message. However,
@@ -135,7 +135,7 @@ extension GroupUpdateInfoMessageInserterImpl {
         withCanceledJoinRequestFrom cancelingAci: Aci,
         newGroupModel: TSGroupModel,
         localIdentifiers: LocalIdentifiers,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> CollapsibleMembershipChangeResult? {
 
         // If the most recent message represents the join request that's being
@@ -185,7 +185,7 @@ extension GroupUpdateInfoMessageInserterImpl {
             cancelingAci == requester
         {
             DependenciesBridge.shared.interactionDeleteManager
-                .delete(mostRecentInfoMsg, sideEffects: .default(), tx: transaction.asV2Write)
+                .delete(mostRecentInfoMsg, sideEffects: .default(), tx: transaction)
 
             secondMostRecentInfoMsg.setSingleUpdateItem(
                 singleUpdateItem: .sequenceOfInviteLinkRequestAndCancels(
@@ -211,82 +211,9 @@ extension GroupUpdateInfoMessageInserterImpl {
         }
     }
 
-    /// See ``GroupUpdateInfoMessageInserterBackupHelper``.
-    public static func collapseFromBackupIfNeeded(
-        updates: inout [TSInfoMessage.PersistableGroupUpdateItem],
-        localIdentifiers: LocalIdentifiers,
-        groupThread: TSGroupThread,
-        transaction: SDSAnyWriteTransaction
-    ) {
-        if
-            updates.count == 2,
-            let (sequenceRequestor, count) = updates[0]
-                .representsSequenceOfRequestsAndCancels(),
-            let singleRequestor = updates[1]
-                .representsCollapsibleSingleRequestToJoin(),
-            sequenceRequestor == singleRequestor
-        {
-            // These updates are collapsible in isolation.
-            // Mark the first one as not the tail; thats the only change
-            // we need to make to "collapse" this one.
-            updates[0] =
-                .sequenceOfInviteLinkRequestAndCancels(
-                    requester: sequenceRequestor.codableUuid,
-                    count: count,
-                    isTail: false
-                )
-            return
-        }
-
-        guard
-            updates.count == 1,
-            let requestingAci = updates[0].representsCollapsibleSingleRequestToJoin()
-        else {
-            // No change needed.
-            return
-        }
-
-        // This latest message is collapsible; try and collapse it.
-
-        guard let (mostRecentInfoMsg, _) =
-            mostRecentVisibleInteractionsAsInfoMessages(
-                forGroupThread: groupThread,
-                withTransaction: transaction
-            )
-        else {
-            return
-        }
-
-        guard let (mostRecentMsgAci, count) = mostRecentInfoMsg
-            .representsSingleSequenceOfRequestsAndCancels(
-                localIdentifiers: localIdentifiers
-            ),
-            requestingAci == mostRecentMsgAci
-        else {
-            return
-        }
-
-        mostRecentInfoMsg.anyUpdateInfoMessage(
-            transaction: transaction,
-            block: {
-                $0.setSingleUpdateItem(
-                    singleUpdateItem: .sequenceOfInviteLinkRequestAndCancels(
-                        requester: mostRecentMsgAci.codableUuid,
-                        // Count stays the same.
-                        count: count,
-                        // Its not the tail because of the subsequent request.
-                        isTail: false
-                    )
-                )
-            }
-        )
-        // No need to change the updates in the new info message.
-        return
-    }
-
     private static func mostRecentVisibleInteractionsAsInfoMessages(
         forGroupThread groupThread: TSGroupThread,
-        withTransaction transaction: SDSAnyReadTransaction
+        withTransaction transaction: DBReadTransaction
     ) -> (first: TSInfoMessage, second: TSInfoMessage?)? {
         var mostRecentVisibleInteraction: TSInteraction?
         var secondMostRecentVisibleInteraction: TSInteraction?
@@ -340,7 +267,7 @@ private extension TSInfoMessage {
 
     func representsCollapsibleSingleRequestToJoin(
         localIdentifiers: LocalIdentifiers,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> Aci? {
         switch groupUpdateMetadata(localIdentifiers: localIdentifiers) {
         case .newGroup, .nonGroupUpdate, .legacyRawString:

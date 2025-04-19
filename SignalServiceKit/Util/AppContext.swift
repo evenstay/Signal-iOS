@@ -33,6 +33,8 @@ public protocol AppContext {
     var type: AppContextType { get }
     var isMainApp: Bool { get }
     var isMainAppAndActive: Bool { get }
+    @MainActor
+    var isMainAppAndActiveIsolated: Bool { get }
     var isNSE: Bool { get }
     /// Whether the user is using a right-to-left language like Arabic.
     var isRTL: Bool { get }
@@ -74,9 +76,6 @@ public protocol AppContext {
     /// Should be a NOOP if isMainApp is NO.
     func endBackgroundTask(_ backgroundTaskIdentifier: UIBackgroundTaskIdentifier)
 
-    /// Should be a NOOP if isMainApp is NO.
-    func ensureSleepBlocking(_ shouldBeBlocking: Bool, blockingObjectsDescription: String)
-
     /// Returns the VC that should be used to present alerts, modals, etc.
     func frontmostViewController() -> UIViewController?
     func openSystemSettings()
@@ -106,16 +105,14 @@ public protocol AppContext {
     ///
     /// App becomes unuseable. As of time of writing, the only option
     /// after doing this is to terminate the app and relaunch.
+    @MainActor
     func resetAppDataAndExit() -> Never
 }
 
-@objcMembers
 public final class AppContextObjCBridge: NSObject {
+    @objc
     @available(swift, obsoleted: 1)
     public static let shared = AppContextObjCBridge()
-
-    public static let owsApplicationWillResignActiveNotification = Notification.Name.OWSApplicationWillResignActive
-    public static let owsApplicationDidBecomeActiveNotification = Notification.Name.OWSApplicationDidBecomeActive
 
     private var appContext: any AppContext {
         SignalServiceKit.CurrentAppContext()
@@ -123,36 +120,9 @@ public final class AppContextObjCBridge: NSObject {
 
     private override init() {}
 
-    public var appDocumentDirectoryPath: String {
-        appContext.appDocumentDirectoryPath()
-    }
-
-    public var appSharedDataDirectoryPath: String {
-        appContext.appSharedDataDirectoryPath()
-    }
-
-    public var appLaunchTime: Date {
-        appContext.appLaunchTime
-    }
-
-    public var isMainApp: Bool {
-        appContext.isMainApp
-    }
-
-    public var isMainAppAndActive: Bool {
-        appContext.isMainAppAndActive
-    }
-
+    @objc
     public var isRunningTests: Bool {
         appContext.isRunningTests
-    }
-
-    public func beginBackgroundTask(expirationHandler: @escaping () -> Void) -> UIBackgroundTaskIdentifier {
-        appContext.beginBackgroundTask(with: expirationHandler)
-    }
-
-    public func endBackgroundTask(_ identifier: UIBackgroundTaskIdentifier) {
-        appContext.endBackgroundTask(identifier)
     }
 }
 
@@ -179,7 +149,8 @@ public func CurrentAppContext() -> any AppContext {
     currentAppContext!
 }
 
-public func SetCurrentAppContext(_ appContext: any AppContext) {
+public func SetCurrentAppContext(_ appContext: any AppContext, isRunningTests: Bool) {
+    owsPrecondition(currentAppContext == nil || isRunningTests)
     currentAppContext = appContext
 }
 

@@ -12,10 +12,10 @@ class SignalAccountFinderTest: SSKBaseTest {
     override func setUp() {
         super.setUp()
         // Create local account.
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: .forUnitTests,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
     }

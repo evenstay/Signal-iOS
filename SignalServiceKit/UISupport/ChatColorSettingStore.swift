@@ -19,11 +19,10 @@ public class ChatColorSettingStore {
     private let wallpaperStore: WallpaperStore
 
     public init(
-        keyValueStoreFactory: KeyValueStoreFactory,
         wallpaperStore: WallpaperStore
     ) {
-        self.settingStore = keyValueStoreFactory.keyValueStore(collection: "chatColorSettingStore")
-        self.customColorsStore = keyValueStoreFactory.keyValueStore(collection: "customColorsStore.3")
+        self.settingStore = KeyValueStore(collection: "chatColorSettingStore")
+        self.customColorsStore = KeyValueStore(collection: "customColorsStore.3")
         self.wallpaperStore = wallpaperStore
     }
 
@@ -125,23 +124,39 @@ public class ChatColorSettingStore {
         return autoChatColor(for: thread, previewWallpaper: nil, tx: tx)
     }
 
+    /// Find the default chat color for a given thread/wallpaper, given the following priority:
+    /// 1. If 'previewWallpaper' is specified, return the thread's default color or the preview wallpaper's default color
+    /// 2. The default color of the thread's wallpaper if set to something different than the default or global wallpaper
+    /// 3. The global chat color, if set
+    /// 4. The global wallpaper's default chat color, if set
+    /// 5. The default chat color
     private func autoChatColor(
         for thread: TSThread?,
         previewWallpaper: Wallpaper?,
         tx: DBReadTransaction
     ) -> ColorOrGradientSetting {
-        // If we're editing the color for a specific thread, then we'll prefer the
-        // globally-selected value instead of both the thread-specific and global
-        // wallpaper values.
-        if thread != nil, let globalColor = chatColorSetting(for: nil, tx: tx).constantColor {
+        if let previewColor = previewWallpaper?.defaultChatColor {
+            // If editing the local thread
+            return chatColorSetting(for: thread, tx: tx).constantColor ?? previewColor.colorSetting
+        }
+
+        // Only call this if there's a threadId.  Calling `fetchWallpaper` with a nil threadId will
+        // return the global wallpaper.
+        if
+            let threadId = thread?.uniqueId,
+            let threadWallpaperColor = wallpaperStore.fetchWallpaper(for: threadId, tx: tx)?.defaultChatColor
+        {
+            return threadWallpaperColor.colorSetting
+        }
+
+        if let globalColor = chatColorSetting(for: nil, tx: tx).constantColor {
             return globalColor
         }
-        let resolvedWallpaper = previewWallpaper ?? wallpaperStore.fetchWallpaperForRendering(
-            for: thread?.uniqueId,
-            tx: tx
-        )
-        if let wallpaperColor = resolvedWallpaper?.defaultChatColor {
-            return wallpaperColor.colorSetting
+
+        // if there's no preview/local wallpaper,
+        // get the global
+        if let globalWallpaperColor = wallpaperStore.fetchWallpaper(for: nil, tx: tx)?.defaultChatColor {
+            return globalWallpaperColor.colorSetting
         }
         return Constants.defaultColor.colorSetting
     }
@@ -197,8 +212,8 @@ public class ChatColorSettingStore {
 
     private func postChatColorsDidChangeNotification(for thread: TSThread?, tx: DBWriteTransaction) {
         let threadUniqueId = thread?.uniqueId
-        tx.addAsyncCompletion(on: DispatchQueue.main) {
-            NotificationCenter.default.post(name: Self.chatColorsDidChangeNotification, object: threadUniqueId)
+        tx.addSyncCompletion {
+            NotificationCenter.default.postOnMainThread(name: Self.chatColorsDidChangeNotification, object: threadUniqueId)
         }
     }
 }

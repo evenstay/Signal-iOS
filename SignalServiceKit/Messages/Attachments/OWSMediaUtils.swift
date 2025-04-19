@@ -10,14 +10,9 @@ public enum OWSMediaError: Error {
     case failure(description: String)
 }
 
-@objc
-public class OWSMediaUtils: NSObject {
+public enum OWSMediaUtils {
 
-    @available(*, unavailable, message: "do not instantiate this class.")
-    private override init() {
-    }
-
-    public class func thumbnail(forImage image: UIImage, maxDimensionPixels: CGFloat) throws -> UIImage {
+    public static func thumbnail(forImage image: UIImage, maxDimensionPixels: CGFloat) throws -> UIImage {
         if image.pixelSize.width <= maxDimensionPixels,
            image.pixelSize.height <= maxDimensionPixels {
             let result = image.withNativeScale
@@ -33,14 +28,13 @@ public class OWSMediaUtils: NSObject {
         return result
     }
 
-    private class func thumbnail(forImage image: UIImage, maxDimensionPoints: CGFloat) throws -> UIImage {
+    private static func thumbnail(forImage image: UIImage, maxDimensionPoints: CGFloat) throws -> UIImage {
         let scale = UIScreen.main.scale
         let maxDimensionPixels = maxDimensionPoints * scale
         return try thumbnail(forImage: image, maxDimensionPixels: maxDimensionPixels)
     }
 
-    @objc
-    public class func thumbnail(forImageAtPath path: String, maxDimensionPixels: CGFloat) throws -> UIImage {
+    public static func thumbnail(forImageAtPath path: String, maxDimensionPixels: CGFloat) throws -> UIImage {
         guard FileManager.default.fileExists(atPath: path) else {
             throw OWSMediaError.failure(description: "Media file missing.")
         }
@@ -53,8 +47,7 @@ public class OWSMediaUtils: NSObject {
         return try thumbnail(forImage: originalImage, maxDimensionPixels: maxDimensionPixels)
     }
 
-    @objc
-    public class func thumbnail(forImageAtPath path: String, maxDimensionPoints: CGFloat) throws -> UIImage {
+    public static func thumbnail(forImageAtPath path: String, maxDimensionPoints: CGFloat) throws -> UIImage {
         guard FileManager.default.fileExists(atPath: path) else {
             throw OWSMediaError.failure(description: "Media file missing.")
         }
@@ -67,8 +60,7 @@ public class OWSMediaUtils: NSObject {
         return try thumbnail(forImage: originalImage, maxDimensionPoints: maxDimensionPoints)
     }
 
-    @objc
-    public class func thumbnail(forImageData imageData: Data, maxDimensionPoints: CGFloat) throws -> UIImage {
+    public static func thumbnail(forImageData imageData: Data, maxDimensionPoints: CGFloat) throws -> UIImage {
         guard imageData.ows_isValidImage else {
             throw OWSMediaError.failure(description: "Invalid image.")
         }
@@ -78,8 +70,7 @@ public class OWSMediaUtils: NSObject {
         return try thumbnail(forImage: originalImage, maxDimensionPoints: maxDimensionPoints)
     }
 
-    @objc
-    public class func thumbnail(forImageData imageData: Data, maxDimensionPixels: CGFloat) throws -> UIImage {
+    public static func thumbnail(forImageData imageData: Data, maxDimensionPixels: CGFloat) throws -> UIImage {
         guard imageData.ows_isValidImage else {
             throw OWSMediaError.failure(description: "Invalid image.")
         }
@@ -89,8 +80,7 @@ public class OWSMediaUtils: NSObject {
         return try thumbnail(forImage: originalImage, maxDimensionPixels: maxDimensionPixels)
     }
 
-    @objc
-    public class func thumbnail(forWebpAtPath path: String, maxDimensionPoints: CGFloat) throws -> UIImage {
+    public static func thumbnail(forWebpAtPath path: String, maxDimensionPoints: CGFloat) throws -> UIImage {
         guard FileManager.default.fileExists(atPath: path) else {
             throw OWSMediaError.failure(description: "Media file missing.")
         }
@@ -104,8 +94,7 @@ public class OWSMediaUtils: NSObject {
         return try thumbnail(forImage: stillImage, maxDimensionPoints: maxDimensionPoints)
     }
 
-    @objc
-    public class func thumbnail(forVideoAtPath path: String, maxDimensionPoints: CGFloat) throws -> UIImage {
+    public static func thumbnail(forVideoAtPath path: String, maxDimensionPoints: CGFloat) throws -> UIImage {
         guard isVideoOfValidContentTypeAndSize(path: path) else {
             throw OWSMediaError.failure(description: "Media file has missing or invalid length.")
         }
@@ -123,7 +112,7 @@ public class OWSMediaUtils: NSObject {
 
     public static let videoStillFrameMimeType = MimeType.imageJpeg
 
-    public class func thumbnail(forVideo asset: AVAsset, maxSizePixels: CGSize) throws -> UIImage {
+    public static func thumbnail(forVideo asset: AVAsset, maxSizePixels: CGSize) throws -> UIImage {
         let generator = AVAssetImageGenerator(asset: asset)
         generator.maximumSize = maxSizePixels
         generator.appliesPreferredTrackTransform = true
@@ -133,7 +122,7 @@ public class OWSMediaUtils: NSObject {
         return image
     }
 
-    public class func thumbnailData(forVideo asset: AVAsset, maxSizePixels: CGSize) throws -> Data {
+    public static func thumbnailData(forVideo asset: AVAsset, maxSizePixels: CGSize) throws -> Data {
         let image = try thumbnail(forVideo: asset, maxSizePixels: maxSizePixels)
         owsAssertDebug(Self.videoStillFrameMimeType == MimeType.imageJpeg)
         guard let data = image.jpegData(compressionQuality: 0.8) else {
@@ -142,13 +131,11 @@ public class OWSMediaUtils: NSObject {
         return data
     }
 
-    @objc
-    public class func isValidVideo(path: String) -> Bool {
+    public static func isValidVideo(path: String) -> Bool {
         return isValidVideo(path: path, ignoreSize: false)
     }
 
-    @objc
-    public class func isValidVideo(path: String, ignoreSize: Bool) -> Bool {
+    public static func isValidVideo(path: String, ignoreSize: Bool) -> Bool {
         let pathValidationMethod: (String) -> Bool
         if ignoreSize {
             pathValidationMethod = self.isVideoOfValidContentType(path:)
@@ -165,12 +152,12 @@ public class OWSMediaUtils: NSObject {
         return isValidVideo(asset: asset)
     }
 
-    public class func isVideoOfValidContentTypeAndSize(path: String) -> Bool {
+    public static func isVideoOfValidContentTypeAndSize(path: String) -> Bool {
         return isVideoOfValidContentType(path: path)
             && isVideoOfValidSize(path: path)
     }
 
-    public class func isVideoOfValidContentType(path: String) -> Bool {
+    public static func isVideoOfValidContentType(path: String) -> Bool {
         guard FileManager.default.fileExists(atPath: path) else {
             Logger.error("Media file missing.")
             return false
@@ -187,7 +174,7 @@ public class OWSMediaUtils: NSObject {
         return true
     }
 
-    public class func isVideoOfValidSize(path: String) -> Bool {
+    public static func isVideoOfValidSize(path: String) -> Bool {
         guard let fileSize = OWSFileSystem.fileSize(ofPath: path) else {
             Logger.error("Media file has unknown length.")
             return false
@@ -195,7 +182,7 @@ public class OWSMediaUtils: NSObject {
         return fileSize.uintValue <= kMaxFileSizeVideo
     }
 
-    public class func isValidVideo(asset: AVAsset) -> Bool {
+    public static func isValidVideo(asset: AVAsset) -> Bool {
         var maxTrackSize = CGSize.zero
         for track: AVAssetTrack in asset.tracks(withMediaType: .video) {
             let trackSize: CGSize = track.naturalSize
@@ -213,7 +200,7 @@ public class OWSMediaUtils: NSObject {
         return true
     }
 
-    public class func videoResolution(url: URL) -> CGSize {
+    public static func videoResolution(url: URL) -> CGSize {
         var maxTrackSize = CGSize.zero
         let asset = AVURLAsset(url: url)
         for track: AVAssetTrack in asset.tracks(withMediaType: .video) {
@@ -231,25 +218,16 @@ public class OWSMediaUtils: NSObject {
      *
      * https://github.com/signalapp/Signal-Android/blob/c4bc2162f23e0fd6bc25941af8fb7454d91a4a35/app/src/main/java/org/thoughtcrime/securesms/mms/PushMediaConstraints.java
      */
-    @objc
     public static let kMaxFileSizeAnimatedImage = UInt(25 * 1024 * 1024)
-    @objc
     public static let kMaxFileSizeImage = UInt(8 * 1024 * 1024)
     // Cloudflare limits uploads to 100 MB. To avoid hitting those limits,
     // we use limits that are 5% lower for the unencrypted content.
-    @objc
     public static let kMaxFileSizeVideo = UInt(95 * 1000 * 1000)
-    @objc
     public static let kMaxFileSizeAudio = UInt(95 * 1000 * 1000)
-    @objc
     public static let kMaxFileSizeGeneric = UInt(95 * 1000 * 1000)
-    @objc
     public static let kMaxAttachmentUploadSizeBytes = UInt(100 * 1000 * 1000)
 
-    @objc
     public static let kMaxVideoDimensions: CGFloat = 4096 // 4k video width
-    @objc
     public static let kMaxAnimatedImageDimensions: UInt = 12 * 1024
-    @objc
     public static let kMaxStillImageDimensions: UInt = 12 * 1024
 }

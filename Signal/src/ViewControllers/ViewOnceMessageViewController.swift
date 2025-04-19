@@ -10,11 +10,14 @@ import YYImage
 
 class ViewOnceMessageViewController: OWSViewController {
 
-    typealias Content = TSViewOnceContent
+    typealias Content = ViewOnceContent
 
     // MARK: - Properties
 
     private let content: Content
+
+    private var mediaView: UIView!
+    private var scrollView: ZoomableMediaView!
 
     // MARK: - Initializers
 
@@ -53,7 +56,7 @@ class ViewOnceMessageViewController: OWSViewController {
         guard let message = interaction as? TSMessage else {
             return nil
         }
-        return DependenciesBridge.shared.tsResourceViewOnceManager.prepareViewOnceContentForDisplay(message)
+        return DependenciesBridge.shared.attachmentViewOnceManager.prepareViewOnceContentForDisplay(message)
     }
 
     // MARK: - View Lifecycle
@@ -62,27 +65,12 @@ class ViewOnceMessageViewController: OWSViewController {
         self.view = UIView()
         view.backgroundColor = UIColor.ows_black
 
-        let contentView = UIView()
-        view.addSubview(contentView)
-        contentView.autoPinWidthToSuperview()
-        contentView.autoPin(toTopLayoutGuideOf: self, withInset: 0)
-        contentView.autoPin(toBottomLayoutGuideOf: self, withInset: 0)
-
         let defaultMediaView = UIView()
         defaultMediaView.backgroundColor = Theme.darkThemeWashColor
-        let mediaView = buildMediaView() ?? defaultMediaView
+        self.mediaView = buildMediaView() ?? defaultMediaView
 
-        contentView.addSubview(mediaView)
-        mediaView.autoPinEdgesToSuperviewEdges()
-
-        let hMargin: CGFloat = 16
-        let vMargin: CGFloat = 20
-        let controlSize: CGFloat = 24
-        let controlSpacing: CGFloat = 20
-        let controlsWidth = controlSize * 2 + controlSpacing + hMargin * 2
-        let controlsHeight = controlSize + vMargin * 2
-        mediaView.autoSetDimension(.width, toSize: controlsWidth, relation: .greaterThanOrEqual)
-        mediaView.autoSetDimension(.height, toSize: controlsHeight, relation: .greaterThanOrEqual)
+        self.scrollView = ZoomableMediaView(mediaView: mediaView)
+        scrollView.delegate = self
 
         let dismissButton = OWSButton(imageName: Theme.iconName(.buttonX), tintColor: Theme.darkThemePrimaryColor) { [weak self] in
             self?.dismissButtonPressed()
@@ -91,15 +79,30 @@ class ViewOnceMessageViewController: OWSViewController {
         dismissButton.layer.shadowOffset = .zero
         dismissButton.layer.shadowOpacity = 0.7
         dismissButton.layer.shadowRadius = 3.0
-
-        dismissButton.ows_contentEdgeInsets = UIEdgeInsets(top: vMargin, leading: hMargin, bottom: vMargin, trailing: hMargin)
-        view.addSubview(dismissButton)
-        dismissButton.autoPinEdge(.leading, to: .leading, of: mediaView)
-        dismissButton.autoPinEdge(.top, to: .top, of: mediaView)
         dismissButton.setShadow(opacity: 0.66)
+
+        view.addSubview(scrollView)
+        scrollView.autoPinEdgesToSuperviewEdges()
+
+        view.addSubview(dismissButton)
+        dismissButton.autoPinEdge(toSuperviewMargin: .leading, withInset: 16)
+        dismissButton.autoPinEdge(toSuperviewMargin: .top, withInset: 20)
 
         setupDatabaseObservation()
     }
+
+    override public func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        scrollView.updateZoomScaleForLayout()
+        scrollView.zoomScale = scrollView.minimumZoomScale
+    }
+
+    override public func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        scrollView.updateZoomScaleForLayout()
+    }
+
+    // MARK: -
 
     private func buildMediaView() -> UIView? {
         switch content.type {
@@ -220,7 +223,7 @@ class ViewOnceMessageViewController: OWSViewController {
     var videoPlayer: VideoPlayer?
 
     func setupDatabaseObservation() {
-        databaseStorage.appendDatabaseChangeDelegate(self)
+        DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(applicationWillEnterForeground),
@@ -245,7 +248,7 @@ class ViewOnceMessageViewController: OWSViewController {
     private func dismissIfRemoved() {
         AssertIsOnMainThread()
 
-        let shouldDismiss: Bool = databaseStorage.read { transaction in
+        let shouldDismiss: Bool = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             let uniqueId = self.content.messageId
             guard TSInteraction.anyFetch(uniqueId: uniqueId, transaction: transaction) != nil else {
                 return true
@@ -282,20 +285,14 @@ class ViewOnceMessageViewController: OWSViewController {
 extension ViewOnceMessageViewController: DatabaseChangeDelegate {
 
     func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
-        AssertIsOnMainThread()
-
         dismissIfRemoved()
     }
 
     func databaseChangesDidUpdateExternally() {
-        AssertIsOnMainThread()
-
         dismissIfRemoved()
     }
 
     func databaseChangesDidReset() {
-        AssertIsOnMainThread()
-
         dismissIfRemoved()
     }
 }
@@ -303,5 +300,18 @@ extension ViewOnceMessageViewController: DatabaseChangeDelegate {
 extension ViewOnceMessageViewController: VideoPlayerDelegate {
     func videoPlayerDidPlayToCompletion(_ videoPlayer: VideoPlayer) {
         // no-op
+    }
+}
+
+// MARK: -
+
+extension ViewOnceMessageViewController: UIScrollViewDelegate {
+    func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+        return mediaView
+    }
+
+    func scrollViewDidZoom(_ scrollView: UIScrollView) {
+        (scrollView as? ZoomableMediaView)?.updateZoomScaleForLayout()
+        view.layoutIfNeeded()
     }
 }

@@ -12,24 +12,20 @@ NS_ASSUME_NONNULL_BEGIN
 /// Represents a story distribution list.
 @interface TSPrivateStoryThread : TSThread
 
-@property (nonatomic, readonly) BOOL allowsReplies;
-@property (nonatomic, readonly) NSString *name;
+@property (nonatomic) BOOL allowsReplies;
+@property (nonatomic) NSString *name;
 
-/// - SeeAlso:
-/// ``TSThread/storyViewMode``. In combination with that property, describes the
-/// intended viewership of stories sent to this thread.
-@property (nonatomic) NSArray<SignalServiceAddress *> *addresses;
+/// deprecated
+@property (nonatomic, nullable) NSData *addresses;
 
 @property (nonatomic, readonly) BOOL isMyStory;
 
 - (instancetype)initWithUniqueId:(NSString *)uniqueId
                             name:(NSString *)name
                    allowsReplies:(BOOL)allowsReplies
-                       addresses:(NSArray<SignalServiceAddress *> *)addresses
                         viewMode:(TSThreadStoryViewMode)viewMode NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithName:(NSString *)name
                allowsReplies:(BOOL)allowsReplies
-                   addresses:(NSArray<SignalServiceAddress *> *)addresses
                     viewMode:(TSThreadStoryViewMode)viewMode NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
@@ -79,7 +75,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
      mutedUntilTimestampObsolete:(uint64_t)mutedUntilTimestampObsolete
            shouldThreadBeVisible:(BOOL)shouldThreadBeVisible
                    storyViewMode:(TSThreadStoryViewMode)storyViewMode
-                       addresses:(NSArray<SignalServiceAddress *> *)addresses
+                       addresses:(nullable NSData *)addresses
                    allowsReplies:(BOOL)allowsReplies
                             name:(NSString *)name
 NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:conversationColorNameObsolete:creationDate:editTargetTimestamp:isArchivedObsolete:isMarkedUnreadObsolete:lastInteractionRowId:lastSentStoryTimestamp:lastVisibleSortIdObsolete:lastVisibleSortIdOnScreenPercentageObsolete:mentionNotificationMode:messageDraft:messageDraftBodyRanges:mutedUntilDateObsolete:mutedUntilTimestampObsolete:shouldThreadBeVisible:storyViewMode:addresses:allowsReplies:name:));
@@ -87,16 +83,6 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:conversationColorNa
 // clang-format on
 
 // --- CODE GENERATION MARKER
-
-- (void)updateWithAllowsReplies:(BOOL)allowsReplies
-           updateStorageService:(BOOL)updateStorageService
-                    transaction:(SDSAnyWriteTransaction *)transaction
-    NS_SWIFT_NAME(updateWithAllowsReplies(_:updateStorageService:transaction:));
-
-- (void)updateWithName:(NSString *)name
-    updateStorageService:(BOOL)updateStorageService
-             transaction:(SDSAnyWriteTransaction *)transaction
-    NS_SWIFT_NAME(updateWithName(_:updateStorageService:transaction:));
 
 @end
 

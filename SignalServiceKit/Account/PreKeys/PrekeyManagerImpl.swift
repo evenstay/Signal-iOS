@@ -13,11 +13,13 @@ public class PreKeyManagerImpl: PreKeyManager {
     public enum Constants {
 
         // How often we check prekey state on app activation.
-        static let oneTimePreKeyCheckFrequencySeconds = 12 * kHourInterval
+        static let oneTimePreKeyCheckFrequencySeconds: TimeInterval = 12 * .hour
 
         // Maximum amount of time that can elapse without rotating signed prekeys
         // before the message sending is disabled.
-        static let SignedPreKeyMaxRotationDuration = (14 * kDayInterval)
+        static let SignedPreKeyMaxRotationDuration: TimeInterval = (
+            FeatureFlags.shouldUseTestIntervals ? (4 * .day) : (14 * .day)
+        )
 
         fileprivate static let preKeyRotationVersion = 1
         fileprivate static let aciPreKeyRotationVersionKey = "ACIPreKeyRotationVersion"
@@ -30,9 +32,9 @@ public class PreKeyManagerImpl: PreKeyManager {
     /// complete before starting any other pre-key operation. That's why they must run in serial.
     private static let taskQueue = SerialTaskQueue()
 
-    private let db: DB
+    private let db: any DB
     private let identityManager: PreKey.Shims.IdentityManager
-    private let keyValueStore: any KeyValueStore
+    private let keyValueStore: KeyValueStore
     private let protocolStoreManager: SignalProtocolStoreManager
     private let chatConnectionManager: any ChatConnectionManager
     private let tsAccountManager: any TSAccountManager
@@ -41,31 +43,30 @@ public class PreKeyManagerImpl: PreKeyManager {
 
     init(
         dateProvider: @escaping DateProvider,
-        db: DB,
+        db: any DB,
         identityManager: PreKey.Shims.IdentityManager,
-        keyValueStoryFactory: any KeyValueStoreFactory,
         linkedDevicePniKeyManager: LinkedDevicePniKeyManager,
-        messageProcessor: PreKey.Shims.MessageProcessor,
+        messageProcessor: MessageProcessor,
+        preKeyTaskAPIClient: PreKeyTaskAPIClient,
         protocolStoreManager: SignalProtocolStoreManager,
-        serviceClient: AccountServiceClient,
         chatConnectionManager: any ChatConnectionManager,
         tsAccountManager: TSAccountManager
     ) {
         self.db = db
         self.identityManager = identityManager
-        self.keyValueStore = keyValueStoryFactory.keyValueStore(collection: "PreKeyManager")
+        self.keyValueStore = KeyValueStore(collection: "PreKeyManager")
         self.protocolStoreManager = protocolStoreManager
         self.chatConnectionManager = chatConnectionManager
         self.tsAccountManager = tsAccountManager
 
         self.taskManager = PreKeyTaskManager(
+            apiClient: preKeyTaskAPIClient,
             dateProvider: dateProvider,
             db: db,
             identityManager: identityManager,
             linkedDevicePniKeyManager: linkedDevicePniKeyManager,
             messageProcessor: messageProcessor,
             protocolStoreManager: protocolStoreManager,
-            serviceClient: serviceClient,
             tsAccountManager: tsAccountManager
         )
     }
@@ -126,7 +127,7 @@ public class PreKeyManagerImpl: PreKeyManager {
             return
         }
 
-        let shouldCheckOneTimePrekeys = {
+        let shouldCheckOneTimePreKeys = {
             if
                 shouldThrottle,
                 let lastOneTimePreKeyCheckTimestamp,
@@ -137,36 +138,44 @@ public class PreKeyManagerImpl: PreKeyManager {
             return true
         }()
 
+        _ = self._checkPreKeys(shouldCheckOneTimePreKeys: shouldCheckOneTimePreKeys, tx: tx)
+    }
+
+    private func _checkPreKeys(shouldCheckOneTimePreKeys: Bool, tx: DBReadTransaction) -> Task<Void, any Error> {
         var targets: PreKey.Target = [.signedPreKey, .lastResortPqPreKey]
-        if shouldCheckOneTimePrekeys {
+        if shouldCheckOneTimePreKeys {
             targets.insert(target: .oneTimePreKey)
             targets.insert(target: .oneTimePqPreKey)
         }
         let shouldPerformPniOp = hasPniIdentityKey(tx: tx)
 
-        Task { [weak self, chatConnectionManager, taskManager, targets] in
-            let task = await Self.taskQueue.enqueue {
+        return Self.taskQueue.enqueue { [weak self, chatConnectionManager, taskManager, targets] in
+            if OWSChatConnection.canAppUseSocketsToMakeRequests {
                 try await chatConnectionManager.waitForIdentifiedConnectionToOpen()
-                try Task.checkCancellation()
-                try await taskManager.refresh(identity: .aci, targets: targets, auth: .implicit())
-                if shouldPerformPniOp {
-                    try Task.checkCancellation()
-                    try await taskManager.refresh(identity: .pni, targets: targets, auth: .implicit())
-                }
+            } else {
+                // TODO: Migrate the NSE to use web sockets.
+                // The NSE generally launches only when network is available, and we try to
+                // run this only when we have network, but it's not harmful if that's not
+                // true, so this is fine.
             }
-            try await task.value
-            if shouldCheckOneTimePrekeys {
+            try Task.checkCancellation()
+            try await taskManager.refresh(identity: .aci, targets: targets, auth: .implicit())
+            if shouldPerformPniOp {
+                try Task.checkCancellation()
+                try await taskManager.refresh(identity: .pni, targets: targets, auth: .implicit())
+            }
+            if shouldCheckOneTimePreKeys {
                 self?.refreshOneTimePreKeysCheckDidSucceed()
             }
         }
     }
 
-    public func createPreKeysForRegistration() async -> Task<RegistrationPreKeyUploadBundles, Error> {
+    public func createPreKeysForRegistration() -> Task<RegistrationPreKeyUploadBundles, Error> {
         PreKey.logger.info("Create registration prekeys")
         /// Note that we do not report a `refreshOneTimePreKeysCheckDidSucceed`
         /// because this operation does not generate one time prekeys, so we
         /// shouldn't mark the routine refresh as having been "checked".
-        return await Self.taskQueue.enqueueCancellingPrevious { [taskManager] in
+        return Self.taskQueue.enqueueCancellingPrevious { [taskManager] in
             return try await taskManager.createForRegistration()
         }
     }
@@ -174,12 +183,12 @@ public class PreKeyManagerImpl: PreKeyManager {
     public func createPreKeysForProvisioning(
         aciIdentityKeyPair: ECKeyPair,
         pniIdentityKeyPair: ECKeyPair
-    ) async -> Task<RegistrationPreKeyUploadBundles, Error> {
+    ) -> Task<RegistrationPreKeyUploadBundles, Error> {
         PreKey.logger.info("Create provisioning prekeys")
         /// Note that we do not report a `refreshOneTimePreKeysCheckDidSucceed`
         /// because this operation does not generate one time prekeys, so we
         /// shouldn't mark the routine refresh as having been "checked".
-        return await Self.taskQueue.enqueueCancellingPrevious { [taskManager] in
+        return Self.taskQueue.enqueueCancellingPrevious { [taskManager] in
             return try await taskManager.createForProvisioning(
                 aciIdentityKeyPair: aciIdentityKeyPair,
                 pniIdentityKeyPair: pniIdentityKeyPair
@@ -190,9 +199,9 @@ public class PreKeyManagerImpl: PreKeyManager {
     public func finalizeRegistrationPreKeys(
         _ bundles: RegistrationPreKeyUploadBundles,
         uploadDidSucceed: Bool
-    ) async -> Task<Void, Error> {
+    ) -> Task<Void, Error> {
         PreKey.logger.info("Finalize registration prekeys")
-        return await Self.taskQueue.enqueue { [taskManager] in
+        return Self.taskQueue.enqueue { [taskManager] in
             try await taskManager.persistAfterRegistration(
                 bundles: bundles,
                 uploadDidSucceed: uploadDidSucceed
@@ -200,10 +209,10 @@ public class PreKeyManagerImpl: PreKeyManager {
         }
     }
 
-    public func rotateOneTimePreKeysForRegistration(auth: ChatServiceAuth) async -> Task<Void, Error> {
+    public func rotateOneTimePreKeysForRegistration(auth: ChatServiceAuth) -> Task<Void, Error> {
         PreKey.logger.info("Rotate one-time prekeys for registration")
 
-        return await Self.taskQueue.enqueue { [weak self, taskManager] in
+        return Self.taskQueue.enqueue { [weak self, taskManager] in
             try Task.checkCancellation()
             try await taskManager.createOneTimePreKeys(identity: .aci, auth: auth)
             try Task.checkCancellation()
@@ -212,27 +221,11 @@ public class PreKeyManagerImpl: PreKeyManager {
         }
     }
 
-    public func rotateSignedPreKeys() async -> Task<Void, Error> {
-        PreKey.logger.info("Rotate signed prekeys")
+    public func rotateSignedPreKeysIfNeeded() -> Task<Void, Error> {
+        PreKey.logger.info("Rotating signed prekeys if needed")
 
-        let targets: PreKey.Target = [.signedPreKey, .lastResortPqPreKey]
-        let shouldPerformPniOp = db.read(block: hasPniIdentityKey(tx:))
-
-        return await Self.taskQueue.enqueue { [chatConnectionManager, taskManager, targets] in
-            if OWSChatConnection.canAppUseSocketsToMakeRequests {
-                try await chatConnectionManager.waitForIdentifiedConnectionToOpen()
-            } else {
-                // TODO: Migrate the NSE to use web sockets.
-                // The NSE generally launches only when network is available, and we try to
-                // run this only when we have network, but it's not harmful if that's not
-                // true, so this is fine.
-            }
-            try Task.checkCancellation()
-            try await taskManager.rotate(identity: .aci, targets: targets, auth: .implicit())
-            if shouldPerformPniOp {
-                try Task.checkCancellation()
-                try await taskManager.rotate(identity: .pni, targets: targets, auth: .implicit())
-            }
+        return db.read { tx in
+            return _checkPreKeys(shouldCheckOneTimePreKeys: false, tx: tx)
         }
     }
 
@@ -265,7 +258,7 @@ public class PreKeyManagerImpl: PreKeyManager {
             targets.insert(target: .lastResortPqPreKey)
         }
 
-        let task = await Self.taskQueue.enqueue { [taskManager, targets] in
+        let task = Self.taskQueue.enqueue { [taskManager, targets] in
             try Task.checkCancellation()
             try await taskManager.refresh(
                 identity: identity,
@@ -283,7 +276,7 @@ public class PreKeyManagerImpl: PreKeyManager {
         return self.identityManager.identityKeyPair(for: .pni, tx: tx) != nil
     }
 
-    public func rotatePreKeysOnUpgradeIfNecessary(for identity: OWSIdentity) async {
+    public func rotatePreKeysOnUpgradeIfNecessary(for identity: OWSIdentity) async throws {
         let keyValueStoreKey: String = {
             switch identity {
             case .aci:
@@ -298,8 +291,12 @@ public class PreKeyManagerImpl: PreKeyManager {
         guard preKeyRotationVersion < Constants.preKeyRotationVersion else {
             return
         }
-        var retryInterval: TimeInterval = 0.5
-        while db.read(block: tsAccountManager.registrationState(tx:)).isRegistered {
+        try await Retry.performWithBackoff(maxAttempts: .max, isRetryable: { _ in true }) {
+            guard db.read(block: tsAccountManager.registrationState(tx:)).isRegistered else {
+                // If we're not registered, we don't need to do this. Our pre keys will be
+                // rotated when we re-register.
+                return
+            }
             do {
                 if OWSChatConnection.canAppUseSocketsToMakeRequests {
                     try await chatConnectionManager.waitForIdentifiedConnectionToOpen()
@@ -310,11 +307,9 @@ public class PreKeyManagerImpl: PreKeyManager {
                     // true, so this is fine.
                 }
                 try await _refreshOneTimePreKeys(forIdentity: identity, alsoRefreshSignedPreKey: true)
-                break
             } catch {
                 Logger.warn("Couldn't rotate pre keys: \(error)")
-                try? await Task.sleep(nanoseconds: UInt64(retryInterval * TimeInterval(NSEC_PER_SEC)))
-                retryInterval *= 2
+                throw error
             }
         }
         await db.awaitableWrite { [keyValueStore] tx in

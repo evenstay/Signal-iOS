@@ -7,120 +7,66 @@ import Foundation
 import GRDB
 import LibSignalClient
 
-public class MessageProcessor: NSObject {
+public class MessageProcessor {
     public static let messageProcessorDidDrainQueue = Notification.Name("messageProcessorDidDrainQueue")
 
     private var hasPendingEnvelopes: Bool {
         !pendingEnvelopes.isEmpty
     }
 
-    /// When calling `waitForProcessingComplete` while message processing is
-    /// suspended, there is a problem. We may have pending messages waiting to
-    /// be processed once the suspension is lifted. But what's more, we may have
-    /// started processing messages, then suspended, then called
-    /// `waitForProcessingComplete` before that initial processing finished.
-    /// Suspending does not interrupt processing if it already started.
-    ///
-    /// So there are 4 cases to worry about:
-    /// 1. Message processing isn't suspended
-    /// 2. Suspended with no pending messages
-    /// 3. Suspended with pending messages and no active processing underway
-    /// 4. Suspended but still processing from before the suspension took effect
-    ///
-    /// Cases 1 and 2 are easy and behave the same in all cases.
-    ///
-    /// Case 3 differs in behavior; sometimes we want to wait for suspension to
-    /// be lifted and those pending messages to be processed, other times we
-    /// don't want to wait to unsuspend.
-    ///
-    /// Case 4 is once again the same in all cases; processing has started and
-    /// can't be stopped, so we should always wait until it finishes.
-    public enum SuspensionBehavior {
-        /// Default value. (Legacy behavior)
-        /// If suspended with pending messages and no processing underway, wait for
-        /// suspension to be lifted and those messages to be processed.
-        case alwaysWait
-        /// If suspended with pending messages, only wait if processing has already
-        /// started. If it hasn't started, don't wait for it to start, so that the
-        /// promise can resolve before suspension is lifted.
-        case onlyWaitIfAlreadyInProgress
+    public struct ProcessingTypes: OptionSet {
+        public var rawValue: UInt8
+
+        public init(rawValue: UInt8) {
+            self.rawValue = rawValue
+        }
+
+        public static let messageProcessor = ProcessingTypes(rawValue: 1 << 0)
+        public static let groupMessageProcessor = ProcessingTypes(rawValue: 1 << 1)
     }
 
-    /// - parameter suspensionBehavior: What the promise should wait for if
-    /// message processing is suspended; see `SuspensionBehavior` documentation
-    /// for details.
-    public func waitForProcessingComplete(
-        suspensionBehavior: SuspensionBehavior = .alwaysWait
-    ) -> Guarantee<Void> {
+    public func waitForProcessingComplete(processingTypes: ProcessingTypes = [.messageProcessor, .groupMessageProcessor]) -> Guarantee<Void> {
         guard CurrentAppContext().shouldProcessIncomingMessages else {
             return Guarantee.value(())
         }
 
-        var shouldWaitForMessageProcessing = self.hasPendingEnvelopes
-        var shouldWaitForGV2MessageProcessing = self.databaseStorage.read {
-            Self.groupsV2MessageProcessor.hasPendingJobs(tx: $0)
+        let shouldWaitForMessageProcessing: () -> Bool = {
+            return processingTypes.contains(.messageProcessor) && self.hasPendingEnvelopes
         }
-        // Check if processing is suspended; if so we need to fork behavior.
-        if self.messagePipelineSupervisor.isMessageProcessingPermitted.negated {
-            switch suspensionBehavior {
-            case .alwaysWait:
-                break
-            case .onlyWaitIfAlreadyInProgress:
-                // Check if we are already processing, if so wait for that to finish.
-                // If not don't wait even if we have pending messages; those won't process
-                // until we unsuspend.
-                shouldWaitForMessageProcessing = self.isDrainingPendingEnvelopes.get()
-                shouldWaitForGV2MessageProcessing = self.groupsV2MessageProcessor.isActivelyProcessing()
+        if shouldWaitForMessageProcessing() {
+            let messageProcessingPromise = NotificationCenter.default.observe(once: Self.messageProcessorDidDrainQueue)
+            // We must check (again) after setting up the observer in case we miss the
+            // notification. If you check before setting up the observer, the
+            // notification might fire while the thread is sleeping.
+            if shouldWaitForMessageProcessing() {
+                return messageProcessingPromise.then { _ in
+                    // Recur, in case we've enqueued messages handled in another block.
+                    self.waitForProcessingComplete()
+                }.asVoid()
             }
         }
 
-        if shouldWaitForMessageProcessing {
-            return NotificationCenter.default.observe(
-                once: Self.messageProcessorDidDrainQueue
-            ).then { _ in
-                // Recur, in case we've enqueued messages handled in another block.
-                self.waitForProcessingComplete(suspensionBehavior: suspensionBehavior)
-            }.asVoid()
-        } else if shouldWaitForGV2MessageProcessing {
-            return NotificationCenter.default.observe(
-                once: GroupsV2MessageProcessor.didFlushGroupsV2MessageQueue
-            ).then { _ in
-                // Recur, in case we've enqueued messages handled in another block.
-                self.waitForProcessingComplete(suspensionBehavior: suspensionBehavior)
-            }.asVoid()
-        } else {
-            return Guarantee.value(())
+        let shouldWaitForGroupMessageProcessing: () -> Bool = {
+            return processingTypes.contains(.groupMessageProcessor) && SSKEnvironment.shared.databaseStorageRef.read {
+                SSKEnvironment.shared.groupsV2MessageProcessorRef.hasPendingJobs(tx: $0)
+            }
         }
+        if shouldWaitForGroupMessageProcessing() {
+            let groupMessageProcessingPromise = NotificationCenter.default.observe(once: GroupsV2MessageProcessor.didFlushGroupsV2MessageQueue)
+            if shouldWaitForGroupMessageProcessing() {
+                return groupMessageProcessingPromise.then { _ in
+                    // Recur, in case we've enqueued messages handled in another block.
+                    self.waitForProcessingComplete()
+                }.asVoid()
+            }
+        }
+
+        return Guarantee.value(())
     }
 
-    /// Suspends message processing, but before doing so processes any messages
-    /// received so far.
-    /// This suppression will persist until the suspension is explicitly lifted.
-    /// For this reason calling this method is highly dangerous, please use with care.
-    public func waitForProcessingCompleteAndThenSuspend(
-        for suspension: MessagePipelineSupervisor.Suspension
-    ) -> Guarantee<Void> {
-        // We need to:
-        // 1. wait to process
-        // 2. suspend
-        // 3. wait to process again
-        // This is because steps 1 and 2 are not transactional, and in between a message
-        // may get queued up for processing. After 2, nothing new can come in, so we only
-        // need to wait the once.
-        // In most cases nothing sneaks in between 1 and 2, so 3 resolves instantly.
-        return waitForProcessingComplete(suspensionBehavior: .onlyWaitIfAlreadyInProgress).then(on: DispatchQueue.main) {
-            self.messagePipelineSupervisor.suspendMessageProcessingWithoutHandle(for: suspension)
-            return self.waitForProcessingComplete(suspensionBehavior: .onlyWaitIfAlreadyInProgress)
-        }.recover(on: SyncScheduler()) { _ in return () }
-    }
-
-    public func waitForFetchingAndProcessing(
-        suspensionBehavior: SuspensionBehavior = .alwaysWait
-    ) -> Guarantee<Void> {
-        return firstly { () -> Guarantee<Void> in
-            return Self.messageFetcherJob.waitForFetchingComplete()
-        }.then { () -> Guarantee<Void> in
-            return self.waitForProcessingComplete(suspensionBehavior: suspensionBehavior)
+    public func waitForFetchingAndProcessing() -> Guarantee<Void> {
+        SSKEnvironment.shared.messageFetcherJobRef.waitForFetchingComplete().then { () -> Guarantee<Void> in
+            self.waitForProcessingComplete()
         }
     }
 
@@ -128,7 +74,6 @@ public class MessageProcessor: NSObject {
 
     public init(appReadiness: AppReadiness) {
         self.appReadiness = appReadiness
-        super.init()
 
         SwiftSingletons.register(self)
 
@@ -140,64 +85,7 @@ public class MessageProcessor: NSObject {
         )
 
         appReadiness.runNowOrWhenAppDidBecomeReadySync {
-            Self.messagePipelineSupervisor.register(pipelineStage: self)
-
-            SDSDatabaseStorage.shared.read { transaction in
-                // We may have legacy process jobs queued. We want to schedule them for
-                // processing immediately when we launch, so that we can drain the old queue.
-                let legacyProcessingJobRecords = LegacyMessageJobFinder().allJobs(transaction: transaction)
-                for jobRecord in legacyProcessingJobRecords {
-                    let completion: (Error?) -> Void = { _ in
-                        SDSDatabaseStorage.shared.write { jobRecord.anyRemove(transaction: $0) }
-                    }
-                    do {
-                        let envelope = try SSKProtoEnvelope(serializedData: jobRecord.envelopeData)
-                        self.processReceivedEnvelope(
-                            ReceivedEnvelope(
-                                envelope: envelope,
-                                encryptionStatus: .decrypted(plaintextData: jobRecord.plaintextData, wasReceivedByUD: jobRecord.wasReceivedByUD),
-                                serverDeliveryTimestamp: jobRecord.serverDeliveryTimestamp,
-                                completion: completion
-                            ),
-                            envelopeSource: .unknown
-                        )
-                    } catch {
-                        completion(error)
-                    }
-                }
-
-                // We may have legacy decrypt jobs queued. We want to schedule them for
-                // processing immediately when we launch, so that we can drain the old queue.
-                let legacyDecryptJobRecords: [LegacyMessageDecryptJobRecord]
-                do {
-                    let jobRecordFinder = JobRecordFinderImpl<LegacyMessageDecryptJobRecord>(db: DependenciesBridge.shared.db)
-                    legacyDecryptJobRecords = try jobRecordFinder.allRecords(
-                        status: .ready,
-                        transaction: transaction.asV2Read
-                    )
-                } catch {
-                    legacyDecryptJobRecords = []
-                    Logger.error("Couldn't fetch legacy job records: \(error)")
-                }
-                for jobRecord in legacyDecryptJobRecords {
-                    let completion: (Error?) -> Void = { _ in
-                        SDSDatabaseStorage.shared.write { jobRecord.anyRemove(transaction: $0) }
-                    }
-                    do {
-                        guard let envelopeData = jobRecord.envelopeData else {
-                            throw OWSAssertionError("Skipping job with no envelope data")
-                        }
-                        self.processReceivedEnvelopeData(
-                            envelopeData,
-                            serverDeliveryTimestamp: jobRecord.serverDeliveryTimestamp,
-                            envelopeSource: .unknown,
-                            completion: completion
-                        )
-                    } catch {
-                        completion(error)
-                    }
-                }
-            }
+            SSKEnvironment.shared.messagePipelineSupervisorRef.register(pipelineStage: self)
         }
     }
 
@@ -212,18 +100,6 @@ public class MessageProcessor: NSObject {
             return
         }
 
-        // Drop any too-large messages on the floor. Well behaving clients should never send them.
-        guard envelopeData.count <= Self.maxEnvelopeByteCount else {
-            completion(OWSAssertionError("Oversize envelope, envelopeSource: \(envelopeSource)."))
-            return
-        }
-
-        // Take note of any messages larger than we expect, but still process them.
-        // This likely indicates a misbehaving sending client.
-        if envelopeData.count > Self.largeEnvelopeWarningByteCount {
-            owsFailDebug("Unexpectedly large envelope, envelopeSource: \(envelopeSource).")
-        }
-
         let protoEnvelope: SSKProtoEnvelope
         do {
             protoEnvelope = try SSKProtoEnvelope(serializedData: envelopeData)
@@ -233,10 +109,15 @@ public class MessageProcessor: NSObject {
             return
         }
 
+        // Drop any too-large messages on the floor. Well behaving clients should never send them.
+        guard (protoEnvelope.content ?? Data()).count <= Self.maxEnvelopeByteCount else {
+            completion(OWSAssertionError("Oversize envelope, envelopeSource: \(envelopeSource)."))
+            return
+        }
+
         processReceivedEnvelope(
             ReceivedEnvelope(
                 envelope: protoEnvelope,
-                encryptionStatus: .encrypted,
                 serverDeliveryTimestamp: serverDeliveryTimestamp,
                 completion: completion
             ),
@@ -253,7 +134,6 @@ public class MessageProcessor: NSObject {
         processReceivedEnvelope(
             ReceivedEnvelope(
                 envelope: envelopeProto,
-                encryptionStatus: .encrypted,
                 serverDeliveryTimestamp: serverDeliveryTimestamp,
                 completion: completion
             ),
@@ -270,12 +150,7 @@ public class MessageProcessor: NSObject {
         drainPendingEnvelopes()
     }
 
-    public var queuedContentCount: Int {
-        pendingEnvelopes.count
-    }
-
-    private static let maxEnvelopeByteCount = 250 * 1024
-    public static let largeEnvelopeWarningByteCount = 25 * 1024
+    private static let maxEnvelopeByteCount = 256 * 1024
     private let serialQueue = DispatchQueue(
         label: "org.signal.message-processor",
         autoreleaseFrequency: .workItem
@@ -289,14 +164,14 @@ public class MessageProcessor: NSObject {
         guard CurrentAppContext().shouldProcessIncomingMessages else { return }
         guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else { return }
 
-        guard Self.messagePipelineSupervisor.isMessageProcessingPermitted else { return }
+        guard SSKEnvironment.shared.messagePipelineSupervisorRef.isMessageProcessingPermitted else { return }
 
         serialQueue.async {
             self.isDrainingPendingEnvelopes.set(true)
             while autoreleasepool(invoking: { self.drainNextBatch() }) {}
             self.isDrainingPendingEnvelopes.set(false)
             if self.pendingEnvelopes.isEmpty {
-                NotificationCenter.default.postNotificationNameAsync(Self.messageProcessorDidDrainQueue, object: nil)
+                NotificationCenter.default.postOnMainThread(name: Self.messageProcessorDidDrainQueue, object: nil)
             }
         }
     }
@@ -305,7 +180,7 @@ public class MessageProcessor: NSObject {
     private func drainNextBatch() -> Bool {
         assertOnQueue(serialQueue)
 
-        guard messagePipelineSupervisor.isMessageProcessingPermitted else {
+        guard SSKEnvironment.shared.messagePipelineSupervisorRef.isMessageProcessingPermitted else {
             return false
         }
 
@@ -327,18 +202,18 @@ public class MessageProcessor: NSObject {
         let startTime = CACurrentMediaTime()
 
         var processedEnvelopesCount = 0
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             // This is only called via `drainPendingEnvelopes`, and that confirms that
             // we're registered. If we're registered, we must have `LocalIdentifiers`,
             // so this (generally) shouldn't fail.
-            guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read) else {
+            guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx) else {
                 return
             }
-            let localDeviceId = DependenciesBridge.shared.tsAccountManager.storedDeviceId(tx: tx.asV2Read)
+            let localDeviceId = DependenciesBridge.shared.tsAccountManager.storedDeviceId(tx: tx)
 
-            var remainingEnvelopes = batchEnvelopes
+            var remainingEnvelopes = batchEnvelopes[...]
             while !remainingEnvelopes.isEmpty {
-                guard messagePipelineSupervisor.isMessageProcessingPermitted else {
+                guard SSKEnvironment.shared.messagePipelineSupervisorRef.isMessageProcessingPermitted else {
                     break
                 }
                 autoreleasepool {
@@ -369,10 +244,10 @@ public class MessageProcessor: NSObject {
     // If envelopes is not empty, this will emit a single request for a non-delivery receipt or one or more requests
     // all for delivery receipts.
     private func buildNextCombinedRequest(
-        envelopes: inout [ReceivedEnvelope],
+        envelopes: inout ArraySlice<ReceivedEnvelope>,
         localIdentifiers: LocalIdentifiers,
-        localDeviceId: UInt32,
-        tx: SDSAnyWriteTransaction
+        localDeviceId: LocalDeviceId,
+        tx: DBWriteTransaction
     ) -> RelatedProcessingRequests {
         let result = RelatedProcessingRequests()
         while let envelope = envelopes.first {
@@ -393,7 +268,7 @@ public class MessageProcessor: NSObject {
         return result
     }
 
-    private func handle(combinedRequest: RelatedProcessingRequests, localIdentifiers: LocalIdentifiers, transaction: SDSAnyWriteTransaction) {
+    private func handle(combinedRequest: RelatedProcessingRequests, localIdentifiers: LocalIdentifiers, transaction: DBWriteTransaction) {
         // Efficiently handle delivery receipts for the same message by fetching the sent message only
         // once and only using one updateWith... to update the message with new recipient state.
         BatchingDeliveryReceiptContext.withDeferredUpdates(transaction: transaction) { context in
@@ -407,31 +282,31 @@ public class MessageProcessor: NSObject {
         _ request: ProcessingRequest,
         context: DeliveryReceiptContext,
         localIdentifiers: LocalIdentifiers,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) -> Error? {
         switch request.state {
         case .completed(error: let error):
             Logger.info("Envelope completed early with error \(String(describing: error))")
             return error
         case .enqueueForGroup(let decryptedEnvelope, let envelopeData):
-            Self.groupsV2MessageProcessor.enqueue(
+            SSKEnvironment.shared.groupsV2MessageProcessorRef.enqueue(
                 envelopeData: envelopeData,
                 plaintextData: decryptedEnvelope.plaintextData,
                 wasReceivedByUD: decryptedEnvelope.wasReceivedByUD,
                 serverDeliveryTimestamp: request.receivedEnvelope.serverDeliveryTimestamp,
                 tx: transaction
             )
-            messageReceiver.finishProcessingEnvelope(decryptedEnvelope, tx: transaction)
+            SSKEnvironment.shared.messageReceiverRef.finishProcessingEnvelope(decryptedEnvelope, tx: transaction)
             return nil
         case .messageReceiverRequest(let messageReceiverRequest):
-            messageReceiver.handleRequest(messageReceiverRequest, context: context, localIdentifiers: localIdentifiers, tx: transaction)
-            messageReceiver.finishProcessingEnvelope(messageReceiverRequest.decryptedEnvelope, tx: transaction)
+            SSKEnvironment.shared.messageReceiverRef.handleRequest(messageReceiverRequest, context: context, localIdentifiers: localIdentifiers, tx: transaction)
+            SSKEnvironment.shared.messageReceiverRef.finishProcessingEnvelope(messageReceiverRequest.decryptedEnvelope, tx: transaction)
             return nil
         case .clearPlaceholdersOnly(let decryptedEnvelope):
-            messageReceiver.finishProcessingEnvelope(decryptedEnvelope, tx: transaction)
+            SSKEnvironment.shared.messageReceiverRef.finishProcessingEnvelope(decryptedEnvelope, tx: transaction)
             return nil
         case .serverReceipt(let serverReceiptEnvelope):
-            messageReceiver.handleDeliveryReceipt(envelope: serverReceiptEnvelope, context: context, tx: transaction)
+            SSKEnvironment.shared.messageReceiverRef.handleDeliveryReceipt(envelope: serverReceiptEnvelope, context: context, tx: transaction)
             return nil
         }
     }
@@ -440,10 +315,10 @@ public class MessageProcessor: NSObject {
         _ request: ProcessingRequest,
         context: DeliveryReceiptContext,
         localIdentifiers: LocalIdentifiers,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         let error = reallyHandleProcessingRequest(request, context: context, localIdentifiers: localIdentifiers, transaction: tx)
-        tx.addAsyncCompletionOffMain { request.receivedEnvelope.completion(error) }
+        tx.addSyncCompletion { request.receivedEnvelope.completion(error) }
     }
 
     @objc
@@ -531,7 +406,7 @@ private class RelatedProcessingRequests {
 private struct ProcessingRequestBuilder {
     let receivedEnvelope: ReceivedEnvelope
     let blockingManager: BlockingManager
-    let localDeviceId: UInt32
+    let localDeviceId: LocalDeviceId
     let localIdentifiers: LocalIdentifiers
     let messageDecrypter: OWSMessageDecrypter
     let messageReceiver: MessageReceiver
@@ -539,7 +414,7 @@ private struct ProcessingRequestBuilder {
     init(
         _ receivedEnvelope: ReceivedEnvelope,
         blockingManager: BlockingManager,
-        localDeviceId: UInt32,
+        localDeviceId: LocalDeviceId,
         localIdentifiers: LocalIdentifiers,
         messageDecrypter: OWSMessageDecrypter,
         messageReceiver: MessageReceiver
@@ -552,7 +427,7 @@ private struct ProcessingRequestBuilder {
         self.messageReceiver = messageReceiver
     }
 
-    func build(tx: SDSAnyWriteTransaction) -> ProcessingRequest.State {
+    func build(tx: DBWriteTransaction) -> ProcessingRequest.State {
         do {
             let decryptionResult = try receivedEnvelope.decryptIfNeeded(
                 messageDecrypter: messageDecrypter,
@@ -579,7 +454,7 @@ private struct ProcessingRequestBuilder {
 
     private func processingStep(
         for decryptedEnvelope: DecryptedIncomingEnvelope,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> ProcessingStep {
         guard
             let contentProto = decryptedEnvelope.content,
@@ -617,7 +492,7 @@ private struct ProcessingRequestBuilder {
 
     private func processingRequest(
         for decryptedEnvelope: DecryptedIncomingEnvelope,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> ProcessingRequest.State {
         owsPrecondition(CurrentAppContext().shouldProcessIncomingMessages)
 
@@ -634,7 +509,7 @@ private struct ProcessingRequestBuilder {
 
         if decryptedEnvelope.localIdentity == .pni {
             let identityManager = DependenciesBridge.shared.identityManager
-            identityManager.setShouldSharePhoneNumber(with: decryptedEnvelope.sourceAci, tx: tx.asV2Write)
+            identityManager.setShouldSharePhoneNumber(with: decryptedEnvelope.sourceAci, tx: tx)
         }
 
         switch processingStep(for: decryptedEnvelope, tx: tx) {
@@ -693,17 +568,17 @@ private extension MessageProcessor {
     func processingRequest(
         for envelope: ReceivedEnvelope,
         localIdentifiers: LocalIdentifiers,
-        localDeviceId: UInt32,
-        tx: SDSAnyWriteTransaction
+        localDeviceId: LocalDeviceId,
+        tx: DBWriteTransaction
     ) -> ProcessingRequest {
         assertOnQueue(serialQueue)
         let builder = ProcessingRequestBuilder(
             envelope,
-            blockingManager: Self.blockingManager,
+            blockingManager: SSKEnvironment.shared.blockingManagerRef,
             localDeviceId: localDeviceId,
             localIdentifiers: localIdentifiers,
-            messageDecrypter: Self.messageDecrypter,
-            messageReceiver: Self.messageReceiver
+            messageDecrypter: SSKEnvironment.shared.messageDecrypterRef,
+            messageReceiver: SSKEnvironment.shared.messageReceiverRef
         )
         return ProcessingRequest(envelope, state: builder.build(tx: tx))
     }
@@ -720,14 +595,7 @@ extension MessageProcessor: MessageProcessingPipelineStage {
 // MARK: -
 
 private struct ReceivedEnvelope {
-    enum EncryptionStatus {
-        case encrypted
-        /// Kept for historical purposes -- unused by new clients.
-        case decrypted(plaintextData: Data?, wasReceivedByUD: Bool)
-    }
-
     let envelope: SSKProtoEnvelope
-    let encryptionStatus: EncryptionStatus
     let serverDeliveryTimestamp: UInt64
     let completion: (Error?) -> Void
 
@@ -739,52 +607,27 @@ private struct ReceivedEnvelope {
     func decryptIfNeeded(
         messageDecrypter: OWSMessageDecrypter,
         localIdentifiers: LocalIdentifiers,
-        localDeviceId: UInt32,
-        tx: SDSAnyWriteTransaction
+        localDeviceId: LocalDeviceId,
+        tx: DBWriteTransaction
     ) throws -> DecryptionResult {
         // Figure out what type of envelope we're dealing with.
         let validatedEnvelope = try ValidatedIncomingEnvelope(envelope, localIdentifiers: localIdentifiers)
 
-        switch encryptionStatus {
-        case .encrypted:
-            switch validatedEnvelope.kind {
-            case .serverReceipt:
-                return .serverReceipt(try ServerReceiptEnvelope(validatedEnvelope))
-            case .identifiedSender(let cipherType):
-                return .decryptedMessage(
-                    try messageDecrypter.decryptIdentifiedEnvelope(
-                        validatedEnvelope, cipherType: cipherType, localIdentifiers: localIdentifiers, tx: tx
-                    )
+        switch validatedEnvelope.kind {
+        case .serverReceipt:
+            return .serverReceipt(try ServerReceiptEnvelope(validatedEnvelope))
+        case .identifiedSender(let cipherType):
+            return .decryptedMessage(
+                try messageDecrypter.decryptIdentifiedEnvelope(
+                    validatedEnvelope, cipherType: cipherType, localIdentifiers: localIdentifiers, tx: tx
                 )
-            case .unidentifiedSender:
-                return .decryptedMessage(
-                    try messageDecrypter.decryptUnidentifiedSenderEnvelope(
-                        validatedEnvelope, localIdentifiers: localIdentifiers, localDeviceId: localDeviceId, tx: tx
-                    )
+            )
+        case .unidentifiedSender:
+            return .decryptedMessage(
+                try messageDecrypter.decryptUnidentifiedSenderEnvelope(
+                    validatedEnvelope, localIdentifiers: localIdentifiers, localDeviceId: localDeviceId, tx: tx
                 )
-            }
-
-        case .decrypted(let plaintextData, let wasReceivedByUD):
-            switch validatedEnvelope.kind {
-            case .serverReceipt:
-                return .serverReceipt(try ServerReceiptEnvelope(validatedEnvelope))
-            case .identifiedSender, .unidentifiedSender:
-                // In this flow, we've already decrypted the sender and added them to our
-                // local copy of the envelope. So we can grab the source from the envelope
-                // in both cases.
-                let (sourceAci, sourceDeviceId) = try validatedEnvelope.validateSource(Aci.self)
-                guard let plaintextData else {
-                    throw OWSAssertionError("Missing plaintextData for previously-encrypted message.")
-                }
-                return .decryptedMessage(DecryptedIncomingEnvelope(
-                    validatedEnvelope: validatedEnvelope,
-                    updatedEnvelope: envelope,
-                    sourceAci: sourceAci,
-                    sourceDeviceId: sourceDeviceId,
-                    wasReceivedByUD: wasReceivedByUD,
-                    plaintextData: plaintextData
-                ))
-            }
+            )
         }
     }
 

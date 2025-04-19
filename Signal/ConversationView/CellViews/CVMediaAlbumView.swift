@@ -565,7 +565,7 @@ public struct CVMediaAlbumItem: Equatable {
     public let attachment: CVAttachment
 
     // This property will only be set if the attachment is downloaded and valid.
-    public let attachmentStream: TSResourceStream?
+    public let attachmentStream: AttachmentStream?
 
     public var renderingFlag: AttachmentReference.RenderingFlag {
         attachment.attachment.reference.renderingFlag
@@ -579,17 +579,6 @@ public struct CVMediaAlbumItem: Equatable {
     public let mediaSize: CGSize
 
     public let isBroken: Bool
-    public var isFailedDownload: Bool {
-        switch attachment {
-        case .stream:
-            return false
-        case .pointer(_, let transitTierDownloadState):
-            return transitTierDownloadState == .failed
-        case .backupThumbnail:
-            // TODO[Backups]: Check state of media tier download
-            return false
-        }
-    }
 
     /// Whether the containing thread has a pending message request
     public let threadHasPendingMessageRequest: Bool

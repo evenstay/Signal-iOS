@@ -65,7 +65,7 @@ class ContactViewController: OWSTableViewController2 {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
 
-        contactsManagerImpl.requestSystemContactsOnce { [weak self] _ in
+        SSKEnvironment.shared.contactManagerImplRef.requestSystemContactsOnce { [weak self] _ in
             self?.updateMode()
         }
     }
@@ -73,7 +73,7 @@ class ContactViewController: OWSTableViewController2 {
     // MARK: Contact Data
 
     private static func phoneNumberPartition(for contactShare: ContactShareViewModel) -> OWSContact.PhoneNumberPartition {
-        return databaseStorage.read(block: contactShare.dbRecord.phoneNumberPartition(tx:))
+        return SSKEnvironment.shared.databaseStorageRef.read(block: contactShare.dbRecord.phoneNumberPartition(tx:))
     }
 
     private static func viewMode(for phoneNumberPartition: OWSContact.PhoneNumberPartition) -> ContactViewMode {
@@ -492,7 +492,7 @@ extension ContactViewController {
         }
         // Note that we use "q" (i.e. query) rather than "address" since we can't assume
         // this is a well-formed address.
-        guard let url = URL(string: "http://maps.apple.com/?q=\(escapedMapAddress)") else {
+        guard let url = URL(string: "maps://?q=\(escapedMapAddress)") else {
             owsFailDebug("could not open address.")
             return
         }

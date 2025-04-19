@@ -13,7 +13,7 @@ extension SignalProxy {
 
         @Atomic private(set) var isReady = false {
             didSet {
-                NotificationCenter.default.postNotificationNameAsync(.isSignalProxyReadyDidChange, object: nil)
+                NotificationCenter.default.postOnMainThread(name: .isSignalProxyReadyDidChange, object: nil)
             }
         }
 
@@ -100,7 +100,7 @@ extension SignalProxy {
             restartBackoffTimer = .scheduledTimer(
                 withTimeInterval: ignoreBackoff ? 0 : OWSOperation.retryIntervalForExponentialBackoff(
                     failureCount: restartFailureCount,
-                    maxBackoff: 15 * kSecondInterval
+                    maxBackoff: 15 * .second
                 ),
                 repeats: false
             ) { [weak self] _ in

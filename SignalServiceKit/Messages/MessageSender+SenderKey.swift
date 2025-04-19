@@ -6,63 +6,31 @@
 import LibSignalClient
 
 extension MessageSender {
-    private static var maxSenderKeyEnvelopeSize: UInt64 { 256 * 1024 }
-
-    struct Recipient {
+    private struct Recipient {
         let serviceId: ServiceId
-        let devices: [UInt32]
+        let devices: [DeviceId]
         var protocolAddresses: [ProtocolAddress] {
             return devices.map { ProtocolAddress(serviceId, deviceId: $0) }
         }
 
-        init(serviceId: ServiceId, transaction tx: SDSAnyReadTransaction) {
+        init(serviceId: ServiceId, transaction tx: DBReadTransaction) {
             self.serviceId = serviceId
             self.devices = {
                 let recipientDatabaseTable = DependenciesBridge.shared.recipientDatabaseTable
-                return recipientDatabaseTable.fetchRecipient(serviceId: serviceId, transaction: tx.asV2Read)?.deviceIds ?? []
+                return recipientDatabaseTable.fetchRecipient(serviceId: serviceId, transaction: tx)?.deviceIds ?? []
             }()
         }
     }
 
-    private enum SenderKeyError: Error, IsRetryableProvider, UserErrorDescriptionProvider {
+    enum SenderKeyError: Error, IsRetryableProvider, UserErrorDescriptionProvider {
         case invalidAuthHeader
-        case invalidRecipient
         case deviceUpdate
         case staleDevices
-        case oversizeMessage
-        case recipientSKDMFailed(Error)
 
         var isRetryableProvider: Bool { true }
 
-        var asSSKError: NSError {
-            let result: Error
-            switch self {
-            case let .recipientSKDMFailed(underlyingError):
-                result = underlyingError
-            case .invalidAuthHeader, .invalidRecipient, .oversizeMessage:
-                // For all of these error types, there's a chance that a fanout send may be successful. This
-                // error is retryable, but indicates that the next send attempt should restrict itself to fanout
-                // send only.
-                result = SenderKeyUnavailableError(customLocalizedDescription: localizedDescription)
-            case .deviceUpdate, .staleDevices:
-                result = SenderKeyEphemeralError(customLocalizedDescription: localizedDescription)
-            }
-            return (result as NSError)
-        }
-
         var localizedDescription: String {
-            // Since this is a retryable error, so it's unlikely to be surfaced to the user. I think the only situation
-            // where it would is it happens to be the last error hit before we run out of resend attempts. In that case,
-            // we should just show a generic error just to be safe.
-            // TODO: This probably isn't the only error like this. Should we have a fallback generic string
-            // for all retryable errors without a description that exhaust retry attempts?
-            switch self {
-            case .recipientSKDMFailed(let error):
-                return error.localizedDescription
-            default:
-                return OWSLocalizedString("ERROR_DESCRIPTION_CLIENT_SENDING_FAILURE",
-                                         comment: "Generic notice when message failed to send.")
-            }
+            return OWSLocalizedString("ERROR_DESCRIPTION_CLIENT_SENDING_FAILURE", comment: "Generic notice when message failed to send.")
         }
     }
 
@@ -92,33 +60,58 @@ extension MessageSender {
         in thread: TSThread,
         message: TSOutgoingMessage,
         serializedMessage: SerializedMessage,
-        udAccessMap: [ServiceId: OWSUDSendingAccess],
+        endorsements: GroupSendEndorsements?,
+        udAccessMap: [ServiceId: OWSUDAccess],
         senderCertificate: SenderCertificate,
         localIdentifiers: LocalIdentifiers,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> (
         senderKeyRecipients: [ServiceId],
         sendSenderKeyMessage: (@Sendable () async -> [(ServiceId, any Error)])?
     ) {
-        self.senderKeyStore.expireSendingKeyIfNecessary(for: thread, writeTx: tx)
+        SSKEnvironment.shared.senderKeyStoreRef.expireSendingKeyIfNecessary(for: thread, maxSenderKeyAge: RemoteConfig.current.maxSenderKeyAge, tx: tx)
 
-        let threadRecipients = thread.recipientAddresses(with: tx).compactMap { $0.serviceId }
+        let threadRecipients = thread.recipientAddresses(with: tx).compactMap(\.serviceId)
+
+        let authBuilder: (_ readyRecipients: [ServiceId]) -> TSRequest.SealedSenderAuth
+        if message.isStorySend {
+            authBuilder = { _ in return .story }
+            // Importantly, endorsements may be nonnil in this case, and the individual
+            // ones may be used when sending SKDMs for group stories.
+        } else if let endorsements {
+            // If we're going to use the combined endorsement, we MUST have an
+            // individual endorsement for every thread recipient. We might not need
+            // them, but we MAY need any of them, so we must ensure they all exist
+            // before starting. They SHOULD always exist; it's a bug if they don't.
+            guard threadRecipients.allSatisfy({ endorsements.individual[$0] != nil }) else {
+                owsFailDebug("Can't use GSEs if some individual endorsements are missing.")
+                return ([], nil)
+            }
+            authBuilder = { readyRecipients in
+                var combined = endorsements.combined
+                for serviceId in Set(threadRecipients).subtracting(readyRecipients) {
+                    // We checked just above that every element of `threadRecipients` has an
+                    // individual endorsement, so we can safely force-unwrap here.
+                    combined = combined.byRemoving(endorsements.individual[serviceId]!)
+                }
+                return .endorsement(GroupSendFullTokenBuilder(
+                    secretParams: endorsements.secretParams,
+                    expiration: endorsements.expiration,
+                    endorsement: combined
+                ).build())
+            }
+        } else {
+            owsFailDebug("Can't use Sender Key for a group message unless we have endorsements.")
+            return ([], nil)
+        }
+
         let senderKeyRecipients = recipients.filter { serviceId in
             // Sender key requires that you're currently a full member of the group.
             guard threadRecipients.contains(serviceId) else {
                 return false
             }
 
-            // You also must support Sealed Sender.
-            switch udAccessMap[serviceId]?.udAccess.udAccessMode {
-            case .disabled, .unknown, nil:
-                return false
-            case .enabled, .unrestricted:
-                break
-            }
-
             if localIdentifiers.contains(serviceId: serviceId) {
-                owsFailBeta("Callers must not provide UD access for the local ACI.")
                 return false
             }
 
@@ -152,7 +145,9 @@ extension MessageSender {
                 for: senderKeyRecipients,
                 in: thread,
                 originalMessage: message,
+                endorsements: endorsements,
                 udAccessMap: udAccessMap,
+                senderCertificate: senderCertificate,
                 localIdentifiers: localIdentifiers,
                 tx: tx
             )
@@ -178,19 +173,11 @@ extension MessageSender {
                     in: thread,
                     message: message,
                     serializedMessage: serializedMessage,
-                    udAccessMap: udAccessMap,
+                    authBuilder: { return authBuilder(readyRecipients) },
                     senderCertificate: senderCertificate,
                     localIdentifiers: localIdentifiers
                 )
-                return failedRecipients.map { serviceId, error in
-                    return (serviceId, {
-                        if let error = error as? SenderKeyError {
-                            return error.asSSKError
-                        } else {
-                            return error
-                        }
-                    }())
-                }
+                return failedRecipients
             }
         )
     }
@@ -200,7 +187,7 @@ extension MessageSender {
         in thread: TSThread,
         message: TSOutgoingMessage,
         serializedMessage: SerializedMessage,
-        udAccessMap: [ServiceId: OWSUDSendingAccess],
+        authBuilder: () -> TSRequest.SealedSenderAuth,
         senderCertificate: SenderCertificate,
         localIdentifiers: LocalIdentifiers
     ) async -> [(ServiceId, any Error)] {
@@ -211,7 +198,7 @@ extension MessageSender {
                 plaintext: serializedMessage.plaintextData,
                 thread: thread,
                 serviceIds: readyRecipients,
-                udAccessMap: udAccessMap,
+                authBuilder: authBuilder,
                 senderCertificate: senderCertificate
             )
         } catch {
@@ -221,32 +208,26 @@ extension MessageSender {
             return readyRecipients.lazy.map { ($0, error) }
         }
 
-        return await self.databaseStorage.awaitableWrite { tx in
+        return await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             let failedRecipients = sendResult.unregisteredServiceIds.map { serviceId in
                 self.markAsUnregistered(serviceId: serviceId, message: message, thread: thread, transaction: tx)
                 return (serviceId, MessageSenderNoSuchSignalRecipientError())
             }
 
             sendResult.success.forEach { recipient in
-                message.updateWithSentRecipient(
-                    recipient.serviceId,
-                    wasSentByUD: true,
-                    transaction: tx
-                )
-
                 // If we're sending a story, we generally get a 200, even if the account
                 // doesn't exist. Therefore, don't use this to mark accounts as registered.
                 if !message.isStorySend {
                     let recipientFetcher = DependenciesBridge.shared.recipientFetcher
-                    let recipient = recipientFetcher.fetchOrCreate(serviceId: recipient.serviceId, tx: tx.asV2Write)
+                    let recipient = recipientFetcher.fetchOrCreate(serviceId: recipient.serviceId, tx: tx)
                     let recipientManager = DependenciesBridge.shared.recipientManager
-                    recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: true, tx: tx.asV2Write)
+                    recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: true, tx: tx)
                 }
 
-                self.profileManager.didSendOrReceiveMessage(
+                SSKEnvironment.shared.profileManagerRef.didSendOrReceiveMessage(
                     serviceId: recipient.serviceId,
                     localIdentifiers: localIdentifiers,
-                    tx: tx.asV2Write
+                    tx: tx
                 )
 
                 guard
@@ -267,13 +248,21 @@ extension MessageSender {
                 }
             }
 
+            // Do this after `recordPendingDelivery` because doing this will clear the
+            // payload if we haven't yet recorded any pending recipients.
+            message.updateWithSentRecipients(
+                sendResult.success.map(\.serviceId),
+                wasSentByUD: true,
+                transaction: tx
+            )
+
             return failedRecipients
         }
     }
 
     private struct PrepareDistributionResult {
         var readyRecipients = [ServiceId]()
-        var failedRecipients = [(ServiceId, SenderKeyError)]()
+        var failedRecipients = [(ServiceId, any Error)]()
         var senderKeyDistributionMessageSends = [(OWSMessageSend, SealedSenderParameters?)]()
     }
 
@@ -281,14 +270,16 @@ extension MessageSender {
         for recipients: [ServiceId],
         in thread: TSThread,
         originalMessage: TSOutgoingMessage,
-        udAccessMap: [ServiceId: OWSUDSendingAccess],
+        endorsements: GroupSendEndorsements?,
+        udAccessMap: [ServiceId: OWSUDAccess],
+        senderCertificate: SenderCertificate,
         localIdentifiers: LocalIdentifiers,
-        tx writeTx: SDSAnyWriteTransaction
+        tx writeTx: DBWriteTransaction
     ) throws -> PrepareDistributionResult {
         // Here we fetch all of the recipients that need an SKDM.
         // We then construct an OWSMessageSend for each recipient that needs an SKDM.
 
-        let recipientsInNeedOfSenderKey = self.senderKeyStore.recipientsInNeedOfSenderKey(
+        let recipientsInNeedOfSenderKey = SSKEnvironment.shared.senderKeyStoreRef.recipientsInNeedOfSenderKey(
             for: thread,
             serviceIds: recipients,
             readTx: writeTx
@@ -299,10 +290,10 @@ extension MessageSender {
             return PrepareDistributionResult(readyRecipients: recipients)
         }
 
-        guard let skdmData = self.senderKeyStore.skdmBytesForThread(
+        guard let skdmData = SSKEnvironment.shared.senderKeyStoreRef.skdmBytesForThread(
             thread,
             localAci: localIdentifiers.aci,
-            localDeviceId: DependenciesBridge.shared.tsAccountManager.storedDeviceId(tx: writeTx.asV2Read),
+            localDeviceId: DependenciesBridge.shared.tsAccountManager.storedDeviceId(tx: writeTx),
             tx: writeTx
         ) else {
             throw OWSAssertionError("Couldn't build SKDM")
@@ -314,7 +305,7 @@ extension MessageSender {
                 result.readyRecipients.append(serviceId)
                 continue
             }
-            Logger.info("Preparing SKDM for \(serviceId) in thread \(thread.uniqueId)")
+            Logger.info("Preparing SKDM for \(serviceId) in thread \(thread.logString)")
 
             let contactThread = TSContactThread.getOrCreateThread(
                 withContactAddress: SignalServiceAddress(serviceId),
@@ -328,7 +319,7 @@ extension MessageSender {
             skdmMessage.configureAsSentOnBehalfOf(originalMessage, in: thread)
 
             guard let serializedMessage = self.buildAndRecordMessage(skdmMessage, in: contactThread, tx: writeTx) else {
-                result.failedRecipients.append((serviceId, SenderKeyError.recipientSKDMFailed(OWSAssertionError("Couldn't build message."))))
+                result.failedRecipients.append((serviceId, OWSAssertionError("Couldn't build message.")))
                 continue
             }
 
@@ -341,9 +332,12 @@ extension MessageSender {
                 localIdentifiers: localIdentifiers
             )
 
-            let sealedSenderParameters = udAccessMap[serviceId].map {
-                SealedSenderParameters(message: skdmMessage, udSendingAccess: $0)
-            }
+            let sealedSenderParameters = SealedSenderParameters(
+                message: skdmMessage,
+                senderCertificate: senderCertificate,
+                accessKey: udAccessMap[serviceId],
+                endorsement: endorsements?.tokenBuilder(forServiceId: serviceId)
+            )
 
             result.senderKeyDistributionMessageSends.append((messageSend, sealedSenderParameters))
         }
@@ -358,7 +352,7 @@ extension MessageSender {
         _ prepareResult: PrepareDistributionResult,
         in thread: TSThread,
         onBehalfOf originalMessage: TSOutgoingMessage
-    ) async -> (readyRecipients: [ServiceId], failedRecipients: [(ServiceId, SenderKeyError)]) {
+    ) async -> (readyRecipients: [ServiceId], failedRecipients: [(ServiceId, any Error)]) {
         if prepareResult.senderKeyDistributionMessageSends.isEmpty {
             return (prepareResult.readyRecipients, prepareResult.failedRecipients)
         }
@@ -384,7 +378,7 @@ extension MessageSender {
             return await taskGroup.reduce(into: [], { $0.append($1) })
         }
 
-        return await self.databaseStorage.awaitableWrite { tx in
+        return await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             var readyRecipients = prepareResult.readyRecipients
             var failedRecipients = prepareResult.failedRecipients
             var sentSenderKeys = [SentSenderKey]()
@@ -400,11 +394,11 @@ extension MessageSender {
                             transaction: tx
                         )
                     }
-                    failedRecipients.append((serviceId, SenderKeyError.recipientSKDMFailed(error)))
+                    failedRecipients.append((serviceId, error))
                 }
             }
             do {
-                try self.senderKeyStore.recordSentSenderKeys(
+                try SSKEnvironment.shared.senderKeyStoreRef.recordSentSenderKeys(
                     sentSenderKeys,
                     for: thread,
                     writeTx: tx
@@ -412,14 +406,14 @@ extension MessageSender {
                 readyRecipients.append(contentsOf: sentSenderKeys.lazy.map(\.recipient))
             } catch {
                 failedRecipients.append(contentsOf: sentSenderKeys.lazy.map {
-                    return ($0.recipient, SenderKeyError.recipientSKDMFailed(error))
+                    return ($0.recipient, error)
                 })
             }
             return (readyRecipients, failedRecipients)
         }
     }
 
-    fileprivate struct SenderKeySendResult {
+    private struct SenderKeySendResult {
         let success: [Recipient]
         let unregistered: [Recipient]
 
@@ -436,7 +430,7 @@ extension MessageSender {
         plaintext: Data,
         thread: TSThread,
         serviceIds: [ServiceId],
-        udAccessMap: [ServiceId: OWSUDSendingAccess],
+        authBuilder: () -> TSRequest.SealedSenderAuth,
         senderCertificate: SenderCertificate
     ) async throws -> SenderKeySendResult {
         if serviceIds.isEmpty {
@@ -445,7 +439,7 @@ extension MessageSender {
         Logger.info("Sending sender key message with timestamp \(message.timestamp) to \(serviceIds)")
         let recipients: [Recipient]
         let ciphertext: Data
-        (recipients, ciphertext) = try await self.databaseStorage.awaitableWrite { tx in
+        (recipients, ciphertext) = try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             // TODO: Pass Recipients into this method.
             let recipients = serviceIds.map { Recipient(serviceId: $0, transaction: tx) }
             let ciphertext = try self.senderKeyMessageBody(
@@ -458,32 +452,39 @@ extension MessageSender {
             )
             return (recipients, ciphertext)
         }
-        let result = try await self._sendSenderKeyRequest(
-            encryptedMessageBody: ciphertext,
-            timestamp: message.timestamp,
-            isOnline: message.isOnline,
-            isUrgent: message.isUrgent,
-            isStory: message.isStorySend,
-            thread: thread,
-            recipients: recipients,
-            udAccessMap: udAccessMap,
-            remainingAttempts: 3
+        let auth = authBuilder()
+        let result = try await Retry.performRepeatedly(
+            block: {
+                return try await self._sendSenderKeyRequest(
+                    encryptedMessageBody: ciphertext,
+                    timestamp: message.timestamp,
+                    isOnline: message.isOnline,
+                    isUrgent: message.isUrgent,
+                    thread: thread,
+                    recipients: recipients,
+                    auth: auth
+                )
+            },
+            onError: { error, attemptCount in
+                if attemptCount <= 1, (error as? OWSHTTPError)?.httpStatusCode == 428 {
+                    // Retry immediately if we submitted a push challenge.
+                } else {
+                    throw error
+                }
+            }
         )
         Logger.info("Sent sender key message with timestamp \(message.timestamp) to \(result.successServiceIds) (unregistered: \(result.unregisteredServiceIds))")
         return result
     }
 
-    // TODO: This is a similar pattern to RequestMaker. An opportunity to reduce duplication.
-    fileprivate func _sendSenderKeyRequest(
+    private func _sendSenderKeyRequest(
         encryptedMessageBody: Data,
         timestamp: UInt64,
         isOnline: Bool,
         isUrgent: Bool,
-        isStory: Bool,
         thread: TSThread,
         recipients: [Recipient],
-        udAccessMap: [ServiceId: OWSUDSendingAccess],
-        remainingAttempts: UInt
+        auth: TSRequest.SealedSenderAuth
     ) async throws -> SenderKeySendResult {
         do {
             let httpResponse = try await self.performSenderKeySend(
@@ -491,62 +492,38 @@ extension MessageSender {
                 timestamp: timestamp,
                 isOnline: isOnline,
                 isUrgent: isUrgent,
-                isStory: isStory,
                 thread: thread,
                 recipients: recipients,
-                udAccessMap: udAccessMap
+                auth: auth
             )
 
             guard httpResponse.responseStatusCode == 200 else { throw
                 OWSAssertionError("Unhandled error")
             }
 
-            let response = try Self.decodeSuccessResponse(data: httpResponse.responseBodyData)
+            let response = try Self.decodeSuccessResponse(data: httpResponse.responseBodyData ?? Data())
             let unregisteredServiceIds = Set(response.unregisteredServiceIds.map { $0.wrappedValue })
             let successful = recipients.filter { !unregisteredServiceIds.contains($0.serviceId) }
             let unregistered = recipients.filter { unregisteredServiceIds.contains($0.serviceId) }
             return SenderKeySendResult(success: successful, unregistered: unregistered)
         } catch {
-            let retryIfPossible = { () async throws -> SenderKeySendResult in
-                if remainingAttempts > 0 {
-                    return try await self._sendSenderKeyRequest(
-                        encryptedMessageBody: encryptedMessageBody,
-                        timestamp: timestamp,
-                        isOnline: isOnline,
-                        isUrgent: isUrgent,
-                        isStory: isStory,
-                        thread: thread,
-                        recipients: recipients,
-                        udAccessMap: udAccessMap,
-                        remainingAttempts: remainingAttempts-1
-                    )
-                } else {
-                    throw error
-                }
-            }
-
-            if error.isNetworkFailureOrTimeout {
-                return try await retryIfPossible()
-            } else if let httpError = error as? OWSHTTPError {
+            if let httpError = error as? OWSHTTPError {
                 let statusCode = httpError.httpStatusCode ?? 0
                 let responseData = httpError.httpResponseData
                 switch statusCode {
                 case 401:
-                    owsFailDebug("Invalid composite authorization header for sender key send request. Falling back to fanout")
+                    Logger.warn("Invalid composite authorization header for sender key send request. Falling back to fanout")
                     throw SenderKeyError.invalidAuthHeader
-                case 404:
-                    Logger.warn("One of the recipients could not match an account. We don't know which. Falling back to fanout.")
-                    throw SenderKeyError.invalidRecipient
                 case 409:
                     // Incorrect device set. We should add/remove devices and try again.
-                    let responseBody = try Self.decode409Response(data: responseData)
-                    await self.databaseStorage.awaitableWrite { tx in
+                    let responseBody = try Self.decode409Response(data: responseData ?? Data())
+                    await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
                         for account in responseBody {
-                            self.updateDevices(
+                            handleMismatchedDevices(
                                 serviceId: account.serviceId,
-                                devicesToAdd: account.devices.missingDevices,
-                                devicesToRemove: account.devices.extraDevices,
-                                transaction: tx
+                                missingDevices: account.devices.missingDevices,
+                                extraDevices: account.devices.extraDevices,
+                                tx: tx
                             )
                         }
                     }
@@ -554,10 +531,10 @@ extension MessageSender {
 
                 case 410:
                     // Server reports stale devices. We should reset our session and try again.
-                    let responseBody = try Self.decode410Response(data: responseData)
-                    await self.databaseStorage.awaitableWrite { tx in
+                    let responseBody = try Self.decode410Response(data: responseData ?? Data())
+                    await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
                         for account in responseBody {
-                            self.handleStaleDevices(account.devices.staleDevices, for: account.serviceId, tx: tx.asV2Write)
+                            handleStaleDevices(serviceId: account.serviceId, staleDevices: account.devices.staleDevices, tx: tx)
                         }
                     }
                     throw SenderKeyError.staleDevices
@@ -566,7 +543,7 @@ extension MessageSender {
                         throw OWSAssertionError("Invalid spam response body")
                     }
                     try await withCheckedThrowingContinuation { continuation in
-                        self.spamChallengeResolver.handleServerChallengeBody(body, retryAfter: expiry) { didSucceed in
+                        SSKEnvironment.shared.spamChallengeResolverRef.handleServerChallengeBody(body, retryAfter: expiry) { didSucceed in
                             if didSucceed {
                                 continuation.resume()
                             } else {
@@ -574,15 +551,11 @@ extension MessageSender {
                             }
                         }
                     }
-                    return try await retryIfPossible()
                 default:
-                    // Unhandled response code.
-                    throw error
+                    break
                 }
-            } else {
-                owsFailDebug("Unexpected error \(error)")
-                throw error
             }
+            throw error
         }
     }
 
@@ -592,7 +565,7 @@ extension MessageSender {
         thread: TSThread,
         recipients: [Recipient],
         senderCertificate: SenderCertificate,
-        transaction writeTx: SDSAnyWriteTransaction
+        transaction writeTx: DBWriteTransaction
     ) throws -> Data {
         let groupIdForSending: Data
         if let groupThread = thread as? TSGroupThread {
@@ -618,10 +591,10 @@ extension MessageSender {
             preKeyStore: signalProtocolStoreManager.signalProtocolStore(for: .aci).preKeyStore,
             signedPreKeyStore: signalProtocolStoreManager.signalProtocolStore(for: .aci).signedPreKeyStore,
             kyberPreKeyStore: signalProtocolStoreManager.signalProtocolStore(for: .aci).kyberPreKeyStore,
-            identityStore: identityManager.libSignalStore(for: .aci, tx: writeTx.asV2Write),
-            senderKeyStore: Self.senderKeyStore)
+            identityStore: identityManager.libSignalStore(for: .aci, tx: writeTx),
+            senderKeyStore: SSKEnvironment.shared.senderKeyStoreRef)
 
-        let distributionId = senderKeyStore.distributionIdForSendingToThread(thread, writeTx: writeTx)
+        let distributionId = SSKEnvironment.shared.senderKeyStoreRef.distributionIdForSendingToThread(thread, writeTx: writeTx)
         let ciphertext = try secretCipher.groupEncryptMessage(
             recipients: protocolAddresses,
             paddedPlaintext: plaintext.paddedMessageBody,
@@ -631,10 +604,6 @@ extension MessageSender {
             contentHint: message.contentHint.signalClientHint,
             protocolContext: writeTx)
 
-        guard ciphertext.count <= Self.maxSenderKeyEnvelopeSize else {
-            Logger.error("serializedMessage: \(ciphertext.count) > \(Self.maxSenderKeyEnvelopeSize)")
-            throw SenderKeyError.oversizeMessage
-        }
         return ciphertext
     }
 
@@ -643,39 +612,22 @@ extension MessageSender {
         timestamp: UInt64,
         isOnline: Bool,
         isUrgent: Bool,
-        isStory: Bool,
         thread: TSThread,
         recipients: [Recipient],
-        udAccessMap: [ServiceId: OWSUDSendingAccess]
+        auth: TSRequest.SealedSenderAuth
     ) async throws -> HTTPResponse {
-
-        // Sender key messages use an access key composed of every recipient's individual access key.
-        let allAccessKeys = recipients.compactMap {
-            udAccessMap[$0.serviceId]?.udAccess.senderKeyUDAccessKey
-        }
-        guard recipients.count == allAccessKeys.count else {
-            throw OWSAssertionError("Incomplete access key set")
-        }
-        guard let firstKey = allAccessKeys.first else {
-            throw OWSAssertionError("Must provide at least one address")
-        }
-        let remainingKeys = allAccessKeys.dropFirst()
-        let compositeKey = remainingKeys.reduce(firstKey, ^)
-
         let request = OWSRequestFactory.submitMultiRecipientMessageRequest(
             ciphertext: ciphertext,
-            accessKey: compositeKey,
             timestamp: timestamp,
             isOnline: isOnline,
             isUrgent: isUrgent,
-            isStory: isStory
+            auth: auth
         )
-
-        return try await networkManager.makePromise(request: request, canUseWebSocket: true).awaitable()
+        return try await SSKEnvironment.shared.networkManagerRef.asyncRequest(request)
     }
 }
 
-extension MessageSender {
+private extension MessageSender {
 
     struct SuccessPayload: Decodable {
         let unregisteredServiceIds: [ServiceIdString]
@@ -685,60 +637,37 @@ extension MessageSender {
         }
     }
 
-    typealias ResponseBody409 = [Account409]
-    struct Account409: Decodable {
+    struct AccountMismatchedDevices: Decodable {
         @ServiceIdString var serviceId: ServiceId
-        let devices: DeviceSet
+        let devices: MismatchedDevices
 
         enum CodingKeys: String, CodingKey {
             case serviceId = "uuid"
             case devices
         }
-
-        struct DeviceSet: Decodable {
-            let missingDevices: [UInt32]
-            let extraDevices: [UInt32]
-        }
     }
 
-    typealias ResponseBody410 = [Account410]
-    struct Account410: Decodable {
+    struct AccountStaleDevices: Decodable {
         @ServiceIdString var serviceId: ServiceId
-        let devices: DeviceSet
+        let devices: StaleDevices
 
         enum CodingKeys: String, CodingKey {
             case serviceId = "uuid"
             case devices
         }
-
-        struct DeviceSet: Decodable {
-            let staleDevices: [UInt32]
-        }
     }
 
-    static func decodeSuccessResponse(data: Data?) throws -> SuccessPayload {
-        guard let data = data else {
-            throw OWSAssertionError("No data provided")
-        }
+    static func decodeSuccessResponse(data: Data) throws -> SuccessPayload {
         return try JSONDecoder().decode(SuccessPayload.self, from: data)
     }
 
-    static func decode409Response(data: Data?) throws -> ResponseBody409 {
-        guard let data = data else {
-            throw OWSAssertionError("No data provided")
-        }
-        return try JSONDecoder().decode(ResponseBody409.self, from: data)
+    static func decode409Response(data: Data) throws -> [AccountMismatchedDevices] {
+        return try JSONDecoder().decode([AccountMismatchedDevices].self, from: data)
     }
 
-    static func decode410Response(data: Data?) throws -> ResponseBody410 {
-        guard let data = data else {
-            throw OWSAssertionError("No data provided")
-        }
-        return try JSONDecoder().decode(ResponseBody410.self, from: data)
+    static func decode410Response(data: Data) throws -> [AccountStaleDevices] {
+        return try JSONDecoder().decode([AccountStaleDevices].self, from: data)
     }
-}
-
-fileprivate extension MessageSender {
 
     enum RegistrationIdStatus {
         /// The address has a session with a valid registration id
@@ -761,7 +690,7 @@ fileprivate extension MessageSender {
     /// Also check for missing sessions (shouldn't happen if we've gotten this far, since
     /// SenderKeyStore already said this address has previous Sender Key sends). We should
     /// investigate how this ever happened, but for now fall back to sending another SKDM.
-    static func registrationIdStatus(for serviceId: ServiceId, transaction tx: SDSAnyReadTransaction) -> RegistrationIdStatus {
+    static func registrationIdStatus(for serviceId: ServiceId, transaction tx: DBReadTransaction) -> RegistrationIdStatus {
         let candidateDevices = MessageSender.Recipient(serviceId: serviceId, transaction: tx).devices
         let sessionStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore
         for deviceId in candidateDevices {
@@ -770,7 +699,7 @@ fileprivate extension MessageSender {
                     let sessionRecord = try sessionStore.loadSession(
                         for: serviceId,
                         deviceId: deviceId,
-                        tx: tx.asV2Read
+                        tx: tx
                     ),
                     sessionRecord.hasCurrentState
                 else { return .noSession }

@@ -8,7 +8,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class SDSAnyWriteTransaction;
+@class DBWriteTransaction;
 @class SignalServiceAddress;
 @class TSContactThread;
 @class TSGroupThread;
@@ -40,10 +40,10 @@ NS_ASSUME_NONNULL_BEGIN
                             sortId:(uint64_t)sortId
                          timestamp:(uint64_t)timestamp
                     uniqueThreadId:(NSString *)uniqueThreadId
-                     attachmentIds:(NSArray<NSString *> *)attachmentIds
                               body:(nullable NSString *)body
                         bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                       contactShare:(nullable OWSContact *)contactShare
+          deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                          editState:(TSEditState)editState
                    expireStartedAt:(uint64_t)expireStartedAt
                 expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -81,10 +81,10 @@ NS_ASSUME_NONNULL_BEGIN
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -105,14 +105,14 @@ NS_ASSUME_NONNULL_BEGIN
               wasRemotelyDeleted:(BOOL)wasRemotelyDeleted
                authorPhoneNumber:(nullable NSString *)authorPhoneNumber
                       authorUUID:(nullable NSString *)authorUUID
-       deprecated_sourceDeviceId:(unsigned int)deprecated_sourceDeviceId
+       deprecated_sourceDeviceId:(nullable NSNumber *)deprecated_sourceDeviceId
                             read:(BOOL)read
          serverDeliveryTimestamp:(uint64_t)serverDeliveryTimestamp
                       serverGuid:(nullable NSString *)serverGuid
                  serverTimestamp:(nullable NSNumber *)serverTimestamp
                           viewed:(BOOL)viewed
                  wasReceivedByUD:(BOOL)wasReceivedByUD
-NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp:sortId:timestamp:uniqueThreadId:attachmentIds:body:bodyRanges:contactShare:editState:expireStartedAt:expireTimerVersion:expiresAt:expiresInSeconds:giftBadge:isGroupStoryReply:isSmsMessageRestoredFromBackup:isViewOnceComplete:isViewOnceMessage:linkPreview:messageSticker:quotedMessage:storedShouldStartExpireTimer:storyAuthorUuidString:storyReactionEmoji:storyTimestamp:wasRemotelyDeleted:authorPhoneNumber:authorUUID:deprecated_sourceDeviceId:read:serverDeliveryTimestamp:serverGuid:serverTimestamp:viewed:wasReceivedByUD:));
+NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp:sortId:timestamp:uniqueThreadId:body:bodyRanges:contactShare:deprecated_attachmentIds:editState:expireStartedAt:expireTimerVersion:expiresAt:expiresInSeconds:giftBadge:isGroupStoryReply:isSmsMessageRestoredFromBackup:isViewOnceComplete:isViewOnceMessage:linkPreview:messageSticker:quotedMessage:storedShouldStartExpireTimer:storyAuthorUuidString:storyReactionEmoji:storyTimestamp:wasRemotelyDeleted:authorPhoneNumber:authorUUID:deprecated_sourceDeviceId:read:serverDeliveryTimestamp:serverGuid:serverTimestamp:viewed:wasReceivedByUD:));
 
 // clang-format on
 
@@ -124,7 +124,7 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp
 /// In other words, DONT USE IT.
 /// Kept only so sds codegen outputs code with backwards compatibility with our sql
 /// table without needing to migrate or reindex TSInteraction.
-@property (nonatomic, readonly) UInt32 deprecated_sourceDeviceId;
+@property (nonatomic, readonly, nullable) NSNumber *deprecated_sourceDeviceId;
 
 @property (nonatomic, readonly) SignalServiceAddress *authorAddress;
 @property (nonatomic, readonly, nullable) NSString *authorPhoneNumber;
@@ -135,10 +135,10 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp
 - (void)markAsViewedAtTimestamp:(uint64_t)viewedTimestamp
                          thread:(TSThread *)thread
                    circumstance:(OWSReceiptCircumstance)circumstance
-                    transaction:(SDSAnyWriteTransaction *)transaction;
+                    transaction:(DBWriteTransaction *)transaction;
 
 // convenience method for expiring a message which was just read
-- (void)debugonly_markAsReadNowWithTransaction:(SDSAnyWriteTransaction *)transaction
+- (void)debugonly_markAsReadNowWithTransaction:(DBWriteTransaction *)transaction
     NS_SWIFT_NAME(debugonly_markAsReadNow(transaction:));
 
 @end

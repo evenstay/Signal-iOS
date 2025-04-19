@@ -34,6 +34,15 @@ public enum DisplayName {
         }
     }
 
+    public var hasProfileNameOrBetter: Bool {
+        switch self {
+        case .nickname, .systemContactName, .profileName:
+            return true
+        case .phoneNumber, .username, .deletedAccount, .unknown:
+            return false
+        }
+    }
+
     public var hasKnownValue: Bool {
         switch self {
         case .nickname, .systemContactName, .profileName, .phoneNumber, .username:
@@ -62,7 +71,7 @@ public enum DisplayName {
                 formatBlock: useShortNameIfAvailable ? OWSFormat.formatNameComponentsShort(_:) : OWSFormat.formatNameComponents(_:)
             ).filterForDisplay
         case .phoneNumber(let phoneNumber):
-            return phoneNumber.stringValue
+            return PhoneNumber.bestEffortLocalizedPhoneNumber(e164: phoneNumber.stringValue)
         case .username(let username):
             return username
         case .deletedAccount:
@@ -205,7 +214,7 @@ public struct ComparableDisplayName {
         self.address = address
         self.displayName = displayName
         self.comparableValue = displayName.comparableValue(config: config)
-        self.comparableIdentifier = address.stringForDisplay
+        self.comparableIdentifier = address.phoneNumber ?? address.serviceId?.serviceIdString ?? ""
         self.config = config
     }
 
@@ -224,7 +233,7 @@ public struct ComparableDisplayName {
     }
 }
 
-public class CollatableComparableDisplayName: NSObject {
+public class CollatableComparableDisplayName {
     private let rawValue: ComparableDisplayName
 
     public init(_ rawValue: ComparableDisplayName) {

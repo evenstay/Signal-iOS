@@ -119,7 +119,7 @@ class BadgeThanksSheet: OWSTableSheetViewController {
     private lazy var shouldMakeVisibleAndPrimary = self.initialVisibleBadgeResolver.switchDefault(for: self.badge.id)
 
     convenience init(
-        receiptCredentialRedemptionSuccess: ReceiptCredentialRedemptionSuccess
+        receiptCredentialRedemptionSuccess: DonationReceiptCredentialRedemptionSuccess
     ) {
         let thanksType: ThanksType = {
             switch receiptCredentialRedemptionSuccess.paymentMethod {
@@ -173,7 +173,11 @@ class BadgeThanksSheet: OWSTableSheetViewController {
 
         switch self.thanksType {
         case .badgeRedeemedViaBankPayment, .badgeRedeemedViaNonBankPayment:
-            DispatchQueue.global().async { self.saveVisibilityChanges() }
+            // Capture this value on the main thread.
+            let shouldMakeVisibleAndPrimary = self.shouldMakeVisibleAndPrimary
+            DispatchQueue.global().async {
+                self.saveVisibilityChanges(shouldMakeVisibleAndPrimary: shouldMakeVisibleAndPrimary)
+            }
         case let .giftReceived(_, notNowAction, _):
             notNowAction()
         }
@@ -195,24 +199,22 @@ class BadgeThanksSheet: OWSTableSheetViewController {
     }
 
     @discardableResult
-    private func saveVisibilityChanges() -> Promise<Void> {
+    private func saveVisibilityChanges(shouldMakeVisibleAndPrimary: Bool) -> Promise<Void> {
         AssertNotOnMainThread()
 
-        let snapshot = profileManagerImpl.localProfileSnapshot(shouldIncludeAvatar: true)
-        let visibleBadgeResolver = VisibleBadgeResolver(
-            badgesSnapshot: .forSnapshot(profileSnapshot: snapshot)
-        )
-        let visibleBadgeIds = visibleBadgeResolver.visibleBadgeIds(
-            adding: self.badge.id,
-            isVisibleAndFeatured: self.shouldMakeVisibleAndPrimary
-        )
-        guard visibleBadgeIds != visibleBadgeResolver.currentlyVisibleBadgeIds() else {
-            // No change, we can skip the profile update.
-            return Promise.value(())
-        }
-
-        return databaseStorage.write { tx in
-            return profileManager.updateLocalProfile(
+        return SSKEnvironment.shared.databaseStorageRef.write { tx in
+            let visibleBadgeResolver = VisibleBadgeResolver(
+                badgesSnapshot: .forLocalProfile(profileManager: SSKEnvironment.shared.profileManagerRef, tx: tx)
+            )
+            let visibleBadgeIds = visibleBadgeResolver.visibleBadgeIds(
+                adding: self.badge.id,
+                isVisibleAndFeatured: shouldMakeVisibleAndPrimary
+            )
+            if visibleBadgeIds == visibleBadgeResolver.currentlyVisibleBadgeIds() {
+                // No change, we can skip the profile update.
+                return Promise.value(())
+            }
+            return SSKEnvironment.shared.profileManagerRef.updateLocalProfile(
                 profileGivenName: .noChange,
                 profileFamilyName: .noChange,
                 profileBio: .noChange,
@@ -228,11 +230,11 @@ class BadgeThanksSheet: OWSTableSheetViewController {
     }
 
     private static func redeemGiftBadge(incomingMessage: TSIncomingMessage) -> Promise<Void> {
-        return firstly { () -> Promise<Void> in
+        return Promise.wrapAsync {
             guard let giftBadge = incomingMessage.giftBadge else {
                 throw OWSAssertionError("trying to redeem message without a badge")
             }
-            return SubscriptionManagerImpl.redeemReceiptCredentialPresentation(
+            return try await DonationSubscriptionManager.redeemReceiptCredentialPresentation(
                 receiptCredentialPresentation: try giftBadge.getReceiptCredentialPresentation()
             )
         }.done(on: DispatchQueue.global()) {
@@ -241,13 +243,13 @@ class BadgeThanksSheet: OWSTableSheetViewController {
     }
 
     private static func updateGiftBadge(incomingMessage: TSIncomingMessage, state: OWSGiftBadgeRedemptionState) {
-        self.databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             incomingMessage.anyUpdateIncomingMessage(transaction: transaction) {
                 $0.giftBadge?.redemptionState = state
             }
 
             if state == .redeemed {
-                self.receiptManager.incomingGiftWasRedeemed(incomingMessage, transaction: transaction)
+                SSKEnvironment.shared.receiptManagerRef.incomingGiftWasRedeemed(incomingMessage, transaction: transaction)
             }
         }
     }
@@ -415,8 +417,10 @@ class BadgeThanksSheet: OWSTableSheetViewController {
             button.setBackgroundColors(upColor: .ows_accentBlue)
             button.setPressedBlock { [weak self] in
                 guard let self = self else { return }
+                // Capture this value on the main thread.
+                let shouldMakeVisibleAndPrimary = self.shouldMakeVisibleAndPrimary
                 self.performConfirmationAction {
-                    self.saveVisibilityChanges()
+                    self.saveVisibilityChanges(shouldMakeVisibleAndPrimary: shouldMakeVisibleAndPrimary)
                 } errorHandler: { error in
                     self.dismiss(animated: true)
                 }
@@ -455,9 +459,13 @@ class BadgeThanksSheet: OWSTableSheetViewController {
             redeemButton.setBackgroundColors(upColor: .ows_accentBlue)
             redeemButton.setPressedBlock { [weak self] in
                 guard let self = self else { return }
+                // Capture this value on the main thread.
+                let shouldMakeVisibleAndPrimary = self.shouldMakeVisibleAndPrimary
                 self.performConfirmationAction {
                     Self.redeemGiftBadge(incomingMessage: incomingMessage)
-                        .then(on: DispatchQueue.global()) { self.saveVisibilityChanges() }
+                        .then(on: DispatchQueue.global()) {
+                            self.saveVisibilityChanges(shouldMakeVisibleAndPrimary: shouldMakeVisibleAndPrimary)
+                        }
                 } errorHandler: { error in
                     OWSActionSheets.showActionSheet(
                         title: OWSLocalizedString(

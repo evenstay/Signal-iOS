@@ -28,30 +28,40 @@ public enum FeatureFlags {
 
     public static let choochoo = build.includes(.internal)
 
+    public static let failDebug = build.includes(.internal)
+
     public static let linkedPhones = build.includes(.internal)
 
     public static let preRegDeviceTransfer = build.includes(.dev)
 
-    public static let paymentsScrubDetails = false
-
     public static let isPrerelease = build.includes(.beta)
+
+    public static let shouldUseTestIntervals = build.includes(.beta)
 
     /// If we ever need to internally detect database corruption again in the
     /// future, we can re-enable this.
     public static let periodicallyCheckDatabaseIntegrity: Bool = false
 
-    public static let doNotSendGroupChangeMessagesOnProfileKeyRotation = false
+    public enum MessageBackup {
+        public static let fileAlpha = build.includes(.internal)
+        public static let remoteExportAlpha = build.includes(.dev)
 
-    public static let messageBackupFileAlpha = build.includes(.dev)
-    public static let messageBackupFileAlphaRegistrationFlow = build.includes(.dev)
+        public static let fileAlphaRegistrationFlow = build.includes(.dev)
+        public static let quickRestoreFlow = build.includes(.dev)
 
-    public static let callLinkCreate = build.includes(.internal)
-    public static let callLinkStorageService = false
-    public static let callLinkRecordTable = false
+        public static let restoreFailOnAnyError = build.includes(.beta)
+        public static let detailedBenchLogging = build.includes(.internal)
+        public static let errorDisplay = build.includes(.internal)
+    }
 
-    public static let chatListFilter = build.includes(.internal)
+    public static let runTSAttachmentMigrationInMainAppBackground = true
+    public static let runTSAttachmentMigrationBlockingOnLaunch = false
 
-    public static let versionedExpireTimer = true
+    public static let useNewConversationLoadIndex = true
+
+    public static let enableAccountEntropyPool = true
+
+    public static let libsignalForChat = true
 }
 
 // MARK: -
@@ -113,14 +123,6 @@ public enum DebugFlags {
     public static let internalSettings = build.includes(.internal)
 
     public static let internalMegaphoneEligible = build.includes(.internal)
-
-    public static let reduceLogChatter: Bool = {
-        // This is a little verbose to make it easy to change while developing.
-        if CurrentAppContext().isRunningTests {
-            return true
-        }
-        return false
-    }()
 
     public static let aggressiveProfileFetching = TestableFlag(
         false,
@@ -258,7 +260,7 @@ public enum DebugFlags {
         title: LocalizationNotNeeded("Sender Key: Early placeholder expiration"),
         details: LocalizationNotNeeded("Shortens the valid window for message resend+recovery."),
         toggleHandler: { _ in
-            NSObject.messageDecrypter.cleanUpExpiredPlaceholders()
+            SSKEnvironment.shared.messageDecrypterRef.cleanUpExpiredPlaceholders()
         }
     )
 

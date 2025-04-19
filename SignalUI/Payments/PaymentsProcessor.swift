@@ -15,7 +15,7 @@ public class PaymentsProcessor: NSObject {
         super.init()
 
         appReadiness.runNowOrWhenAppDidBecomeReadySync {
-            Self.databaseStorage.appendDatabaseChangeDelegate(self)
+            DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
         }
         appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
             self.process()
@@ -56,32 +56,14 @@ public class PaymentsProcessor: NSObject {
     // This should only be accessed via unfairLock.
     private var processingPaymentIds = Set<String>()
 
-    // We use a dedicated queue for processing
-    // "outgoing, not yet verified" payments.
-    //
-    // This ensures that they are processed serially.
-    let processingQueue_outgoing: OperationQueue = {
-        let operationQueue = OperationQueue()
-        operationQueue.name = "PaymentsProcessor-Outgoing"
-        operationQueue.maxConcurrentOperationCount = 1
-        return operationQueue
-    }()
-    // We use another queue for all other processing.
-    let processingQueue_default: OperationQueue = {
-        let operationQueue = OperationQueue()
-        operationQueue.name = "PaymentsProcessor-Default"
-        // We want a concurrency level high enough to ensure that
-        // high-priority operations are processed in a timely manner.
-        operationQueue.maxConcurrentOperationCount = 3
-        return operationQueue
-    }()
+    private let highPriorityProcessingQueue = SerialTaskQueue()
+    private let defaultProcessingQueue = SerialTaskQueue()
 
-    private func processingQueue(forPaymentModel paymentModel: TSPaymentModel) -> OperationQueue {
-        if paymentModel.isOutgoing,
-           !paymentModel.isVerified {
-            return processingQueue_outgoing
+    private func processingQueue(forPaymentModel paymentModel: TSPaymentModel) -> SerialTaskQueue {
+        if paymentModel.isOutgoing, !paymentModel.isVerified {
+            return highPriorityProcessingQueue
         } else {
-            return processingQueue_default
+            return defaultProcessingQueue
         }
     }
 
@@ -103,7 +85,7 @@ public class PaymentsProcessor: NSObject {
             guard !CurrentAppContext().isRunningTests else {
                 return
             }
-            guard Self.paymentsHelper.arePaymentsEnabled else {
+            guard SSKEnvironment.shared.paymentsHelperRef.arePaymentsEnabled else {
                 return
             }
             guard
@@ -126,7 +108,7 @@ public class PaymentsProcessor: NSObject {
     private func buildProcessingOperations() {
 
         // Find all unresolved payment records.
-        var paymentModels: [TSPaymentModel] = Self.databaseStorage.read { transaction in
+        var paymentModels: [TSPaymentModel] = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             PaymentFinder.paymentModels(paymentStates: Array(Self.paymentStatesToProcess),
                                         transaction: transaction)
         }
@@ -138,7 +120,7 @@ public class PaymentsProcessor: NSObject {
         // Create a new operation for any payment that needs to be
         // processed that we're not already processing.
         let delegate: PaymentProcessingOperationDelegate = self
-        Self.unfairLock.withLock {
+        Self.unfairLock.withLock { [paymentModels] in
             for paymentModel in paymentModels {
                 let paymentId = paymentModel.uniqueId
                 // Don't add an operation if we're already processing this payment model.
@@ -146,9 +128,8 @@ public class PaymentsProcessor: NSObject {
                     continue
                 }
                 self.processingPaymentIds.insert(paymentId)
-                let operation = PaymentProcessingOperation(delegate: delegate,
-                                                           paymentModel: paymentModel)
-                processingQueue(forPaymentModel: paymentModel).addOperation(operation)
+                let operation = PaymentProcessingOperation(delegate: delegate, paymentModel: paymentModel)
+                processingQueue(forPaymentModel: paymentModel).enqueue { await operation.run() }
             }
         }
     }
@@ -214,7 +195,7 @@ public class PaymentsProcessor: NSObject {
         private func reachabilityChanged() {
             AssertIsOnMainThread()
 
-            guard reachabilityManager.isReachable else {
+            guard SSKEnvironment.shared.reachabilityManagerRef.isReachable else {
                 return
             }
 
@@ -254,7 +235,6 @@ public class PaymentsProcessor: NSObject {
 extension PaymentsProcessor: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
-        AssertIsOnMainThread()
         owsAssertDebug(appReadiness.isAppReady)
 
         guard databaseChanges.didUpdate(tableName: TSPaymentModel.table.tableName) else {
@@ -265,14 +245,12 @@ extension PaymentsProcessor: DatabaseChangeDelegate {
     }
 
     public func databaseChangesDidUpdateExternally() {
-        AssertIsOnMainThread()
         owsAssertDebug(appReadiness.isAppReady)
 
         process()
     }
 
     public func databaseChangesDidReset() {
-        AssertIsOnMainThread()
         owsAssertDebug(appReadiness.isAppReady)
 
         process()
@@ -318,10 +296,8 @@ extension PaymentsProcessor: PaymentProcessingOperationDelegate {
             return
         }
 
-        let operation = PaymentProcessingOperation(delegate: self,
-                                                   paymentModel: paymentModel,
-                                                   retryDelayInteral: retryDelayInteral)
-        processingQueue(forPaymentModel: paymentModel).addOperation(operation)
+        let operation = PaymentProcessingOperation(delegate: self, paymentModel: paymentModel, retryDelayInteral: retryDelayInteral)
+        processingQueue(forPaymentModel: paymentModel).enqueue { await operation.run() }
     }
 
     func scheduleRetryProcessing(
@@ -365,12 +341,12 @@ private protocol PaymentProcessingOperationDelegate: AnyObject {
 // MARK: -
 
 // See comments on PaymentsProcessor.process().
-private class PaymentProcessingOperation: OWSOperation, @unchecked Sendable {
+private class PaymentProcessingOperation {
     private weak var delegate: PaymentProcessingOperationDelegate?
     private let paymentId: String
     private let retryDelayInteral: TimeInterval
 
-    private static let defaultRetryDelayInteral: TimeInterval = 1 * kSecondInterval
+    private static let defaultRetryDelayInteral: TimeInterval = .second
 
     init(delegate: PaymentProcessingOperationDelegate,
          paymentModel: TSPaymentModel,
@@ -378,52 +354,11 @@ private class PaymentProcessingOperation: OWSOperation, @unchecked Sendable {
         self.delegate = delegate
         self.paymentId = paymentModel.uniqueId
         self.retryDelayInteral = retryDelayInteral ?? Self.defaultRetryDelayInteral
-
-        super.init()
-
-        self.queuePriority = queuePriority(forPaymentModel: paymentModel)
     }
 
-    private func queuePriority(forPaymentModel paymentModel: TSPaymentModel) -> Operation.QueuePriority {
-        switch paymentModel.paymentState {
-        case .outgoingUnsubmitted,
-             .outgoingUnverified:
-            return .veryHigh
-        case .outgoingVerified,
-            .outgoingSending,
-            .outgoingSent:
-            return .normal
-        case .incomingUnverified,
-             .incomingVerified:
-            return .high
-        case .outgoingComplete,
-             .incomingComplete,
-             .outgoingFailed,
-             .incomingFailed:
-            owsFailDebug("Unexpected paymentState: \(paymentModel.paymentState.formatted)")
-            return .normal
-        @unknown default:
-            owsFailDebug("Invalid paymentState: \(paymentModel.paymentState.formatted)")
-            return .normal
-        }
+    func run() async {
+        await processStep()
     }
-
-    override public func run() {
-        firstly {
-            processStep()
-        }.done {
-            self.reportSuccess()
-        }.catch { error in
-            // processStep() should never fail.
-            owsFailDebug("Unexpected error: \(error)")
-            self.reportError(SSKUnretryableError.paymentsProcessingFailure)
-        }
-    }
-
-    // It's important that every operation completes in a reasonable
-    // period of time, to ensure that the operation queue doesn't
-    // stall and payments are processed in a timely manner.
-    fileprivate static let maxInterval: TimeInterval = kSecondInterval * 30
 
     // Try to usher a payment "one step forward" in the processing
     // state machine.
@@ -433,16 +368,17 @@ private class PaymentProcessingOperation: OWSOperation, @unchecked Sendable {
     // necessary, and avoid getting stuck in a tight retry loop.
     // Therefore retries are throttled and/or do backoff - but retry
     // behavior depends on the type of operation.
-    private func processStep() -> Guarantee<Void> {
+    private func processStep() async {
         // When this promise chain completes, we must call continueProcessing()
         // or endProcessing().
-        firstly(on: DispatchQueue.global()) { () -> Promise<TSPaymentModel> in
-            self.processStep(paymentModel: self.loadPaymentModelWithSneakyTransaction())
-        }.timeout(seconds: Self.timeoutDuration, description: "process") { () -> Error in
-            PaymentsError.timeout
-        }.done(on: DispatchQueue.global()) { paymentModel in
+        do {
+            let paymentModel = try await Promise.wrapAsync {
+                return try await self.processStep(paymentModel: self.loadPaymentModelWithSneakyTransaction())
+            }.timeout(seconds: Self.timeoutDuration, description: "process") { () -> Error in
+                return PaymentsError.timeout
+            }.awaitable()
             self.delegate?.continueProcessing(paymentModel: paymentModel)
-        }.recover(on: DispatchQueue.global()) { (error: Error) -> Guarantee<Void> in
+        } catch {
             switch error {
             case let paymentsError as PaymentsError:
                 switch paymentsError {
@@ -491,13 +427,12 @@ private class PaymentProcessingOperation: OWSOperation, @unchecked Sendable {
                 owsFailDebugUnlessMCNetworkFailure(error)
             }
 
-            guard let paymentModel = self.loadPaymentModelWithSneakyTransaction() else {
+            if let paymentModel = self.loadPaymentModelWithSneakyTransaction() {
+                self.handleProcessingError(paymentModel: paymentModel, error: error)
+            } else {
                 owsFailDebug("Could not reload payment model.")
                 self.delegate?.endProcessing(paymentId: self.paymentId)
-                return Guarantee.value(())
             }
-            self.handleProcessingError(paymentModel: paymentModel, error: error)
-            return Guarantee.value(())
         }
     }
 
@@ -569,7 +504,7 @@ private class PaymentProcessingOperation: OWSOperation, @unchecked Sendable {
                     // Things work reasonably well without this extra info, it's not clear
                     // how long a missing ledger timestamp might take to appear, and we might
                     // have a large number of payments without this info.
-                    retryDelayInteral += kHourInterval * 1
+                    retryDelayInteral += .hour
                 }
                 let nextRetryDelayInteral = self.retryDelayInteral * backoffFactor
                 delegate?.scheduleRetryProcessing(paymentModel: paymentModel,
@@ -590,97 +525,84 @@ private class PaymentProcessingOperation: OWSOperation, @unchecked Sendable {
     }
 
     private func loadPaymentModelWithSneakyTransaction() -> TSPaymentModel? {
-        Self.databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             TSPaymentModel.anyFetch(uniqueId: self.paymentId, transaction: transaction)
         }
     }
 
     private static let timeoutDuration: TimeInterval = 60
 
-    private func processStep(paymentModel: TSPaymentModel?) -> Promise<TSPaymentModel> {
+    private func processStep(paymentModel: TSPaymentModel?) async throws -> TSPaymentModel {
         guard let paymentModel = paymentModel else {
-            return Promise(error: OWSAssertionError("Could not reload the payment record."))
+            throw OWSAssertionError("Could not reload the payment record.")
         }
 
         let paymentStateBeforeProcessing = paymentModel.paymentState
 
-        return firstly(on: DispatchQueue.global()) { () -> Promise<Void> in
-            let formattedState = paymentModel.descriptionForLogs
+        let formattedState = paymentModel.descriptionForLogs
 
-            guard PaymentsProcessor.canBeProcessed(paymentModel: paymentModel) else {
-                throw OWSAssertionError("Cannot process: \(formattedState)")
-            }
-
-            owsAssertDebug(paymentModel.isValid)
-
-            switch paymentModel.paymentState {
-            case .outgoingUnsubmitted:
-                return self.submitOutgoingPayment(paymentModel: paymentModel)
-            case .outgoingUnverified:
-                return self.verifyOutgoingPayment(paymentModel: paymentModel)
-            case .outgoingVerified:
-                return self.sendPaymentNotificationMessage(paymentModel: paymentModel)
-            case .outgoingSending,
-                 .outgoingSent:
-                return Self.updatePaymentStatePromise(paymentModel: paymentModel,
-                                                      fromState: paymentModel.paymentState,
-                                                      toState: .outgoingComplete)
-            case .incomingUnverified:
-                return self.verifyIncomingPayment(paymentModel: paymentModel)
-            case .incomingVerified:
-                return Self.updatePaymentStatePromise(paymentModel: paymentModel,
-                                                      fromState: .incomingVerified,
-                                                      toState: .incomingComplete)
-            case .outgoingComplete,
-                 .incomingComplete,
-                 .outgoingFailed,
-                 .incomingFailed:
-                throw OWSAssertionError("Cannot process: \(formattedState)")
-            @unknown default:
-                throw OWSAssertionError("Unknown paymentState: \(formattedState)")
-            }
-        }.map {
-            guard let latestModel = self.loadPaymentModelWithSneakyTransaction() else {
-                owsFailDebug("Could not reload payment model.")
-                throw PaymentsError.missingModel
-            }
-
-            let paymentStateAfterProcessing = latestModel.paymentState
-            if paymentStateBeforeProcessing == paymentStateAfterProcessing {
-                owsFailDebug("Payment state did not change after successful processing step: \(latestModel.descriptionForLogs)")
-            }
-
-            return latestModel
+        guard PaymentsProcessor.canBeProcessed(paymentModel: paymentModel) else {
+            throw OWSAssertionError("Cannot process: \(formattedState)")
         }
+
+        owsAssertDebug(paymentModel.isValid)
+
+        switch paymentModel.paymentState {
+        case .outgoingUnsubmitted:
+            try await self.submitOutgoingPayment(paymentModel: paymentModel)
+        case .outgoingUnverified:
+            try await self.verifyOutgoingPayment(paymentModel: paymentModel)
+        case .outgoingVerified:
+            try await self.sendPaymentNotificationMessage(paymentModel: paymentModel)
+        case .outgoingSending, .outgoingSent:
+            try await Self.updatePaymentStatePromise(paymentModel: paymentModel, fromState: paymentModel.paymentState, toState: .outgoingComplete)
+        case .incomingUnverified:
+            try await self.verifyIncomingPayment(paymentModel: paymentModel)
+        case .incomingVerified:
+            try await Self.updatePaymentStatePromise(paymentModel: paymentModel, fromState: .incomingVerified, toState: .incomingComplete)
+        case .outgoingComplete, .incomingComplete, .outgoingFailed, .incomingFailed:
+            throw OWSAssertionError("Cannot process: \(formattedState)")
+        @unknown default:
+            throw OWSAssertionError("Unknown paymentState: \(formattedState)")
+        }
+
+        guard let latestModel = self.loadPaymentModelWithSneakyTransaction() else {
+            owsFailDebug("Could not reload payment model.")
+            throw PaymentsError.missingModel
+        }
+
+        let paymentStateAfterProcessing = latestModel.paymentState
+        if paymentStateBeforeProcessing == paymentStateAfterProcessing {
+            owsFailDebug("Payment state did not change after successful processing step: \(latestModel.descriptionForLogs)")
+        }
+
+        return latestModel
     }
 
-    private func submitOutgoingPayment(paymentModel: TSPaymentModel) -> Promise<Void> {
+    private func submitOutgoingPayment(paymentModel: TSPaymentModel) async throws {
         owsAssertDebug(paymentModel.paymentState == .outgoingUnsubmitted)
 
-        guard !payments.isKillSwitchActive else {
+        if SUIEnvironment.shared.paymentsRef.isKillSwitchActive {
             do {
-                try Self.databaseStorage.write { transaction in
-                    try paymentModel.updatePaymentModelState(fromState: .outgoingUnsubmitted,
-                                                             toState: .outgoingUnverified,
-                                                             transaction: transaction)
+                try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
+                    try paymentModel.updatePaymentModelState(fromState: .outgoingUnsubmitted, toState: .outgoingUnverified, transaction: transaction)
                 }
             } catch {
                 owsFailDebug("Error: \(error)")
             }
-            return Promise(error: PaymentsError.killSwitch)
+            throw PaymentsError.killSwitch
         }
 
         if DebugFlags.paymentsSkipSubmissionAndOutgoingVerification.get() {
-            return Self.updatePaymentStatePromise(paymentModel: paymentModel,
-                                                  fromState: .outgoingUnsubmitted,
-                                                  toState: .outgoingUnverified)
+            try await Self.updatePaymentStatePromise(paymentModel: paymentModel, fromState: .outgoingUnsubmitted, toState: .outgoingUnverified)
+            return
         }
 
         // Only try to submit transactions within the first N minutes of them
         // being initiated.  If the app is terminated right after a transaction
         // is initiated (before transaction it can be submitted), we don't want
         // to submit it if the app is opened much later.
-        let submissionInterval = kMinuteInterval * 5
+        let submissionInterval: TimeInterval = .minute * 5
         let createdDate = paymentModel.createdDate
         let isRecentEnoughToSubmit = abs(createdDate.timeIntervalSinceNow) <= submissionInterval
 
@@ -689,242 +611,173 @@ private class PaymentProcessingOperation: OWSOperation, @unchecked Sendable {
             // that the transaction was submitted but the record was never marked
             // as such (due to a race around app being terminated).
             do {
-                try Self.databaseStorage.write { transaction in
-                    try paymentModel.updatePaymentModelState(fromState: .outgoingUnsubmitted,
-                                                             toState: .outgoingUnverified,
-                                                             transaction: transaction)
+                try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
+                    try paymentModel.updatePaymentModelState(fromState: .outgoingUnsubmitted, toState: .outgoingUnverified, transaction: transaction)
                 }
             } catch {
                 owsFailDebug("Error: \(error)")
             }
             Logger.warn("Not recent enough to submit.")
-            return Promise(error: PaymentsError.tooOldToSubmit)
+            throw PaymentsError.tooOldToSubmit
         }
 
-        guard let mcTransactionData = paymentModel.mcTransactionData,
-              mcTransactionData.count > 0,
-              let transaction = MobileCoin.Transaction(serializedData: mcTransactionData) else {
-
-            Self.handleIndeterminatePayment(paymentModel: paymentModel)
-
-            return Promise(error: PaymentsError.indeterminateState)
+        guard
+            let mcTransactionData = paymentModel.mcTransactionData,
+            mcTransactionData.count > 0,
+            let transaction = MobileCoin.Transaction(serializedData: mcTransactionData)
+        else {
+            await Self.handleIndeterminatePayment(paymentModel: paymentModel)
+            throw PaymentsError.indeterminateState
         }
 
-        return firstly { () -> Promise<MobileCoinAPI> in
-            Self.paymentsImpl.getMobileCoinAPI()
-        }.then(on: DispatchQueue.global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<Void> in
-            return mobileCoinAPI.submitTransaction(transaction: transaction)
-        }.then(on: DispatchQueue.global()) { _ in
-            Self.updatePaymentStatePromise(paymentModel: paymentModel,
-                                           fromState: .outgoingUnsubmitted,
-                                           toState: .outgoingUnverified)
-        }.recover(on: DispatchQueue.global()) { (error: Error) -> Promise<Void> in
-            if case PaymentsError.inputsAlreadySpent = error {
-                // e.g. if we double-submit a transaction, it should become unverified,
-                // not stuck in unsubmitted.
-                return Self.updatePaymentStatePromise(paymentModel: paymentModel,
-                                                      fromState: .outgoingUnsubmitted,
-                                                      toState: .outgoingUnverified)
-            } else {
+        do {
+            let mobileCoinAPI = try await SUIEnvironment.shared.paymentsImplRef.getMobileCoinAPI().awaitable()
+            _ = try await mobileCoinAPI.submitTransaction(transaction: transaction).awaitable()
+            try await Self.updatePaymentStatePromise(paymentModel: paymentModel, fromState: .outgoingUnsubmitted, toState: .outgoingUnverified)
+        } catch PaymentsError.inputsAlreadySpent {
+            // e.g. if we double-submit a transaction, it should become unverified,
+            // not stuck in unsubmitted.
+            try await Self.updatePaymentStatePromise(paymentModel: paymentModel, fromState: .outgoingUnsubmitted, toState: .outgoingUnverified)
+        }
+    }
+
+    private func verifyOutgoingPayment(paymentModel: TSPaymentModel) async throws {
+        owsAssertDebug(paymentModel.paymentState == .outgoingUnverified)
+
+        if DebugFlags.paymentsSkipSubmissionAndOutgoingVerification.get() {
+            try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
+                guard let paymentModel = TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId, transaction: transaction) else {
+                    throw OWSAssertionError("Missing TSPaymentModel.")
+                }
+                paymentModel.update(mcLedgerBlockIndex: 111, transaction: transaction)
+                paymentModel.update(paymentState: .outgoingVerified, transaction: transaction)
+            }
+            return
+        }
+
+        let mobileCoinAPI = try await SUIEnvironment.shared.paymentsImplRef.getMobileCoinAPI().awaitable()
+
+        guard
+            let mcTransactionData = paymentModel.mcTransactionData,
+            mcTransactionData.count > 0,
+            let transaction = MobileCoin.Transaction(serializedData: mcTransactionData)
+        else {
+            await Self.handleIndeterminatePayment(paymentModel: paymentModel)
+            throw PaymentsError.indeterminateState
+        }
+
+        let transactionStatus = try await mobileCoinAPI.getOutgoingTransactionStatus(transaction: transaction).awaitable()
+
+        try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
+            switch transactionStatus.transactionStatus {
+            case .unknown:
+                throw PaymentsError.verificationStatusUnknown
+            case .accepted(let block):
+                if !paymentModel.hasMCLedgerBlockIndex {
+                    paymentModel.update(mcLedgerBlockIndex: block.index, transaction: transaction)
+                }
+                if let ledgerBlockDate = block.timestamp,
+                   !paymentModel.hasMCLedgerBlockTimestamp {
+                    paymentModel.update(mcLedgerBlockTimestamp: ledgerBlockDate.ows_millisecondsSince1970, transaction: transaction)
+                }
+                try paymentModel.updatePaymentModelState(fromState: .outgoingUnverified, toState: .outgoingVerified, transaction: transaction)
+
+                // If we've verified a payment, our balance may have changed.
+                SUIEnvironment.shared.paymentsImplRef.updateCurrentPaymentBalance()
+            case .failed:
+                Self.markAsFailed(paymentModel: paymentModel, paymentFailure: .validationFailed, paymentState: .outgoingFailed, transaction: transaction)
+            }
+        }
+    }
+
+    private class func markAsFailed(paymentModel: TSPaymentModel, paymentFailure: TSPaymentFailure, paymentState: TSPaymentState) async {
+        await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
+            markAsFailed(paymentModel: paymentModel, paymentFailure: paymentFailure, paymentState: paymentState, transaction: transaction)
+        }
+    }
+
+    private class func markAsFailed(paymentModel: TSPaymentModel, paymentFailure: TSPaymentFailure, paymentState: TSPaymentState, transaction: DBWriteTransaction) {
+        paymentModel.update(withPaymentFailure: paymentFailure, paymentState: paymentState, transaction: transaction)
+    }
+
+    private func sendPaymentNotificationMessage(paymentModel: TSPaymentModel) async throws {
+        owsAssertDebug(paymentModel.paymentState == .outgoingVerified)
+
+        guard !paymentModel.isOutgoingTransfer else {
+            // No need to notify for "transfer out" transactions.
+            try await Self.updatePaymentStatePromise(paymentModel: paymentModel, fromState: .outgoingVerified, toState: .outgoingSent)
+            return
+        }
+
+        try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
+            guard let paymentModel = TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId, transaction: transaction) else {
+                throw OWSAssertionError("Missing paymentModel.")
+            }
+            guard paymentModel.paymentState == .outgoingVerified else {
+                throw OWSAssertionError("Unexpected paymentState: \(paymentModel.descriptionForLogs).")
+            }
+            do {
+                let notify = {
+                    if paymentModel.isDefragmentation {
+                        PaymentsImpl.sendDefragmentationSyncMessage(paymentModel: paymentModel, transaction: transaction)
+                    } else {
+                        _ = try PaymentsImpl.sendPaymentNotificationMessage(paymentModel: paymentModel, transaction: transaction)
+                        PaymentsImpl.sendOutgoingPaymentSyncMessage(paymentModel: paymentModel, transaction: transaction)
+                    }
+                }
+
+                try notify()
+
+                if DebugFlags.paymentsDoubleNotify.get() {
+                    // Notify again.
+                    try notify()
+                }
+
+                try paymentModel.updatePaymentModelState(fromState: .outgoingVerified, toState: .outgoingSending, transaction: transaction)
+            } catch {
+                if case PaymentsError.invalidModel = error {
+                    try paymentModel.updatePaymentModelState(fromState: .outgoingVerified, toState: .outgoingComplete, transaction: transaction)
+                }
                 throw error
             }
         }
     }
 
-    private func verifyOutgoingPayment(paymentModel: TSPaymentModel) -> Promise<Void> {
-        owsAssertDebug(paymentModel.paymentState == .outgoingUnverified)
-
-        if DebugFlags.paymentsSkipSubmissionAndOutgoingVerification.get() {
-            return firstly(on: DispatchQueue.global()) { () -> Void in
-                try Self.databaseStorage.write { transaction in
-                    guard let paymentModel = TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId,
-                                                                     transaction: transaction) else {
-                        throw OWSAssertionError("Missing TSPaymentModel.")
-                    }
-                    paymentModel.update(mcLedgerBlockIndex: 111, transaction: transaction)
-                    paymentModel.update(paymentState: .outgoingVerified, transaction: transaction)
-                }
-            }
-        }
-
-        return firstly { () -> Promise<MobileCoinAPI> in
-            Self.paymentsImpl.getMobileCoinAPI()
-        }.then(on: DispatchQueue.global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<Void> in
-            firstly { () -> Promise<MCOutgoingTransactionStatus> in
-                guard let mcTransactionData = paymentModel.mcTransactionData,
-                      mcTransactionData.count > 0,
-                      let transaction = MobileCoin.Transaction(serializedData: mcTransactionData) else {
-
-                    Self.handleIndeterminatePayment(paymentModel: paymentModel)
-
-                    throw PaymentsError.indeterminateState
-                }
-
-                return mobileCoinAPI.getOutgoingTransactionStatus(transaction: transaction)
-            }.map { (transactionStatus: MCOutgoingTransactionStatus) in
-                try Self.databaseStorage.write { transaction in
-                    switch transactionStatus.transactionStatus {
-                    case .unknown:
-                        throw PaymentsError.verificationStatusUnknown
-                    case .accepted(let block):
-                        if !paymentModel.hasMCLedgerBlockIndex {
-                            paymentModel.update(mcLedgerBlockIndex: block.index, transaction: transaction)
-                        }
-                        if let ledgerBlockDate = block.timestamp,
-                           !paymentModel.hasMCLedgerBlockTimestamp {
-                            paymentModel.update(mcLedgerBlockTimestamp: ledgerBlockDate.ows_millisecondsSince1970,
-                                                transaction: transaction)
-                        }
-                        try paymentModel.updatePaymentModelState(fromState: .outgoingUnverified,
-                                                                 toState: .outgoingVerified,
-                                                                 transaction: transaction)
-
-                        // If we've verified a payment, our balance may have changed.
-                        Self.paymentsImpl.updateCurrentPaymentBalance()
-                    case .failed:
-                        Self.markAsFailed(paymentModel: paymentModel,
-                                          paymentFailure: .validationFailed,
-                                          paymentState: .outgoingFailed,
-                                          transaction: transaction)
-                    }
-                }
-            }
-        }
-    }
-
-    private class func markAsFailedPromise(paymentModel: TSPaymentModel,
-                                           paymentFailure: TSPaymentFailure,
-                                           paymentState: TSPaymentState) -> Promise<Void> {
-        Self.databaseStorage.write(.promise) { transaction in
-            markAsFailed(paymentModel: paymentModel,
-                         paymentFailure: paymentFailure,
-                         paymentState: paymentState,
-                         transaction: transaction)
-        }
-    }
-
-    private class func markAsFailed(paymentModel: TSPaymentModel,
-                                    paymentFailure: TSPaymentFailure,
-                                    paymentState: TSPaymentState) {
-        Self.databaseStorage.write { transaction in
-            markAsFailed(paymentModel: paymentModel,
-                         paymentFailure: paymentFailure,
-                         paymentState: paymentState,
-                         transaction: transaction)
-        }
-    }
-
-    private class func markAsFailed(paymentModel: TSPaymentModel,
-                                    paymentFailure: TSPaymentFailure,
-                                    paymentState: TSPaymentState,
-                                    transaction: SDSAnyWriteTransaction) {
-        paymentModel.update(withPaymentFailure: paymentFailure,
-                            paymentState: paymentState,
-                            transaction: transaction)
-    }
-
-    private func sendPaymentNotificationMessage(paymentModel: TSPaymentModel) -> Promise<Void> {
-        owsAssertDebug(paymentModel.paymentState == .outgoingVerified)
-
-        guard !paymentModel.isOutgoingTransfer else {
-            // No need to notify for "transfer out" transactions.
-            return Self.updatePaymentStatePromise(paymentModel: paymentModel,
-                                                  fromState: .outgoingVerified,
-                                                  toState: .outgoingSent)
-        }
-
-        return firstly(on: DispatchQueue.global()) { () -> Void in
-            try Self.databaseStorage.write { transaction in
-                guard let paymentModel = TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId, transaction: transaction) else {
-                    throw OWSAssertionError("Missing paymentModel.")
-                }
-                guard paymentModel.paymentState == .outgoingVerified else {
-                    throw OWSAssertionError("Unexpected paymentState: \(paymentModel.descriptionForLogs).")
-                }
-                do {
-                    let notify = {
-                        if paymentModel.isDefragmentation {
-                            PaymentsImpl.sendDefragmentationSyncMessage(paymentModel: paymentModel,
-                                                                        transaction: transaction)
-                        } else {
-                            _ = try PaymentsImpl.sendPaymentNotificationMessage(paymentModel: paymentModel,
-                                                                                transaction: transaction)
-                            PaymentsImpl.sendOutgoingPaymentSyncMessage(paymentModel: paymentModel,
-                                                                        transaction: transaction)
-                        }
-                    }
-
-                    try notify()
-
-                    if DebugFlags.paymentsDoubleNotify.get() {
-                        // Notify again.
-                        try notify()
-                    }
-
-                    try paymentModel.updatePaymentModelState(fromState: .outgoingVerified,
-                                                             toState: .outgoingSending,
-                                                             transaction: transaction)
-                } catch {
-                    if case PaymentsError.invalidModel = error {
-                        try paymentModel.updatePaymentModelState(fromState: .outgoingVerified,
-                                                                 toState: .outgoingComplete,
-                                                                 transaction: transaction)
-                    }
-                    throw error
-                }
-            }
-        }.asVoid()
-    }
-
-    private func verifyIncomingPayment(paymentModel: TSPaymentModel) -> Promise<Void> {
+    private func verifyIncomingPayment(paymentModel: TSPaymentModel) async throws {
         owsAssertDebug(paymentModel.paymentState == .incomingUnverified)
 
-        return firstly { () -> Promise<MobileCoinAPI> in
-            Self.paymentsImpl.getMobileCoinAPI()
-        }.then(on: DispatchQueue.global()) { (mobileCoinAPI: MobileCoinAPI) -> Promise<MCIncomingReceiptStatus> in
+        let mobileCoinAPI = try await SUIEnvironment.shared.paymentsImplRef.getMobileCoinAPI().awaitable()
 
-            guard let mcReceiptData = paymentModel.mcReceiptData,
-                  let receipt = MobileCoin.Receipt(serializedData: mcReceiptData) else {
+        guard let mcReceiptData = paymentModel.mcReceiptData, let receipt = MobileCoin.Receipt(serializedData: mcReceiptData) else {
+            await Self.handleIndeterminatePayment(paymentModel: paymentModel)
+            throw PaymentsError.indeterminateState
+        }
 
-                Self.handleIndeterminatePayment(paymentModel: paymentModel)
+        let receiptStatus = try await mobileCoinAPI.getIncomingReceiptStatus(receipt: receipt).awaitable()
 
-                return Promise(error: PaymentsError.indeterminateState)
-            }
-
-            return mobileCoinAPI.getIncomingReceiptStatus(receipt: receipt)
-        }.map { (receiptStatus: MCIncomingReceiptStatus) in
-            try Self.databaseStorage.write { transaction in
-                switch receiptStatus.receiptStatus {
-                case .unknown:
-                    throw PaymentsError.verificationStatusUnknown
-                case .received(let block):
-                    paymentModel.update(mcLedgerBlockIndex: block.index,
-                                        transaction: transaction)
-                    if let ledgerBlockDate = block.timestamp {
-                        paymentModel.update(mcLedgerBlockTimestamp: ledgerBlockDate.ows_millisecondsSince1970,
-                                            transaction: transaction)
-                    } else {
-                        Logger.warn("Missing ledgerBlockDate.")
-                    }
-                    paymentModel.update(withPaymentAmount: receiptStatus.paymentAmount,
-                                        transaction: transaction)
-                    try paymentModel.updatePaymentModelState(fromState: .incomingUnverified,
-                                                             toState: .incomingVerified,
-                                                             transaction: transaction)
-
-                    // If we've verified a payment, our balance may have changed.
-                    Self.paymentsImpl.updateCurrentPaymentBalance()
-                case .failed:
-                    Self.markAsFailed(paymentModel: paymentModel,
-                                      paymentFailure: .validationFailed,
-                                      paymentState: .incomingFailed,
-                                      transaction: transaction)
+        try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
+            switch receiptStatus.receiptStatus {
+            case .unknown:
+                throw PaymentsError.verificationStatusUnknown
+            case .received(let block):
+                paymentModel.update(mcLedgerBlockIndex: block.index, transaction: transaction)
+                if let ledgerBlockDate = block.timestamp {
+                    paymentModel.update(mcLedgerBlockTimestamp: ledgerBlockDate.ows_millisecondsSince1970, transaction: transaction)
+                } else {
+                    Logger.warn("Missing ledgerBlockDate.")
                 }
+                paymentModel.update(withPaymentAmount: receiptStatus.paymentAmount, transaction: transaction)
+                try paymentModel.updatePaymentModelState(fromState: .incomingUnverified, toState: .incomingVerified, transaction: transaction)
+
+                // If we've verified a payment, our balance may have changed.
+                SUIEnvironment.shared.paymentsImplRef.updateCurrentPaymentBalance()
+            case .failed:
+                Self.markAsFailed(paymentModel: paymentModel, paymentFailure: .validationFailed, paymentState: .incomingFailed, transaction: transaction)
             }
         }
     }
 
-    class func handleIndeterminatePayment(paymentModel: TSPaymentModel) {
+    class func handleIndeterminatePayment(paymentModel: TSPaymentModel) async {
         owsFailDebug("Indeterminate payment: \(paymentModel.descriptionForLogs)")
 
         // A payment is indeterminate if we don't know if it exists
@@ -935,29 +788,24 @@ private class PaymentProcessingOperation: OWSOperation, @unchecked Sendable {
         // history.  Presumably this should only be possible if the user
         // scrubs an unverified payment.
 
-        databaseStorage.write { transaction in
+        await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
             paymentModel.anyRemove(transaction: transaction)
 
-            Self.payments.scheduleReconciliationNow(transaction: transaction)
+            SUIEnvironment.shared.paymentsRef.scheduleReconciliationNow(transaction: transaction)
         }
     }
 
-    private static func updatePaymentStatePromise(paymentModel: TSPaymentModel,
-                                                  fromState: TSPaymentState,
-                                                  toState: TSPaymentState) -> Promise<Void> {
+    private static func updatePaymentStatePromise(paymentModel: TSPaymentModel, fromState: TSPaymentState, toState: TSPaymentState) async throws {
         owsAssertDebug(paymentModel.paymentState == fromState)
 
-        return firstly(on: DispatchQueue.global()) { () -> Void in
-            try Self.databaseStorage.write { transaction in
-                guard let paymentModel = TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId,
-                                                                 transaction: transaction) else {
-                    throw OWSAssertionError("Missing TSPaymentModel.")
-                }
-                guard paymentModel.paymentState == fromState else {
-                    throw OWSAssertionError("Unexpected paymentState: \(paymentModel.paymentState.formatted) != \(fromState.formatted).")
-                }
-                paymentModel.update(paymentState: toState, transaction: transaction)
+        try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
+            guard let paymentModel = TSPaymentModel.anyFetch(uniqueId: paymentModel.uniqueId, transaction: transaction) else {
+                throw OWSAssertionError("Missing TSPaymentModel.")
             }
+            guard paymentModel.paymentState == fromState else {
+                throw OWSAssertionError("Unexpected paymentState: \(paymentModel.paymentState.formatted) != \(fromState.formatted).")
+            }
+            paymentModel.update(paymentState: toState, transaction: transaction)
         }
     }
 }

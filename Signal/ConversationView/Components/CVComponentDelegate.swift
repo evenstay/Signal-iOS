@@ -73,6 +73,14 @@ public protocol CVComponentDelegate: AnyObject, AudioMessageViewDelegate {
 
     // MARK: -
 
+    func willBecomeVisibleWithFailedOrPendingDownloads(_ message: TSMessage)
+
+    func didTapFailedOrPendingDownloads(_ message: TSMessage)
+
+    func didCancelDownload(_ message: TSMessage, attachmentId: Attachment.IDType)
+
+    // MARK: -
+
     func didTapReplyToItem(_ itemViewModel: CVItemViewModelImpl)
 
     func didTapSenderAvatar(_ interaction: TSInteraction)
@@ -86,7 +94,15 @@ public protocol CVComponentDelegate: AnyObject, AudioMessageViewDelegate {
 
     func didTapTruncatedTextMessage(_ itemViewModel: CVItemViewModelImpl)
 
-    func didTapFailedOrPendingDownloads(_ message: TSMessage)
+    func didTapUndownloadableMedia()
+
+    func didTapUndownloadableGenericFile()
+
+    func didTapUndownloadableOversizeText()
+
+    func didTapUndownloadableAudio()
+
+    func didTapUndownloadableSticker()
 
     func didTapBrokenVideo()
 
@@ -94,7 +110,7 @@ public protocol CVComponentDelegate: AnyObject, AudioMessageViewDelegate {
 
     func didTapBodyMedia(
         itemViewModel: CVItemViewModelImpl,
-        attachmentStream: ReferencedTSResourceStream,
+        attachmentStream: ReferencedAttachmentStream,
         imageView: UIView
     )
 
@@ -200,6 +216,8 @@ public protocol CVComponentDelegate: AnyObject, AudioMessageViewDelegate {
 
     func didTapViewGroupDescription(newGroupDescription: String)
 
+    func didTapNameEducation(type: SafetyTipsType)
+
     func didTapShowConversationSettings()
 
     func didTapShowConversationSettingsAndShowMemberRequests()
@@ -230,6 +248,8 @@ public protocol CVComponentDelegate: AnyObject, AudioMessageViewDelegate {
     func didTapReportSpamLearnMore()
 
     func didTapMessageRequestAcceptedOptions()
+
+    func didTapJoinCallLinkCall(callLink: CallLink)
 }
 
 // MARK: -
@@ -273,6 +293,7 @@ struct CVMessageAction: Equatable {
         case didTapThreadMergeLearnMore(phoneNumber: String)
         case didTapReportSpamLearnMore
         case didTapMessageRequestAcceptedOptions
+        case didTapJoinCallLinkCall(callLink: CallLink)
 
         func perform(delegate: CVComponentDelegate) {
             switch self {
@@ -334,6 +355,8 @@ struct CVMessageAction: Equatable {
                 delegate.didTapReportSpamLearnMore()
             case .didTapMessageRequestAcceptedOptions:
                 delegate.didTapMessageRequestAcceptedOptions()
+            case .didTapJoinCallLinkCall(let callLink):
+                delegate.didTapJoinCallLinkCall(callLink: callLink)
             }
         }
     }

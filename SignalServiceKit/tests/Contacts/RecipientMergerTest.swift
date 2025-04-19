@@ -10,6 +10,9 @@ import XCTest
 @testable import SignalServiceKit
 
 private class MockStorageServiceManager: StorageServiceManager {
+    func setLocalIdentifiers(_ localIdentifiers: LocalIdentifiers) {}
+    func currentManifestVersion(tx: DBReadTransaction) -> UInt64 { 0 }
+    func currentManifestHasRecordIkm(tx: DBReadTransaction) -> Bool { false }
     func recordPendingUpdates(updatedRecipientUniqueIds: [RecipientUniqueId]) {}
     func recordPendingUpdates(updatedAddresses: [SignalServiceAddress]) {}
     func recordPendingUpdates(updatedGroupV2MasterKeys: [Data]) {}
@@ -17,21 +20,20 @@ private class MockStorageServiceManager: StorageServiceManager {
     func recordPendingUpdates(callLinkRootKeys: [CallLinkRootKey]) {}
     func recordPendingUpdates(groupModel: TSGroupModel) {}
     func recordPendingLocalAccountUpdates() {}
-    func setLocalIdentifiers(_ localIdentifiers: LocalIdentifiersObjC) {}
     func backupPendingChanges(authedDevice: AuthedDevice) {}
     func resetLocalData(transaction: DBWriteTransaction) {}
-    func restoreOrCreateManifestIfNecessary(authedDevice: AuthedDevice) -> Promise<Void> { Promise<Void>(error: OWSGenericError("Not implemented.")) }
-    func waitForPendingRestores() -> Promise<Void> { Promise<Void>(error: OWSGenericError("Not implemented.")) }
+    func restoreOrCreateManifestIfNecessary(authedDevice: AuthedDevice, masterKeySource: StorageService.MasterKeySource) -> Promise<Void> { Promise<Void>(error: OWSGenericError("Not implemented.")) }
+    func rotateManifest(mode: ManifestRotationMode, authedDevice: AuthedDevice) async throws { throw OWSGenericError("Not implemented.") }
+    func waitForPendingRestores() async throws { throw OWSGenericError("Not implemented.") }
 }
 
 private class TestDependencies {
     let aciSessionStore: SignalSessionStore
     var aciSessionStoreKeyValueStore: KeyValueStore {
-        keyValueStoreFactory.keyValueStore(collection: "TSStorageManagerSessionStoreCollection")
+        KeyValueStore(collection: "TSStorageManagerSessionStoreCollection")
     }
     let identityManager: MockIdentityManager
-    let keyValueStoreFactory = InMemoryKeyValueStoreFactory()
-    let mockDB = MockDB()
+    let mockDB = InMemoryDB()
     let recipientMerger: RecipientMerger
     let recipientDatabaseTable = MockRecipientDatabaseTable()
     let recipientFetcher: RecipientFetcher
@@ -44,20 +46,19 @@ private class TestDependencies {
         let storageServiceManager = MockStorageServiceManager()
         recipientFetcher = RecipientFetcherImpl(recipientDatabaseTable: recipientDatabaseTable)
         recipientIdFinder = RecipientIdFinder(recipientDatabaseTable: recipientDatabaseTable, recipientFetcher: recipientFetcher)
-        aciSessionStore = SSKSessionStore(for: .aci, keyValueStoreFactory: keyValueStoreFactory, recipientIdFinder: recipientIdFinder)
+        aciSessionStore = SSKSessionStore(for: .aci, recipientIdFinder: recipientIdFinder)
         identityManager = MockIdentityManager(recipientIdFinder: recipientIdFinder)
         identityManager.recipientIdentities = [:]
         identityManager.sessionSwitchoverMessages = []
         threadAssociatedDataStore = MockThreadAssociatedDataStore()
         threadStore = MockThreadStore()
         threadMerger = ThreadMerger.forUnitTests(
-            keyValueStoreFactory: keyValueStoreFactory,
             threadAssociatedDataStore: threadAssociatedDataStore,
             threadStore: threadStore
         )
         recipientMerger = RecipientMergerImpl(
             aciSessionStore: aciSessionStore,
-            blockedRecipientStore: MockBlockedRecipientStore(),
+            blockedRecipientStore: BlockedRecipientStore(),
             identityManager: identityManager,
             observers: RecipientMergerImpl.Observers(
                 preThreadMerger: [],
@@ -66,7 +67,8 @@ private class TestDependencies {
             ),
             recipientDatabaseTable: recipientDatabaseTable,
             recipientFetcher: recipientFetcher,
-            storageServiceManager: storageServiceManager
+            storageServiceManager: storageServiceManager,
+            storyRecipientStore: StoryRecipientStore()
         )
     }
 }
@@ -161,21 +163,18 @@ class RecipientMergerTest: XCTestCase {
     }
 
     func testNotifier() {
-        let recipientMergeNotifier = RecipientMergeNotifier(scheduler: SyncScheduler())
+        let recipientMergeNotifier = RecipientMergeNotifier()
         let d = TestDependencies(observers: [recipientMergeNotifier])
 
         let aci = Aci.constantForTesting("00000000-0000-4000-8000-0000000000a1")
         let phoneNumber = E164("+16505550101")!
         let pni = Pni.constantForTesting("PNI:00000000-0000-4000-8000-0000000000b1")
 
-        var notificationCount = 0
-        let observer = NotificationCenter.default.addObserver(
+        let observerThatWillFail = NotificationCenter.default.addObserver(
             forName: .didLearnRecipientAssociation,
             object: recipientMergeNotifier,
             queue: nil,
-            using: { note in
-                notificationCount += 1
-            }
+            using: { _ in XCTFail("Unexpected notification!") }
         )
         d.mockDB.write { tx in
             _ = d.recipientMerger.applyMergeFromSealedSender(
@@ -185,7 +184,11 @@ class RecipientMergerTest: XCTestCase {
                 tx: tx
             )
         }
-        XCTAssertEqual(notificationCount, 0)
+        NotificationCenter.default.removeObserver(observerThatWillFail)
+
+        let notificationExpectation = XCTNSNotificationExpectation(name: .didLearnRecipientAssociation)
+        notificationExpectation.expectedFulfillmentCount = 2
+        notificationExpectation.assertForOverFulfill = true
         d.mockDB.write { tx in
             _ = d.recipientMerger.applyMergeFromContactDiscovery(
                 localIdentifiers: .forUnitTests,
@@ -195,8 +198,8 @@ class RecipientMergerTest: XCTestCase {
                 tx: tx
             )
         }
-        XCTAssertEqual(notificationCount, 2)
-        NotificationCenter.default.removeObserver(observer)
+
+        wait(for: [notificationExpectation], timeout: 1)
     }
 
     func testAciPhoneNumberSafetyNumberChange() {
@@ -232,7 +235,7 @@ class RecipientMergerTest: XCTestCase {
                     d.recipientDatabaseTable.insertRecipient(recipient, transaction: tx)
                     if let identityKey = initialState.identityKey {
                         d.identityManager.recipientIdentities[recipient.uniqueId] = OWSRecipientIdentity(
-                            recipientUniqueId: recipient.uniqueId,
+                            uniqueId: recipient.uniqueId,
                             identityKey: Data(identityKey.publicKey.keyBytes),
                             isFirstKnownKey: true,
                             createdAt: Date(),

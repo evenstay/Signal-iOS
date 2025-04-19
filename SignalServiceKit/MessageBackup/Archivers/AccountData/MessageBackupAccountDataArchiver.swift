@@ -46,126 +46,128 @@ extension MessageBackup {
     public typealias RestoreAccountDataResult = RestoreFrameResult<MessageBackup.AccountDataId>
 }
 
-/**
- * Archives the ``BackupProto_AccountData`` frame
- */
-public protocol MessageBackupAccountDataArchiver: MessageBackupProtoArchiver {
-    func archiveAccountData(
-        stream: MessageBackupProtoOutputStream,
-        context: MessageBackup.CustomChatColorArchivingContext
-    ) -> MessageBackup.ArchiveAccountDataResult
-
-    func restore(
-        _ accountData: BackupProto_AccountData,
-        context: MessageBackup.CustomChatColorRestoringContext
-    ) -> MessageBackup.RestoreAccountDataResult
-}
-
-public class MessageBackupAccountDataArchiverImpl: MessageBackupAccountDataArchiver {
-
+/// Archives the ``BackupProto_AccountData`` frame.
+public class MessageBackupAccountDataArchiver: MessageBackupProtoArchiver {
     private let chatStyleArchiver: MessageBackupChatStyleArchiver
     private let disappearingMessageConfigurationStore: DisappearingMessagesConfigurationStore
+    private let donationSubscriptionManager: MessageBackup.Shims.DonationSubscriptionManager
     private let linkPreviewSettingStore: LinkPreviewSettingStore
     private let localUsernameManager: LocalUsernameManager
+    private let ows2FAManager: MessageBackup.Shims.OWS2FAManager
     private let phoneNumberDiscoverabilityManager: PhoneNumberDiscoverabilityManager
-    private let preferences: MessageBackup.AccountData.Shims.Preferences
+    private let preferences: MessageBackup.Shims.Preferences
     private let profileManager: MessageBackup.Shims.ProfileManager
-    private let receiptManager: MessageBackup.AccountData.Shims.ReceiptManager
-    private let reactionManager: MessageBackup.AccountData.Shims.ReactionManager
-    private let sskPreferences: MessageBackup.AccountData.Shims.SSKPreferences
-    private let subscriptionManager: MessageBackup.AccountData.Shims.SubscriptionManager
-    private let storyManager: MessageBackup.AccountData.Shims.StoryManager
-    private let systemStoryManager: MessageBackup.AccountData.Shims.SystemStoryManager
-    private let typingIndicators: MessageBackup.AccountData.Shims.TypingIndicators
-    private let udManager: MessageBackup.AccountData.Shims.UDManager
+    private let receiptManager: MessageBackup.Shims.ReceiptManager
+    private let reactionManager: MessageBackup.Shims.ReactionManager
+    private let sskPreferences: MessageBackup.Shims.SSKPreferences
+    private let storyManager: MessageBackup.Shims.StoryManager
+    private let systemStoryManager: MessageBackup.Shims.SystemStoryManager
+    private let typingIndicators: MessageBackup.Shims.TypingIndicators
+    private let udManager: MessageBackup.Shims.UDManager
     private let usernameEducationManager: UsernameEducationManager
 
     public init(
         chatStyleArchiver: MessageBackupChatStyleArchiver,
         disappearingMessageConfigurationStore: DisappearingMessagesConfigurationStore,
+        donationSubscriptionManager: MessageBackup.Shims.DonationSubscriptionManager,
         linkPreviewSettingStore: LinkPreviewSettingStore,
         localUsernameManager: LocalUsernameManager,
+        ows2FAManager: MessageBackup.Shims.OWS2FAManager,
         phoneNumberDiscoverabilityManager: PhoneNumberDiscoverabilityManager,
-        preferences: MessageBackup.AccountData.Shims.Preferences,
+        preferences: MessageBackup.Shims.Preferences,
         profileManager: MessageBackup.Shims.ProfileManager,
-        receiptManager: MessageBackup.AccountData.Shims.ReceiptManager,
-        reactionManager: MessageBackup.AccountData.Shims.ReactionManager,
-        sskPreferences: MessageBackup.AccountData.Shims.SSKPreferences,
-        subscriptionManager: MessageBackup.AccountData.Shims.SubscriptionManager,
-        storyManager: MessageBackup.AccountData.Shims.StoryManager,
-        systemStoryManager: MessageBackup.AccountData.Shims.SystemStoryManager,
-        typingIndicators: MessageBackup.AccountData.Shims.TypingIndicators,
-        udManager: MessageBackup.AccountData.Shims.UDManager,
+        receiptManager: MessageBackup.Shims.ReceiptManager,
+        reactionManager: MessageBackup.Shims.ReactionManager,
+        sskPreferences: MessageBackup.Shims.SSKPreferences,
+        storyManager: MessageBackup.Shims.StoryManager,
+        systemStoryManager: MessageBackup.Shims.SystemStoryManager,
+        typingIndicators: MessageBackup.Shims.TypingIndicators,
+        udManager: MessageBackup.Shims.UDManager,
         usernameEducationManager: UsernameEducationManager
     ) {
         self.chatStyleArchiver = chatStyleArchiver
         self.disappearingMessageConfigurationStore = disappearingMessageConfigurationStore
+        self.donationSubscriptionManager = donationSubscriptionManager
         self.linkPreviewSettingStore = linkPreviewSettingStore
         self.localUsernameManager = localUsernameManager
+        self.ows2FAManager = ows2FAManager
         self.phoneNumberDiscoverabilityManager = phoneNumberDiscoverabilityManager
         self.preferences = preferences
+        self.profileManager = profileManager
         self.receiptManager = receiptManager
         self.reactionManager = reactionManager
         self.sskPreferences = sskPreferences
-        self.subscriptionManager = subscriptionManager
         self.storyManager = storyManager
         self.systemStoryManager = systemStoryManager
         self.typingIndicators = typingIndicators
         self.udManager = udManager
         self.usernameEducationManager = usernameEducationManager
-        self.profileManager = profileManager
     }
 
-    public func archiveAccountData(
+    // MARK: -
+
+    func archiveAccountData(
         stream: MessageBackupProtoOutputStream,
         context: MessageBackup.CustomChatColorArchivingContext
     ) -> MessageBackup.ArchiveAccountDataResult {
+        return context.bencher.processFrame { frameBencher in
+            guard let localProfile = profileManager.getUserProfileForLocalUser(tx: context.tx) else {
+                return .failure(.archiveFrameError(.missingLocalProfile, .localUser))
+            }
+            guard let profileKeyData = localProfile.profileKey?.keyData else {
+                return .failure(.archiveFrameError(.missingLocalProfileKey, .localUser))
+            }
 
-        guard let localProfile = profileManager.getUserProfileForLocalUser(tx: context.tx) else {
-            return .failure(.archiveFrameError(.missingLocalProfile, .localUser))
-        }
-        guard let profileKeyData = localProfile.profileKey?.keyData else {
-            return .failure(.archiveFrameError(.missingLocalProfileKey, .localUser))
-        }
+            var accountData = BackupProto_AccountData()
+            accountData.profileKey = profileKeyData
+            accountData.givenName = localProfile.givenName ?? ""
+            accountData.familyName = localProfile.familyName ?? ""
+            accountData.avatarURLPath = localProfile.avatarUrlPath ?? ""
 
-        var accountData = BackupProto_AccountData()
-        accountData.profileKey = profileKeyData
-        accountData.givenName = localProfile.givenName ?? ""
-        accountData.familyName = localProfile.familyName ?? ""
-        accountData.avatarURLPath = localProfile.avatarUrlPath ?? ""
+            if let donationSubscriberId = donationSubscriptionManager.getSubscriberID(tx: context.tx) {
+                var donationSubscriberData = BackupProto_AccountData.SubscriberData()
+                donationSubscriberData.subscriberID = donationSubscriberId
+                donationSubscriberData.currencyCode = donationSubscriptionManager.getSubscriberCurrencyCode(tx: context.tx) ?? ""
+                donationSubscriberData.manuallyCancelled = donationSubscriptionManager.userManuallyCancelledSubscription(tx: context.tx)
 
-        if let donationSubscriberId = subscriptionManager.getSubscriberID(tx: context.tx) {
-            var donationSubscriberData = BackupProto_AccountData.SubscriberData()
-            donationSubscriberData.subscriberID = donationSubscriberId
-            donationSubscriberData.currencyCode = subscriptionManager.getSubscriberCurrencyCode(tx: context.tx) ?? ""
-            donationSubscriberData.manuallyCancelled = subscriptionManager.userManuallyCancelledSubscription(tx: context.tx)
+                accountData.donationSubscriberData = donationSubscriberData
+            }
 
-            accountData.donationSubscriberData = donationSubscriberData
-        }
+            if let result = buildUsernameLinkProto(context: context) {
+                accountData.username = result.username
+                accountData.usernameLink = result.usernameLink
+            }
 
-        if let result = buildUsernameLinkProto(context: context) {
-            accountData.username = result.username
-            accountData.usernameLink = result.usernameLink
-        }
+            let accountSettingsResult = buildAccountSettingsProto(context: context)
+            switch accountSettingsResult {
+            case .success(let accountSettings):
+                accountData.accountSettings = accountSettings
+            case .failure(let error):
+                return .failure(error)
+            }
 
-        let accountSettingsResult = buildAccountSettingsProto(context: context)
-        switch accountSettingsResult {
-        case .success(let accountSettings):
-            accountData.accountSettings = accountSettings
-        case .failure(let error):
-            return .failure(error)
-        }
+            if
+                context.includedContentFilter.shouldIncludePin,
+                let pin = ows2FAManager.getPin(tx: context.tx)
+            {
+                accountData.svrPin = pin
+            }
 
-        let error = Self.writeFrameToStream(stream, objectId: MessageBackup.AccountDataId.localUser) {
-            var frame = BackupProto_Frame()
-            frame.item = .account(accountData)
-            return frame
-        }
+            let error = Self.writeFrameToStream(
+                stream,
+                objectId: MessageBackup.AccountDataId.localUser,
+                frameBencher: frameBencher
+            ) {
+                var frame = BackupProto_Frame()
+                frame.item = .account(accountData)
+                return frame
+            }
 
-        if let error {
-            return .failure(error)
-        } else {
-            return .success(())
+            if let error {
+                return .failure(error)
+            } else {
+                return .success(())
+            }
         }
     }
 
@@ -203,17 +205,16 @@ public class MessageBackupAccountDataArchiverImpl: MessageBackupAccountDataArchi
             for: .universal,
             tx: context.tx
         ).durationSeconds
-        let displayBadgesOnProfile = subscriptionManager.displayBadgesOnProfile(tx: context.tx)
+        let displayBadgesOnProfile = donationSubscriptionManager.displayBadgesOnProfile(tx: context.tx)
         let keepMutedChatsArchived = sskPreferences.shouldKeepMutedChatsArchived(tx: context.tx)
         let hasSetMyStoriesPrivacy = storyManager.hasSetMyStoriesPrivacy(tx: context.tx)
         let hasViewedOnboardingStory = systemStoryManager.isOnboardingStoryViewed(tx: context.tx)
         let storiesDisabled = storyManager.areStoriesEnabled(tx: context.tx).negated
         let hasSeenGroupStoryEducationSheet = systemStoryManager.hasSeenGroupStoryEducationSheet(tx: context.tx)
         let hasCompletedUsernameOnboarding = usernameEducationManager.shouldShowUsernameEducation(tx: context.tx).negated
-        let phoneNumberSharingMode: BackupProto_AccountData.PhoneNumberSharingMode = switch udManager.phoneNumberSharingMode(tx: context.tx) {
+        let phoneNumberSharingMode: BackupProto_AccountData.PhoneNumberSharingMode = switch udManager.phoneNumberSharingMode(tx: context.tx).orDefault {
         case .everybody: .everybody
         case .nobody: .nobody
-        case .none: .unknown
         }
 
         // Populate the proto with the settings
@@ -263,9 +264,12 @@ public class MessageBackupAccountDataArchiverImpl: MessageBackupAccountDataArchi
         return .success(accountSettings)
     }
 
-    public func restore(
+    // MARK: -
+
+    func restore(
         _ accountData: BackupProto_AccountData,
-        context: MessageBackup.CustomChatColorRestoringContext
+        chatColorsContext context: MessageBackup.CustomChatColorRestoringContext,
+        chatItemContext: MessageBackup.ChatItemRestoringContext
     ) -> MessageBackup.RestoreAccountDataResult {
         guard let profileKey = Aes256Key(data: accountData.profileKey) else {
             return .failure([.restoreFrameError(
@@ -289,10 +293,30 @@ public class MessageBackupAccountDataArchiverImpl: MessageBackupAccountDataArchi
         // Restore donation subscription data, if present.
         if accountData.hasDonationSubscriberData {
             let donationSubscriberData = accountData.donationSubscriberData
-            subscriptionManager.setSubscriberID(subscriberID: donationSubscriberData.subscriberID, tx: context.tx)
-            subscriptionManager.setSubscriberCurrencyCode(currencyCode: donationSubscriberData.currencyCode, tx: context.tx)
-            subscriptionManager.setUserManuallyCancelledSubscription(value: donationSubscriberData.manuallyCancelled, tx: context.tx)
+            donationSubscriptionManager.setSubscriberID(subscriberID: donationSubscriberData.subscriberID, tx: context.tx)
+            donationSubscriptionManager.setSubscriberCurrencyCode(currencyCode: donationSubscriberData.currencyCode, tx: context.tx)
+            donationSubscriptionManager.setUserManuallyCancelledSubscription(value: donationSubscriberData.manuallyCancelled, tx: context.tx)
         }
+
+        let uploadEra: MessageBackup.RestoredAttachmentUploadEra
+        if accountData.hasBackupsSubscriberData {
+            let backupsSubscriberData = accountData.backupsSubscriberData
+            do {
+                uploadEra = .fromProtoSubscriberId(try Attachment.uploadEra(
+                    backupSubscriptionId: backupsSubscriberData.subscriberID
+                ))
+            } catch {
+                return .failure([.restoreFrameError(
+                    .uploadEraDerivationFailed(error),
+                    .localUser
+                )])
+            }
+        } else {
+            uploadEra = .random(UUID().uuidString)
+        }
+        // This MUST get set before we restore custom chat colors/wallpapers.
+        context.uploadEra = uploadEra
+        chatItemContext.uploadEra = uploadEra
 
         // Restore local settings
         if accountData.hasAccountSettings {
@@ -319,7 +343,7 @@ public class MessageBackupAccountDataArchiverImpl: MessageBackupAccountDataArchi
             if settings.preferredReactionEmoji.count > 0 {
                 reactionManager.setCustomEmojiSet(emojis: settings.preferredReactionEmoji, tx: context.tx)
             }
-            subscriptionManager.setDisplayBadgesOnProfile(value: settings.displayBadgesOnProfile, tx: context.tx)
+            donationSubscriptionManager.setDisplayBadgesOnProfile(value: settings.displayBadgesOnProfile, tx: context.tx)
             sskPreferences.setShouldKeepMutedChatsArchived(value: settings.keepMutedChatsArchived, tx: context.tx)
             storyManager.setHasSetMyStoriesPrivacy(value: settings.hasSetMyStoriesPrivacy_p, tx: context.tx)
             systemStoryManager.setHasViewedOnboardingStory(value: settings.hasViewedOnboardingStory_p, tx: context.tx)
@@ -350,6 +374,8 @@ public class MessageBackupAccountDataArchiverImpl: MessageBackupAccountDataArchi
             switch customChatColorsResult {
             case .success:
                 break
+            case .unrecognizedEnum:
+                return customChatColorsResult
             case .partialRestore(let errors):
                 partialErrors.append(contentsOf: errors)
             case .failure(let errors):
@@ -372,6 +398,8 @@ public class MessageBackupAccountDataArchiverImpl: MessageBackupAccountDataArchi
             switch defaultChatStyleResult {
             case .success:
                 break
+            case .unrecognizedEnum:
+                return defaultChatStyleResult
             case .partialRestore(let errors):
                 partialErrors.append(contentsOf: errors)
             case .failure(let errors):
@@ -396,6 +424,10 @@ public class MessageBackupAccountDataArchiverImpl: MessageBackupAccountDataArchi
             localUsernameManager.setUsernameLinkQRCodeColor(color: usernameLink.color.qrCodeColor, tx: context.tx)
         }
 
+        if !accountData.svrPin.isEmpty {
+            ows2FAManager.restorePinFromBackup(accountData.svrPin, tx: context.tx)
+        }
+
         if partialErrors.isEmpty {
             return .success
         } else {
@@ -404,7 +436,9 @@ public class MessageBackupAccountDataArchiverImpl: MessageBackupAccountDataArchi
     }
 }
 
-private extension Usernames.QRCodeColor {
+// MARK: -
+
+private extension QRCodeColor {
     var backupProtoColor: BackupProto_AccountData.UsernameLink.Color {
         switch self {
         case .blue: return .blue
@@ -420,7 +454,7 @@ private extension Usernames.QRCodeColor {
 }
 
 private extension BackupProto_AccountData.UsernameLink.Color {
-    var qrCodeColor: Usernames.QRCodeColor {
+    var qrCodeColor: QRCodeColor {
         switch self {
         case .blue: return .blue
         case .white: return .white

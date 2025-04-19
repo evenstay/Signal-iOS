@@ -92,10 +92,10 @@ extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyUsernameDisplayNameBef
                             sortId:(uint64_t)sortId
                          timestamp:(uint64_t)timestamp
                     uniqueThreadId:(NSString *)uniqueThreadId
-                     attachmentIds:(NSArray<NSString *> *)attachmentIds
                               body:(nullable NSString *)body
                         bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                       contactShare:(nullable OWSContact *)contactShare
+          deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                          editState:(TSEditState)editState
                    expireStartedAt:(uint64_t)expireStartedAt
                 expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -137,10 +137,10 @@ extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyUsernameDisplayNameBef
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -165,16 +165,16 @@ extern InfoMessageUserInfoKey const InfoMessageUserInfoKeyUsernameDisplayNameBef
                             read:(BOOL)read
                       serverGuid:(nullable NSString *)serverGuid
              unregisteredAddress:(nullable SignalServiceAddress *)unregisteredAddress
-NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp:sortId:timestamp:uniqueThreadId:attachmentIds:body:bodyRanges:contactShare:editState:expireStartedAt:expireTimerVersion:expiresAt:expiresInSeconds:giftBadge:isGroupStoryReply:isSmsMessageRestoredFromBackup:isViewOnceComplete:isViewOnceMessage:linkPreview:messageSticker:quotedMessage:storedShouldStartExpireTimer:storyAuthorUuidString:storyReactionEmoji:storyTimestamp:wasRemotelyDeleted:customMessage:infoMessageUserInfo:messageType:read:serverGuid:unregisteredAddress:));
+NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp:sortId:timestamp:uniqueThreadId:body:bodyRanges:contactShare:deprecated_attachmentIds:editState:expireStartedAt:expireTimerVersion:expiresAt:expiresInSeconds:giftBadge:isGroupStoryReply:isSmsMessageRestoredFromBackup:isViewOnceComplete:isViewOnceMessage:linkPreview:messageSticker:quotedMessage:storedShouldStartExpireTimer:storyAuthorUuidString:storyReactionEmoji:storyTimestamp:wasRemotelyDeleted:customMessage:infoMessageUserInfo:messageType:read:serverGuid:unregisteredAddress:));
 
 // clang-format on
 
 // --- CODE GENERATION MARKER
 
-- (NSString *)conversationSystemMessageComponentTextWithTransaction:(SDSAnyReadTransaction *)transaction;
+- (NSString *)conversationSystemMessageComponentTextWithTransaction:(DBReadTransaction *)transaction;
 
 
-- (NSString *)infoMessagePreviewTextWithTransaction:(SDSAnyReadTransaction *)transaction;
+- (NSString *)infoMessagePreviewTextWithTransaction:(DBReadTransaction *)transaction;
 
 @end
 

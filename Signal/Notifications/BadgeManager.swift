@@ -40,7 +40,7 @@ public class BadgeManager {
             fetchBadgeCountBlock: {
                 return databaseStorage.read { tx -> BadgeCount in
                     return DependenciesBridge.shared.badgeCountFetcher
-                        .fetchBadgeCount(tx: tx.asV2Read)
+                        .fetchBadgeCount(tx: tx)
                 }
             }
         )
@@ -101,8 +101,9 @@ public class BadgeManager {
         fetchBadgeValueIfNeeded()
     }
 
-    public func startObservingChanges(in databaseStorage: SDSDatabaseStorage) {
-        databaseStorage.appendDatabaseChangeDelegate(self)
+    @MainActor
+    public func startObservingChanges(in databaseChangeObserver: DatabaseChangeObserver) {
+        databaseChangeObserver.appendDatabaseChangeDelegate(self)
     }
 }
 

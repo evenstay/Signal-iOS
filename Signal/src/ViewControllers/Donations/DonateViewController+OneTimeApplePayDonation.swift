@@ -30,8 +30,8 @@ extension DonateViewController {
 
         let boostBadge = oneTime.profileBadge
 
-        firstly(on: DispatchQueue.global()) {
-            Stripe.boost(
+        Promise.wrapAsync {
+            try await Stripe.boost(
                 amount: amount,
                 level: .boostBadge,
                 for: .applePay(payment: payment)
@@ -44,16 +44,18 @@ extension DonateViewController {
 
             wrappedCompletion(.init(status: .success, errors: nil))
 
-            let redemptionJob = SubscriptionManagerImpl.requestAndRedeemReceipt(
-                boostPaymentIntentId: confirmedIntent.paymentIntentId,
-                amount: amount,
-                paymentProcessor: .stripe,
-                paymentMethod: .applePay
-            )
+            let redemptionPromise = Promise.wrapAsync {
+                try await DonationSubscriptionManager.requestAndRedeemReceipt(
+                    boostPaymentIntentId: confirmedIntent.paymentIntentId,
+                    amount: amount,
+                    paymentProcessor: .stripe,
+                    paymentMethod: .applePay
+                )
+            }
 
             DonationViewsUtil.wrapPromiseInProgressView(
                 from: self,
-                promise: DonationViewsUtil.waitForRedemptionJob(redemptionJob, paymentMethod: .applePay)
+                promise: DonationViewsUtil.waitForRedemptionJob(redemptionPromise, paymentMethod: .applePay)
             ).done(on: DispatchQueue.main) {
                 self.didCompleteDonation(
                     receiptCredentialSuccessMode: .oneTimeBoost

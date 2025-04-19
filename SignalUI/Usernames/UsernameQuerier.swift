@@ -22,19 +22,16 @@ public struct UsernameQuerier {
     private let usernameLookupManager: UsernameLookupManager
 
     public init() {
-        struct Deps: Dependencies {}
-        let deps = Deps()
-
         self.init(
-            contactsManager: deps.contactsManager,
-            databaseStorage: deps.databaseStorage,
+            contactsManager: SSKEnvironment.shared.contactManagerRef,
+            databaseStorage: SSKEnvironment.shared.databaseStorageRef,
             localUsernameManager: DependenciesBridge.shared.localUsernameManager,
-            networkManager: deps.networkManager,
-            profileManager: deps.profileManager,
+            networkManager: SSKEnvironment.shared.networkManagerRef,
+            profileManager: SSKEnvironment.shared.profileManagerRef,
             recipientManager: DependenciesBridge.shared.recipientManager,
             recipientFetcher: DependenciesBridge.shared.recipientFetcher,
             schedulers: DependenciesBridge.shared.schedulers,
-            storageServiceManager: deps.storageServiceManager,
+            storageServiceManager: SSKEnvironment.shared.storageServiceManagerRef,
             tsAccountManager: DependenciesBridge.shared.tsAccountManager,
             usernameApiClient: DependenciesBridge.shared.usernameApiClient,
             usernameLinkManager: DependenciesBridge.shared.usernameLinkManager,
@@ -75,13 +72,13 @@ public struct UsernameQuerier {
     public func queryForUsernameLink(
         link: Usernames.UsernameLink,
         fromViewController: UIViewController,
-        tx: SDSAnyReadTransaction,
+        tx: DBReadTransaction,
         failureSheetDismissalDelegate: (any SheetDismissalDelegate)? = nil,
         onSuccess: @escaping (_ username: String, _ aci: Aci) -> Void
     ) {
-        let usernameState = localUsernameManager.usernameState(tx: tx.asV2Read)
+        let usernameState = localUsernameManager.usernameState(tx: tx)
         if
-            let localAci = tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci,
+            let localAci = tsAccountManager.localIdentifiers(tx: tx)?.aci,
             let localLink = usernameState.usernameLink,
             let localUsername = usernameState.username,
             localLink == link
@@ -139,13 +136,13 @@ public struct UsernameQuerier {
     public func queryForUsername(
         username: String,
         fromViewController: UIViewController,
-        tx: SDSAnyReadTransaction,
+        tx: DBReadTransaction,
         failureSheetDismissalDelegate: (any SheetDismissalDelegate)? = nil,
         onSuccess: @escaping (Aci) -> Void
     ) {
         if
-            let localAci = tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci,
-            let localUsername = localUsernameManager.usernameState(tx: tx.asV2Read).username,
+            let localAci = tsAccountManager.localIdentifiers(tx: tx)?.aci,
+            let localUsername = localUsernameManager.usernameState(tx: tx).username,
             localUsername.caseInsensitiveCompare(username) == .orderedSame
         {
             queryMatchedLocalUser(onSuccess: onSuccess, localAci: localAci, tx: tx)
@@ -184,7 +181,7 @@ public struct UsernameQuerier {
     private func queryMatchedLocalUser(
         onSuccess: @escaping (Aci) -> Void,
         localAci: Aci,
-        tx _: SDSAnyReadTransaction
+        tx _: DBReadTransaction
     ) {
         // Dispatch asynchronously, since we are inside a transaction.
         schedulers.main.async {
@@ -241,10 +238,10 @@ public struct UsernameQuerier {
     private func handleUsernameLookupCompleted(
         aci: Aci,
         username: String,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
-        let recipient = recipientFetcher.fetchOrCreate(serviceId: aci, tx: tx.asV2Write)
-        recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: true, tx: tx.asV2Write)
+        let recipient = recipientFetcher.fetchOrCreate(serviceId: aci, tx: tx)
+        recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: true, tx: tx)
 
         let isUsernameBestIdentifier = Usernames.BetterIdentifierChecker.assembleByQuerying(
             forRecipient: recipient,
@@ -260,7 +257,7 @@ public struct UsernameQuerier {
             usernameLookupManager.saveUsername(
                 username,
                 forAci: aci,
-                transaction: tx.asV2Write
+                transaction: tx
             )
 
             storageServiceManager.recordPendingUpdates(updatedRecipientUniqueIds: [recipient.uniqueId])
@@ -271,7 +268,7 @@ public struct UsernameQuerier {
             usernameLookupManager.saveUsername(
                 nil,
                 forAci: aci,
-                transaction: tx.asV2Write
+                transaction: tx
             )
         }
     }

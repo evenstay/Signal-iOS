@@ -10,7 +10,7 @@ public class TSAccountManagerImpl: TSAccountManager {
 
     private let appReadiness: AppReadiness
     private let dateProvider: DateProvider
-    private let db: DB
+    private let db: any DB
     private let schedulers: Schedulers
 
     private let kvStore: KeyValueStore
@@ -21,8 +21,8 @@ public class TSAccountManagerImpl: TSAccountManager {
     public init(
         appReadiness: AppReadiness,
         dateProvider: @escaping DateProvider,
-        db: DB,
-        keyValueStoreFactory: KeyValueStoreFactory,
+        databaseChangeObserver: DatabaseChangeObserver,
+        db: any DB,
         schedulers: Schedulers
     ) {
         self.appReadiness = appReadiness
@@ -30,13 +30,13 @@ public class TSAccountManagerImpl: TSAccountManager {
         self.db = db
         self.schedulers = schedulers
 
-        let kvStore = keyValueStoreFactory.keyValueStore(
+        let kvStore = KeyValueStore(
             collection: "TSStorageUserAccountCollection"
         )
         self.kvStore = kvStore
 
         appReadiness.runNowOrWhenMainAppDidBecomeReadyAsync {
-            self.db.appendDbChangeDelegate(self)
+            databaseChangeObserver.appendDatabaseChangeDelegate(self)
         }
     }
 
@@ -90,11 +90,11 @@ public class TSAccountManagerImpl: TSAccountManager {
         return getOrLoadAccountState(tx: tx).serverAuthToken
     }
 
-    public var storedDeviceIdWithMaybeTransaction: UInt32 {
+    public var storedDeviceIdWithMaybeTransaction: LocalDeviceId {
         return getOrLoadAccountStateWithMaybeTransaction().deviceId
     }
 
-    public func storedDeviceId(tx: DBReadTransaction) -> UInt32 {
+    public func storedDeviceId(tx: DBReadTransaction) -> LocalDeviceId {
         return getOrLoadAccountState(tx: tx).deviceId
     }
 
@@ -117,6 +117,11 @@ public class TSAccountManagerImpl: TSAccountManager {
             nounForLogging: "PNI registration ID",
             tx: tx
         )
+    }
+
+    public func wipeRegistrationIdsFromFailedProvisioning(tx: DBWriteTransaction) {
+        kvStore.removeValue(forKey: Self.aciRegistrationIdKey, transaction: tx)
+        kvStore.removeValue(forKey: Self.pniRegistrationIdKey, transaction: tx)
     }
 
     public func setPniRegistrationId(_ newRegistrationId: UInt32, tx: DBWriteTransaction) {
@@ -188,7 +193,7 @@ extension TSAccountManagerImpl: LocalIdentifiersSetter {
         e164: E164,
         aci: Aci,
         pni: Pni,
-        deviceId: UInt32,
+        deviceId: DeviceId,
         serverAuthToken: String,
         tx: DBWriteTransaction
     ) {
@@ -206,8 +211,8 @@ extension TSAccountManagerImpl: LocalIdentifiersSetter {
             // Encoded without the "PNI:" prefix for backwards compatibility.
             kvStore.setString(pni.rawUUID.uuidString, key: Keys.localPni, transaction: tx)
 
-            Self.regStateLogger.info("device id is primary? \(deviceId == OWSDevice.primaryDeviceId)")
-            kvStore.setUInt32(deviceId, key: Keys.deviceId, transaction: tx)
+            Self.regStateLogger.info("device id is primary? \(deviceId == .primary)")
+            kvStore.setUInt32(deviceId.uint32Value, key: Keys.deviceId, transaction: tx)
             kvStore.setString(serverAuthToken, key: Keys.serverAuthToken, transaction: tx)
 
             kvStore.setDate(dateProvider(), key: Keys.registrationDate, transaction: tx)
@@ -325,13 +330,16 @@ extension TSAccountManagerImpl: LocalIdentifiersSetter {
     }
 }
 
-extension TSAccountManagerImpl: DBChangeDelegate {
+extension TSAccountManagerImpl: DatabaseChangeDelegate {
+    public func databaseChangesDidUpdate(databaseChanges: any DatabaseChanges) {}
 
-    public func dbChangesDidUpdateExternally() {
+    public func databaseChangesDidUpdateExternally() {
         self.db.read { tx in
             _ = reloadAccountState(logger: nil, tx: tx)
         }
     }
+
+    public func databaseChangesDidReset() {}
 }
 
 extension TSAccountManagerImpl {
@@ -415,7 +423,7 @@ extension TSAccountManagerImpl {
 
         let localIdentifiers: LocalIdentifiers?
 
-        let deviceId: UInt32
+        let deviceId: LocalDeviceId
 
         let serverAuthToken: String?
 
@@ -453,12 +461,18 @@ extension TSAccountManagerImpl {
             )
             self.localIdentifiers = localIdentifiers
 
-            let persistedDeviceId = kvStore.getUInt32(
-                Keys.deviceId,
-                transaction: tx
-            )
-            // Assume primary, for backwards compatibility.
-            self.deviceId = persistedDeviceId ?? OWSDevice.primaryDeviceId
+            let persistedDeviceId = kvStore.getUInt32(Keys.deviceId, transaction: tx)
+
+            if let persistedDeviceId {
+                if let validatedDeviceId = DeviceId(validating: persistedDeviceId) {
+                    self.deviceId = .valid(validatedDeviceId)
+                } else {
+                    self.deviceId = .invalid
+                }
+            } else {
+                // Assume primary, for backwards compatibility.
+                self.deviceId = .valid(.primary)
+            }
 
             self.serverAuthToken = kvStore.getString(Keys.serverAuthToken, transaction: tx)
 

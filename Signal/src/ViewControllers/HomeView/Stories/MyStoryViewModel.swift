@@ -6,7 +6,7 @@
 import Foundation
 import SignalServiceKit
 
-struct MyStoryViewModel: Dependencies {
+struct MyStoryViewModel {
     let messages: [StoryMessage]
 
     let latestMessageIdentifier: InteractionSnapshotIdentifier?
@@ -24,7 +24,7 @@ struct MyStoryViewModel: Dependencies {
     let secondLatestMessageIdentifier: InteractionSnapshotIdentifier?
     let secondLatestMessageAttachment: StoryThumbnailView.Attachment?
 
-    init(messages: [StoryMessage], transaction: SDSAnyReadTransaction) {
+    init(messages: [StoryMessage], transaction: DBReadTransaction) {
         sendingCount = messages.reduce(0) {
             $0 + ([.sending, .pending].contains($1.sendingState) ? 1 : 0)
         }

@@ -5,18 +5,19 @@
 
 import Foundation
 import SignalServiceKit
+import SignalUI
 
 extension ConversationViewController {
     func checkPermissionsAndStartRecordingVoiceMessage() {
         AssertIsOnMainThread()
 
         // Cancel any ongoing audio playback.
-        cvAudioPlayer.stopAll()
+        AppEnvironment.shared.cvAudioPlayerRef.stopAll()
 
         let inProgressVoiceMessage = VoiceMessageInProgressDraft(
             thread: thread,
-            audioSession: audioSession,
-            sleepManager: deviceSleepManager
+            audioSession: SUIEnvironment.shared.audioSessionRef,
+            sleepManager: DependenciesBridge.shared.deviceSleepManager!
         )
         viewState.inProgressVoiceMessage = inProgressVoiceMessage
 
@@ -92,7 +93,7 @@ extension ConversationViewController {
         if sendImmediately {
             sendVoiceMessageDraft(inProgressVoiceMessage)
         } else {
-            databaseStorage.asyncWrite {
+            SSKEnvironment.shared.databaseStorageRef.asyncWrite {
                 let interruptedDraft = inProgressVoiceMessage.convertToDraft(transaction: $0)
                 DispatchQueue.main.async {
                     self.inputToolbar?.showVoiceMemoDraft(interruptedDraft)
@@ -113,7 +114,7 @@ extension ConversationViewController {
     }
 
     func clearVoiceMessageDraft() {
-        databaseStorage.asyncWrite { [thread] in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { [thread] in
             VoiceMessageInterruptedDraftStore.clearDraft(for: thread, transaction: $0)
         }
     }

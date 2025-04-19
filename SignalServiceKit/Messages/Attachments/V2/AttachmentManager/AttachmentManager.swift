@@ -62,12 +62,12 @@ public protocol AttachmentManager {
         tx: DBReadTransaction
     ) -> QuotedAttachmentInfo?
 
-    /// Given a quote thumbnail source and a new message owner for that quote,
-    /// creates a thumbnail attachment and an owner reference to it.
-    func createQuotedReplyMessageThumbnail(
-        consuming: OwnedQuotedReplyAttachmentDataSource,
+    /// Given a quote thumbnail source, creates a builder for a thumbnail
+    /// attachment (if necessary) and an owner reference to it.
+    func createQuotedReplyMessageThumbnailBuilder(
+        from dataSource: QuotedReplyAttachmentDataSource,
         tx: DBWriteTransaction
-    ) throws
+    ) -> OwnedAttachmentBuilder<QuotedAttachmentInfo>
 
     // MARK: - Removing Attachments
 
@@ -75,8 +75,7 @@ public protocol AttachmentManager {
     /// Will only delete the attachment if this is the last owner.
     /// Typically because the owner has been deleted.
     func removeAttachment(
-        _ attachment: Attachment,
-        from owner: AttachmentReference.OwnerId,
+        reference: AttachmentReference,
         tx: DBWriteTransaction
     ) throws
 
@@ -117,6 +116,39 @@ extension AttachmentManager {
         try createAttachmentStreams(
             consuming: [dataSource],
             tx: tx
+        )
+    }
+}
+
+// MARK: - OwnedAttachmentBuilder convenience
+
+extension AttachmentManager {
+
+    public func createAttachmentPointerBuilder(
+        from proto: SSKProtoAttachmentPointer,
+        tx: DBWriteTransaction
+    ) throws -> OwnedAttachmentBuilder<Void> {
+        return OwnedAttachmentBuilder<Void>(
+            finalize: { [self] owner, innerTx in
+                return try self.createAttachmentPointer(
+                    from: .init(proto: proto, owner: owner),
+                    tx: innerTx
+                )
+            }
+        )
+    }
+
+    public func createAttachmentStreamBuilder(
+        from dataSource: AttachmentDataSource,
+        tx: DBWriteTransaction
+    ) throws -> OwnedAttachmentBuilder<Void> {
+        return OwnedAttachmentBuilder<Void>(
+            finalize: { [self] owner, innerTx in
+                return try self.createAttachmentStream(
+                    consuming: .init(dataSource: dataSource, owner: owner),
+                    tx: innerTx
+                )
+            }
         )
     }
 }

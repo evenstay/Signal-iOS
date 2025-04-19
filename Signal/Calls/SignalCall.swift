@@ -12,6 +12,13 @@ enum CallMode {
     case groupThread(GroupThreadCall)
     case callLink(CallLinkCall)
 
+    init(groupCall: GroupCall) {
+        switch groupCall.concreteType {
+        case .groupThread(let call): self = .groupThread(call)
+        case .callLink(let call): self = .callLink(call)
+        }
+    }
+
     var commonState: CommonCallState {
         switch self {
         case .individual(let call):
@@ -127,7 +134,7 @@ enum CallMode {
         switch (self, callTarget) {
         case (.individual(let call), .individual(let thread)) where call.thread.uniqueId == thread.uniqueId:
             return true
-        case (.groupThread(let call), .groupThread(let thread)) where call.groupThread.uniqueId == thread.uniqueId:
+        case (.groupThread(let call), .groupThread(let groupId)) where call.groupId.serialize() == groupId.serialize():
             return true
         case (.callLink(let call), .callLink(let callLink)) where call.callLink.rootKey.bytes == callLink.rootKey.bytes:
             return true

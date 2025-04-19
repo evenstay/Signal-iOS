@@ -13,8 +13,7 @@ import UIKit
 /// sent to (if sent to a group).
 /// Outgoing story threads are not represented, but this table could be extended to include
 /// them in the future.
-@objc
-public final class StoryContextAssociatedData: NSObject, SDSCodableModel, Decodable {
+public final class StoryContextAssociatedData: SDSCodableModel, Decodable {
     public static var recordType: UInt { 0 }
 
     public static let databaseTableName = "model_StoryContextAssociatedData"
@@ -33,7 +32,6 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel, Decoda
     }
 
     public var id: Int64?
-    @objc
     public let uniqueId: String
 
     public enum SourceContext: Hashable {
@@ -130,8 +128,6 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel, Decoda
         self.lastReadTimestamp = lastReadTimestamp
         self.lastViewedTimestamp = lastViewedTimestamp
 
-        super.init()
-
         updateLatestUnexpiredTimestampIfNeeded()
         updateLastReadTimestampIfNeeded()
     }
@@ -142,7 +138,7 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel, Decoda
         lastReceivedTimestamp: UInt64? = nil,
         lastReadTimestamp: UInt64? = nil,
         lastViewedTimestamp: UInt64? = nil,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         var didTouchStorageServiceProperty = false
 
@@ -164,12 +160,12 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel, Decoda
 
         if
             let storedCopy = StoryFinder.getAssociatedData(forContext: sourceContext, transaction: transaction),
-            storedCopy != self
+            storedCopy !== self
         {
             // Update the existing record.
             block(storedCopy)
             do {
-                try storedCopy.update(transaction.unwrapGrdbWrite.database)
+                try storedCopy.update(transaction.database)
             } catch {
                 owsFailDebug("Unexpectedly failed to update \(error)")
             }
@@ -178,7 +174,7 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel, Decoda
             // Insert this new record.
             block(self)
             do {
-                try self.insert(transaction.unwrapGrdbWrite.database)
+                try self.insert(transaction.database)
             } catch {
                 owsFailDebug("Unexpectedly failed to insert \(error)")
             }
@@ -190,9 +186,9 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel, Decoda
                 guard let thread = TSGroupThread.fetch(groupId: groupId, transaction: transaction) else {
                     return owsFailDebug("Unexpectedly missing thread for storage service update.")
                 }
-                storageServiceManager.recordPendingUpdates(groupModel: thread.groupModel)
+                SSKEnvironment.shared.storageServiceManagerRef.recordPendingUpdates(groupModel: thread.groupModel)
             case .contact(let contactAci):
-                storageServiceManager.recordPendingUpdates(updatedAddresses: [SignalServiceAddress(contactAci)])
+                SSKEnvironment.shared.storageServiceManagerRef.recordPendingUpdates(updatedAddresses: [SignalServiceAddress(contactAci)])
             }
         }
 
@@ -207,7 +203,7 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel, Decoda
         }
     }
 
-    public func recomputeLatestUnexpiredTimestamp(transaction: SDSAnyWriteTransaction) {
+    public func recomputeLatestUnexpiredTimestamp(transaction: DBWriteTransaction) {
         var latestUnexpiredTimestamp: UInt64?
         StoryFinder.enumerateStoriesForContext(
             self.sourceContext.asStoryContext,
@@ -225,12 +221,12 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel, Decoda
 
         if
             let storedCopy = StoryFinder.getAssociatedData(forContext: sourceContext, transaction: transaction),
-            storedCopy != self
+            storedCopy !== self
         {
             // Update the existing record.
             block(storedCopy)
             do {
-                try storedCopy.update(transaction.unwrapGrdbWrite.database)
+                try storedCopy.update(transaction.database)
             } catch {
                 owsFailDebug("Unexpectedly failed to update \(error)")
             }
@@ -239,7 +235,7 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel, Decoda
             // Insert this new record.
             block(self)
             do {
-                try self.insert(transaction.unwrapGrdbWrite.database)
+                try self.insert(transaction.database)
             } catch {
                 owsFailDebug("Unexpectedly failed to insert \(error)")
             }
@@ -250,7 +246,7 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel, Decoda
 
     public static func fetchOrDefault(
         sourceContext: SourceContext,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> StoryContextAssociatedData {
         if let existing = StoryFinder.getAssociatedData(forContext: sourceContext, transaction: transaction) {
             return existing
@@ -275,8 +271,6 @@ public final class StoryContextAssociatedData: NSObject, SDSCodableModel, Decoda
         lastReceivedTimestamp = try container.decodeIfPresent(UInt64.self, forKey: .lastReceivedTimestamp)
         lastReadTimestamp = try container.decodeIfPresent(UInt64.self, forKey: .lastReadTimestamp)
         lastViewedTimestamp = try container.decodeIfPresent(UInt64.self, forKey: .lastViewedTimestamp)
-
-        super.init()
 
         updateLastReadTimestampIfNeeded()
     }

@@ -28,8 +28,8 @@ public class MessageFetchBGRefreshTask {
         }
         let value = MessageFetchBGRefreshTask(
             dateProvider: { Date() },
-            messageFetcherJob: NSObject.messageFetcherJob,
-            ows2FAManager: .shared,
+            messageFetcherJob: SSKEnvironment.shared.messageFetcherJobRef,
+            ows2FAManager: SSKEnvironment.shared.ows2FAManagerRef,
             tsAccountManager: DependenciesBridge.shared.tsAccountManager
         )
         _shared = value
@@ -108,7 +108,7 @@ public class MessageFetchBGRefreshTask {
         appReadiness.runNowOrWhenAppDidBecomeReadySync {
             self.messageFetcherJob.run()
                 .then {
-                    return NSObject.messageProcessor.waitForFetchingAndProcessing()
+                    return SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing()
                 }
                 .timeout(seconds: 10)
                 .observe { result in

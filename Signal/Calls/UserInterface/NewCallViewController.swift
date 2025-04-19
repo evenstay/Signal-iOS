@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import SignalUI
 import SignalServiceKit
 
@@ -37,8 +38,8 @@ class NewCallViewController: RecipientPickerContainerViewController {
 
     private var callStarterContext: CallStarter.Context {
         .init(
-            blockingManager: blockingManager,
-            databaseStorage: databaseStorage,
+            blockingManager: SSKEnvironment.shared.blockingManagerRef,
+            databaseStorage: SSKEnvironment.shared.databaseStorageRef,
             callService: AppEnvironment.shared.callService
         )
     }
@@ -52,9 +53,9 @@ class NewCallViewController: RecipientPickerContainerViewController {
 
     }
 
-    private func startGroupCall(thread: TSGroupThread) {
+    private func startGroupCall(groupId: GroupIdentifier) {
         self.startCall(callStarter: CallStarter(
-            groupThread: thread,
+            groupId: groupId,
             context: self.callStarterContext
         ))
     }
@@ -120,7 +121,7 @@ extension NewCallViewController: RecipientContextMenuHelperDelegate {
         [
             goToChatAction(thread: groupThread),
             startVideoCallAction { [weak self] _ in
-                self?.startGroupCall(thread: groupThread)
+                self?.startGroupCall(groupId: try! groupThread.groupIdentifier)
             }
         ]
     }
@@ -129,21 +130,25 @@ extension NewCallViewController: RecipientContextMenuHelperDelegate {
 // MARK: - RecipientPickerDelegate
 
 extension NewCallViewController: RecipientPickerDelegate, UsernameLinkScanDelegate {
-    func recipientPicker(_ recipientPickerViewController: SignalUI.RecipientPickerViewController, getRecipientState recipient: SignalUI.PickedRecipient) -> SignalUI.RecipientPickerRecipientState {
-        .canBeSelected
+    func recipientPicker(
+        _ recipientPickerViewController: RecipientPickerViewController,
+        selectionStyleForRecipient recipient: PickedRecipient,
+        transaction: DBReadTransaction
+    ) -> UITableViewCell.SelectionStyle {
+        return .default
     }
 
-    func recipientPicker(_ recipientPickerViewController: SignalUI.RecipientPickerViewController, didSelectRecipient recipient: SignalUI.PickedRecipient) {
+    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController, didSelectRecipient recipient: PickedRecipient) {
         switch recipient.identifier {
         case let .address(address):
             let thread = TSContactThread.getOrCreateThread(contactAddress: address)
             startIndividualCall(thread: thread, withVideo: false)
         case let .group(groupThread):
-            startGroupCall(thread: groupThread)
+            startGroupCall(groupId: try! groupThread.groupIdentifier)
         }
     }
 
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController, accessoryViewForRecipient recipient: PickedRecipient, transaction: SDSAnyReadTransaction) -> ContactCellAccessoryView? {
+    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController, accessoryViewForRecipient recipient: PickedRecipient, transaction: DBReadTransaction) -> ContactCellAccessoryView? {
         let stackView = UIStackView()
         stackView.axis = .horizontal
         stackView.spacing = 20
@@ -172,7 +177,7 @@ extension NewCallViewController: RecipientPickerDelegate, UsernameLinkScanDelega
         return .init(accessoryView: stackView, size: .init(width: 24 * 2 + 20, height: 24))
     }
 
-    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController, shouldAllowUserInteractionForRecipient recipient: PickedRecipient, transaction: SDSAnyReadTransaction) -> Bool {
+    func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController, shouldAllowUserInteractionForRecipient recipient: PickedRecipient, transaction: DBReadTransaction) -> Bool {
         true
     }
 }

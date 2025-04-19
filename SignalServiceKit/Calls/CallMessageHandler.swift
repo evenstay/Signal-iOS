@@ -19,18 +19,19 @@ public protocol CallMessageHandler {
     func receivedEnvelope(
         _ envelope: SSKProtoEnvelope,
         callEnvelope: CallEnvelopeType,
-        from caller: (aci: Aci, deviceId: UInt32),
+        from caller: (aci: Aci, deviceId: DeviceId),
+        toLocalIdentity localIdentity: OWSIdentity,
         plaintextData: Data,
         wasReceivedByUD: Bool,
         sentAtTimestamp: UInt64,
         serverReceivedTimestamp: UInt64,
         serverDeliveryTimestamp: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     )
 
     func receivedGroupCallUpdateMessage(
         _ updateMessage: SSKProtoDataMessageGroupCallUpdate,
-        for thread: TSGroupThread,
+        forGroupId groupId: GroupIdentifier,
         serverReceivedTimestamp: UInt64
     ) async
 }

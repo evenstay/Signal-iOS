@@ -16,7 +16,7 @@ public extension TSPrivateStoryThread {
     // NOTE: This method will fail if the object has unexpected type.
     class func anyFetchPrivateStoryThread(
         uniqueId: String,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> TSPrivateStoryThread? {
         assert(!uniqueId.isEmpty)
 
@@ -32,7 +32,7 @@ public extension TSPrivateStoryThread {
     }
 
     // NOTE: This method will fail if the object has unexpected type.
-    func anyUpdatePrivateStoryThread(transaction: SDSAnyWriteTransaction, block: (TSPrivateStoryThread) -> Void) {
+    func anyUpdatePrivateStoryThread(transaction: DBWriteTransaction, block: (TSPrivateStoryThread) -> Void) {
         anyUpdate(transaction: transaction) { (object) in
             guard let instance = object as? TSPrivateStoryThread else {
                 owsFailDebug("Object has unexpected type: \(type(of: object))")
@@ -56,7 +56,7 @@ class TSPrivateStoryThreadSerializer: SDSSerializer {
 
     // MARK: - Record
 
-    func asRecord() throws -> SDSRecord {
+    func asRecord() -> SDSRecord {
         let id: Int64? = model.grdbId?.int64Value
 
         let recordType: SDSRecordType = .privateStoryThread
@@ -83,7 +83,7 @@ class TSPrivateStoryThreadSerializer: SDSSerializer {
         let allowsReplies: Bool? = model.allowsReplies
         let lastSentStoryTimestamp: UInt64? = archiveOptionalNSNumber(model.lastSentStoryTimestamp, conversion: { $0.uint64Value })
         let name: String? = model.name
-        let addresses: Data? = optionalArchive(model.addresses)
+        let addresses: Data? = model.addresses
         let storyViewMode: UInt = model.storyViewMode.rawValue
         let editTargetTimestamp: UInt64? = archiveOptionalNSNumber(model.editTargetTimestamp, conversion: { $0.uint64Value })
 

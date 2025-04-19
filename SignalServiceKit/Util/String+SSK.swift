@@ -9,20 +9,8 @@ import NaturalLanguage
 extension NSString {
     @objc
     @available(swift, obsoleted: 1)
-    internal var ows_nilIfEmpty: NSString? {
-        (length == 0) ? nil : self
-    }
-
-    @objc
-    @available(swift, obsoleted: 1)
     internal var filterStringForDisplay: NSString {
         (self as String).filterStringForDisplay() as NSString
-    }
-
-    @objc
-    @available(swift, obsoleted: 1)
-    internal var filterFilename: NSString {
-        (self as String).filterFilename() as NSString
     }
 }
 
@@ -43,57 +31,6 @@ public extension String {
 
     var filterForDisplay: String {
         filterStringForDisplay()
-    }
-
-    // There appears to be a bug in NSBigMutableString that causes a
-    // crash when using prefix to (not) truncate long strings to their
-    // current length. safePrefix() avoids this crash by only using
-    // prefix() if necessary.
-    func safePrefix(_ maxLength: Int) -> String {
-        guard maxLength < count else {
-            return self
-        }
-        return String(prefix(maxLength))
-    }
-
-    // Truncates string to be less than or equal to byteCount, while ensuring we never truncate partial characters for multibyte characters.
-    func truncated(toByteCount byteCount: UInt) -> String? {
-        var lowerBoundCharCount = 0
-        var upperBoundCharCount = self.count
-
-        while (lowerBoundCharCount < upperBoundCharCount) {
-            guard let upperBoundData = safePrefix(upperBoundCharCount).data(using: .utf8) else {
-                owsFailDebug("upperBoundData was unexpectedly nil")
-                return nil
-            }
-
-            if upperBoundData.count <= byteCount {
-                break
-            }
-
-            // converge
-            if upperBoundCharCount - lowerBoundCharCount == 1 {
-                upperBoundCharCount = lowerBoundCharCount
-                break
-            }
-
-            let midpointCharCount = (lowerBoundCharCount + upperBoundCharCount) / 2
-            let midpointString = safePrefix(midpointCharCount)
-
-            guard let midpointData = midpointString.data(using: .utf8) else {
-                owsFailDebug("midpointData was unexpectedly nil")
-                return nil
-            }
-            let midpointByteCount = midpointData.count
-
-            if midpointByteCount < byteCount {
-                lowerBoundCharCount = midpointCharCount
-            } else {
-                upperBoundCharCount = midpointCharCount
-            }
-        }
-
-        return String(safePrefix(upperBoundCharCount))
     }
 
     func replaceCharacters(
@@ -249,26 +186,13 @@ public extension String {
     func appendingPathComponent(_ other: String) -> String {
         return (self as NSString).appendingPathComponent(other)
     }
-}
-
-// MARK: -
-
-@objc
-public extension NSString {
-    var ensureArabicNumerals: String {
-        return (self as String).ensureArabicNumerals
-    }
-
-    class func stringFromSysctlKey(_ key: String) -> String? {
-        return String(sysctlKey: key)
-    }
 
     var asAttributedString: NSAttributedString {
-        return NSAttributedString(string: self as String)
+        return NSAttributedString(string: self)
     }
 
     func asAttributedString(attributes: [NSAttributedString.Key: Any] = [:]) -> NSAttributedString {
-        NSAttributedString(string: self as String, attributes: attributes)
+        NSAttributedString(string: self, attributes: attributes)
     }
 }
 
@@ -284,12 +208,10 @@ public extension NSAttributedString {
         NSRange(location: 0, length: string.utf16.count)
     }
 
-    @objc
     func stringByAppendingString(_ string: String, attributes: [NSAttributedString.Key: Any] = [:]) -> NSAttributedString {
         return stringByAppendingString(NSAttributedString(string: string, attributes: attributes))
     }
 
-    @objc
     func stringByAppendingString(_ string: NSAttributedString) -> NSAttributedString {
         let copy = mutableCopy() as! NSMutableAttributedString
         copy.append(string)
@@ -304,7 +226,6 @@ public extension NSAttributedString {
         return lhs.stringByAppendingString(rhs)
     }
 
-    @objc
     func ows_stripped() -> NSAttributedString {
         guard length > 0 else { return self }
         guard !string.ows_stripped().isEmpty else { return NSAttributedString() }
@@ -314,7 +235,6 @@ public extension NSAttributedString {
         return NSAttributedString(attributedString: mutableString)
     }
 
-    @objc
     var isEmpty: Bool {
         length < 1
     }
@@ -322,8 +242,7 @@ public extension NSAttributedString {
 
 // MARK: -
 
-@objc
-public enum ImageAttachmentHeightReference: Int {
+public enum ImageAttachmentHeightReference {
     case pointSize
     case lineHeight
 
@@ -353,7 +272,6 @@ public extension NSMutableAttributedString {
         addAttribute(name, value: value, range: entireRange)
     }
 
-    @objc
     func addAttributesToEntireString(_ attributes: [NSAttributedString.Key: Any] = [:]) {
         addAttributes(attributes, range: entireRange)
     }
@@ -372,27 +290,22 @@ public extension NSMutableAttributedString {
 
     }
 
-    @objc
     func append(_ string: String, attributes: [NSAttributedString.Key: Any] = [:]) {
         append(NSAttributedString(string: string, attributes: attributes))
     }
 
-    @objc(appendTemplatedImageNamed:font:)
     func appendTemplatedImage(named imageName: String, font: UIFont) {
         appendTemplatedImage(named: imageName, font: font, attributes: nil)
     }
 
-    @objc(appendTemplatedImageNamed:font:heightReference:)
     func appendTemplatedImage(named imageName: String, font: UIFont, heightReference: ImageAttachmentHeightReference) {
         appendTemplatedImage(named: imageName, font: font, attributes: nil, heightReference: heightReference)
     }
 
-    @objc(appendTemplatedImageNamed:font:attributes:)
     func appendTemplatedImage(named imageName: String, font: UIFont, attributes: [NSAttributedString.Key: Any]?) {
         appendTemplatedImage(named: imageName, font: font, attributes: attributes, heightReference: .pointSize)
     }
 
-    @objc(appendTemplatedImageNamed:font:attributes:heightReference:)
     func appendTemplatedImage(named imageName: String, font: UIFont, attributes: [NSAttributedString.Key: Any]?, heightReference: ImageAttachmentHeightReference) {
         guard let image = UIImage(named: imageName) else {
             return owsFailDebug("missing image named \(imageName)")
@@ -400,22 +313,18 @@ public extension NSMutableAttributedString {
         appendImage(image.withRenderingMode(.alwaysTemplate), font: font, attributes: attributes, heightReference: heightReference)
     }
 
-    @objc(appendImageNamed:font:)
     func appendImage(named imageName: String, font: UIFont) {
         appendImage(named: imageName, font: font, attributes: nil)
     }
 
-    @objc(appendImageNamed:font:heightReference:)
     func appendImage(named imageName: String, font: UIFont, heightReference: ImageAttachmentHeightReference) {
         appendImage(named: imageName, font: font, attributes: nil, heightReference: heightReference)
     }
 
-    @objc(appendImageNamed:font:attributes:)
     func appendImage(named imageName: String, font: UIFont, attributes: [NSAttributedString.Key: Any]?) {
         appendImage(named: imageName, font: font, attributes: attributes, heightReference: .pointSize)
     }
 
-    @objc(appendImageNamed:font:attributes:heightReference:)
     func appendImage(named imageName: String, font: UIFont, attributes: [NSAttributedString.Key: Any]?, heightReference: ImageAttachmentHeightReference) {
         guard let image = UIImage(named: imageName) else {
             return owsFailDebug("missing image named \(imageName)")
@@ -423,27 +332,22 @@ public extension NSMutableAttributedString {
         appendImage(image, font: font, attributes: attributes, heightReference: heightReference)
     }
 
-    @objc(appendImage:font:)
     func appendImage(_ image: UIImage, font: UIFont) {
         appendImage(image, font: font, attributes: nil)
     }
 
-    @objc(appendImage:font:heightReference:)
     func appendImage(_ image: UIImage, font: UIFont, heightReference: ImageAttachmentHeightReference) {
         appendImage(image, font: font, attributes: nil, heightReference: heightReference)
     }
 
-    @objc(appendImage:font:attributes:)
     func appendImage(_ image: UIImage, font: UIFont, attributes: [NSAttributedString.Key: Any]?) {
         appendImage(image, font: font, attributes: attributes, heightReference: .pointSize)
     }
 
-    @objc(appendImage:font:attributes:heightReference:)
     func appendImage(_ image: UIImage, font: UIFont, attributes: [NSAttributedString.Key: Any]?, heightReference: ImageAttachmentHeightReference) {
         append(.with(image: image, font: font, attributes: attributes, heightReference: heightReference))
     }
 
-    @objc
     func ows_strip() {
         guard length > 0 else { return }
 
@@ -557,16 +461,6 @@ public extension String {
     }
 }
 
-public extension NSString {
-    /// The natural text alignment of a given string. This may be different
-    /// than the natural alignment of the current system locale depending on
-    /// the language of the string, especially for user entered text.
-    @objc
-    var naturalTextAlignment: NSTextAlignment {
-        return (self as String).naturalTextAlignment
-    }
-}
-
 // MARK: - Selector Encoding
 
 private let selectorOffset: UInt32 = 17
@@ -590,10 +484,7 @@ public extension String {
             return nil
         }
 
-        guard let data = shifted.data(using: .utf8) else {
-            owsFailDebug("data was unexpectedly nil")
-            return nil
-        }
+        let data = Data(shifted.utf8)
 
         return data.base64EncodedString()
     }
@@ -610,19 +501,6 @@ public extension String {
         }
 
         return try? shifted.caesar(shift: 127 - selectorOffset)
-    }
-}
-
-public extension NSString {
-
-    @objc
-    var encodedForSelector: String? {
-        return (self as String).encodedForSelector
-    }
-
-    @objc
-    var decodedForSelector: String? {
-        return (self as String).decodedForSelector
     }
 }
 
@@ -757,6 +635,13 @@ extension String.UnicodeScalarView {
         }
         return true
     }
+
+    public func containsOnlyEmojiIgnoringWhitespace() -> Bool {
+        if self.isEmpty {
+            return false
+        }
+        return self.allSatisfy { $0.isEmoji || $0.isZeroWidthJoiner || $0.properties.isWhitespace }
+    }
 }
 
 public extension String {
@@ -776,6 +661,10 @@ public extension String {
 
     var containsOnlyEmoji: Bool {
         return self.unicodeScalars.containsOnlyEmoji()
+    }
+
+    var containsOnlyEmojiIgnoringWhitespace: Bool {
+        self.unicodeScalars.containsOnlyEmojiIgnoringWhitespace()
     }
 
     func trimmedIfNeeded(maxGlyphCount: Int) -> String? {
@@ -808,20 +697,8 @@ public extension String {
 
 @objc
 public extension NSString {
-    var glyphCount: Int {
-        return (self as String).glyphCount
-    }
-
     var isSingleEmoji: Bool {
         return (self as String).isSingleEmoji
-    }
-
-    var containsEmoji: Bool {
-        return (self as String).containsEmoji
-    }
-
-    var containsOnlyEmoji: Bool {
-        return (self as String).containsOnlyEmoji
     }
 
     func trimToUtf8ByteCount(_ maxByteCount: Int) -> String {
@@ -832,13 +709,6 @@ public extension NSString {
 // MARK: - encodeURIComponent
 
 public extension String {
-    var encodeURIComponent: String? {
-        return (self as NSString).encodeURIComponent
-    }
-}
-
-@objc
-public extension NSString {
     var encodeURIComponent: String? {
         // Match behavior of encodeURIComponent used by desktop.
         //
@@ -866,20 +736,7 @@ public extension String {
 
 public extension String {
     static func formatDurationLossless(durationSeconds: UInt32) -> String {
-        NSString.formatDurationLossless(durationSeconds: durationSeconds)
-    }
-
-    static func formatDurationLossless(durationMs: UInt64) -> String {
-        NSString.formatDurationLossless(durationMs: durationMs)
-    }
-}
-
-// MARK: -
-
-@objc
-public extension NSString {
-    static func formatDurationLossless(durationSeconds: UInt32) -> String {
-        return formatDurationLossless(durationMs: UInt64(durationSeconds) * 1000)
+        formatDurationLossless(durationMs: UInt64(durationSeconds) * 1000)
     }
 
     static func formatDurationLossless(durationMs: UInt64) -> String {
@@ -926,6 +783,15 @@ public extension NSString {
             return ""
         }
         return formattedDuration
+    }
+}
+
+// MARK: -
+
+@objc
+public extension NSString {
+    static func formatDurationLossless(durationSeconds: UInt32) -> String {
+        String.formatDurationLossless(durationSeconds: durationSeconds)
     }
 }
 
@@ -977,12 +843,6 @@ public extension String {
         }
         return String(utf16CodeUnits: result, count: result.count)
     }
-}
-
-public extension NSString {
-    /// Checks if the value starts with a "+" and has [1, 19] digits.
-    @objc
-    var isStructurallyValidE164: Bool { (self as String).isStructurallyValidE164 }
 }
 
 // MARK: - StrippedNonEmptyString

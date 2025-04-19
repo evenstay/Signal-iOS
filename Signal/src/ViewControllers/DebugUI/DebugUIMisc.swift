@@ -9,7 +9,7 @@ import SignalUI
 
 #if USE_DEBUG_UI
 
-class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
+class DebugUIMisc: NSObject, DebugUIPage {
 
     let name = "Misc."
 
@@ -24,24 +24,24 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
 
         if let thread {
             items.append(OWSTableItem(title: "Delete disappearing messages config", actionBlock: {
-                self.databaseStorage.write { transaction in
+                SSKEnvironment.shared.databaseStorageRef.write { transaction in
                     let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-                    dmConfigurationStore.remove(for: thread, tx: transaction.asV2Write)
+                    dmConfigurationStore.remove(for: thread, tx: transaction)
                 }
             }))
         }
 
         items += [
             OWSTableItem(title: "Corrupt username", actionBlock: {
-                SDSDatabaseStorage.shared.write { tx in
-                    DependenciesBridge.shared.localUsernameManager.setLocalUsernameCorrupted(tx: tx.asV2Write)
+                SSKEnvironment.shared.databaseStorageRef.write { tx in
+                    DependenciesBridge.shared.localUsernameManager.setLocalUsernameCorrupted(tx: tx)
                 }
             }),
 
             OWSTableItem(title: "Reenable disabled inactive linked device reminder megaphones", actionBlock: {
-                SDSDatabaseStorage.shared.write { tx in
+                SSKEnvironment.shared.databaseStorageRef.write { tx in
                     DependenciesBridge.shared.inactiveLinkedDeviceFinder
-                        .reenablePermanentlyDisabledFinders(tx: tx.asV2Write)
+                        .reenablePermanentlyDisabledFinders(tx: tx)
                 }
             })
         ]
@@ -65,8 +65,8 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
                 DebugUIMisc.showPinReminder()
             }),
             OWSTableItem(title: "Reset 2FA Repetition Interval", actionBlock: {
-                SDSDatabaseStorage.shared.write { transaction in
-                    OWS2FAManager.shared.setDefaultRepetitionInterval(transaction: transaction)
+                SSKEnvironment.shared.databaseStorageRef.write { transaction in
+                    SSKEnvironment.shared.ows2FAManagerRef.setDefaultRepetitionInterval(transaction: transaction)
                 }
             }),
 
@@ -85,7 +85,7 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
             }),
 
             OWSTableItem(title: "Fetch system contacts", actionBlock: {
-                SSKEnvironment.shared.contactsManagerImpl.requestSystemContactsOnce()
+                SSKEnvironment.shared.contactManagerImplRef.requestSystemContactsOnce()
             }),
             OWSTableItem(title: "Flag database as corrupted", actionBlock: {
                 DebugUIMisc.showFlagDatabaseAsCorruptedUi()
@@ -124,8 +124,8 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
                 guard let preKeyManagerImpl = DependenciesBridge.shared.preKeyManager as? PreKeyManagerImpl else {
                     return
                 }
-                self.databaseStorage.read { tx in
-                    preKeyManagerImpl.checkPreKeysImmediately(tx: tx.asV2Read)
+                SSKEnvironment.shared.databaseStorageRef.read { tx in
+                    preKeyManagerImpl.checkPreKeysImmediately(tx: tx)
                 }
             }),
             OWSTableItem(title: "Remove All Prekeys", actionBlock: {
@@ -184,10 +184,25 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
             }),
 
             OWSTableItem(title: "Enable DeleteForMeSyncMessage info sheet", actionBlock: {
-                SDSDatabaseStorage.shared.write { tx in
+                SSKEnvironment.shared.databaseStorageRef.write { tx in
                     DeleteForMeInfoSheetCoordinator.fromGlobals()
-                        .forceEnableInfoSheet(tx: tx.asV2Write)
+                        .forceEnableInfoSheet(tx: tx)
                 }
+            }),
+
+            OWSTableItem(title: "Clear AEP", actionBlock: {
+                SSKEnvironment.shared.databaseStorageRef.write { tx in
+                    DependenciesBridge.shared.accountKeyStore.setAccountEntropyPool(nil, tx: tx)
+                }
+            }),
+
+            OWSTableItem(title: "Copy AEP to clipboard", actionBlock: {
+                guard let aep = SSKEnvironment.shared.databaseStorageRef.read(block: { tx in
+                    DependenciesBridge.shared.accountKeyStore.getAccountEntropyPool(tx: tx)
+                }) else {
+                    return
+                }
+                UIPasteboard.general.string = aep.rawData
             })
         ]
         return OWSTableSection(title: name, items: items)
@@ -256,8 +271,8 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
 
     // MARK: KVS
 
-    private static func randomKeyValueStore() -> SDSKeyValueStore {
-        SDSKeyValueStore(collection: "randomKeyValueStore")
+    private static func randomKeyValueStore() -> KeyValueStore {
+        KeyValueStore(collection: "randomKeyValueStore")
     }
 
     private static func populateRandomKeyValueStores(keyCount: UInt) {
@@ -271,7 +286,7 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
             Logger.verbose("batchIndex: \(batchIndex) / \(batchCount)")
 
             autoreleasepool {
-                databaseStorage.write { transaction in
+                SSKEnvironment.shared.databaseStorageRef.write { transaction in
                     // Set three values at a time.
                     for _ in 0..<kBatchSize / 3 {
                         let value = Randomness.generateRandomBytes(4096)
@@ -286,7 +301,7 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
 
     private static func clearRandomKeyValueStores() {
         let store = randomKeyValueStore()
-        databaseStorage.write { transcation in
+        SSKEnvironment.shared.databaseStorageRef.write { transcation in
             store.removeAll(transaction: transcation)
         }
     }
@@ -321,7 +336,7 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
     static func debugOnly_savePlaintextDbKey() {
 #if TESTABLE_BUILD && targetEnvironment(simulator)
         // Note: These static strings go hand-in-hand with Scripts/sqlclient.py
-        let payload = [ "key": NSObject.databaseStorage.keyFetcher.debugOnly_keyData()?.hexadecimalString ]
+        let payload = [ "key": SSKEnvironment.shared.databaseStorageRef.keyFetcher.debugOnly_keyData()?.hexadecimalString ]
         let payloadData = try! JSONSerialization.data(withJSONObject: payload, options: .prettyPrinted)
 
         let groupDir = URL(fileURLWithPath: OWSFileSystem.appSharedDataDirectoryPath(), isDirectory: true)
@@ -334,46 +349,46 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
     }
 
     private static func removeAllPrekeys() {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             let signalProtoclStoreManager = DependenciesBridge.shared.signalProtocolStoreManager
             let signalProtocolStoreACI = signalProtoclStoreManager.signalProtocolStore(for: .aci)
-            signalProtocolStoreACI.signedPreKeyStore.removeAll(tx: transaction.asV2Write)
-            signalProtocolStoreACI.preKeyStore.removeAll(tx: transaction.asV2Write)
+            signalProtocolStoreACI.signedPreKeyStore.removeAll(tx: transaction)
+            signalProtocolStoreACI.preKeyStore.removeAll(tx: transaction)
 
             let signalProtocolStorePNI = signalProtoclStoreManager.signalProtocolStore(for: .pni)
-            signalProtocolStorePNI.signedPreKeyStore.removeAll(tx: transaction.asV2Write)
-            signalProtocolStorePNI.preKeyStore.removeAll(tx: transaction.asV2Write)
+            signalProtocolStorePNI.signedPreKeyStore.removeAll(tx: transaction)
+            signalProtocolStorePNI.preKeyStore.removeAll(tx: transaction)
         }
     }
 
     private static func removeAllSessions() {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             let signalProtoclStoreManager = DependenciesBridge.shared.signalProtocolStoreManager
 
             let signalProtocolStoreACI = signalProtoclStoreManager.signalProtocolStore(for: .aci)
-            signalProtocolStoreACI.sessionStore.removeAll(tx: transaction.asV2Write)
-            signalProtocolStoreACI.signedPreKeyStore.removeAll(tx: transaction.asV2Write)
-            signalProtocolStoreACI.preKeyStore.removeAll(tx: transaction.asV2Write)
-            signalProtocolStoreACI.kyberPreKeyStore.removeAll(tx: transaction.asV2Write)
+            signalProtocolStoreACI.sessionStore.removeAll(tx: transaction)
+            signalProtocolStoreACI.signedPreKeyStore.removeAll(tx: transaction)
+            signalProtocolStoreACI.preKeyStore.removeAll(tx: transaction)
+            signalProtocolStoreACI.kyberPreKeyStore.removeAll(tx: transaction)
 
             let signalProtocolStorePNI = signalProtoclStoreManager.signalProtocolStore(for: .pni)
-            signalProtocolStorePNI.sessionStore.removeAll(tx: transaction.asV2Write)
-            signalProtocolStorePNI.signedPreKeyStore.removeAll(tx: transaction.asV2Write)
-            signalProtocolStorePNI.preKeyStore.removeAll(tx: transaction.asV2Write)
-            signalProtocolStorePNI.kyberPreKeyStore.removeAll(tx: transaction.asV2Write)
+            signalProtocolStorePNI.sessionStore.removeAll(tx: transaction)
+            signalProtocolStorePNI.signedPreKeyStore.removeAll(tx: transaction)
+            signalProtocolStorePNI.preKeyStore.removeAll(tx: transaction)
+            signalProtocolStorePNI.kyberPreKeyStore.removeAll(tx: transaction)
         }
     }
 
     private static func removeLocalPniIdentityKey() {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             let identityManager = DependenciesBridge.shared.identityManager
-            identityManager.setIdentityKeyPair(nil, for: .pni, tx: transaction.asV2Write)
+            identityManager.setIdentityKeyPair(nil, for: .pni, tx: transaction)
         }
     }
 
     private static func logStickerSuggestions() {
         var emojiSet = Set<String>()
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             StickerManager.installedStickerPacks(transaction: transaction).forEach { stickerPack in
                 stickerPack.items.forEach { item in
                     let emojiString = item.emojiString
@@ -402,7 +417,7 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
     }
 
     private static func logSignalRecipients() {
-        Self.databaseStorage.read { tx in
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
             SignalRecipient.anyEnumerate(transaction: tx, batchingPreference: .batched(32)) { signalRecipient, _ in
                 Logger.verbose("SignalRecipient: \(signalRecipient.addressComponentsDescription)")
             }
@@ -410,13 +425,13 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
     }
 
     private static func clearProfileKeyCredentials() {
-        Self.databaseStorage.write { transaction in
-            Self.versionedProfiles.clearProfileKeyCredentials(transaction: transaction)
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
+            SSKEnvironment.shared.versionedProfilesRef.clearProfileKeyCredentials(transaction: transaction)
         }
     }
 
     private static func clearLocalCustomEmoji() {
-        Self.databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             ReactionManager.setCustomEmojiSet(nil, transaction: transaction)
         }
     }
@@ -449,14 +464,14 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
     }
 
     private static func clearMyStoryPrivacySettings() {
-        Self.databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             guard let myStoryThread = TSPrivateStoryThread.getMyStory(transaction: transaction) else {
                 return
             }
             // Set to all connections which is the default.
             myStoryThread.updateWithStoryViewMode(
                 .blockList,
-                addresses: [],
+                storyRecipientIds: .setTo([]),
                 updateStorageService: false, /* storage service updated below */
                 transaction: transaction
             )
@@ -465,25 +480,25 @@ class DebugUIMisc: NSObject, DebugUIPage, Dependencies {
     }
 
     private static func enableUsernameEducation() {
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             DependenciesBridge.shared.usernameEducationManager.setShouldShowUsernameEducation(
                 true,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
     }
 
     private static func enableUsernameLinkTooltip() {
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             DependenciesBridge.shared.usernameEducationManager.setShouldShowUsernameLinkTooltip(
                 true,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
     }
 
     private static func removeAllRecordedExperienceUpgrades() {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             ExperienceUpgrade.anyRemoveAllWithInstantiation(transaction: transaction)
         }
     }

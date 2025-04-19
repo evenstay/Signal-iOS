@@ -4,13 +4,12 @@
 //
 
 import Foundation
+import LibSignalClient
 import GRDB
 
-@objc
-public class GRDBSchemaMigrator: NSObject {
+public class GRDBSchemaMigrator {
 
     private static let _areMigrationsComplete = AtomicBool(false, lock: .sharedGlobal)
-    @objc
     public static var areMigrationsComplete: Bool { _areMigrationsComplete.get() }
     public static let migrationSideEffectsCollectionName = "MigrationSideEffects"
     public static let avatarRepairAttemptCount = "Avatar Repair Attempt Count"
@@ -85,7 +84,7 @@ public class GRDBSchemaMigrator: NSObject {
             // which won't work because migrations use a barrier block to prevent observing database state
             // before migration.
             try grdbStorageAdapter.read { transaction in
-                _ = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asAnyRead.asV2Read)?.aciAddress
+                _ = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction)?.aciAddress
             }
 
             // Finally, do data migrations.
@@ -100,7 +99,7 @@ public class GRDBSchemaMigrator: NSObject {
         return allAppliedMigrations != previouslyAppliedMigrations
     }
 
-    private static func hasCreatedInitialSchema(transaction: GRDBReadTransaction) throws -> Bool {
+    private static func hasCreatedInitialSchema(transaction: DBReadTransaction) throws -> Bool {
         let appliedMigrations = try DatabaseMigrator().appliedIdentifiers(transaction.database)
         return appliedMigrations.contains(MigrationId.createInitialSchema.rawValue)
     }
@@ -299,7 +298,34 @@ public class GRDBSchemaMigrator: NSObject {
         case addInKnownMessageRequestStateToHiddenRecipient
         case addBackupAttachmentUploadQueue
         case addBackupStickerPackDownloadQueue
-        case addOrphanedBackupAttachmentTable
+        case createOrphanedBackupAttachmentTable
+        case addCallLinkTable
+        case deleteIncomingGroupSyncJobRecords
+        case deleteKnownStickerPackTable
+        case addReceiptCredentialColumnToJobRecord
+        case dropOrphanedGroupStoryReplies
+        case addMessageBackupAvatarFetchQueue
+        case addMessageBackupAvatarFetchQueueRetries
+        case tsMessageAttachmentMigration1
+        case tsMessageAttachmentMigration2
+        case tsMessageAttachmentMigration3
+        case addEditStateToMessageAttachmentReference
+        case removeVersionedDMTimerCapabilities
+        case removeJobRecordTSAttachmentColumns
+        case deprecateAttachmentIdsColumn
+        case dropTSAttachmentTable
+        case dropMediaGalleryItemTable
+        case addBackupsReceiptCredentialStateToJobRecord
+        case recreateTSAttachment
+        case recreateTSAttachmentMigration
+        case addBlockedGroup
+        case addGroupSendEndorsement
+        case deleteLegacyMessageDecryptJobRecords
+        case dropMessageContentJobTable
+        case deleteMessageRequestInteractionEpoch
+        case addAvatarDefaultColorTable
+        case populateAvatarDefaultColorTable
+        case addStoryRecipient
 
         // NOTE: Every time we add a migration id, consider
         // incrementing grdbSchemaVersionLatest.
@@ -358,10 +384,12 @@ public class GRDBSchemaMigrator: NSObject {
         case dataMigration_ensureLocalDeviceId
         case dataMigration_indexSearchableNames
         case dataMigration_removeSystemContacts
+        case dataMigration_clearLaunchScreenCache2
+        case dataMigration_resetLinkedDeviceAuthorMergeBuilder
     }
 
     public static let grdbSchemaVersionDefault: UInt = 0
-    public static let grdbSchemaVersionLatest: UInt = 93
+    public static let grdbSchemaVersionLatest: UInt = 111
 
     // An optimization for new users, we have the first migration import the latest schema
     // and mark any other migrations as "already run".
@@ -371,7 +399,7 @@ public class GRDBSchemaMigrator: NSObject {
             // Within the transaction this migration opens, check that we haven't already run
             // the initial schema migration, in case we are racing with another process that
             // is also running migrations.
-            guard try hasCreatedInitialSchema(transaction: GRDBReadTransaction(database: db)).negated else {
+            guard try hasCreatedInitialSchema(transaction: DBReadTransaction(database: db)).negated else {
                 // Already done!
                 return
             }
@@ -413,7 +441,7 @@ public class GRDBSchemaMigrator: NSObject {
          */
         func registerMigration(
             _ identifier: MigrationId,
-            migrate: @escaping (GRDBWriteTransaction) throws -> Result<Void, Error>
+            migrate: @escaping (DBWriteTransaction) throws -> Result<Void, Error>
         ) {
             // Hold onto a reference to the migrator, so we can use its `appliedIdentifiers` method
             // which is really a static method since it uses no instance state, but needs a reference
@@ -455,7 +483,7 @@ public class GRDBSchemaMigrator: NSObject {
                 }
 
                 Logger.info("Running migration: \(identifier)")
-                let transaction = GRDBWriteTransaction(database: database)
+                let transaction = DBWriteTransaction(database: database)
                 let result = try migrate(transaction)
                 switch result {
                 case .success:
@@ -557,7 +585,7 @@ public class GRDBSchemaMigrator: NSObject {
             // Creating gallery records here can crash since it's run in the middle of schema migrations.
             // It instead has been moved to a separate Data Migration.
             // see: "dataMigration_populateGalleryItems"
-            // try createInitialGalleryRecords(transaction: GRDBWriteTransaction(database: db))
+            // try createInitialGalleryRecords(transaction: DBWriteTransaction(database: db))
             return .success(())
         }
 
@@ -601,7 +629,7 @@ public class GRDBSchemaMigrator: NSObject {
 
         migrator.registerMigration(.dedupeSignalRecipients) { transaction in
             try autoreleasepool {
-                try dedupeSignalRecipients(transaction: transaction.asAnyWrite)
+                try dedupeSignalRecipients(transaction: transaction)
             }
 
             try transaction.database.drop(index: "index_signal_recipients_on_recipientPhoneNumber")
@@ -628,7 +656,7 @@ public class GRDBSchemaMigrator: NSObject {
         // see: "dataMigration_populateGalleryItems"
         // migrator.registerMigration(.indexMediaGallery2) { db in
         //     // re-index the media gallery for those who failed to create during the initial YDB migration
-        //     try createInitialGalleryRecords(transaction: GRDBWriteTransaction(database: db))
+        //     try createInitialGalleryRecords(transaction: DBWriteTransaction(database: db))
         // }
 
         migrator.registerMigration(.unreadThreadInteractions) { transaction in
@@ -698,25 +726,16 @@ public class GRDBSchemaMigrator: NSObject {
         }
 
         migrator.registerMigration(.indexFailedJob) { transaction in
-            // index this query:
-            //      SELECT \(interactionColumn: .uniqueId)
-            //      FROM \(InteractionRecord.databaseTableName)
-            //      WHERE \(interactionColumn: .storedMessageState) = ?
-            try transaction.database.create(index: "index_interaction_on_storedMessageState",
-                          on: "model_TSInteraction",
-                          columns: ["storedMessageState"])
-
-            // index this query:
-            //      SELECT \(interactionColumn: .uniqueId)
-            //      FROM \(InteractionRecord.databaseTableName)
-            //      WHERE \(interactionColumn: .recordType) = ?
-            //      AND (
-            //          \(interactionColumn: .callType) = ?
-            //          OR \(interactionColumn: .callType) = ?
-            //      )
-            try transaction.database.create(index: "index_interaction_on_recordType_and_callType",
-                          on: "model_TSInteraction",
-                          columns: ["recordType", "callType"])
+            try transaction.database.create(
+                index: "index_interaction_on_storedMessageState",
+                on: "model_TSInteraction",
+                columns: ["storedMessageState"]
+            )
+            try transaction.database.create(
+                index: "index_interaction_on_recordType_and_callType",
+                on: "model_TSInteraction",
+                columns: ["recordType", "callType"]
+            )
             return .success(())
         }
 
@@ -857,8 +876,8 @@ public class GRDBSchemaMigrator: NSObject {
             try transaction.database.drop(table: "model_TSRecipientReadReceipt")
             try transaction.database.drop(table: "model_OWSLinkedDeviceReadReceipt")
 
-            let viewOnceStore = SDSKeyValueStore(collection: "viewOnceMessages")
-            viewOnceStore.removeAll(transaction: transaction.asAnyWrite)
+            let viewOnceStore = KeyValueStore(collection: "viewOnceMessages")
+            viewOnceStore.removeAll(transaction: transaction)
             return .success(())
         }
 
@@ -2019,7 +2038,7 @@ public class GRDBSchemaMigrator: NSObject {
                     )
                 {
                     let lastReceivedStoryTimestamp = (threadRow["lastReceivedStoryTimestamp"] as? NSNumber)?.uint64Value
-                    let latestUnexpiredTimestamp = (lastReceivedStoryTimestamp ?? 0) > Date().ows_millisecondsSince1970 - kDayInMs
+                    let latestUnexpiredTimestamp = (lastReceivedStoryTimestamp ?? 0) > Date().ows_millisecondsSince1970 - UInt64.dayInMs
                         ? lastReceivedStoryTimestamp : nil
                     let lastViewedStoryTimestamp = (threadRow["lastViewedStoryTimestamp"] as? NSNumber)?.uint64Value
                     if
@@ -2135,7 +2154,7 @@ public class GRDBSchemaMigrator: NSObject {
                 UPDATE model_SSKJobRecord
                 SET \(JobRecord.columnName(.paymentProcessor)) = 'STRIPE'
                 WHERE \(JobRecord.columnName(.recordType)) = \(SendGiftBadgeJobRecord.recordType)
-                OR \(JobRecord.columnName(.recordType)) = \(ReceiptCredentialRedemptionJobRecord.recordType)
+                OR \(JobRecord.columnName(.recordType)) = \(DonationReceiptCredentialRedemptionJobRecord.recordType)
             """
             try transaction.database.execute(sql: populateSql)
 
@@ -2293,12 +2312,6 @@ public class GRDBSchemaMigrator: NSObject {
         }
 
         migrator.registerMigration(.addIndexToFindFailedAttachments) { tx in
-            // These constants should not change. If they do change, this migration
-            // should not be updated with the new values. Instead, we'd need a new
-            // migration to drop this index and re-build it with the new constants.
-            assert(SDSRecordType.attachmentPointer.rawValue == 3)
-            assert(TSAttachmentPointerState.enqueued.rawValue == 0)
-            assert(TSAttachmentPointerState.downloading.rawValue == 1)
             let sql = """
                 CREATE INDEX "index_attachments_toMarkAsFailed" ON "model_TSAttachment"(
                     "recordType", "state"
@@ -3549,17 +3562,31 @@ public class GRDBSchemaMigrator: NSObject {
             return .success(())
         }
 
-        migrator.registerMigration(.addOrphanedBackupAttachmentTable) { tx in
+        migrator.registerMigration(.createOrphanedBackupAttachmentTable) { tx in
+            // A prior version of this migration is being reverted.
+            try tx.database.execute(sql: "DROP TABLE IF EXISTS OrphanedBackupAttachment")
+            try tx.database.execute(sql: "DROP TRIGGER IF EXISTS __Attachment_ad_backup_fullsize")
+            try tx.database.execute(sql: "DROP TRIGGER IF EXISTS __Attachment_ad_backup_thumbnail")
+
             /// Rows are written into here to enqueue attachments for deletion from the media tier cdn.
             try tx.database.create(table: "OrphanedBackupAttachment") { table in
                 table.autoIncrementedPrimaryKey("id").notNull()
                 table.column("cdnNumber", .integer).notNull()
-                table.column("mediaName", .text).notNull()
-                table.column("type", .integer).notNull()
-                /// Unique by mediaName _and_ cdnNumber. It is theoretically possible to end up with the
-                /// same mediaName on two CDN versions, and we may want to delete both.
-                table.uniqueKey(["mediaName", "type", "cdnNumber"], onConflict: .ignore)
+                table.column("mediaName", .text)
+                table.column("mediaId", .blob)
+                table.column("type", .integer)
             }
+
+            try tx.database.create(
+                index: "index_OrphanedBackupAttachment_on_mediaName",
+                on: "OrphanedBackupAttachment",
+                columns: ["mediaName"]
+            )
+            try tx.database.create(
+                index: "index_OrphanedBackupAttachment_on_mediaId",
+                on: "OrphanedBackupAttachment",
+                columns: ["mediaId"]
+            )
 
             /// When we delete an attachment row in the database, insert into the orphan backup table
             /// so we can clean up the cdn upload later.
@@ -3576,10 +3603,12 @@ public class GRDBSchemaMigrator: NSObject {
                     INSERT INTO OrphanedBackupAttachment (
                       cdnNumber
                       ,mediaName
+                      ,mediaId
                       ,type
                     ) VALUES (
                       OLD.mediaTierCdnNumber
                       ,OLD.mediaName
+                      ,NULL
                       ,0
                     );
                   END;
@@ -3594,15 +3623,332 @@ public class GRDBSchemaMigrator: NSObject {
                     INSERT INTO OrphanedBackupAttachment (
                       cdnNumber
                       ,mediaName
+                      ,mediaId
                       ,type
                     ) VALUES (
                       OLD.thumbnailCdnNumber
                       ,OLD.mediaName
+                      ,NULL
                       ,1
                     );
                   END;
             """)
 
+            return .success(())
+        }
+
+        migrator.registerMigration(.addCallLinkTable) { tx in
+            try addCallLinkTable(tx: tx)
+            return .success(())
+        }
+
+        migrator.registerMigration(.deleteIncomingGroupSyncJobRecords) { tx in
+            try tx.database.execute(sql: "DELETE FROM model_SSKJobRecord WHERE label = ?", arguments: ["IncomingGroupSync"])
+            return .success(())
+        }
+
+        migrator.registerMigration(.deleteKnownStickerPackTable) { tx in
+            try tx.database.execute(sql: "DROP TABLE IF EXISTS model_KnownStickerPack")
+            return .success(())
+        }
+
+        migrator.registerMigration(.addReceiptCredentialColumnToJobRecord) { tx in
+            try tx.database.alter(table: "model_SSKJobRecord") { table in
+                table.add(column: "receiptCredential", .blob)
+            }
+            return .success(())
+        }
+
+        migrator.registerMigration(.dropOrphanedGroupStoryReplies) { tx in
+            let groupThreadUniqueIdCursor = try String.fetchCursor(tx.database, sql: """
+                SELECT uniqueId
+                FROM model_TSThread
+                WHERE groupModel IS NOT NULL;
+                """
+            )
+
+            while let threadUniqueId = try groupThreadUniqueIdCursor.next() {
+                try tx.database.execute(
+                    sql: """
+                    DELETE FROM model_TSInteraction
+                    WHERE (
+                        uniqueThreadId = ?
+                        AND isGroupStoryReply = 1
+                        AND recordType IS NOT 70
+                        AND (storyTimestamp, storyAuthorUuidString) NOT IN (
+                            SELECT timestamp, authorUuid
+                            FROM model_StoryMessage
+                        )
+                    );
+                    """,
+                    arguments: [threadUniqueId])
+            }
+            return .success(())
+        }
+
+        migrator.registerMigration(.addMessageBackupAvatarFetchQueue) { tx in
+            try tx.database.create(table: "MessageBackupAvatarFetchQueue") { table in
+                table.column("id", .integer).primaryKey().notNull()
+                table.column("groupThreadRowId", .integer)
+                    .references("model_TSThread", column: "id", onDelete: .cascade)
+                table.column("groupAvatarUrl", .text)
+                table.column("serviceId", .blob)
+            }
+            return .success(())
+        }
+
+        migrator.registerMigration(.addMessageBackupAvatarFetchQueueRetries) { tx in
+            try tx.database.alter(table: "MessageBackupAvatarFetchQueue") { table in
+                table.add(column: "numRetries", .integer).notNull().defaults(to: 0)
+                table.add(column: "nextRetryTimestamp", .integer).notNull().defaults(to: 0)
+            }
+            try tx.database.create(
+                index: "index_MessageBackupAvatarFetchQueue_on_nextRetryTimestamp",
+                on: "MessageBackupAvatarFetchQueue",
+                columns: ["nextRetryTimestamp"]
+            )
+            return .success(())
+        }
+
+        migrator.registerMigration(.tsMessageAttachmentMigration1) { tx in
+            // This was rolled back in a complex dance of rewriting migration
+            // history. See `recreateTSAttachment`.
+            // TSAttachmentMigration.TSMessageMigration.prepareBlockingTSMessageMigration(tx: tx)
+            return .success(())
+        }
+
+        migrator.registerMigration(.tsMessageAttachmentMigration2) { tx in
+            // This was rolled back in a complex dance of rewriting migration
+            // history. See `recreateTSAttachment`.
+            // TSAttachmentMigration.TSMessageMigration.completeBlockingTSMessageMigration(tx: tx)
+            return .success(())
+        }
+
+        migrator.registerMigration(.tsMessageAttachmentMigration3) { tx in
+            // This was rolled back in a complex dance of rewriting migration
+            // history. See `recreateTSAttachment`.
+            // TSAttachmentMigration.TSMessageMigration.cleanUpTSAttachmentFiles()
+            // try tx.database.drop(table: "TSAttachmentMigration")
+            return .success(())
+        }
+
+        migrator.registerMigration(.addEditStateToMessageAttachmentReference) { tx in
+            try tx.database.alter(table: "MessageAttachmentReference") { table in
+                table.add(column: "ownerIsPastEditRevision", .boolean)
+                    .defaults(to: false)
+            }
+            // TSEditState.pastRevision rawValue is 2
+            try tx.database.execute(sql: """
+                UPDATE MessageAttachmentReference
+                SET ownerIsPastEditRevision = (
+                  SELECT model_TSInteraction.editState = 2
+                  FROM model_TSInteraction
+                  WHERE MessageAttachmentReference.ownerRowId = model_TSInteraction.id
+                );
+                """)
+            return .success(())
+        }
+
+        migrator.registerMigration(.removeVersionedDMTimerCapabilities) { tx in
+            try tx.database.drop(table: "VersionedDMTimerCapabilities")
+            return .success(())
+        }
+
+        migrator.registerMigration(.removeJobRecordTSAttachmentColumns) { tx in
+            // Remove TSAttachmentMultisend records.
+            try tx.database.execute(sql: """
+                DELETE FROM model_SSKJobRecord WHERE recordType = 58;
+                """)
+            try tx.database.alter(table: "model_SSKJobRecord") { table in
+                table.drop(column: "attachmentId")
+                table.drop(column: "attachmentIdMap")
+                table.drop(column: "unsavedMessagesToSend")
+            }
+            return .success(())
+        }
+
+        migrator.registerMigration(.deprecateAttachmentIdsColumn) { tx in
+            try tx.database.alter(table: "model_TSInteraction") { table in
+                table.rename(column: "attachmentIds", to: "deprecated_attachmentIds")
+            }
+            return .success(())
+        }
+
+        migrator.registerMigration(.dropTSAttachmentTable) { tx in
+            // This was rolled back in a complex dance of rewriting migration
+            // history. See `recreateTSAttachment`.
+            // try tx.database.drop(table: "model_TSAttachment")
+            return .success(())
+        }
+
+        migrator.registerMigration(.dropMediaGalleryItemTable) { tx in
+            try tx.database.drop(table: "media_gallery_items")
+            return .success(())
+        }
+
+        migrator.registerMigration(.addBackupsReceiptCredentialStateToJobRecord) { tx in
+            try tx.database.alter(table: "model_SSKJobRecord") { table in
+                table.add(column: "BRCRJR_state", .blob)
+            }
+
+            return .success(())
+        }
+
+        migrator.registerMigration(.recreateTSAttachment) { tx in
+            try tx.database.execute(sql: """
+            CREATE
+                 TABLE
+                     IF NOT EXISTS "model_TSAttachment" (
+                         "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL
+                         ,"recordType" INTEGER NOT NULL
+                         ,"uniqueId" TEXT NOT NULL UNIQUE
+                             ON CONFLICT FAIL
+                         ,"albumMessageId" TEXT
+                         ,"attachmentType" INTEGER NOT NULL
+                         ,"blurHash" TEXT
+                         ,"byteCount" INTEGER NOT NULL
+                         ,"caption" TEXT
+                         ,"contentType" TEXT NOT NULL
+                         ,"encryptionKey" BLOB
+                         ,"serverId" INTEGER NOT NULL
+                         ,"sourceFilename" TEXT
+                         ,"cachedAudioDurationSeconds" DOUBLE
+                         ,"cachedImageHeight" DOUBLE
+                         ,"cachedImageWidth" DOUBLE
+                         ,"creationTimestamp" DOUBLE
+                         ,"digest" BLOB
+                         ,"isUploaded" INTEGER
+                         ,"isValidImageCached" INTEGER
+                         ,"isValidVideoCached" INTEGER
+                         ,"lazyRestoreFragmentId" TEXT
+                         ,"localRelativeFilePath" TEXT
+                         ,"mediaSize" BLOB
+                         ,"pointerType" INTEGER
+                         ,"state" INTEGER
+                         ,"uploadTimestamp" INTEGER NOT NULL DEFAULT 0
+                         ,"cdnKey" TEXT NOT NULL DEFAULT ''
+                         ,"cdnNumber" INTEGER NOT NULL DEFAULT 0
+                         ,"isAnimatedCached" INTEGER
+                         ,"attachmentSchemaVersion" INTEGER DEFAULT 0
+                         ,"videoDuration" DOUBLE
+                         ,"clientUuid" TEXT
+                     )
+            ;
+            """)
+
+            try tx.database.execute(sql: """
+            CREATE
+                 INDEX IF NOT EXISTS "index_model_TSAttachment_on_uniqueId_and_contentType"
+                     ON "model_TSAttachment"("uniqueId"
+                 ,"contentType"
+             )
+             ;
+            """)
+            return .success(())
+        }
+
+        migrator.registerMigration(.recreateTSAttachmentMigration) { tx in
+            try tx.database.execute(sql: """
+            CREATE
+                 TABLE
+                     IF NOT EXISTS "TSAttachmentMigration" (
+                         "tsAttachmentUniqueId" TEXT NOT NULL
+                         ,"interactionRowId" INTEGER
+                         ,"storyMessageRowId" INTEGER
+                         ,"reservedV2AttachmentPrimaryFileId" BLOB NOT NULL
+                         ,"reservedV2AttachmentAudioWaveformFileId" BLOB NOT NULL
+                         ,"reservedV2AttachmentVideoStillFrameFileId" BLOB NOT NULL
+                     )
+            ;
+            """)
+            try tx.database.execute(sql: """
+            CREATE
+                 INDEX IF NOT EXISTS "index_TSAttachmentMigration_on_interactionRowId"
+                     ON "TSAttachmentMigration" ("interactionRowId")
+             WHERE
+                 "interactionRowId" IS NOT NULL
+             ;
+            """)
+            try tx.database.execute(sql: """
+            CREATE
+                 INDEX IF NOT EXISTS "index_TSAttachmentMigration_on_storyMessageRowId"
+                     ON "TSAttachmentMigration" ("storyMessageRowId")
+             WHERE
+                 "storyMessageRowId" IS NOT NULL
+             ;
+            """)
+            return .success(())
+        }
+
+        migrator.registerMigration(.addBlockedGroup) { tx in
+            try tx.database.create(table: "BlockedGroup", options: [.withoutRowID]) { table in
+                table.column("groupId", .blob).notNull().primaryKey()
+            }
+
+            let groupIds = try fetchAndClearBlockedGroupIds(tx: tx)
+
+            for groupId in groupIds {
+                try tx.database.execute(sql: "INSERT INTO BlockedGroup VALUES (?)", arguments: [groupId])
+            }
+
+            return .success(())
+        }
+
+        migrator.registerMigration(.addGroupSendEndorsement) { tx in
+            try tx.database.create(table: "CombinedGroupSendEndorsement") { table in
+                table.column("threadId", .integer).primaryKey()
+                    .references("model_TSThread", column: "id", onDelete: .cascade, onUpdate: .cascade)
+                table.column("endorsement", .blob).notNull()
+                table.column("expiration", .integer).notNull()
+            }
+            try tx.database.create(table: "IndividualGroupSendEndorsement") { table in
+                table.primaryKey(["threadId", "recipientId"])
+                table.column("threadId", .integer).notNull()
+                    .references("CombinedGroupSendEndorsement", column: "threadId", onDelete: .cascade, onUpdate: .cascade)
+                table.column("recipientId", .integer).notNull()
+                    .references("model_SignalRecipient", column: "id", onDelete: .cascade, onUpdate: .cascade)
+                table.column("endorsement", .blob).notNull()
+            }
+            try tx.database.create(
+                index: "IndividualGroupSendEndorsement_recipientId",
+                on: "IndividualGroupSendEndorsement",
+                columns: ["recipientId"]
+            )
+            return .success(())
+        }
+
+        migrator.registerMigration(.deleteLegacyMessageDecryptJobRecords) { tx in
+            try tx.database.execute(sql: "DELETE FROM model_SSKJobRecord WHERE label = ?", arguments: ["SSKMessageDecrypt"])
+            return .success(())
+        }
+
+        migrator.registerMigration(.dropMessageContentJobTable) { tx in
+            try tx.database.execute(sql: "DROP TABLE IF EXISTS model_OWSMessageContentJob")
+            return .success(())
+        }
+
+        migrator.registerMigration(.deleteMessageRequestInteractionEpoch) { tx in
+            try tx.database.execute(
+                sql: """
+                    DELETE FROM "keyvalue" WHERE "collection" = ? AND "key" = ?
+                    """,
+                arguments: ["SSKPreferences", "messageRequestInteractionIdEpoch"]
+            )
+            return .success(())
+        }
+
+        migrator.registerMigration(.addAvatarDefaultColorTable) { tx in
+            try Self.createDefaultAvatarColorTable(tx: tx)
+            return .success(())
+        }
+
+        migrator.registerMigration(.populateAvatarDefaultColorTable) { tx in
+            try Self.populateDefaultAvatarColorTable(tx: tx)
+            return .success(())
+        }
+
+        migrator.registerMigration(.addStoryRecipient) { tx in
+            try createStoryRecipients(tx: tx)
             return .success(())
         }
 
@@ -3625,21 +3971,20 @@ public class GRDBSchemaMigrator: NSObject {
         }
 
         migrator.registerMigration(.dataMigration_clearLaunchScreenCache) { _ in
-            OWSFileSystem.deleteFileIfExists(NSHomeDirectory() + "/Library/SplashBoard")
             return .success(())
         }
 
         migrator.registerMigration(.dataMigration_enableV2RegistrationLockIfNecessary) { transaction in
-            guard DependenciesBridge.shared.svr.hasMasterKey(transaction: transaction.asAnyWrite.asV2Write) else {
+            guard DependenciesBridge.shared.svr.hasMasterKey(transaction: transaction) else {
                 return .success(())
             }
 
-            OWS2FAManager.keyValueStore.setBool(true, key: OWS2FAManager.isRegistrationLockV2EnabledKey, transaction: transaction.asAnyWrite)
+            OWS2FAManager.keyValueStore.setBool(true, key: OWS2FAManager.isRegistrationLockV2EnabledKey, transaction: transaction)
             return .success(())
         }
 
         migrator.registerMigration(.dataMigration_resetStorageServiceData) { transaction in
-            Self.storageServiceManager.resetLocalData(transaction: transaction.asAnyWrite.asV2Write)
+            SSKEnvironment.shared.storageServiceManagerRef.resetLocalData(transaction: transaction)
             return .success(())
         }
 
@@ -3649,14 +3994,7 @@ public class GRDBSchemaMigrator: NSObject {
         }
 
         migrator.registerMigration(.dataMigration_recordMessageRequestInteractionIdEpoch) { transaction in
-            // Set the epoch only if we haven't already, this lets us track and grandfather
-            // conversations that existed before the message request feature was launched.
-            guard SSKPreferences.messageRequestInteractionIdEpoch(transaction: transaction) == nil else {
-                return .success(())
-            }
-
-            let maxId = InteractionFinder.maxRowId(transaction: transaction.asAnyRead)
-            SSKPreferences.setMessageRequestInteractionIdEpoch(maxId, transaction: transaction)
+            // Obsolete.
             return .success(())
         }
 
@@ -3674,52 +4012,52 @@ public class GRDBSchemaMigrator: NSObject {
         migrator.registerMigration(.dataMigration_turnScreenSecurityOnForExistingUsers) { transaction in
             // Declare the key value store here, since it's normally only
             // available in SignalMessaging.Preferences.
-            let preferencesKeyValueStore = SDSKeyValueStore(collection: "SignalPreferences")
+            let preferencesKeyValueStore = KeyValueStore(collection: "SignalPreferences")
             let screenSecurityKey = "Screen Security Key"
             guard !preferencesKeyValueStore.hasValue(
-                forKey: screenSecurityKey,
-                transaction: transaction.asAnyRead
+                screenSecurityKey,
+                transaction: transaction
             ) else {
                 return .success(())
             }
 
-            preferencesKeyValueStore.setBool(true, key: screenSecurityKey, transaction: transaction.asAnyWrite)
+            preferencesKeyValueStore.setBool(true, key: screenSecurityKey, transaction: transaction)
             return .success(())
         }
 
         migrator.registerMigration(.dataMigration_groupIdMapping) { transaction in
-            TSThread.anyEnumerate(transaction: transaction.asAnyWrite) { (thread: TSThread, _: UnsafeMutablePointer<ObjCBool>) in
+            TSThread.anyEnumerate(transaction: transaction) { (thread: TSThread, _: UnsafeMutablePointer<ObjCBool>) in
                 guard let groupThread = thread as? TSGroupThread else {
                     return
                 }
                 TSGroupThread.setGroupIdMappingForLegacyThread(
                     threadUniqueId: groupThread.uniqueId,
                     groupId: groupThread.groupId,
-                    tx: transaction.asAnyWrite
+                    tx: transaction
                 )
             }
             return .success(())
         }
 
         migrator.registerMigration(.dataMigration_disableSharingSuggestionsForExistingUsers) { transaction in
-            SSKPreferences.setAreIntentDonationsEnabled(false, transaction: transaction.asAnyWrite)
+            SSKPreferences.setAreIntentDonationsEnabled(false, transaction: transaction)
             return .success(())
         }
 
         migrator.registerMigration(.dataMigration_removeOversizedGroupAvatars) { transaction in
             var thrownError: Error?
-            TSGroupThread.anyEnumerate(transaction: transaction.asAnyWrite) { (thread: TSThread, stop: UnsafeMutablePointer<ObjCBool>) in
+            TSGroupThread.anyEnumerate(transaction: transaction) { (thread: TSThread, stop: UnsafeMutablePointer<ObjCBool>) in
                 guard let groupThread = thread as? TSGroupThread else { return }
                 guard let avatarData = groupThread.groupModel.legacyAvatarData else { return }
                 guard !TSGroupModel.isValidGroupAvatarData(avatarData) else { return }
 
                 var builder = groupThread.groupModel.asBuilder
-                builder.avatarData = nil
+                builder.avatarDataState = .missing
                 builder.avatarUrlPath = nil
 
                 do {
                     let newGroupModel = try builder.build()
-                    groupThread.update(with: newGroupModel, transaction: transaction.asAnyWrite)
+                    groupThread.update(with: newGroupModel, transaction: transaction)
                 } catch {
                     thrownError = error
                     stop.pointee = true
@@ -3736,9 +4074,9 @@ public class GRDBSchemaMigrator: NSObject {
 
             while let thread = try cursor.next() {
                 if let thread = thread as? TSContactThread {
-                    Self.storageServiceManager.recordPendingUpdates(updatedAddresses: [thread.contactAddress])
+                    SSKEnvironment.shared.storageServiceManagerRef.recordPendingUpdates(updatedAddresses: [thread.contactAddress])
                 } else if let thread = thread as? TSGroupThread {
-                    Self.storageServiceManager.recordPendingUpdates(groupModel: thread.groupModel)
+                    SSKEnvironment.shared.storageServiceManagerRef.recordPendingUpdates(groupModel: thread.groupModel)
                 } else {
                     owsFail("Unexpected thread type \(thread)")
                 }
@@ -3770,7 +4108,7 @@ public class GRDBSchemaMigrator: NSObject {
                     // as close to a fully qualified address as we can in the database,
                     // so defer to the address from the signal recipient (if one exists)
                     let recipient = DependenciesBridge.shared.recipientDatabaseTable
-                        .fetchRecipient(address: address, tx: transaction.asAnyRead.asV2Read)
+                        .fetchRecipient(address: address, tx: transaction)
                     let memberAddress = recipient?.address ?? address
 
                     guard let newAddress = NormalizedDatabaseRecordAddress(address: memberAddress) else {
@@ -3780,7 +4118,7 @@ public class GRDBSchemaMigrator: NSObject {
                     guard TSGroupMember.groupMember(
                         for: memberAddress,
                         in: groupThreadId,
-                        transaction: transaction.asAnyWrite
+                        transaction: transaction
                     ) == nil else {
                         // If we already have a group member populated, for
                         // example from an earlier data migration, we should
@@ -3790,14 +4128,14 @@ public class GRDBSchemaMigrator: NSObject {
 
                     let latestInteraction = interactionFinder.latestInteraction(
                         from: memberAddress,
-                        transaction: transaction.asAnyWrite
+                        transaction: transaction
                     )
                     let memberRecord = TSGroupMember(
                         address: newAddress,
                         groupThreadId: groupThread.uniqueId,
                         lastInteractionTimestamp: latestInteraction?.timestamp ?? 0
                     )
-                    memberRecord.anyInsert(transaction: transaction.asAnyWrite)
+                    memberRecord.anyInsert(transaction: transaction)
                 }
             }
             return .success(())
@@ -3808,7 +4146,7 @@ public class GRDBSchemaMigrator: NSObject {
                 DELETE FROM \(InteractionRecord.databaseTableName)
                 WHERE \(interactionColumn: .recordType) = ?
             """
-            transaction.execute(
+            transaction.database.executeHandlingErrors(
                 sql: sql,
                 arguments: [SDSRecordType.invalidIdentityKeySendingErrorMessage.rawValue]
             )
@@ -3817,7 +4155,7 @@ public class GRDBSchemaMigrator: NSObject {
 
         migrator.registerMigration(.dataMigration_moveToThreadAssociatedData) { transaction in
             var thrownError: Error?
-            TSThread.anyEnumerate(transaction: transaction.asAnyWrite) { (thread, stop: UnsafeMutablePointer<ObjCBool>) in
+            TSThread.anyEnumerate(transaction: transaction) { (thread, stop: UnsafeMutablePointer<ObjCBool>) in
                 do {
                     try ThreadAssociatedData(
                         threadUniqueId: thread.uniqueId,
@@ -3836,7 +4174,7 @@ public class GRDBSchemaMigrator: NSObject {
         }
 
         migrator.registerMigration(.dataMigration_senderKeyStoreKeyIdMigration) { transaction in
-            SenderKeyStore.performKeyIdMigration(transaction: transaction.asAnyWrite)
+            SenderKeyStore.performKeyIdMigration(transaction: transaction)
             return .success(())
         }
 
@@ -3848,8 +4186,22 @@ public class GRDBSchemaMigrator: NSObject {
 
             while let thread = try threadCursor.next() as? TSGroupThread {
                 try autoreleasepool {
-                    try thread.groupModel.attemptToMigrateLegacyAvatarDataToDisk()
-                    thread.anyUpsert(transaction: transaction.asAnyWrite)
+                    let groupModel = thread.groupModel
+
+                    guard
+                        let legacyAvatarData = groupModel.legacyAvatarData,
+                        !legacyAvatarData.isEmpty,
+                        TSGroupModel.isValidGroupAvatarData(legacyAvatarData)
+                    else {
+                        groupModel.avatarHash = nil
+                        groupModel.legacyAvatarData = nil
+                        return
+                    }
+
+                    try groupModel.persistAvatarData(legacyAvatarData)
+                    groupModel.legacyAvatarData = nil
+
+                    thread.anyUpsert(transaction: transaction)
                 }
             }
 
@@ -3862,18 +4214,18 @@ public class GRDBSchemaMigrator: NSObject {
         migrator.registerMigration(.dataMigration_repairAvatar) { transaction in
             // Declare the key value store here, since it's normally only
             // available in SignalMessaging.Preferences.
-            let preferencesKeyValueStore = SDSKeyValueStore(collection: Self.migrationSideEffectsCollectionName)
+            let preferencesKeyValueStore = KeyValueStore(collection: Self.migrationSideEffectsCollectionName)
             let key = Self.avatarRepairAttemptCount
-            preferencesKeyValueStore.setInt(0, key: key, transaction: transaction.asAnyWrite)
+            preferencesKeyValueStore.setInt(0, key: key, transaction: transaction)
             return .success(())
         }
 
         migrator.registerMigration(.dataMigration_dropEmojiAvailabilityStore) { transaction in
             // This is a bit of a layering violation, since these tables were previously managed in the app layer.
-            // In the long run we'll have a general "unused SDSKeyValueStore cleaner" migration,
+            // In the long run we'll have a general "unused KeyValueStore cleaner" migration,
             // but for now this should drop 2000 or so rows for free.
-            SDSKeyValueStore(collection: "Emoji+availableStore").removeAll(transaction: transaction.asAnyWrite)
-            SDSKeyValueStore(collection: "Emoji+metadataStore").removeAll(transaction: transaction.asAnyWrite)
+            KeyValueStore(collection: "Emoji+availableStore").removeAll(transaction: transaction)
+            KeyValueStore(collection: "Emoji+metadataStore").removeAll(transaction: transaction)
             return .success(())
         }
 
@@ -3892,17 +4244,17 @@ public class GRDBSchemaMigrator: NSObject {
         }
 
         migrator.registerMigration(.dataMigration_syncGroupStories) { transaction in
-            for thread in ThreadFinder().storyThreads(includeImplicitGroupThreads: false, transaction: transaction.asAnyRead) {
+            for thread in ThreadFinder().storyThreads(includeImplicitGroupThreads: false, transaction: transaction) {
                 guard let thread = thread as? TSGroupThread else { continue }
-                self.storageServiceManager.recordPendingUpdates(groupModel: thread.groupModel)
+                SSKEnvironment.shared.storageServiceManagerRef.recordPendingUpdates(groupModel: thread.groupModel)
             }
             return .success(())
         }
 
         migrator.registerMigration(.dataMigration_deleteOldGroupCapabilities) { transaction in
             let sql = """
-                DELETE FROM \(SDSKeyValueStore.tableName)
-                WHERE \(SDSKeyValueStore.collectionColumn.columnName)
+                DELETE FROM \(KeyValueStore.tableName)
+                WHERE \(KeyValueStore.collectionColumnName)
                 IN ("GroupManager.senderKeyCapability", "GroupManager.announcementOnlyGroupsCapability", "GroupManager.groupsV2MigrationCapability")
             """
             try transaction.database.execute(sql: sql)
@@ -3910,7 +4262,7 @@ public class GRDBSchemaMigrator: NSObject {
         }
 
         migrator.registerMigration(.dataMigration_updateStoriesDisabledInAccountRecord) { transaction in
-            storageServiceManager.recordPendingLocalAccountUpdates()
+            SSKEnvironment.shared.storageServiceManagerRef.recordPendingLocalAccountUpdates()
             return .success(())
         }
 
@@ -3959,13 +4311,13 @@ public class GRDBSchemaMigrator: NSObject {
             // the primary device's system contacts are synced.
 
             let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-            guard tsAccountManager.registrationState(tx: transaction.asAnyRead.asV2Read).isPrimaryDevice ?? false else {
+            guard tsAccountManager.registrationState(tx: transaction).isPrimaryDevice ?? false else {
                 return .success(())
             }
 
             var accountsToRemove: Set<SignalAccount> = []
 
-            SignalAccount.anyEnumerate(transaction: transaction.asAnyRead) { account, _ in
+            SignalAccount.anyEnumerate(transaction: transaction) { account, _ in
                 guard account.isFromLocalAddressBook else {
                     // Skip any accounts that do not have a system contact
                     return
@@ -3974,7 +4326,7 @@ public class GRDBSchemaMigrator: NSObject {
                 accountsToRemove.insert(account)
             }
 
-            storageServiceManager.recordPendingUpdates(updatedAddresses: accountsToRemove.map { $0.recipientAddress })
+            SSKEnvironment.shared.storageServiceManagerRef.recordPendingUpdates(updatedAddresses: accountsToRemove.map { $0.recipientAddress })
             return .success(())
         }
 
@@ -4033,7 +4385,7 @@ public class GRDBSchemaMigrator: NSObject {
             DELETE FROM "\(SearchableNameIndexerImpl.Constants.databaseTableName)"
             """)
             let searchableNameIndexer = DependenciesBridge.shared.searchableNameIndexer
-            searchableNameIndexer.indexEverything(tx: tx.asAnyWrite.asV2Write)
+            searchableNameIndexer.indexEverything(tx: tx)
             return .success(())
         }
 
@@ -4045,9 +4397,31 @@ public class GRDBSchemaMigrator: NSObject {
             ]
 
             for collection in keyValueCollections {
-                SDSKeyValueStore(collection: collection).removeAll(transaction: transaction.asAnyWrite)
+                KeyValueStore(collection: collection).removeAll(transaction: transaction)
             }
 
+            return .success(())
+        }
+
+        migrator.registerMigration(.dataMigration_clearLaunchScreenCache2) { _ in
+            OWSFileSystem.deleteFileIfExists(NSHomeDirectory() + "/Library/SplashBoard")
+            return .success(())
+        }
+
+        migrator.registerMigration(.dataMigration_resetLinkedDeviceAuthorMergeBuilder) { tx in
+            let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+            guard tsAccountManager.registrationState(tx: tx).isPrimaryDevice != true else {
+                return .success(())
+            }
+
+            let keyValueCollections = [
+                "AuthorMergeMetadata",
+                "AuthorMergeNextRowId",
+            ]
+
+            for collection in keyValueCollections {
+                KeyValueStore(collection: collection).removeAll(transaction: tx)
+            }
             return .success(())
         }
 
@@ -4056,7 +4430,7 @@ public class GRDBSchemaMigrator: NSObject {
 
     // MARK: - Migrations
 
-    static func migrateThreadReplyInfos(transaction: GRDBWriteTransaction) throws {
+    static func migrateThreadReplyInfos(transaction: DBWriteTransaction) throws {
         let collection = "TSThreadReplyInfo"
         try transaction.database.execute(
             sql: """
@@ -4080,7 +4454,7 @@ public class GRDBSchemaMigrator: NSObject {
     }
 
     static func migrateVoiceMessageDrafts(
-        transaction: GRDBWriteTransaction,
+        transaction: DBWriteTransaction,
         appSharedDataUrl: URL,
         copyItem: (URL, URL) throws -> Void
     ) throws {
@@ -4125,7 +4499,7 @@ public class GRDBSchemaMigrator: NSObject {
         }
     }
 
-    internal static func createEditRecordTable(tx: GRDBWriteTransaction) throws {
+    internal static func createEditRecordTable(tx: DBWriteTransaction) throws {
         try tx.database.create(
             table: "EditRecord"
         ) { table in
@@ -4160,7 +4534,7 @@ public class GRDBSchemaMigrator: NSObject {
         )
     }
 
-    internal static func migrateEditRecordTable(tx: GRDBWriteTransaction) throws {
+    internal static func migrateEditRecordTable(tx: DBWriteTransaction) throws {
         let finalTableName = EditRecord.databaseTableName
         let tempTableName = "\(finalTableName)_temp"
 
@@ -4274,7 +4648,7 @@ public class GRDBSchemaMigrator: NSObject {
         """)
     }
 
-    static func createV2AttachmentTables(_ tx: GRDBWriteTransaction) throws -> Result<Void, Error> {
+    static func createV2AttachmentTables(_ tx: DBWriteTransaction) throws -> Result<Void, Error> {
 
         // MARK: Attachment table
 
@@ -4644,7 +5018,7 @@ public class GRDBSchemaMigrator: NSObject {
         return .success(())
     }
 
-    static func addOriginalAttachmentIdForQuotedReplyColumn(_ tx: GRDBWriteTransaction) throws -> Result<Void, Error> {
+    static func addOriginalAttachmentIdForQuotedReplyColumn(_ tx: DBWriteTransaction) throws -> Result<Void, Error> {
         try tx.database.alter(table: "Attachment") { table in
             table.add(column: "originalAttachmentIdForQuotedReply", .integer)
                 .references("Attachment", column: "id", onDelete: .setNull)
@@ -4660,7 +5034,7 @@ public class GRDBSchemaMigrator: NSObject {
         return .success(())
     }
 
-    static func migrateBlockedRecipients(tx: GRDBWriteTransaction) throws {
+    static func migrateBlockedRecipients(tx: DBWriteTransaction) throws {
         try tx.database.create(table: "BlockedRecipient") { table in
             table.column("recipientId", .integer)
                 .primaryKey()
@@ -4736,7 +5110,7 @@ public class GRDBSchemaMigrator: NSObject {
         }
     }
 
-    private static func isPhoneNumberVisible(phoneNumber: String, aciString: String, tx: GRDBWriteTransaction) throws -> Bool {
+    private static func isPhoneNumberVisible(phoneNumber: String, aciString: String, tx: DBWriteTransaction) throws -> Bool {
         let isSystemContact = try Int.fetchOne(
             tx.database,
             sql: "SELECT 1 FROM model_SignalAccount WHERE recipientPhoneNumber IS ?",
@@ -4758,7 +5132,7 @@ public class GRDBSchemaMigrator: NSObject {
         return !isPhoneNumberHidden
     }
 
-    private static func fetchAndClearBlockedIdentifiers(key: String, tx: GRDBWriteTransaction) throws -> [String] {
+    private static func fetchAndClearBlockedIdentifiers(key: String, tx: DBWriteTransaction) throws -> [String] {
         let collection = "kOWSBlockingManager_BlockedPhoneNumbersCollection"
         let dataValue = try Data.fetchOne(
             tx.database,
@@ -4778,80 +5152,678 @@ public class GRDBSchemaMigrator: NSObject {
         }
     }
 
-    private static func fetchOrCreateRecipientV1(aciString: String, tx: GRDBWriteTransaction) throws -> SignalRecipient.RowId {
+    private static func fetchOrCreateRecipientV1(aciString: String, tx: DBWriteTransaction) throws -> SignalRecipient.RowId {
         let db = tx.database
         let existingRecipientId = try Int64.fetchOne(db, sql: "SELECT id FROM model_SignalRecipient WHERE recipientUUID IS ?", arguments: [aciString])
         if let existingRecipientId {
             return existingRecipientId
         }
-        return try createRecipientV1(aciString: aciString, phoneNumber: nil, tx: tx)
+        return try createRecipientV1(aciString: aciString, phoneNumber: nil, pniString: nil, tx: tx)
     }
 
-    private static func fetchOrCreateRecipientV1(phoneNumber: String, tx: GRDBWriteTransaction) throws -> SignalRecipient.RowId {
+    private static func fetchOrCreateRecipientV1(phoneNumber: String, tx: DBWriteTransaction) throws -> SignalRecipient.RowId {
         let db = tx.database
         let existingRecipientId = try Int64.fetchOne(db, sql: "SELECT id FROM model_SignalRecipient WHERE recipientPhoneNumber IS ?", arguments: [phoneNumber])
         if let existingRecipientId {
             return existingRecipientId
         }
-        return try createRecipientV1(aciString: nil, phoneNumber: phoneNumber, tx: tx)
+        return try createRecipientV1(aciString: nil, phoneNumber: phoneNumber, pniString: nil, tx: tx)
     }
 
-    private static func createRecipientV1(aciString: String?, phoneNumber: String?, tx: GRDBWriteTransaction) throws -> SignalRecipient.RowId {
+    private static func fetchOrCreateRecipientV1(pniString: String, tx: DBWriteTransaction) throws -> SignalRecipient.RowId {
+        let db = tx.database
+        let existingRecipientId = try Int64.fetchOne(db, sql: "SELECT id FROM model_SignalRecipient WHERE pni IS ?", arguments: [pniString])
+        if let existingRecipientId {
+            return existingRecipientId
+        }
+        return try createRecipientV1(aciString: nil, phoneNumber: nil, pniString: pniString, tx: tx)
+    }
+
+    private static func fetchOrCreateRecipientV1(address: FrozenSignalServiceAddress, tx: DBWriteTransaction) throws -> SignalRecipient.RowId? {
+        if let aci = address.serviceId as? Aci {
+            let aciString = aci.serviceIdUppercaseString
+            return try fetchOrCreateRecipientV1(aciString: aciString, tx: tx)
+        }
+        if let phoneNumber = address.phoneNumber {
+            return try fetchOrCreateRecipientV1(phoneNumber: phoneNumber, tx: tx)
+        }
+        if let pni = address.serviceId as? Pni {
+            let pniString = pni.serviceIdUppercaseString
+            return try fetchOrCreateRecipientV1(pniString: pniString, tx: tx)
+        }
+        return nil
+    }
+
+    private static func createRecipientV1(aciString: String?, phoneNumber: String?, pniString: String?, tx: DBWriteTransaction) throws -> SignalRecipient.RowId {
         try tx.database.execute(
             sql: """
-            INSERT INTO "model_SignalRecipient" ("recordType", "uniqueId", "devices", "recipientPhoneNumber", "recipientUUID") VALUES (31, ?, ?, ?, ?)
+            INSERT INTO "model_SignalRecipient" ("recordType", "uniqueId", "devices", "recipientPhoneNumber", "recipientUUID", "pni") VALUES (31, ?, ?, ?, ?, ?)
             """,
             arguments: [
                 UUID().uuidString,
                 NSKeyedArchiver.archivedData(withRootObject: NSOrderedSet(array: [] as [NSNumber]), requiringSecureCoding: true),
                 phoneNumber,
                 aciString,
+                pniString,
             ]
         )
         return tx.database.lastInsertedRowID
     }
 
-    private static func fetchRecipientAciString(recipientId: SignalRecipient.RowId, tx: GRDBWriteTransaction) throws -> String? {
+    private static func fetchRecipientAciString(recipientId: SignalRecipient.RowId, tx: DBWriteTransaction) throws -> String? {
         return try String.fetchOne(tx.database, sql: "SELECT recipientUUID FROM model_SignalRecipient WHERE id = ?", arguments: [recipientId])
     }
 
-    private static func fetchRecipientUniqueId(recipientId: SignalRecipient.RowId, tx: GRDBWriteTransaction) throws -> String? {
+    private static func fetchRecipientUniqueId(recipientId: SignalRecipient.RowId, tx: DBWriteTransaction) throws -> String? {
         return try String.fetchOne(tx.database, sql: "SELECT uniqueId FROM model_SignalRecipient WHERE id = ?", arguments: [recipientId])
+    }
+
+    static func addCallLinkTable(tx: DBWriteTransaction) throws {
+        try tx.database.create(table: "CallLink") { table in
+            table.column("id", .integer).primaryKey()
+            table.column("roomId", .blob).notNull().unique()
+            table.column("rootKey", .blob).notNull()
+            table.column("adminPasskey", .blob)
+            table.column("adminDeletedAtTimestampMs", .integer)
+            table.column("activeCallId", .integer)
+            table.column("isUpcoming", .boolean)
+            table.column("pendingActionCounter", .integer).notNull().defaults(to: 0)
+            table.column("name", .text)
+            table.column("restrictions", .integer)
+            table.column("revoked", .boolean)
+            table.column("expiration", .integer)
+            table.check(sql: #"LENGTH("roomId") IS 32"#)
+            table.check(sql: #"LENGTH("rootKey") IS 16"#)
+            table.check(sql: #"LENGTH("adminPasskey") > 0 OR "adminPasskey" IS NULL"#)
+            table.check(sql: #"NOT("isUpcoming" IS TRUE AND "expiration" IS NULL)"#)
+        }
+
+        try tx.database.create(
+            index: "CallLink_Upcoming",
+            on: "CallLink",
+            columns: ["expiration"],
+            condition: Column("isUpcoming") == true
+        )
+
+        try tx.database.create(
+            index: "CallLink_Pending",
+            on: "CallLink",
+            columns: ["pendingActionCounter"],
+            condition: Column("pendingActionCounter") > 0
+        )
+
+        try tx.database.create(
+            index: "CallLink_AdminDeleted",
+            on: "CallLink",
+            columns: ["adminDeletedAtTimestampMs"],
+            condition: Column("adminDeletedAtTimestampMs") != nil
+        )
+
+        let indexesToDrop = [
+            "index_call_record_on_callId_and_threadId",
+            "index_call_record_on_timestamp",
+            "index_call_record_on_status_and_timestamp",
+            "index_call_record_on_threadRowId_and_timestamp",
+            "index_call_record_on_threadRowId_and_status_and_timestamp",
+            "index_call_record_on_callStatus_and_unreadStatus_and_timestamp",
+            "index_call_record_on_threadRowId_and_callStatus_and_unreadStatus_and_timestamp",
+            "index_deleted_call_record_on_threadRowId_and_callId",
+            "index_deleted_call_record_on_deletedAtTimestamp",
+        ]
+        for indexName in indexesToDrop {
+            try tx.database.drop(index: indexName)
+        }
+
+        try tx.database.create(table: "new_CallRecord") { (table: TableDefinition) in
+            table.column("id", .integer).primaryKey().notNull()
+            table.column("callId", .text).notNull()
+            table.column("interactionRowId", .integer).unique()
+                .references("model_TSInteraction", column: "id", onDelete: .restrict, onUpdate: .cascade)
+            table.column("threadRowId", .integer)
+                .references("model_TSThread", column: "id", onDelete: .restrict, onUpdate: .cascade)
+            table.column("callLinkRowId", .integer)
+                .references("CallLink", column: "id", onDelete: .restrict, onUpdate: .cascade)
+            table.column("type", .integer).notNull()
+            table.column("direction", .integer).notNull()
+            table.column("status", .integer).notNull()
+            table.column("unreadStatus", .integer).notNull()
+            table.column("callBeganTimestamp", .integer).notNull()
+            table.column("callEndedTimestamp", .integer).notNull()
+            table.column("groupCallRingerAci", .blob)
+            table.check(sql: #"IIF("threadRowId" IS NOT NULL, "callLinkRowId" IS NULL, "callLinkRowId" IS NOT NULL)"#)
+            table.check(sql: #"IIF("threadRowId" IS NOT NULL, "interactionRowId" IS NOT NULL, "interactionRowId" IS NULL)"#)
+        }
+        try tx.database.execute(sql: """
+        INSERT INTO "new_CallRecord" (
+            "id", "callId", "interactionRowId", "threadRowId", "type", "direction", "status", "unreadStatus", "callBeganTimestamp", "callEndedTimestamp", "groupCallRingerAci"
+        ) SELECT "id", "callId", "interactionRowId", "threadRowId", "type", "direction", "status", "unreadStatus", "timestamp", "callEndedTimestamp", "groupCallRingerAci" FROM "CallRecord";
+        """)
+        try tx.database.drop(table: "CallRecord")
+        try tx.database.rename(table: "new_CallRecord", to: "CallRecord")
+
+        try tx.database.create(table: "new_DeletedCallRecord") { table in
+            table.column("id", .integer).primaryKey().notNull()
+            table.column("callId", .text).notNull()
+            table.column("threadRowId", .integer)
+                .references("model_TSThread", column: "id", onDelete: .restrict, onUpdate: .cascade)
+            table.column("callLinkRowId", .integer)
+                .references("CallLink", column: "id", onDelete: .restrict, onUpdate: .cascade)
+            table.column("deletedAtTimestamp", .integer).notNull()
+            table.check(sql: #"IIF("threadRowId" IS NOT NULL, "callLinkRowId" IS NULL, "callLinkRowId" IS NOT NULL)"#)
+        }
+        try tx.database.execute(sql: """
+        INSERT INTO "new_DeletedCallRecord" (
+            "id", "callId", "threadRowId", "deletedAtTimestamp"
+        ) SELECT "id", "callId", "threadRowId", "deletedAtTimestamp" FROM "DeletedCallRecord";
+        """)
+        try tx.database.drop(table: "DeletedCallRecord")
+        try tx.database.rename(table: "new_DeletedCallRecord", to: "DeletedCallRecord")
+
+        try tx.database.create(
+            index: "CallRecord_threadRowId_callId",
+            on: "CallRecord",
+            columns: ["threadRowId", "callId"],
+            options: [.unique],
+            condition: Column("threadRowId") != nil
+        )
+
+        try tx.database.create(
+            index: "CallRecord_callLinkRowId_callId",
+            on: "CallRecord",
+            columns: ["callLinkRowId", "callId"],
+            options: [.unique],
+            condition: Column("callLinkRowId") != nil
+        )
+
+        try tx.database.create(
+            index: "CallRecord_callBeganTimestamp",
+            on: "CallRecord",
+            columns: ["callBeganTimestamp"]
+        )
+
+        try tx.database.create(
+            index: "CallRecord_status_callBeganTimestamp",
+            on: "CallRecord",
+            columns: ["status", "callBeganTimestamp"]
+        )
+
+        try tx.database.create(
+            index: "CallRecord_threadRowId_callBeganTimestamp",
+            on: "CallRecord",
+            columns: ["threadRowId", "callBeganTimestamp"],
+            condition: Column("threadRowId") != nil
+        )
+
+        try tx.database.create(
+            index: "CallRecord_callLinkRowId_callBeganTimestamp",
+            on: "CallRecord",
+            columns: ["callLinkRowId", "callBeganTimestamp"],
+            condition: Column("callLinkRowId") != nil
+        )
+
+        try tx.database.create(
+            index: "CallRecord_threadRowId_status_callBeganTimestamp",
+            on: "CallRecord",
+            columns: ["threadRowId", "status", "callBeganTimestamp"],
+            condition: Column("threadRowId") != nil
+        )
+
+        try tx.database.create(
+            index: "CallRecord_callStatus_unreadStatus_callBeganTimestamp",
+            on: "CallRecord",
+            columns: ["status", "unreadStatus", "callBeganTimestamp"]
+        )
+
+        try tx.database.create(
+            index: "CallRecord_threadRowId_callStatus_unreadStatus_callBeganTimestamp",
+            on: "CallRecord",
+            columns: ["threadRowId", "status", "unreadStatus", "callBeganTimestamp"],
+            condition: Column("threadRowId") != nil
+        )
+
+        try tx.database.create(
+            index: "DeletedCallRecord_threadRowId_callId",
+            on: "DeletedCallRecord",
+            columns: ["threadRowId", "callId"],
+            options: [.unique],
+            condition: Column("threadRowId") != nil
+        )
+
+        try tx.database.create(
+            index: "DeletedCallRecord_callLinkRowId_callId",
+            on: "DeletedCallRecord",
+            columns: ["callLinkRowId", "callId"],
+            options: [.unique],
+            condition: Column("callLinkRowId") != nil
+        )
+
+        try tx.database.create(
+            index: "DeletedCallRecord_deletedAtTimestamp",
+            on: "DeletedCallRecord",
+            columns: ["deletedAtTimestamp"]
+        )
+    }
+
+    private static func fetchAndClearBlockedGroupIds(tx: DBWriteTransaction) throws -> [Data] {
+        let collection = "kOWSBlockingManager_BlockedPhoneNumbersCollection"
+        let key = "kOWSBlockingManager_BlockedGroupMapKey"
+        let dataValue = try Data.fetchOne(
+            tx.database,
+            sql: "SELECT value FROM keyvalue WHERE collection IS ? AND key IS ?",
+            arguments: [collection, key]
+        )
+        try tx.database.execute(sql: "DELETE FROM keyvalue WHERE collection IS ? AND key IS ?", arguments: [collection, key])
+        guard let dataValue else {
+            return []
+        }
+        do {
+            return try decodeBlockedGroupIds(dataValue: dataValue)
+        } catch {
+            Logger.warn("Couldn't decode blocked identifiers.")
+            return []
+        }
+    }
+
+    static func decodeBlockedGroupIds(dataValue: Data) throws -> [Data] {
+        @objc(TSBlockedGroupModel)
+        class TSBlockedGroupModel: NSObject, NSSecureCoding {
+            static var supportsSecureCoding: Bool { true }
+            required init?(coder: NSCoder) {}
+            func encode(with coder: NSCoder) {}
+        }
+        let coder = try NSKeyedUnarchiver(forReadingFrom: dataValue)
+        coder.requiresSecureCoding = true
+        coder.setClass(TSBlockedGroupModel.self, forClassName: "TSGroupModel")
+        coder.setClass(TSBlockedGroupModel.self, forClassName: "SignalServiceKit.TSGroupModelV2")
+        let groupIdMap = try coder.decodeTopLevelObject(of: [
+            NSDictionary.self, NSData.self, TSBlockedGroupModel.self
+        ], forKey: NSKeyedArchiveRootObjectKey)
+        return Array(((groupIdMap as? [Data: TSBlockedGroupModel]) ?? [:]).keys)
+    }
+
+    public static func rebuildIncompleteViewOnceIndex(tx: DBWriteTransaction) throws {
+        try tx.database.execute(sql: """
+            DROP INDEX IF EXISTS "index_interactions_on_view_once"
+            """
+        )
+        try tx.database.create(
+            index: "Interaction_incompleteViewOnce_partial",
+            on: "model_TSInteraction",
+            columns: ["isViewOnceMessage", "isViewOnceComplete"],
+            options: [.ifNotExists],
+            condition: Column("isViewOnceMessage") == 1 && Column("isViewOnceComplete") == 0
+        )
+    }
+
+    public static func removeInteractionThreadUniqueIdUniqueIdIndex(tx: DBWriteTransaction) throws {
+        try tx.database.execute(sql: """
+            DROP INDEX IF EXISTS "index_interactions_on_uniqueId_and_threadUniqueId"
+            """
+        )
+    }
+
+    public static func rebuildDisappearingMessagesIndex(tx: DBWriteTransaction) throws {
+        try tx.database.execute(sql: """
+            DROP INDEX IF EXISTS "index_interactions_on_expiresInSeconds_and_expiresAt"
+            """
+        )
+        try tx.database.create(
+            index: "Interaction_disappearingMessages_partial",
+            on: "model_TSInteraction",
+            columns: ["expiresAt"],
+            options: [.ifNotExists],
+            condition: Column("expiresAt") > 0
+        )
+    }
+
+    public static func removeInteractionAttachmentIdsIndex(tx: DBWriteTransaction) throws {
+        try tx.database.execute(sql: """
+            DROP INDEX IF EXISTS "index_model_TSInteraction_on_uniqueThreadId_and_attachmentIds"
+            """
+        )
+    }
+
+    public static func rebuildInteractionTimestampIndex(tx: DBWriteTransaction) throws {
+        try tx.database.execute(sql: """
+            DROP INDEX IF EXISTS "index_interactions_on_timestamp_sourceDeviceId_and_authorUUID"
+            """
+        )
+        try tx.database.execute(sql: """
+            DROP INDEX IF EXISTS "index_interactions_on_timestamp_sourceDeviceId_and_authorPhoneNumber"
+            """
+        )
+        try tx.database.create(
+            index: "Interaction_timestamp",
+            on: "model_TSInteraction",
+            columns: ["timestamp"],
+            options: [.ifNotExists]
+        )
+    }
+
+    public static func rebuildInteractionUnendedGroupCallIndex(tx: DBWriteTransaction) throws {
+        try tx.database.execute(sql: """
+            DROP INDEX IF EXISTS "index_model_TSInteraction_on_uniqueThreadId_and_hasEnded_and_recordType"
+            """
+        )
+        // This recordType constant can't ever change.
+        assert(SDSRecordType.groupCallMessage.rawValue == 65)
+        try tx.database.create(
+            index: "Interaction_unendedGroupCall_partial",
+            on: "model_TSInteraction",
+            columns: ["recordType", "hasEnded", "uniqueThreadId"],
+            options: [.ifNotExists],
+            condition: Column("recordType") == 65 && Column("hasEnded") == 0
+        )
+    }
+
+    public static func rebuildInteractionGroupCallEraIdIndex(tx: DBWriteTransaction) throws {
+        try tx.database.execute(sql: """
+            DROP INDEX IF EXISTS "index_model_TSInteraction_on_uniqueThreadId_and_eraId_and_recordType"
+            """
+        )
+        try tx.database.create(
+            index: "Interaction_groupCallEraId_partial",
+            on: "model_TSInteraction",
+            columns: ["uniqueThreadId", "recordType", "eraId"],
+            options: [.ifNotExists],
+            condition: Column("eraId") != nil
+        )
+    }
+
+    public static func rebuildInteractionStoryReplyIndex(tx: DBWriteTransaction) throws {
+        try tx.database.execute(sql: """
+            DROP INDEX IF EXISTS "index_model_TSInteraction_on_StoryContext"
+            """
+        )
+        try tx.database.create(
+            index: "Interaction_storyReply_partial",
+            on: "model_TSInteraction",
+            columns: ["storyAuthorUuidString", "storyTimestamp", "isGroupStoryReply"],
+            options: [.ifNotExists],
+            condition: Column("storyAuthorUuidString") != nil && Column("storyTimestamp") != nil
+        )
+    }
+
+    public static func removeInteractionConversationLoadCountIndex(tx: DBWriteTransaction) throws {
+        try tx.database.execute(sql: """
+            DROP INDEX IF EXISTS "index_model_TSInteraction_ConversationLoadInteractionCount"
+            """
+        )
+    }
+
+    public static func removeInteractionConversationLoadDistanceIndex(tx: DBWriteTransaction) throws {
+        try tx.database.execute(sql: """
+            DROP INDEX IF EXISTS "index_model_TSInteraction_ConversationLoadInteractionDistance"
+            """
+        )
+    }
+
+    public static func createDefaultAvatarColorTable(tx: DBWriteTransaction) throws {
+        try tx.database.create(
+            table: "AvatarDefaultColor",
+            options: [.ifNotExists]
+        ) { table in
+            table.column("recipientRowId", .integer)
+                .unique()
+                .references(
+                    "model_SignalRecipient",
+                    column: "id",
+                    onDelete: .cascade,
+                    onUpdate: .cascade
+                )
+            table.column("groupId", .blob).unique()
+            table.column("defaultColorIndex", .integer).notNull()
+        }
+    }
+
+    public static func populateDefaultAvatarColorTable(tx: DBWriteTransaction) throws {
+        /// This is the hashing algorithm historically used to compute the
+        /// default avatar color index.
+        func computeAvatarColorIndex(seedData: Data) -> Int {
+            func rotateLeft(_ uint: UInt64, _ count: Int) -> UInt64 {
+                let count = count % UInt64.bitWidth
+                return (uint << count) | (uint >> (UInt64.bitWidth - count))
+            }
+
+            var hash: UInt64 = 0
+            for value in seedData {
+                hash = rotateLeft(hash, 3) ^ UInt64(value)
+            }
+            return Int(hash % 12)
+        }
+
+        func insertDefaultColorIndex(
+            _ defaultColorIndex: Int,
+            groupId: Data?,
+            recipientRowId: Int64?
+        ) throws {
+            try tx.database.execute(
+                sql: """
+                    INSERT INTO AvatarDefaultColor
+                    VALUES (?, ?, ?)
+                """,
+                arguments: [recipientRowId, groupId, defaultColorIndex]
+            )
+        }
+
+        /// The group ID is buried inside of an `NSKeyedArchiver`-serialized
+        /// `TSGroupModel`. We'll grab the serialized blobs, then selectively
+        /// decode the group ID from them. That avoids referencing production
+        /// types here, and also avoids deserializing the rest of the group
+        /// model, such as the membership (which can be very slow).
+        let groupModelDataCursor = try Data.fetchCursor(tx.database, sql: """
+            SELECT groupModel
+            FROM model_TSThread
+            WHERE groupModel IS NOT NULL
+        """)
+        while let groupModelData = try groupModelDataCursor.next() {
+            if
+                let groupId = try decodeGroupIdFromGroupModelData(groupModelData),
+                groupId.count == 32
+            {
+                try insertDefaultColorIndex(
+                    computeAvatarColorIndex(seedData: groupId),
+                    groupId: groupId,
+                    recipientRowId: nil
+                )
+            }
+        }
+
+        var visitedRecipientIds = Set<Int64>()
+
+        let aciRowCursor = try Row.fetchCursor(tx.database, sql: """
+            SELECT id, recipientUUID
+            FROM model_SignalRecipient
+            WHERE recipientUUID IS NOT NULL
+        """)
+        while let row = try aciRowCursor.next() {
+            let recipientRowId: Int64 = row["id"]
+            let aciString: String = row["recipientUUID"]
+
+            let (inserted, _) = visitedRecipientIds.insert(recipientRowId)
+            if !inserted { continue }
+
+            try insertDefaultColorIndex(
+                computeAvatarColorIndex(seedData: Data(aciString.uppercased().utf8)),
+                groupId: nil,
+                recipientRowId: recipientRowId
+            )
+        }
+
+        let pniRowCursor = try Row.fetchCursor(tx.database, sql: """
+            SELECT id, pni
+            FROM model_SignalRecipient
+            WHERE pni IS NOT NULL
+        """)
+        while let row = try pniRowCursor.next() {
+            let recipientRowId: Int64 = row["id"]
+            let pniString: String = row["pni"]
+
+            let (inserted, _) = visitedRecipientIds.insert(recipientRowId)
+            if !inserted { continue }
+
+            try insertDefaultColorIndex(
+                computeAvatarColorIndex(seedData: Data(pniString.uppercased().utf8)),
+                groupId: nil,
+                recipientRowId: recipientRowId
+            )
+        }
+
+        let phoneNumberRowCursor = try Row.fetchCursor(tx.database, sql: """
+            SELECT id, recipientPhoneNumber
+            FROM model_SignalRecipient
+            WHERE recipientPhoneNumber IS NOT NULL
+        """)
+        while let row = try phoneNumberRowCursor.next() {
+            let recipientRowId: Int64 = row["id"]
+            let phoneNumber: String = row["recipientPhoneNumber"]
+
+            let (inserted, _) = visitedRecipientIds.insert(recipientRowId)
+            if !inserted { continue }
+
+            try insertDefaultColorIndex(
+                computeAvatarColorIndex(seedData: Data(phoneNumber.utf8)),
+                groupId: nil,
+                recipientRowId: recipientRowId
+            )
+        }
+    }
+
+    private static func decodeGroupIdFromGroupModelData(
+        _ groupModelData: Data
+    ) throws -> Data? {
+        @objc(TSGroupModelForMigrations)
+        class TSGroupModelForMigrations: NSObject, NSSecureCoding {
+            static var supportsSecureCoding: Bool { true }
+            let groupId: NSData?
+            required init?(coder: NSCoder) {
+                groupId = coder.decodeObject(of: NSData.self, forKey: "groupId")
+            }
+            func encode(with coder: NSCoder) { owsFail("Don't encode these!") }
+        }
+
+        let coder = try NSKeyedUnarchiver(forReadingFrom: groupModelData)
+        coder.requiresSecureCoding = true
+        coder.setClass(TSGroupModelForMigrations.self, forClassName: "TSGroupModel")
+        coder.setClass(TSGroupModelForMigrations.self, forClassName: "SignalServiceKit.TSGroupModelV2")
+
+        let groupModel = try coder.decodeTopLevelObject(
+            of: TSGroupModelForMigrations.self,
+            forKey: NSKeyedArchiveRootObjectKey
+        )
+        return groupModel?.groupId as Data?
+    }
+
+    static func createStoryRecipients(tx: DBWriteTransaction) throws {
+        try tx.database.create(table: "StoryRecipient", options: [.withoutRowID]) { table in
+            table.primaryKey(["threadId", "recipientId"])
+            table.column("threadId", .integer).notNull()
+            table.foreignKey(["threadId"], references: "model_TSThread", columns: ["id"], onDelete: .cascade, onUpdate: .cascade)
+            table.column("recipientId", .integer).notNull().indexed()
+            table.foreignKey(["recipientId"], references: "model_SignalRecipient", columns: ["id"], onDelete: .cascade, onUpdate: .cascade)
+        }
+        try migrateStoryRecipients(tx: tx)
+    }
+
+    private static func migrateStoryRecipients(tx: DBWriteTransaction) throws {
+        let storyThreads = try Row.fetchAll(
+            tx.database,
+            sql: "SELECT id, addresses FROM model_TSThread WHERE recordType = 72"
+        )
+        for storyThread in storyThreads {
+            let storyThreadId: Int64 = storyThread[0]
+            let addressesData: Data? = storyThread[1]
+            guard let addressesData else {
+                continue
+            }
+            let addresses: [FrozenSignalServiceAddress]
+            do {
+                addresses = try decodeSignalServiceAddresses(dataValue: addressesData)
+            } catch {
+                owsFailDebug("Couldn't decode story recipients: \(error)")
+                continue
+            }
+            for address in addresses {
+                guard let recipientId = try fetchOrCreateRecipientV1(address: address, tx: tx) else {
+                    owsFailDebug("Couldn't include empty story recipient address")
+                    continue
+                }
+                do {
+                    try tx.database.execute(
+                        sql: "INSERT INTO StoryRecipient (threadId, recipientId) VALUES (?, ?)",
+                        arguments: [storyThreadId, recipientId]
+                    )
+                } catch DatabaseError.SQLITE_CONSTRAINT {
+                    // This is fine.
+                }
+            }
+        }
+        try tx.database.execute(
+            sql: "UPDATE model_TSThread SET addresses = NULL WHERE recordType = 72"
+        )
+    }
+
+    /// A SignalServiceAddress without global magic; useful in migrations.
+    @objc(FrozenSignalServiceAddress)
+    class FrozenSignalServiceAddress: NSObject, NSSecureCoding {
+        let serviceId: ServiceId?
+        let phoneNumber: String?
+
+        static var supportsSecureCoding: Bool { true }
+
+        required init?(coder: NSCoder) {
+            let serviceId: ServiceId?
+            switch coder.decodeObject(of: [NSUUID.self, NSData.self], forKey: "backingUuid") {
+            case nil:
+                serviceId = nil
+            case let serviceIdBinary as Data:
+                do {
+                    serviceId = try ServiceId.parseFrom(serviceIdBinary: serviceIdBinary)
+                } catch {
+                    owsFailDebug("Couldn't parse serviceIdBinary.")
+                    return nil
+                }
+            case let deprecatedUuid as NSUUID:
+                serviceId = Aci(fromUUID: deprecatedUuid as UUID)
+            default:
+                return nil
+            }
+            let phoneNumber = coder.decodeObject(of: NSString.self, forKey: "backingPhoneNumber") as String?
+            self.serviceId = serviceId
+            self.phoneNumber = phoneNumber
+        }
+
+        func encode(with coder: NSCoder) {
+            owsFail("Not supported.")
+        }
+    }
+
+    static func decodeSignalServiceAddresses(dataValue: Data) throws -> [FrozenSignalServiceAddress] {
+        let coder = try NSKeyedUnarchiver(forReadingFrom: dataValue)
+        coder.requiresSecureCoding = true
+        coder.setClass(FrozenSignalServiceAddress.self, forClassName: "SignalServiceKit.SignalServiceAddress")
+        let decodedValue = try coder.decodeTopLevelObject(
+            of: [NSArray.self, FrozenSignalServiceAddress.self],
+            forKey: NSKeyedArchiveRootObjectKey
+        )
+        guard let result = decodedValue as? [FrozenSignalServiceAddress] else {
+            throw OWSGenericError("Couldn't parse result as an array of addresses.")
+        }
+        return result
     }
 }
 
 // MARK: -
 
-public func createInitialGalleryRecords(transaction: GRDBWriteTransaction) throws {
-    try Bench(title: "createInitialGalleryRecords", logInProduction: true) {
-        try MediaGalleryRecord.deleteAll(transaction.database)
-        let scope = AttachmentRecord.filter(sql: "\(attachmentColumn: .recordType) = \(SDSRecordType.attachmentStream.rawValue)")
-
-        let totalCount = try scope.fetchCount(transaction.database)
-        let cursor = try scope.fetchCursor(transaction.database)
-        var i = 0
-        try Batching.loop(batchSize: 500) { stopPtr in
-            guard let record = try cursor.next() else {
-                stopPtr.pointee = true
-                return
-            }
-
-            i+=1
-            if (i % 100) == 0 {
-                Logger.info("migrated \(i) / \(totalCount)")
-            }
-
-            guard let attachmentStream = try TSAttachment.fromRecord(record) as? TSAttachmentStream else {
-                owsFailDebug("unexpected record: \(record.recordType)")
-                return
-            }
-
-            try MediaGalleryRecordManager.insertForMigration(attachmentStream: attachmentStream, transaction: transaction)
-        }
-    }
+public func createInitialGalleryRecords(transaction: DBWriteTransaction) throws {
+    /// This method used to insert `media_gallery_record` rows for every message attachment.
+    /// Since the writing of this method, the table has been obsoleted. In between the original migration and its
+    /// obsoletion, no other migration referenced the table. This migration used to reference live application code
+    /// that no longer exists. Therefore, it is safe (if still not ideal) to no-op this migration, as the rows it inserts
+    /// will just be removed by a later migration before they're ever used.
 }
 
-private func dedupeSignalRecipients(transaction: SDSAnyWriteTransaction) throws {
+private func dedupeSignalRecipients(transaction: DBWriteTransaction) throws {
     var recipients: [SignalServiceAddress: [String]] = [:]
 
     SignalRecipient.anyEnumerate(transaction: transaction) { (recipient, _) in
@@ -4880,7 +5852,7 @@ private func dedupeSignalRecipients(transaction: SDSAnyWriteTransaction) throws 
         // accountId finder.
         guard
             let primaryRecipient = DependenciesBridge.shared.recipientDatabaseTable
-                .fetchRecipient(address: address, tx: transaction.asV2Read)
+                .fetchRecipient(address: address, tx: transaction)
         else {
             owsFailDebug("primaryRecipient was unexpectedly nil")
             continue
@@ -4898,7 +5870,7 @@ private func dedupeSignalRecipients(transaction: SDSAnyWriteTransaction) throws 
     }
 }
 
-private func hasRunMigration(_ identifier: String, transaction: GRDBReadTransaction) -> Bool {
+private func hasRunMigration(_ identifier: String, transaction: DBReadTransaction) -> Bool {
     do {
         return try String.fetchOne(
             transaction.database,

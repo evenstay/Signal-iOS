@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import SignalServiceKit
 import SignalUI
 
@@ -15,7 +16,7 @@ public extension ConversationViewController {
         case .individual(let call):
             return call.thread.uniqueId == thread.uniqueId
         case .groupThread(let call):
-            return call.groupThread.uniqueId == thread.uniqueId
+            return call.groupId.serialize().asData == (thread as? TSGroupThread)?.groupId
         case .callLink:
             return false
         }
@@ -31,21 +32,21 @@ public extension ConversationViewController {
 
     private var callStarterContext: CallStarter.Context {
         .init(
-            blockingManager: blockingManager,
-            databaseStorage: databaseStorage,
+            blockingManager: SSKEnvironment.shared.blockingManagerRef,
+            databaseStorage: SSKEnvironment.shared.databaseStorageRef,
             callService: AppEnvironment.shared.callService
         )
     }
 
     @objc
     func showGroupLobbyOrActiveCall() {
-        guard let groupThread = thread as? TSGroupThread else {
+        guard let groupId = try? (thread as? TSGroupThread)?.groupIdentifier else {
             owsFailDebug("Tried to present group call for non-group thread.")
             return
         }
 
         let startCallResult = CallStarter(
-            groupThread: groupThread,
+            groupId: groupId,
             context: self.callStarterContext
         ).startCall(from: self)
 
@@ -88,10 +89,10 @@ public extension ConversationViewController {
     }
 
     func refreshCallState() {
-        if let groupThread = thread as? TSGroupThread {
-            Task { [groupCallManager] in
-                await groupCallManager.peekGroupCallAndUpdateThread(
-                    groupThread,
+        if let groupId = try? (thread as? TSGroupThread)?.groupIdentifier {
+            Task {
+                await SSKEnvironment.shared.groupCallManagerRef.peekGroupCallAndUpdateThread(
+                    forGroupId: groupId,
                     peekTrigger: .localEvent()
                 )
             }
@@ -114,9 +115,9 @@ public extension ConversationViewController {
         // we may tear down and rebuild the tooltip multiple times
         // as the navbar items change.
         if !hasIncrementedGroupCallTooltipShownCount {
-            preferences.incrementGroupCallTooltipShownCount()
-            viewState.didAlreadyShowGroupCallTooltipEnoughTimes = databaseStorage.read { tx in
-                preferences.wasGroupCallTooltipShown(withTransaction: tx)
+            SSKEnvironment.shared.preferencesRef.incrementGroupCallTooltipShownCount()
+            viewState.didAlreadyShowGroupCallTooltipEnoughTimes = SSKEnvironment.shared.databaseStorageRef.read { tx in
+                SSKEnvironment.shared.preferencesRef.wasGroupCallTooltipShown(withTransaction: tx)
             }
             hasIncrementedGroupCallTooltipShownCount = true
         }

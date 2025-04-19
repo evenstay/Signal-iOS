@@ -7,7 +7,7 @@ import LibSignalClient
 import SignalServiceKit
 import SignalUI
 
-class StoryGroupReplyLoader: Dependencies {
+class StoryGroupReplyLoader {
     private let messageBatchFetcher: StoryGroupReplyBatchFetcher
     private let messageLoader: MessageLoader
     private let threadUniqueId: String
@@ -41,6 +41,7 @@ class StoryGroupReplyLoader: Dependencies {
         return container.contains(tableView.rectForRow(at: lastIndexPath))
     }
 
+    @MainActor
     init?(storyMessage: StoryMessage, threadUniqueId: String?, tableView: UITableView) {
         guard let threadUniqueId = threadUniqueId else {
             owsFailDebug("Unexpectedly missing threadUniqueId")
@@ -56,14 +57,14 @@ class StoryGroupReplyLoader: Dependencies {
         )
         self.messageLoader = MessageLoader(
             batchFetcher: messageBatchFetcher,
-            interactionFetchers: [NSObject.modelReadCaches.interactionReadCache, SDSInteractionFetcherImpl()]
+            interactionFetchers: [SSKEnvironment.shared.modelReadCachesRef.interactionReadCache, SDSInteractionFetcherImpl()]
         )
 
         // Load the first page synchronously.
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             load(mode: .initial, transaction: transaction)
         }
-        databaseStorage.appendDatabaseChangeDelegate(self)
+        DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
     }
 
     func replyItem(for indexPath: IndexPath) -> StoryGroupReplyViewItem? {
@@ -83,14 +84,14 @@ class StoryGroupReplyLoader: Dependencies {
     func loadNewerPageIfNecessary() {
         LoadingMode.newer.async {
             guard self.messageLoader.canLoadNewer else { return }
-            self.databaseStorage.read { self.load(mode: .newer, transaction: $0) }
+            SSKEnvironment.shared.databaseStorageRef.read { self.load(mode: .newer, transaction: $0) }
         }
     }
 
     func loadOlderPageIfNecessary() {
         LoadingMode.older.async {
             guard self.messageLoader.canLoadOlder else { return }
-            self.databaseStorage.read { self.load(mode: .older, transaction: $0) }
+            SSKEnvironment.shared.databaseStorageRef.read { self.load(mode: .older, transaction: $0) }
         }
     }
 
@@ -100,7 +101,7 @@ class StoryGroupReplyLoader: Dependencies {
         canReuseInteractions: Bool = true
     ) {
         LoadingMode.reload.async {
-            self.databaseStorage.read { self.load(
+            SSKEnvironment.shared.databaseStorageRef.read { self.load(
                 mode: .reload,
                 canReuseInteractions: canReuseInteractions,
                 updatedInteractionIds: updatedInteractionIds,
@@ -138,7 +139,7 @@ class StoryGroupReplyLoader: Dependencies {
         canReuseInteractions: Bool = true,
         updatedInteractionIds: Set<String>? = nil,
         deletedInteractionIds: Set<String>? = nil,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) {
         assertOnQueue(mode.queue)
 
@@ -166,25 +167,25 @@ class StoryGroupReplyLoader: Dependencies {
                     focusMessageId: messageBatchFetcher.uniqueIdsAndRowIds.first?.uniqueId,
                     reusableInteractions: reusableInteractions,
                     deletedInteractionIds: deletedInteractionIds,
-                    tx: transaction.asV2Read
+                    tx: transaction
                 )
             case .newer:
                 try self.messageLoader.loadNewerMessagePage(
                     reusableInteractions: reusableInteractions,
                     deletedInteractionIds: deletedInteractionIds,
-                    tx: transaction.asV2Read
+                    tx: transaction
                 )
             case .older:
                 try self.messageLoader.loadOlderMessagePage(
                     reusableInteractions: reusableInteractions,
                     deletedInteractionIds: deletedInteractionIds,
-                    tx: transaction.asV2Read
+                    tx: transaction
                 )
             case .reload:
                 try self.messageLoader.loadSameLocation(
                     reusableInteractions: reusableInteractions,
                     deletedInteractionIds: deletedInteractionIds,
-                    tx: transaction.asV2Read
+                    tx: transaction
                 )
             }
         } catch {
@@ -209,7 +210,7 @@ class StoryGroupReplyLoader: Dependencies {
         }
     }
 
-    private func buildItems(reusableInteractionIds: [String], transaction: SDSAnyReadTransaction) -> [String: StoryGroupReplyViewItem] {
+    private func buildItems(reusableInteractionIds: [String], transaction: DBReadTransaction) -> [String: StoryGroupReplyViewItem] {
         guard let groupThread = TSGroupThread.anyFetchGroupThread(uniqueId: threadUniqueId, transaction: transaction) else {
             owsFailDebug("Missing group thread for story")
             return replyItems
@@ -220,7 +221,7 @@ class StoryGroupReplyLoader: Dependencies {
         var messages = [(SignalServiceAddress, TSMessage)]()
         var authorAddresses = Set<SignalServiceAddress>()
 
-        let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)!.aciAddress
+        let localAddress = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction)!.aciAddress
 
         for interaction in loadedInteractions {
             if let outgoingMessage = interaction as? TSOutgoingMessage {
@@ -233,7 +234,7 @@ class StoryGroupReplyLoader: Dependencies {
         }
 
         let groupNameColors = GroupNameColors.groupNameColors(forThread: groupThread)
-        let displayNamesByAddress = contactsManagerImpl.displayNamesByAddress(
+        let displayNamesByAddress = SSKEnvironment.shared.contactManagerImplRef.displayNamesByAddress(
             for: Array(authorAddresses),
             transaction: transaction
         )
@@ -336,7 +337,7 @@ private class StoryGroupReplyBatchFetcher: MessageLoaderBatchFetcher {
         self.storyTimestamp = storyTimestamp
     }
 
-    func refetch(tx: SDSAnyReadTransaction) {
+    func refetch(tx: DBReadTransaction) {
         uniqueIdsAndRowIds = InteractionFinder.groupReplyUniqueIdsAndRowIds(
             storyAuthor: storyAuthor,
             storyTimestamp: storyTimestamp,

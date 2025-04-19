@@ -4,7 +4,6 @@
     "ExperienceUpgrade": 55,
     "IncomingGroupsV2MessageJob": 63,
     "InstalledSticker": 24,
-    "KnownStickerPack": 29,
     "OWS100RemoveTSRecipientsMigration": 40,
     "OWS101ExistingUsersBlockOnIdentityChange": 43,
     "OWS102MoveLoggingPreferenceToUserDefaults": 47,
@@ -53,9 +52,6 @@
     "SignalAccount": 30,
     "SignalRecipient": 31,
     "StickerPack": 14,
-    "TSAttachment": 6,
-    "TSAttachmentPointer": 3,
-    "TSAttachmentStream": 18,
     "TSCall": 20,
     "TSContactThread": 27,
     "TSErrorMessage": 9,
@@ -76,6 +72,5 @@
     "TSRecipientReadReceipt": 12,
     "TSThread": 2,
     "TSUnreadIndicatorInteraction": 4,
-    "TestModel": 59,
-    "tsAttachmentMultisendJobRecord": 58
+    "TestModel": 59
 }

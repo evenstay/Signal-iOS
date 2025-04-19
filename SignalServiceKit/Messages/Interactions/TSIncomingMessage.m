@@ -5,10 +5,8 @@
 
 #import "TSIncomingMessage.h"
 #import "OWSDisappearingMessagesConfiguration.h"
-#import "TSAttachmentPointer.h"
 #import "TSContactThread.h"
 #import "TSGroupThread.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -62,7 +60,7 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
 
     _authorUUID = incomingMessageBuilder.authorAciObjC.serviceIdUppercaseString;
     _authorPhoneNumber = incomingMessageBuilder.authorE164ObjC.stringValue;
-    _deprecated_sourceDeviceId = 1;
+    _deprecated_sourceDeviceId = nil;
     _read = incomingMessageBuilder.read;
     if (incomingMessageBuilder.serverTimestamp > 0) {
         _serverTimestamp = [NSNumber numberWithUnsignedLongLong:incomingMessageBuilder.serverTimestamp];
@@ -91,10 +89,10 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -115,7 +113,7 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
               wasRemotelyDeleted:(BOOL)wasRemotelyDeleted
                authorPhoneNumber:(nullable NSString *)authorPhoneNumber
                       authorUUID:(nullable NSString *)authorUUID
-       deprecated_sourceDeviceId:(unsigned int)deprecated_sourceDeviceId
+       deprecated_sourceDeviceId:(nullable NSNumber *)deprecated_sourceDeviceId
                             read:(BOOL)read
          serverDeliveryTimestamp:(uint64_t)serverDeliveryTimestamp
                       serverGuid:(nullable NSString *)serverGuid
@@ -129,10 +127,10 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
                             sortId:sortId
                          timestamp:timestamp
                     uniqueThreadId:uniqueThreadId
-                     attachmentIds:attachmentIds
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+          deprecated_attachmentIds:deprecated_attachmentIds
                          editState:editState
                    expireStartedAt:expireStartedAt
                 expireTimerVersion:expireTimerVersion
@@ -197,7 +195,7 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
     }
 }
 
-- (void)debugonly_markAsReadNowWithTransaction:(SDSAnyWriteTransaction *)transaction
+- (void)debugonly_markAsReadNowWithTransaction:(DBWriteTransaction *)transaction
 {
     // In various tests and debug UI we often want to make messages as already read.
     // We want to do this without triggering sending read receipts, so we pretend it was
@@ -213,7 +211,7 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
                        thread:(TSThread *)thread
                  circumstance:(OWSReceiptCircumstance)circumstance
      shouldClearNotifications:(BOOL)shouldClearNotifications
-                  transaction:(SDSAnyWriteTransaction *)transaction
+                  transaction:(DBWriteTransaction *)transaction
 {
     OWSAssertDebug(transaction);
 
@@ -224,17 +222,22 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
     [self anyUpdateIncomingMessageWithTransaction:transaction
                                             block:^(TSIncomingMessage *message) {
                                                 message.read = YES;
+                                                // No need to update MessageAttachmentReferences table;
+                                                // this doesn's change isPastRevision state.
                                                 if (self.editState == TSEditState_LatestRevisionUnread) {
                                                     message.editState = TSEditState_LatestRevisionRead;
                                                 }
                                             }];
 
     // readTimestamp may be earlier than now, so backdate the expiration if necessary.
-    [[OWSDisappearingMessagesJob shared] startAnyExpirationForMessage:self
-                                                  expirationStartedAt:readTimestamp
-                                                          transaction:transaction];
+    [SSKEnvironment.shared.disappearingMessagesJobRef startAnyExpirationForMessage:self
+                                                               expirationStartedAt:readTimestamp
+                                                                       transaction:transaction];
 
-    [OWSReceiptManager.shared messageWasRead:self thread:thread circumstance:circumstance transaction:transaction];
+    [SSKEnvironment.shared.receiptManagerRef messageWasRead:self
+                                                     thread:thread
+                                               circumstance:circumstance
+                                                transaction:transaction];
 
     if (shouldClearNotifications) {
         [NotificationPresenterObjC cancelNotificationsForMessageId:self.uniqueId];
@@ -244,7 +247,7 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
 - (void)markAsViewedAtTimestamp:(uint64_t)viewedTimestamp
                          thread:(TSThread *)thread
                    circumstance:(OWSReceiptCircumstance)circumstance
-                    transaction:(SDSAnyWriteTransaction *)transaction
+                    transaction:(DBWriteTransaction *)transaction
 {
     OWSAssertDebug(transaction);
 
@@ -255,7 +258,10 @@ const NSUInteger TSIncomingMessageSchemaVersion = 1;
     [self anyUpdateIncomingMessageWithTransaction:transaction
                                             block:^(TSIncomingMessage *message) { message.viewed = YES; }];
 
-    [OWSReceiptManager.shared messageWasViewed:self thread:thread circumstance:circumstance transaction:transaction];
+    [SSKEnvironment.shared.receiptManagerRef messageWasViewed:self
+                                                       thread:thread
+                                                 circumstance:circumstance
+                                                  transaction:transaction];
 }
 
 - (SignalServiceAddress *)authorAddress

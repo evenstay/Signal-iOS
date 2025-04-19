@@ -62,6 +62,101 @@ private func StorageServiceProtoOptionalBoolUnwrap(_ value: StorageServiceProtoO
     }
 }
 
+// MARK: - StorageServiceProtoAvatarColor
+
+public enum StorageServiceProtoAvatarColor: SwiftProtobuf.Enum {
+    public typealias RawValue = Int
+    case a100 // 0
+    case a110 // 1
+    case a120 // 2
+    case a130 // 3
+    case a140 // 4
+    case a150 // 5
+    case a160 // 6
+    case a170 // 7
+    case a180 // 8
+    case a190 // 9
+    case a200 // 10
+    case a210 // 11
+    case UNRECOGNIZED(Int)
+
+    public init() {
+        self = .a100
+    }
+
+    public init?(rawValue: Int) {
+        switch rawValue {
+            case 0: self = .a100
+            case 1: self = .a110
+            case 2: self = .a120
+            case 3: self = .a130
+            case 4: self = .a140
+            case 5: self = .a150
+            case 6: self = .a160
+            case 7: self = .a170
+            case 8: self = .a180
+            case 9: self = .a190
+            case 10: self = .a200
+            case 11: self = .a210
+            default: self = .UNRECOGNIZED(rawValue)
+        }
+    }
+
+    public var rawValue: Int {
+        switch self {
+            case .a100: return 0
+            case .a110: return 1
+            case .a120: return 2
+            case .a130: return 3
+            case .a140: return 4
+            case .a150: return 5
+            case .a160: return 6
+            case .a170: return 7
+            case .a180: return 8
+            case .a190: return 9
+            case .a200: return 10
+            case .a210: return 11
+            case .UNRECOGNIZED(let i): return i
+        }
+    }
+}
+
+private func StorageServiceProtoAvatarColorWrap(_ value: StorageServiceProtos_AvatarColor) -> StorageServiceProtoAvatarColor {
+    switch value {
+    case .a100: return .a100
+    case .a110: return .a110
+    case .a120: return .a120
+    case .a130: return .a130
+    case .a140: return .a140
+    case .a150: return .a150
+    case .a160: return .a160
+    case .a170: return .a170
+    case .a180: return .a180
+    case .a190: return .a190
+    case .a200: return .a200
+    case .a210: return .a210
+    case .UNRECOGNIZED(let i): return .UNRECOGNIZED(i)
+    }
+}
+
+private func StorageServiceProtoAvatarColorUnwrap(_ value: StorageServiceProtoAvatarColor) -> StorageServiceProtos_AvatarColor {
+    switch value {
+    case .a100: return .a100
+    case .a110: return .a110
+    case .a120: return .a120
+    case .a130: return .a130
+    case .a140: return .a140
+    case .a150: return .a150
+    case .a160: return .a160
+    case .a170: return .a170
+    case .a180: return .a180
+    case .a190: return .a190
+    case .a200: return .a200
+    case .a210: return .a210
+    case .UNRECOGNIZED(let i): return .UNRECOGNIZED(i)
+    }
+}
+
 // MARK: - StorageServiceProtoStorageItem
 
 public struct StorageServiceProtoStorageItem: Codable, CustomDebugStringConvertible {
@@ -920,6 +1015,16 @@ public struct StorageServiceProtoManifestRecord: Codable, CustomDebugStringConve
     public var sourceDevice: UInt32 {
         return proto.sourceDevice
     }
+    public var recordIkm: Data? {
+        guard hasRecordIkm else {
+            return nil
+        }
+        return proto.recordIkm
+    }
+    public var hasRecordIkm: Bool {
+        return !proto.recordIkm.isEmpty
+    }
+
     public var hasUnknownFields: Bool {
         return !proto.unknownFields.data.isEmpty
     }
@@ -981,6 +1086,9 @@ extension StorageServiceProtoManifestRecord {
         var builder = StorageServiceProtoManifestRecordBuilder(version: version)
         builder.setSourceDevice(sourceDevice)
         builder.setKeys(keys)
+        if let _value = recordIkm {
+            builder.setRecordIkm(_value)
+        }
         if let _value = unknownFields {
             builder.setUnknownFields(_value)
         }
@@ -1013,6 +1121,16 @@ public struct StorageServiceProtoManifestRecordBuilder {
 
     public mutating func setKeys(_ wrappedItems: [StorageServiceProtoManifestRecordKey]) {
         proto.keys = wrappedItems.map { $0.proto }
+    }
+
+    @available(swift, obsoleted: 1.0)
+    public mutating func setRecordIkm(_ valueParam: Data?) {
+        guard let valueParam = valueParam else { return }
+        proto.recordIkm = valueParam
+    }
+
+    public mutating func setRecordIkm(_ valueParam: Data) {
+        proto.recordIkm = valueParam
     }
 
     public mutating func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {
@@ -1539,6 +1657,24 @@ public struct StorageServiceProtoContactRecord: Codable, CustomDebugStringConver
         return !proto.note.isEmpty
     }
 
+    public var avatarColor: StorageServiceProtoAvatarColor? {
+        guard hasAvatarColor else {
+            return nil
+        }
+        return StorageServiceProtoAvatarColorWrap(proto.avatarColor)
+    }
+    // This "unwrapped" accessor should only be used if the "has value" accessor has already been checked.
+    public var unwrappedAvatarColor: StorageServiceProtoAvatarColor {
+        if !hasAvatarColor {
+            // TODO: We could make this a crashing assert.
+            owsFailDebug("Unsafe unwrap of missing optional: ContactRecord.avatarColor.")
+        }
+        return StorageServiceProtoAvatarColorWrap(proto.avatarColor)
+    }
+    public var hasAvatarColor: Bool {
+        return proto.hasAvatarColor
+    }
+
     public var hasUnknownFields: Bool {
         return !proto.unknownFields.data.isEmpty
     }
@@ -1642,6 +1778,9 @@ extension StorageServiceProtoContactRecord {
         }
         if let _value = note {
             builder.setNote(_value)
+        }
+        if let _value = avatarColor {
+            builder.setAvatarColor(_value)
         }
         if let _value = unknownFields {
             builder.setUnknownFields(_value)
@@ -1820,6 +1959,10 @@ public struct StorageServiceProtoContactRecordBuilder {
 
     public mutating func setNote(_ valueParam: String) {
         proto.note = valueParam
+    }
+
+    public mutating func setAvatarColor(_ valueParam: StorageServiceProtoAvatarColor) {
+        proto.avatarColor = StorageServiceProtoAvatarColorUnwrap(valueParam)
     }
 
     public mutating func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {
@@ -2051,6 +2194,24 @@ public struct StorageServiceProtoGroupV2Record: Codable, CustomDebugStringConver
     public var storySendMode: StorageServiceProtoGroupV2RecordStorySendMode {
         return StorageServiceProtoGroupV2RecordStorySendModeWrap(proto.storySendMode)
     }
+    public var avatarColor: StorageServiceProtoAvatarColor? {
+        guard hasAvatarColor else {
+            return nil
+        }
+        return StorageServiceProtoAvatarColorWrap(proto.avatarColor)
+    }
+    // This "unwrapped" accessor should only be used if the "has value" accessor has already been checked.
+    public var unwrappedAvatarColor: StorageServiceProtoAvatarColor {
+        if !hasAvatarColor {
+            // TODO: We could make this a crashing assert.
+            owsFailDebug("Unsafe unwrap of missing optional: GroupV2Record.avatarColor.")
+        }
+        return StorageServiceProtoAvatarColorWrap(proto.avatarColor)
+    }
+    public var hasAvatarColor: Bool {
+        return proto.hasAvatarColor
+    }
+
     public var hasUnknownFields: Bool {
         return !proto.unknownFields.data.isEmpty
     }
@@ -2112,6 +2273,9 @@ extension StorageServiceProtoGroupV2Record {
         builder.setDontNotifyForMentionsIfMuted(dontNotifyForMentionsIfMuted)
         builder.setHideStory(hideStory)
         builder.setStorySendMode(storySendMode)
+        if let _value = avatarColor {
+            builder.setAvatarColor(_value)
+        }
         if let _value = unknownFields {
             builder.setUnknownFields(_value)
         }
@@ -2170,6 +2334,10 @@ public struct StorageServiceProtoGroupV2RecordBuilder {
 
     public mutating func setStorySendMode(_ valueParam: StorageServiceProtoGroupV2RecordStorySendMode) {
         proto.storySendMode = StorageServiceProtoGroupV2RecordStorySendModeUnwrap(valueParam)
+    }
+
+    public mutating func setAvatarColor(_ valueParam: StorageServiceProtoAvatarColor) {
+        proto.avatarColor = StorageServiceProtoAvatarColorUnwrap(valueParam)
     }
 
     public mutating func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {
@@ -2839,6 +3007,165 @@ extension StorageServiceProtoAccountRecordUsernameLinkBuilder {
 
 #endif
 
+// MARK: - StorageServiceProtoAccountRecordIAPSubscriberDataOneOfIapSubscriptionID
+
+public enum StorageServiceProtoAccountRecordIAPSubscriberDataOneOfIapSubscriptionID {
+    case purchaseToken(String)
+    case originalTransactionID(UInt64)
+}
+
+private func StorageServiceProtoAccountRecordIAPSubscriberDataOneOfIapSubscriptionIDWrap(_ value: StorageServiceProtos_AccountRecord.IAPSubscriberData.OneOf_IapSubscriptionID) -> StorageServiceProtoAccountRecordIAPSubscriberDataOneOfIapSubscriptionID {
+    switch value {
+    case .purchaseToken(let value): return .purchaseToken(value)
+    case .originalTransactionID(let value): return .originalTransactionID(value)
+    }
+}
+
+private func StorageServiceProtoAccountRecordIAPSubscriberDataOneOfIapSubscriptionIDUnwrap(_ value: StorageServiceProtoAccountRecordIAPSubscriberDataOneOfIapSubscriptionID) -> StorageServiceProtos_AccountRecord.IAPSubscriberData.OneOf_IapSubscriptionID {
+    switch value {
+    case .purchaseToken(let value): return .purchaseToken(value)
+    case .originalTransactionID(let value): return .originalTransactionID(value)
+    }
+}
+
+// MARK: - StorageServiceProtoAccountRecordIAPSubscriberData
+
+public struct StorageServiceProtoAccountRecordIAPSubscriberData: Codable, CustomDebugStringConvertible {
+
+    fileprivate let proto: StorageServiceProtos_AccountRecord.IAPSubscriberData
+
+    public var subscriberID: Data? {
+        guard hasSubscriberID else {
+            return nil
+        }
+        return proto.subscriberID
+    }
+    public var hasSubscriberID: Bool {
+        return !proto.subscriberID.isEmpty
+    }
+
+    public var iapSubscriptionID: StorageServiceProtoAccountRecordIAPSubscriberDataOneOfIapSubscriptionID? {
+        guard let iapSubscriptionID = proto.iapSubscriptionID else {
+            return nil
+        }
+        return StorageServiceProtoAccountRecordIAPSubscriberDataOneOfIapSubscriptionIDWrap(iapSubscriptionID)
+    }
+    public var hasUnknownFields: Bool {
+        return !proto.unknownFields.data.isEmpty
+    }
+    public var unknownFields: SwiftProtobuf.UnknownStorage? {
+        guard hasUnknownFields else { return nil }
+        return proto.unknownFields
+    }
+
+    private init(proto: StorageServiceProtos_AccountRecord.IAPSubscriberData) {
+        self.proto = proto
+    }
+
+    public func serializedData() throws -> Data {
+        return try self.proto.serializedData()
+    }
+
+    public init(serializedData: Data) throws {
+        let proto = try StorageServiceProtos_AccountRecord.IAPSubscriberData(serializedBytes: serializedData)
+        self.init(proto)
+    }
+
+    fileprivate init(_ proto: StorageServiceProtos_AccountRecord.IAPSubscriberData) {
+        self.init(proto: proto)
+    }
+
+    public init(from decoder: Swift.Decoder) throws {
+        let singleValueContainer = try decoder.singleValueContainer()
+        let serializedData = try singleValueContainer.decode(Data.self)
+        try self.init(serializedData: serializedData)
+    }
+    public func encode(to encoder: Swift.Encoder) throws {
+        var singleValueContainer = encoder.singleValueContainer()
+        try singleValueContainer.encode(try serializedData())
+    }
+
+    public var debugDescription: String {
+        return "\(proto)"
+    }
+}
+
+extension StorageServiceProtoAccountRecordIAPSubscriberData {
+    public static func builder() -> StorageServiceProtoAccountRecordIAPSubscriberDataBuilder {
+        return StorageServiceProtoAccountRecordIAPSubscriberDataBuilder()
+    }
+
+    // asBuilder() constructs a builder that reflects the proto's contents.
+    public func asBuilder() -> StorageServiceProtoAccountRecordIAPSubscriberDataBuilder {
+        var builder = StorageServiceProtoAccountRecordIAPSubscriberDataBuilder()
+        if let _value = subscriberID {
+            builder.setSubscriberID(_value)
+        }
+        if let _value = iapSubscriptionID {
+            builder.setIapSubscriptionID(_value)
+        }
+        if let _value = unknownFields {
+            builder.setUnknownFields(_value)
+        }
+        return builder
+    }
+}
+
+public struct StorageServiceProtoAccountRecordIAPSubscriberDataBuilder {
+
+    private var proto = StorageServiceProtos_AccountRecord.IAPSubscriberData()
+
+    fileprivate init() {}
+
+    @available(swift, obsoleted: 1.0)
+    public mutating func setSubscriberID(_ valueParam: Data?) {
+        guard let valueParam = valueParam else { return }
+        proto.subscriberID = valueParam
+    }
+
+    public mutating func setSubscriberID(_ valueParam: Data) {
+        proto.subscriberID = valueParam
+    }
+
+    @available(swift, obsoleted: 1.0)
+    public mutating func setIapSubscriptionID(_ valueParam: StorageServiceProtoAccountRecordIAPSubscriberDataOneOfIapSubscriptionID?) {
+        guard let valueParam = valueParam else { return }
+        proto.iapSubscriptionID = StorageServiceProtoAccountRecordIAPSubscriberDataOneOfIapSubscriptionIDUnwrap(valueParam)
+    }
+
+    public mutating func setIapSubscriptionID(_ valueParam: StorageServiceProtoAccountRecordIAPSubscriberDataOneOfIapSubscriptionID) {
+        proto.iapSubscriptionID = StorageServiceProtoAccountRecordIAPSubscriberDataOneOfIapSubscriptionIDUnwrap(valueParam)
+    }
+
+    public mutating func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {
+        proto.unknownFields = unknownFields
+    }
+
+    public func buildInfallibly() -> StorageServiceProtoAccountRecordIAPSubscriberData {
+        return StorageServiceProtoAccountRecordIAPSubscriberData(proto)
+    }
+
+    public func buildSerializedData() throws -> Data {
+        return try StorageServiceProtoAccountRecordIAPSubscriberData(proto).serializedData()
+    }
+}
+
+#if TESTABLE_BUILD
+
+extension StorageServiceProtoAccountRecordIAPSubscriberData {
+    public func serializedDataIgnoringErrors() -> Data? {
+        return try! self.serializedData()
+    }
+}
+
+extension StorageServiceProtoAccountRecordIAPSubscriberDataBuilder {
+    public func buildIgnoringErrors() -> StorageServiceProtoAccountRecordIAPSubscriberData? {
+        return self.buildInfallibly()
+    }
+}
+
+#endif
+
 // MARK: - StorageServiceProtoAccountRecordPhoneNumberSharingMode
 
 public enum StorageServiceProtoAccountRecordPhoneNumberSharingMode: SwiftProtobuf.Enum {
@@ -2900,6 +3227,8 @@ public struct StorageServiceProtoAccountRecord: Codable, CustomDebugStringConver
     public let payments: StorageServiceProtoAccountRecordPayments?
 
     public let usernameLink: StorageServiceProtoAccountRecordUsernameLink?
+
+    public let backupSubscriberData: StorageServiceProtoAccountRecordIAPSubscriberData?
 
     public var profileKey: Data? {
         guard hasProfileKey else {
@@ -2988,31 +3317,31 @@ public struct StorageServiceProtoAccountRecord: Codable, CustomDebugStringConver
         return proto.preferredReactionEmoji
     }
 
-    public var subscriberID: Data? {
-        guard hasSubscriberID else {
+    public var donorSubscriberID: Data? {
+        guard hasDonorSubscriberID else {
             return nil
         }
-        return proto.subscriberID
+        return proto.donorSubscriberID
     }
-    public var hasSubscriberID: Bool {
-        return !proto.subscriberID.isEmpty
+    public var hasDonorSubscriberID: Bool {
+        return !proto.donorSubscriberID.isEmpty
     }
 
-    public var subscriberCurrencyCode: String? {
-        guard hasSubscriberCurrencyCode else {
+    public var donorSubscriberCurrencyCode: String? {
+        guard hasDonorSubscriberCurrencyCode else {
             return nil
         }
-        return proto.subscriberCurrencyCode
+        return proto.donorSubscriberCurrencyCode
     }
-    public var hasSubscriberCurrencyCode: Bool {
-        return !proto.subscriberCurrencyCode.isEmpty
+    public var hasDonorSubscriberCurrencyCode: Bool {
+        return !proto.donorSubscriberCurrencyCode.isEmpty
     }
 
     public var displayBadgesOnProfile: Bool {
         return proto.displayBadgesOnProfile
     }
-    public var subscriptionManuallyCancelled: Bool {
-        return proto.subscriptionManuallyCancelled
+    public var donorSubscriptionManuallyCancelled: Bool {
+        return proto.donorSubscriptionManuallyCancelled
     }
     public var keepMutedChatsArchived: Bool {
         return proto.keepMutedChatsArchived
@@ -3045,6 +3374,24 @@ public struct StorageServiceProtoAccountRecord: Codable, CustomDebugStringConver
     public var completedUsernameOnboarding: Bool {
         return proto.completedUsernameOnboarding
     }
+    public var avatarColor: StorageServiceProtoAvatarColor? {
+        guard hasAvatarColor else {
+            return nil
+        }
+        return StorageServiceProtoAvatarColorWrap(proto.avatarColor)
+    }
+    // This "unwrapped" accessor should only be used if the "has value" accessor has already been checked.
+    public var unwrappedAvatarColor: StorageServiceProtoAvatarColor {
+        if !hasAvatarColor {
+            // TODO: We could make this a crashing assert.
+            owsFailDebug("Unsafe unwrap of missing optional: AccountRecord.avatarColor.")
+        }
+        return StorageServiceProtoAvatarColorWrap(proto.avatarColor)
+    }
+    public var hasAvatarColor: Bool {
+        return proto.hasAvatarColor
+    }
+
     public var hasUnknownFields: Bool {
         return !proto.unknownFields.data.isEmpty
     }
@@ -3056,11 +3403,13 @@ public struct StorageServiceProtoAccountRecord: Codable, CustomDebugStringConver
     private init(proto: StorageServiceProtos_AccountRecord,
                  pinnedConversations: [StorageServiceProtoAccountRecordPinnedConversation],
                  payments: StorageServiceProtoAccountRecordPayments?,
-                 usernameLink: StorageServiceProtoAccountRecordUsernameLink?) {
+                 usernameLink: StorageServiceProtoAccountRecordUsernameLink?,
+                 backupSubscriberData: StorageServiceProtoAccountRecordIAPSubscriberData?) {
         self.proto = proto
         self.pinnedConversations = pinnedConversations
         self.payments = payments
         self.usernameLink = usernameLink
+        self.backupSubscriberData = backupSubscriberData
     }
 
     public func serializedData() throws -> Data {
@@ -3086,10 +3435,16 @@ public struct StorageServiceProtoAccountRecord: Codable, CustomDebugStringConver
             usernameLink = StorageServiceProtoAccountRecordUsernameLink(proto.usernameLink)
         }
 
+        var backupSubscriberData: StorageServiceProtoAccountRecordIAPSubscriberData?
+        if proto.hasBackupSubscriberData {
+            backupSubscriberData = StorageServiceProtoAccountRecordIAPSubscriberData(proto.backupSubscriberData)
+        }
+
         self.init(proto: proto,
                   pinnedConversations: pinnedConversations,
                   payments: payments,
-                  usernameLink: usernameLink)
+                  usernameLink: usernameLink,
+                  backupSubscriberData: backupSubscriberData)
     }
 
     public init(from decoder: Swift.Decoder) throws {
@@ -3146,14 +3501,14 @@ extension StorageServiceProtoAccountRecord {
             builder.setE164(_value)
         }
         builder.setPreferredReactionEmoji(preferredReactionEmoji)
-        if let _value = subscriberID {
-            builder.setSubscriberID(_value)
+        if let _value = donorSubscriberID {
+            builder.setDonorSubscriberID(_value)
         }
-        if let _value = subscriberCurrencyCode {
-            builder.setSubscriberCurrencyCode(_value)
+        if let _value = donorSubscriberCurrencyCode {
+            builder.setDonorSubscriberCurrencyCode(_value)
         }
         builder.setDisplayBadgesOnProfile(displayBadgesOnProfile)
-        builder.setSubscriptionManuallyCancelled(subscriptionManuallyCancelled)
+        builder.setDonorSubscriptionManuallyCancelled(donorSubscriptionManuallyCancelled)
         builder.setKeepMutedChatsArchived(keepMutedChatsArchived)
         builder.setMyStoryPrivacyHasBeenSet(myStoryPrivacyHasBeenSet)
         builder.setViewedOnboardingStory(viewedOnboardingStory)
@@ -3166,6 +3521,12 @@ extension StorageServiceProtoAccountRecord {
         builder.setCompletedUsernameOnboarding(completedUsernameOnboarding)
         if let _value = usernameLink {
             builder.setUsernameLink(_value)
+        }
+        if let _value = backupSubscriberData {
+            builder.setBackupSubscriberData(_value)
+        }
+        if let _value = avatarColor {
+            builder.setAvatarColor(_value)
         }
         if let _value = unknownFields {
             builder.setUnknownFields(_value)
@@ -3301,31 +3662,31 @@ public struct StorageServiceProtoAccountRecordBuilder {
     }
 
     @available(swift, obsoleted: 1.0)
-    public mutating func setSubscriberID(_ valueParam: Data?) {
+    public mutating func setDonorSubscriberID(_ valueParam: Data?) {
         guard let valueParam = valueParam else { return }
-        proto.subscriberID = valueParam
+        proto.donorSubscriberID = valueParam
     }
 
-    public mutating func setSubscriberID(_ valueParam: Data) {
-        proto.subscriberID = valueParam
+    public mutating func setDonorSubscriberID(_ valueParam: Data) {
+        proto.donorSubscriberID = valueParam
     }
 
     @available(swift, obsoleted: 1.0)
-    public mutating func setSubscriberCurrencyCode(_ valueParam: String?) {
+    public mutating func setDonorSubscriberCurrencyCode(_ valueParam: String?) {
         guard let valueParam = valueParam else { return }
-        proto.subscriberCurrencyCode = valueParam
+        proto.donorSubscriberCurrencyCode = valueParam
     }
 
-    public mutating func setSubscriberCurrencyCode(_ valueParam: String) {
-        proto.subscriberCurrencyCode = valueParam
+    public mutating func setDonorSubscriberCurrencyCode(_ valueParam: String) {
+        proto.donorSubscriberCurrencyCode = valueParam
     }
 
     public mutating func setDisplayBadgesOnProfile(_ valueParam: Bool) {
         proto.displayBadgesOnProfile = valueParam
     }
 
-    public mutating func setSubscriptionManuallyCancelled(_ valueParam: Bool) {
-        proto.subscriptionManuallyCancelled = valueParam
+    public mutating func setDonorSubscriptionManuallyCancelled(_ valueParam: Bool) {
+        proto.donorSubscriptionManuallyCancelled = valueParam
     }
 
     public mutating func setKeepMutedChatsArchived(_ valueParam: Bool) {
@@ -3374,6 +3735,20 @@ public struct StorageServiceProtoAccountRecordBuilder {
 
     public mutating func setUsernameLink(_ valueParam: StorageServiceProtoAccountRecordUsernameLink) {
         proto.usernameLink = valueParam.proto
+    }
+
+    @available(swift, obsoleted: 1.0)
+    public mutating func setBackupSubscriberData(_ valueParam: StorageServiceProtoAccountRecordIAPSubscriberData?) {
+        guard let valueParam = valueParam else { return }
+        proto.backupSubscriberData = valueParam.proto
+    }
+
+    public mutating func setBackupSubscriberData(_ valueParam: StorageServiceProtoAccountRecordIAPSubscriberData) {
+        proto.backupSubscriberData = valueParam.proto
+    }
+
+    public mutating func setAvatarColor(_ valueParam: StorageServiceProtoAvatarColor) {
+        proto.avatarColor = StorageServiceProtoAvatarColorUnwrap(valueParam)
     }
 
     public mutating func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {

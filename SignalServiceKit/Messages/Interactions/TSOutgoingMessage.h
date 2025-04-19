@@ -12,6 +12,7 @@ extern const NSUInteger kOversizeTextMessageSizeThreshold;
 
 @class OWSOutgoingSyncMessage;
 @class SignalServiceAddress;
+@class TSContactThread;
 @class TSOutgoingMessageRecipientState;
 
 typedef NS_ENUM(NSUInteger, OWSOutgoingMessageRecipientStatus);
@@ -56,7 +57,7 @@ typedef NS_ENUM(NSInteger, EncryptionStyle) {
 
 @protocol DeliveryReceiptContext;
 
-@class SDSAnyWriteTransaction;
+@class DBWriteTransaction;
 @class SSKProtoAttachmentPointer;
 @class SSKProtoContentBuilder;
 @class SSKProtoDataMessageBuilder;
@@ -76,10 +77,10 @@ typedef NS_ENUM(NSInteger, EncryptionStyle) {
                             sortId:(uint64_t)sortId
                          timestamp:(uint64_t)timestamp
                     uniqueThreadId:(NSString *)uniqueThreadId
-                     attachmentIds:(NSArray<NSString *> *)attachmentIds
                               body:(nullable NSString *)body
                         bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                       contactShare:(nullable OWSContact *)contactShare
+          deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                          editState:(unsigned int)editState
                    expireStartedAt:(uint64_t)expireStartedAt
                 expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -111,7 +112,7 @@ typedef NS_ENUM(NSInteger, EncryptionStyle) {
                           additionalRecipients:(NSArray<SignalServiceAddress *> *)additionalRecipients
                             explicitRecipients:(NSArray<AciObjC *> *)explicitRecipients
                              skippedRecipients:(NSArray<SignalServiceAddress *> *)skippedRecipients
-                                   transaction:(SDSAnyReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
+                                   transaction:(DBReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
 
 /// Create a `TSOutgoingMessage` with precomputed recipient states.
 - (instancetype)initOutgoingMessageWithBuilder:(TSOutgoingMessageBuilder *)outgoingMessageBuilder
@@ -132,10 +133,10 @@ typedef NS_ENUM(NSInteger, EncryptionStyle) {
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -165,7 +166,7 @@ typedef NS_ENUM(NSInteger, EncryptionStyle) {
           recipientAddressStates:(nullable NSDictionary<SignalServiceAddress *,TSOutgoingMessageRecipientState *> *)recipientAddressStates
               storedMessageState:(TSOutgoingMessageState)storedMessageState
             wasNotCreatedLocally:(BOOL)wasNotCreatedLocally
-NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp:sortId:timestamp:uniqueThreadId:attachmentIds:body:bodyRanges:contactShare:editState:expireStartedAt:expireTimerVersion:expiresAt:expiresInSeconds:giftBadge:isGroupStoryReply:isSmsMessageRestoredFromBackup:isViewOnceComplete:isViewOnceMessage:linkPreview:messageSticker:quotedMessage:storedShouldStartExpireTimer:storyAuthorUuidString:storyReactionEmoji:storyTimestamp:wasRemotelyDeleted:customMessage:groupMetaMessage:hasLegacyMessageState:hasSyncedTranscript:isVoiceMessage:legacyMessageState:legacyWasDelivered:mostRecentFailureText:recipientAddressStates:storedMessageState:wasNotCreatedLocally:));
+NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp:sortId:timestamp:uniqueThreadId:body:bodyRanges:contactShare:deprecated_attachmentIds:editState:expireStartedAt:expireTimerVersion:expiresAt:expiresInSeconds:giftBadge:isGroupStoryReply:isSmsMessageRestoredFromBackup:isViewOnceComplete:isViewOnceMessage:linkPreview:messageSticker:quotedMessage:storedShouldStartExpireTimer:storyAuthorUuidString:storyReactionEmoji:storyTimestamp:wasRemotelyDeleted:customMessage:groupMetaMessage:hasLegacyMessageState:hasSyncedTranscript:isVoiceMessage:legacyMessageState:legacyWasDelivered:mostRecentFailureText:recipientAddressStates:storedMessageState:wasNotCreatedLocally:));
 
 // clang-format on
 
@@ -195,21 +196,23 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp
 
 @property (nonatomic, readonly) BOOL isUrgent;
 
-// NOTE: We do not persist this property; it is only used for
-//       group updates which we don't insert into the database.
+/// NOTE: We do not persist this property in a TSInteraction column;
+/// however, we **do** persist it via NSKeyedArchiver. It is only used for
+/// group updates that are inserted into MessageSenderJobQueue. It's also
+/// misnamed: it actually stores a GroupChange, not a GroupChange.Actions.
 @property (nonatomic, readonly, nullable) NSData *changeActionsProtoData;
 
 /**
  * The data representation of this message, to be encrypted, before being sent.
  */
-- (nullable NSData *)buildPlainTextData:(TSThread *)thread transaction:(SDSAnyWriteTransaction *)transaction;
+- (nullable NSData *)buildPlainTextData:(TSThread *)thread transaction:(DBWriteTransaction *)transaction;
 
 /**
  * Intermediate protobuf representation
  * Subclasses can augment if they want to manipulate the Content message before building.
  */
 - (nullable SSKProtoContentBuilder *)contentBuilderWithThread:(TSThread *)thread
-                                                  transaction:(SDSAnyReadTransaction *)transaction
+                                                  transaction:(DBReadTransaction *)transaction
     NS_SWIFT_NAME(contentBuilder(thread:transaction:));
 
 /**
@@ -217,9 +220,9 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp
  * Subclasses can augment if they want to manipulate the data message before building.
  */
 - (nullable SSKProtoDataMessageBuilder *)dataMessageBuilderWithThread:(TSThread *)thread
-                                                          transaction:(SDSAnyReadTransaction *)transaction;
+                                                          transaction:(DBReadTransaction *)transaction;
 
-- (nullable SSKProtoDataMessage *)buildDataMessage:(TSThread *)thread transaction:(SDSAnyReadTransaction *)transaction;
+- (nullable SSKProtoDataMessage *)buildDataMessage:(TSThread *)thread transaction:(DBReadTransaction *)transaction;
 
 /**
  * Should this message be synced to the users other registered devices? This is
@@ -228,13 +231,18 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:receivedAtTimestamp
  */
 - (BOOL)shouldSyncTranscript;
 
-- (nullable OWSOutgoingSyncMessage *)buildTranscriptSyncMessageWithLocalThread:(TSThread *)localThread
-                                                                   transaction:(SDSAnyWriteTransaction *)transaction
+- (nullable OWSOutgoingSyncMessage *)buildTranscriptSyncMessageWithLocalThread:(TSContactThread *)localThread
+                                                                   transaction:(DBWriteTransaction *)transaction
     NS_SWIFT_NAME(buildTranscriptSyncMessage(localThread:transaction:));
 
 #pragma mark - Update With... Methods
 
-- (void)updateWithHasSyncedTranscript:(BOOL)hasSyncedTranscript transaction:(SDSAnyWriteTransaction *)transaction;
+- (void)updateWithHasSyncedTranscript:(BOOL)hasSyncedTranscript transaction:(DBWriteTransaction *)transaction;
+
+/**
+ * Sync the stored message state with the computed message state. Must be run before any insert/update.
+ */
+- (void)updateStoredMessageState;
 
 @end
 

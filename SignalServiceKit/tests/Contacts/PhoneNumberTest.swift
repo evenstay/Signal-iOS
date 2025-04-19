@@ -12,7 +12,7 @@ class PhoneNumberTest: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        phoneNumberUtilRef = PhoneNumberUtil(swiftValues: PhoneNumberUtilSwiftValues())
+        phoneNumberUtilRef = PhoneNumberUtil()
     }
 
     func testInitWithE164() {
@@ -55,21 +55,6 @@ class PhoneNumberTest: XCTestCase {
             let actualValue = phoneNumberUtilRef.parsePhoneNumber(userSpecifiedText: inputValue)?.e164
             XCTAssertEqual(actualValue, expectedValue, inputValue)
         }
-    }
-
-    func testTryParsePhoneNumberWithCallingCode() {
-        XCTAssertEqual(
-            phoneNumberUtilRef.parsePhoneNumber(userSpecifiedText: "18085550101", callingCode: "1")?.e164,
-            "+18085550101"
-        )
-        XCTAssertEqual(
-            phoneNumberUtilRef.parsePhoneNumber(userSpecifiedText: "61255504321", callingCode: "61")?.e164,
-            "+61255504321"
-        )
-        XCTAssertEqual(
-            phoneNumberUtilRef.parsePhoneNumber(userSpecifiedText: "493083050", callingCode: "49")?.e164,
-            "+493083050"
-        )
     }
 
     func testNationalNumber() throws {

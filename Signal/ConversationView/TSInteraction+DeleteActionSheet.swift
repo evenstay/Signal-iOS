@@ -12,28 +12,20 @@ public extension TSInteraction {
     func presentDeletionActionSheet(from fromViewController: UIViewController, forceDarkTheme: Bool = false) {
         let (
             associatedThread,
-            hasLinkedDevices,
-            isSendingDeleteForMeSyncMessagesEnabled
+            hasLinkedDevices
         ): (
             TSThread?,
-            Bool,
             Bool
-        ) = databaseStorage.read { tx in
+        ) = SSKEnvironment.shared.databaseStorageRef.read { tx in
             return (
                 thread(tx: tx),
-                DependenciesBridge.shared.deviceStore.hasLinkedDevices(tx: tx.asV2Read),
-                DependenciesBridge.shared.deleteForMeSyncMessageSettingsStore.isSendingEnabled(tx: tx.asV2Read)
+                DependenciesBridge.shared.deviceStore.hasLinkedDevices(tx: tx)
             )
         }
 
         guard let associatedThread else { return }
 
-        if
-            // We only want the new Note to Self delete UX if we're sending
-            // DeleteForMe sync messages.
-            isSendingDeleteForMeSyncMessagesEnabled,
-            associatedThread.isNoteToSelf
-        {
+        if associatedThread.isNoteToSelf {
             presentDeletionActionSheetForNoteToSelf(
                 fromViewController: fromViewController,
                 thread: associatedThread,
@@ -127,16 +119,12 @@ public extension TSInteraction {
             outgoingMessage.canBeRemotelyDeleted
         {
             let deleteForEveryoneAction = ActionSheetAction(
-                title: OWSLocalizedString(
-                    "MESSAGE_ACTION_DELETE_FOR_EVERYONE",
-                    comment: "The title for the action that deletes a message for all users in the conversation."
-                ),
+                title: CommonStrings.deleteForEveryoneButton,
                 style: .destructive
             ) { [weak self] _ in
-                self?.showDeleteForEveryoneConfirmationIfNecessary {
-                    guard let self = self else { return }
-
-                    self.databaseStorage.write { tx in
+                guard self != nil else { return }
+                Self.showDeleteForEveryoneConfirmationIfNecessary {
+                    SSKEnvironment.shared.databaseStorageRef.write { tx in
                         let latestMessage = TSOutgoingMessage.anyFetchOutgoingMessage(
                             uniqueId: outgoingMessage.uniqueId,
                             transaction: tx
@@ -155,7 +143,7 @@ public extension TSInteraction {
                         // record that it is deleting.
                         latestMessage.updateWithRecipientAddressStates(deleteMessage.recipientAddressStates, tx: tx)
 
-                        if let aci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci {
+                        if let aci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx)?.aci {
                             _ = TSMessage.tryToRemotelyDeleteMessage(
                                 fromAuthor: aci,
                                 sentAtTimestamp: latestMessage.timestamp,
@@ -182,20 +170,17 @@ public extension TSInteraction {
         fromViewController.presentActionSheet(actionSheetController)
     }
 
-    private func showDeleteForEveryoneConfirmationIfNecessary(completion: @escaping () -> Void) {
-        guard !Self.preferences.wasDeleteForEveryoneConfirmationShown else { return completion() }
+    static func showDeleteForEveryoneConfirmationIfNecessary(completion: @escaping () -> Void) {
+        guard !SSKEnvironment.shared.preferencesRef.wasDeleteForEveryoneConfirmationShown else { return completion() }
 
         OWSActionSheets.showConfirmationAlert(
             title: OWSLocalizedString(
                 "MESSAGE_ACTION_DELETE_FOR_EVERYONE_CONFIRMATION",
                 comment: "A one-time confirmation that you want to delete for everyone"
             ),
-            proceedTitle: OWSLocalizedString(
-                "MESSAGE_ACTION_DELETE_FOR_EVERYONE",
-                comment: "The title for the action that deletes a message for all users in the conversation."
-            ),
+            proceedTitle: CommonStrings.deleteForEveryoneButton,
             proceedStyle: .destructive) { _ in
-            Self.preferences.setWasDeleteForEveryoneConfirmationShown()
+            SSKEnvironment.shared.preferencesRef.setWasDeleteForEveryoneConfirmationShown()
             completion()
         }
     }
@@ -211,7 +196,7 @@ public extension TSInteraction {
         ) { [weak self] _ in
             guard let self else { return }
 
-            self.databaseStorage.asyncWrite { tx in
+            SSKEnvironment.shared.databaseStorageRef.asyncWrite { tx in
                 guard
                     let freshSelf = TSInteraction.anyFetch(uniqueId: self.uniqueId, transaction: tx),
                     let freshThread = TSThread.anyFetch(uniqueId: thread.uniqueId, transaction: tx)
@@ -222,9 +207,18 @@ public extension TSInteraction {
                     sideEffects: .custom(
                         deleteForMeSyncMessage: .sendSyncMessage(interactionsThread: freshThread)
                     ),
-                    tx: tx.asV2Write
+                    tx: tx
                 )
             }
         }
+    }
+}
+
+extension CommonStrings {
+    static public var deleteForEveryoneButton: String {
+        OWSLocalizedString(
+            "MESSAGE_ACTION_DELETE_FOR_EVERYONE",
+            comment: "The title for the action that deletes a message for all users in the conversation."
+        )
     }
 }

@@ -28,15 +28,15 @@ public class CallMessagePushPayload: CustomStringConvertible {
     }
 }
 
-public class CallMessageRelay: Dependencies {
-    private static let pendingCallMessageStore = SDSKeyValueStore(collection: "PendingCallMessageStore")
+public class CallMessageRelay {
+    private static let pendingCallMessageStore = KeyValueStore(collection: "PendingCallMessageStore")
 
     public static func handleVoipPayload(_ payload: CallMessagePushPayload) {
         Logger.info("Handling incoming VoIP payload: \(payload)")
         defer { Logger.info("Finished handling incoming VoIP payload: \(payload)") }
         // Process all the pending call messages from the NSE in 1 batch.
         // This should almost always be a batch of one.
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             defer { pendingCallMessageStore.removeAll(transaction: transaction) }
             let pendingPayloads: [Payload]
 
@@ -49,7 +49,7 @@ public class CallMessageRelay: Dependencies {
                 return
             }
 
-            guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read) else {
+            guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction) else {
                 owsFailDebug("Can't process VoIP payload when not registered.")
                 return
             }
@@ -65,7 +65,7 @@ public class CallMessageRelay: Dependencies {
                 let adjustedDeliveryTimestamp =
                     payload.serverDeliveryTimestamp + UInt64(1000 * max(0, delaySecondsSinceDelivery))
 
-                messageReceiver.processEnvelope(
+                SSKEnvironment.shared.messageReceiverRef.processEnvelope(
                     payload.envelope,
                     plaintextData: payload.plaintextData,
                     wasReceivedByUD: payload.wasReceivedByUD,
@@ -83,7 +83,7 @@ public class CallMessageRelay: Dependencies {
         plaintextData: Data,
         wasReceivedByUD: Bool,
         serverDeliveryTimestamp: UInt64,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) throws -> CallMessagePushPayload {
         let payload = Payload(
             envelope: envelope,

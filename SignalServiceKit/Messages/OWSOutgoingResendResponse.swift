@@ -29,7 +29,7 @@ final class OWSOutgoingResendResponse: TSOutgoingMessage {
         originalThreadId: String?,
         originalGroupId: Data?,
         derivedContentHint: SealedSenderContentHint,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         super.init(
             outgoingMessageWith: outgoingMessageBuilder,
@@ -46,10 +46,10 @@ final class OWSOutgoingResendResponse: TSOutgoingMessage {
 
     convenience init?(
         aci: Aci,
-        deviceId: UInt32,
+        deviceId: DeviceId,
         failedTimestamp: UInt64,
         didResetSession: Bool,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         let targetThread = TSContactThread.getOrCreateThread(withContactAddress: SignalServiceAddress(aci), transaction: tx)
         let builder: TSOutgoingMessageBuilder = .withDefaultValues(thread: targetThread)
@@ -72,7 +72,7 @@ final class OWSOutgoingResendResponse: TSOutgoingMessage {
             // this was a sender key group. This will be re-marked as delivered on
             // success if we included an SKDM in the resend response
             if let originalThread, originalThread.isGroupThread {
-                Self.senderKeyStore.resetSenderKeyDeliveryRecord(for: originalThread, serviceId: aci, writeTx: tx)
+                SSKEnvironment.shared.senderKeyStoreRef.resetSenderKeyDeliveryRecord(for: originalThread, serviceId: aci, writeTx: tx)
             }
 
             self.init(
@@ -117,9 +117,9 @@ final class OWSOutgoingResendResponse: TSOutgoingMessage {
 
     override var contentHint: SealedSenderContentHint { self.derivedContentHint }
 
-    override func envelopeGroupIdWithTransaction(_ transaction: SDSAnyReadTransaction) -> Data? { self.originalGroupId }
+    override func envelopeGroupIdWithTransaction(_ transaction: DBReadTransaction) -> Data? { self.originalGroupId }
 
-    override func buildPlainTextData(_ thread: TSThread, transaction tx: SDSAnyWriteTransaction) -> Data? {
+    override func buildPlainTextData(_ thread: TSThread, transaction tx: DBWriteTransaction) -> Data? {
         owsAssertDebug(self.recipientAddresses().count == 1)
 
         let contentBuilder: SSKProtoContentBuilder = {
@@ -141,7 +141,7 @@ final class OWSOutgoingResendResponse: TSOutgoingMessage {
             let recipientAddress = self.recipientAddresses().first,
             originalThread.recipientAddresses(with: tx).contains(recipientAddress)
         {
-            let skdmData = self.senderKeyStore.skdmBytesForThread(originalThread, tx: tx)
+            let skdmData = SSKEnvironment.shared.senderKeyStoreRef.skdmBytesForThread(originalThread, tx: tx)
             if let skdmData {
                 contentBuilder.setSenderKeyDistributionMessage(skdmData)
             }
@@ -166,7 +166,7 @@ final class OWSOutgoingResendResponse: TSOutgoingMessage {
         return contentBuilder
     }
 
-    func didPerformMessageSend(_ sentMessages: [SentDeviceMessage], to serviceId: ServiceId, tx: SDSAnyWriteTransaction) {
+    func didPerformMessageSend(_ sentMessages: [SentDeviceMessage], to serviceId: ServiceId, tx: DBWriteTransaction) {
         if
             self.didAppendSKDM,
             let originalThreadId,
@@ -174,7 +174,7 @@ final class OWSOutgoingResendResponse: TSOutgoingMessage {
             originalThread.usesSenderKey
         {
             do {
-                try self.senderKeyStore.recordSentSenderKeys(
+                try SSKEnvironment.shared.senderKeyStoreRef.recordSentSenderKeys(
                     [SentSenderKey(recipient: serviceId, timestamp: self.timestamp, messages: sentMessages)],
                     for: originalThread,
                     writeTx: tx

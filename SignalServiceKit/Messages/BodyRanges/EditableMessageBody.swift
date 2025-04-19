@@ -20,6 +20,8 @@ public protocol EditableMessageBodyDelegate: AnyObject {
 
     // If this key changes, the cached mentions will be invalidated at read-time.
     func mentionCacheInvalidationKey() -> String
+
+    func didInsertMemoji(_ memojiGlyph: OWSAdaptiveImageGlyph)
 }
 
 public class EditableMessageBodyTextStorage: NSTextStorage {
@@ -34,12 +36,12 @@ public class EditableMessageBodyTextStorage: NSTextStorage {
     // MARK: - Init
 
     // DB reference so we can hydrate mentions.
-    private let db: DB
+    private let db: any DB
 
     public weak var editableBodyDelegate: EditableMessageBodyDelegate?
 
     public init(
-        db: DB
+        db: any DB
     ) {
         self.db = db
         super.init()
@@ -77,6 +79,11 @@ public class EditableMessageBodyTextStorage: NSTextStorage {
     }
 
     public override func setAttributes(_ attrs: [NSAttributedString.Key: Any]?, range: NSRange) {
+        // If we get any memoji attributes, remove them and pass them up to the delegate.
+        var attrs = attrs
+        if let memojiGlyph = OWSAdaptiveImageGlyph.remove(from: &attrs) {
+            editableBodyDelegate?.didInsertMemoji(memojiGlyph)
+        }
         guard isFixingAttributes else {
             // Don't allow external attribute setting except from
             // fixing, which is applied for emojis.
@@ -987,7 +994,7 @@ extension DB {
 extension SDSDatabaseStorage {
 
     public var readTxProvider: EditableMessageBodyTextStorage.ReadTxProvider {
-        return { block in self.read(block: { block($0.asV2Read) }) }
+        return { block in self.read(block: { block($0) }) }
     }
 }
 

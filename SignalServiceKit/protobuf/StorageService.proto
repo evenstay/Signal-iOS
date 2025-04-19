@@ -66,6 +66,7 @@ message ManifestRecord {
   uint64 version = 1;
   uint32 sourceDevice = 3;
   repeated Key keys = 2;
+  bytes recordIkm = 4;
 }
 
 message StorageRecord {
@@ -77,6 +78,30 @@ message StorageRecord {
     StoryDistributionListRecord storyDistributionList = 5;
     CallLinkRecord callLink = 7;
   }
+}
+
+// If unset - computed as the value of the first byte of SHA-256(msg=CONTACT_ID)
+// modulo the count of colors. Once set the avatar color for a recipient is
+// never recomputed or changed.
+//
+// `CONTACT_ID` is the first available identifier from the list:
+// - ServiceIdToBinary(ACI)
+// - E164
+// - ServiceIdToBinary(PNI)
+// - Group Id
+enum AvatarColor {
+  A100 = 0;
+  A110 = 1;
+  A120 = 2;
+  A130 = 3;
+  A140 = 4;
+  A150 = 5;
+  A160 = 6;
+  A170 = 7;
+  A180 = 8;
+  A190 = 9;
+  A200 = 10;
+  A210 = 11;
 }
 
 message ContactRecord {
@@ -113,6 +138,7 @@ message ContactRecord {
   bool hidden = 20;
   Name nickname = 22;
   string note = 23;
+  optional AvatarColor avatarColor = 24;
 }
 
 message GroupV1Record {
@@ -142,6 +168,7 @@ message GroupV2Record {
   bool dontNotifyForMentionsIfMuted = 7;
   bool hideStory = 8;
   StorySendMode storySendMode = 10;
+  optional AvatarColor avatarColor = 11;
 }
 
 message AccountRecord {
@@ -187,6 +214,17 @@ message AccountRecord {
     Color color = 3; // color of the QR code itself
   }
 
+  message IAPSubscriberData {
+    bytes subscriberId = 1;
+
+    oneof iapSubscriptionId {
+      // Identifies an Android Play Store IAP subscription.
+      string purchaseToken = 2;
+      // Identifies an iOS App Store IAP subscription.
+      uint64 originalTransactionId = 3;
+    }
+  }
+
   bytes profileKey = 1;
   string givenName = 2;
   string familyName = 3;
@@ -204,12 +242,13 @@ message AccountRecord {
   bool preferContactAvatars = 15;
   Payments payments = 16;
   uint32 universalExpireTimer = 17;
+  reserved 18; // primarySendsSms
   string e164 = 19;
   repeated string preferredReactionEmoji = 20;
-  bytes subscriberID = 21;
-  string subscriberCurrencyCode = 22;
+  bytes donorSubscriberID = 21;
+  string donorSubscriberCurrencyCode = 22;
   bool displayBadgesOnProfile = 23;
-  bool subscriptionManuallyCancelled = 24;
+  bool donorSubscriptionManuallyCancelled = 24;
   bool keepMutedChatsArchived = 25;
   bool myStoryPrivacyHasBeenSet = 26; // Removed 'has' prefix on spec definition to avoid name conflict.
   bool viewedOnboardingStory = 27; // Removed 'has' prefix on spec definition to avoid name conflict.
@@ -221,6 +260,11 @@ message AccountRecord {
   string username = 33;
   bool completedUsernameOnboarding = 34; // Removed 'has' prefix on spec definition to avoid name conflict.
   UsernameLink usernameLink = 35;
+  reserved /*backupsSubscriberId*/ 36;
+  reserved /*backupsSubscriberCurrencyCode*/ 37;
+  reserved /*backupsSubscriptionManuallyCancelled*/ 38;
+  IAPSubscriberData backupSubscriberData = 41;
+  optional AvatarColor avatarColor = 42;
 }
 
 message StoryDistributionListRecord {

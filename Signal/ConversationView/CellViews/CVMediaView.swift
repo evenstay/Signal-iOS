@@ -8,11 +8,6 @@ public import SignalUI
 
 public class CVMediaView: ManualLayoutViewWithLayer {
 
-    private enum MediaError {
-        case missing
-        case invalid
-    }
-
     // MARK: -
 
     private let mediaCache: CVMediaCache
@@ -63,13 +58,15 @@ public class CVMediaView: ManualLayoutViewWithLayer {
         AssertIsOnMainThread()
 
         switch attachment {
+        case .undownloadable(let attachment):
+            return configureForError(attachment: attachment.attachment)
         case .backupThumbnail(let thumbnail):
             configureForBackupThumbnailMedia(thumbnail.attachmentBackupThumbnail)
         case .pointer(let pointer, _):
-            return configureForUndownloadedMedia(pointer.attachmentPointer)
+            return configureForUndownloadedMedia(pointer.attachment)
         case .stream(let attachmentStream):
             let attachmentStream = attachmentStream.attachmentStream
-            switch attachmentStream.computeContentType() {
+            switch attachmentStream.contentType {
             case .image:
                 configureForStillImage(attachmentStream: attachmentStream)
             case .animatedImage:
@@ -80,19 +77,19 @@ public class CVMediaView: ManualLayoutViewWithLayer {
                 configureForVideo(attachmentStream: attachmentStream)
             case .audio, .file, .invalid:
                 owsFailDebug("Attachment has unexpected type.")
-                configure(forError: .invalid)
+                configureForError(attachment: attachmentStream.attachment)
             }
         }
     }
 
-    private func configureForBackupThumbnailMedia(_ thumbnail: TSResourceBackupThumbnail) {
+    private func configureForBackupThumbnailMedia(_ thumbnail: AttachmentBackupThumbnail) {
         configureForBackupThumbnail(attachmentBackupThumbnail: thumbnail)
 
         _ = addProgressIfNecessary()
     }
 
-    private func configureForUndownloadedMedia(_ pointer: TSResourcePointer) {
-        tryToConfigureForBlurHash(pointer: pointer)
+    private func configureForUndownloadedMedia(_ attachment: Attachment) {
+        tryToConfigureForBlurHash(attachment: attachment)
 
         _ = addProgressIfNecessary()
     }
@@ -113,12 +110,12 @@ public class CVMediaView: ManualLayoutViewWithLayer {
             // attachments; CVComponentBodyMedia will add a download
             // button if any media in the gallery is pending.
             return false
-        case .downloading(let attachmentPointer, let transitTierDownloadState):
+        case .downloading(let attachmentPointer, let downloadState):
             backgroundColor = (Theme.isDarkThemeEnabled ? .ows_gray90 : .ows_gray05)
 
             direction = .download(
                 attachmentPointer: attachmentPointer,
-                transitTierDownloadState: transitTierDownloadState
+                downloadState: downloadState
             )
         case .unknown:
             owsFailDebug("Unknown progress type.")
@@ -170,8 +167,8 @@ public class CVMediaView: ManualLayoutViewWithLayer {
         applyReusableMediaView(reusableMediaView)
     }
 
-    private func tryToConfigureForBlurHash(pointer: TSResourcePointer) {
-        guard let blurHash = pointer.resource.resourceBlurHash?.nilIfEmpty else { return }
+    private func tryToConfigureForBlurHash(attachment: Attachment) {
+        guard let blurHash = attachment.blurHash?.nilIfEmpty else { return }
         // NOTE: in the blurhash case, we use the blurHash itself as the
         // cachekey to avoid conflicts with the actual attachment contents.
         let cacheKey = CVMediaCache.CacheKey.blurHash(blurHash)
@@ -185,9 +182,9 @@ public class CVMediaView: ManualLayoutViewWithLayer {
         createNewReusableMediaView(mediaViewAdapter: mediaViewAdapter, isAnimated: isAnimated)
     }
 
-    private func configureForLoopingVideo(attachmentStream: TSResourceStream) {
+    private func configureForLoopingVideo(attachmentStream: AttachmentStream) {
         if let reusableMediaView = mediaCache.getMediaView(
-            .attachment(attachmentStream.resourceId),
+            .attachment(attachmentStream.id),
             isAnimated: true
         ) {
             applyReusableMediaView(reusableMediaView)
@@ -199,9 +196,9 @@ public class CVMediaView: ManualLayoutViewWithLayer {
         }
     }
 
-    private func configureForAnimatedImage(attachmentStream: TSResourceStream) {
-        let cacheKey = CVMediaCache.CacheKey.attachment(attachmentStream.resourceId)
-        let isAnimated = attachmentStream.computeContentType().isAnimatedImage
+    private func configureForAnimatedImage(attachmentStream: AttachmentStream) {
+        let cacheKey = CVMediaCache.CacheKey.attachment(attachmentStream.id)
+        let isAnimated = attachmentStream.contentType.isAnimatedImage
         if let reusableMediaView = mediaCache.getMediaView(cacheKey, isAnimated: isAnimated) {
             applyReusableMediaView(reusableMediaView)
             return
@@ -211,9 +208,9 @@ public class CVMediaView: ManualLayoutViewWithLayer {
         createNewReusableMediaView(mediaViewAdapter: mediaViewAdapter, isAnimated: isAnimated)
     }
 
-    private func configureForStillImage(attachmentStream: TSResourceStream) {
-        let cacheKey = CVMediaCache.CacheKey.attachment(attachmentStream.resourceId)
-        let isAnimated = attachmentStream.computeContentType().isAnimatedImage
+    private func configureForStillImage(attachmentStream: AttachmentStream) {
+        let cacheKey = CVMediaCache.CacheKey.attachment(attachmentStream.id)
+        let isAnimated = attachmentStream.contentType.isAnimatedImage
         if let reusableMediaView = mediaCache.getMediaView(cacheKey, isAnimated: isAnimated) {
             applyReusableMediaView(reusableMediaView)
             return
@@ -224,9 +221,9 @@ public class CVMediaView: ManualLayoutViewWithLayer {
         createNewReusableMediaView(mediaViewAdapter: mediaViewAdapter, isAnimated: isAnimated)
     }
 
-    private func configureForVideo(attachmentStream: TSResourceStream) {
-        let cacheKey = CVMediaCache.CacheKey.attachment(attachmentStream.resourceId)
-        let isAnimated = attachmentStream.computeContentType().isAnimatedImage
+    private func configureForVideo(attachmentStream: AttachmentStream) {
+        let cacheKey = CVMediaCache.CacheKey.attachment(attachmentStream.id)
+        let isAnimated = attachmentStream.contentType.isAnimatedImage
         if let reusableMediaView = mediaCache.getMediaView(cacheKey, isAnimated: isAnimated) {
             applyReusableMediaView(reusableMediaView)
             return
@@ -237,8 +234,8 @@ public class CVMediaView: ManualLayoutViewWithLayer {
         createNewReusableMediaView(mediaViewAdapter: mediaViewAdapter, isAnimated: isAnimated)
     }
 
-    private func configureForBackupThumbnail(attachmentBackupThumbnail: TSResourceBackupThumbnail) {
-        let cacheKey = CVMediaCache.CacheKey.backupThumbnail(attachmentBackupThumbnail.resource.resourceId)
+    private func configureForBackupThumbnail(attachmentBackupThumbnail: AttachmentBackupThumbnail) {
+        let cacheKey = CVMediaCache.CacheKey.backupThumbnail(attachmentBackupThumbnail.id)
         if let reusableMediaView = mediaCache.getMediaView(cacheKey, isAnimated: false) {
             applyReusableMediaView(reusableMediaView)
             return
@@ -274,25 +271,27 @@ public class CVMediaView: ManualLayoutViewWithLayer {
     }
 
     private var hasBlurHash: Bool {
-        return BlurHash.isValidBlurHash(attachment.attachment.attachment.resourceBlurHash)
+        return BlurHash.isValidBlurHash(attachment.attachment.attachment.blurHash)
     }
 
-    private func configure(forError error: MediaError) {
-        backgroundColor = (Theme.isDarkThemeEnabled ? .ows_gray90 : .ows_gray05)
-        let icon: UIImage
-        switch error {
-        case .invalid:
-            guard let asset = UIImage(named: "photo-slash-36") else {
-                owsFailDebug("Missing image")
-                return
-            }
-            icon = asset
-        case .missing:
-            return
+    private func configureForError(attachment: Attachment) {
+        if attachment.blurHash != nil {
+            tryToConfigureForBlurHash(attachment: attachment)
+        } else {
+            backgroundColor = (Theme.isDarkThemeEnabled ? .ows_gray90 : .ows_gray05)
         }
+
+        let backgroundSize: CGFloat = 44
+        let background = UIView()
+        background.backgroundColor = .black.withAlphaComponent(0.40)
+        background.layer.cornerRadius = backgroundSize / 2
+        addSubviewToCenterOnSuperview(background, size: .init(square: 44))
+
+        let icon = UIImage(named: "photo-slash-36")!
         let iconView = CVImageView(image: icon)
-        iconView.tintColor = Theme.primaryTextColor.withAlphaComponent(0.6)
-        addSubviewToCenterOnSuperview(iconView, size: icon.size)
+        iconView.tintColor = .white
+        iconView.contentMode = .scaleAspectFit
+        addSubviewToCenterOnSuperview(iconView, size: .init(square: 24))
     }
 
     public func loadMedia() {

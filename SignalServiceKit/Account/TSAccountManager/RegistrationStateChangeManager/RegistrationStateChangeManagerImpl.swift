@@ -25,7 +25,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
     private let storageServiceManager: StorageServiceManager
     private let tsAccountManager: TSAccountManager
     private let udManager: OWSUDManager
-    private let versionedProfiles: VersionedProfilesSwift
+    private let versionedProfiles: VersionedProfiles
 
     init(
         appContext: AppContext,
@@ -43,7 +43,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
         storageServiceManager: StorageServiceManager,
         tsAccountManager: TSAccountManager,
         udManager: OWSUDManager,
-        versionedProfiles: VersionedProfilesSwift
+        versionedProfiles: VersionedProfiles
     ) {
         self.appContext = appContext
         self.authCredentialStore = authCredentialStore
@@ -78,14 +78,14 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
             e164: e164,
             aci: aci,
             pni: pni,
-            deviceId: OWSDevice.primaryDeviceId,
+            deviceId: .primary,
             serverAuthToken: authToken,
             tx: tx
         )
 
         didUpdateLocalIdentifiers(e164: e164, aci: aci, pni: pni, tx: tx)
 
-        tx.addAsyncCompletion(on: schedulers.main) {
+        tx.addSyncCompletion {
             self.postLocalNumberDidChangeNotification()
             self.postRegistrationStateDidChangeNotification()
         }
@@ -96,7 +96,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
         aci: Aci,
         pni: Pni,
         authToken: String,
-        deviceId: UInt32,
+        deviceId: DeviceId,
         tx: DBWriteTransaction
     ) {
         tsAccountManager.initializeLocalIdentifiers(
@@ -109,7 +109,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
         )
         didUpdateLocalIdentifiers(e164: e164, aci: aci, pni: pni, tx: tx)
 
-        tx.addAsyncCompletion(on: schedulers.main) {
+        tx.addSyncCompletion {
             self.postLocalNumberDidChangeNotification()
             self.postRegistrationStateDidChangeNotification()
         }
@@ -125,7 +125,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
 
         didUpdateLocalIdentifiers(e164: e164, aci: aci, pni: pni, tx: tx)
 
-        tx.addAsyncCompletion(on: schedulers.main) {
+        tx.addSyncCompletion {
             self.postLocalNumberDidChangeNotification()
         }
     }
@@ -171,7 +171,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
             paymentsEvents.clearState(tx: tx)
         }
 
-        tx.addAsyncCompletion(on: schedulers.main) {
+        tx.addSyncCompletion {
             self.postRegistrationStateDidChangeNotification()
             self.postLocalNumberDidChangeNotification()
         }
@@ -181,7 +181,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
         guard tsAccountManager.setIsTransferInProgress(true, tx: tx) else {
             return
         }
-        tx.addAsyncCompletion(on: schedulers.main) {
+        tx.addSyncCompletion {
             self.postRegistrationStateDidChangeNotification()
         }
     }
@@ -194,7 +194,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
             return
         }
         if sendStateUpdateNotification {
-            tx.addAsyncCompletion(on: schedulers.main) {
+            tx.addSyncCompletion {
                 self.postRegistrationStateDidChangeNotification()
             }
         }
@@ -204,7 +204,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
         guard tsAccountManager.setWasTransferred(true, tx: tx) else {
             return
         }
-        tx.addAsyncCompletion(on: schedulers.main) {
+        tx.addSyncCompletion {
             self.postRegistrationStateDidChangeNotification()
         }
     }
@@ -215,8 +215,8 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
 
     public func unregisterFromService(auth: ChatServiceAuth) async throws {
         owsAssertBeta(appContext.isMainAppAndActive)
-        let request = OWSRequestFactory.unregisterAccountRequest()
-        request.setAuth(auth)
+        var request = OWSRequestFactory.unregisterAccountRequest()
+        request.auth = .identified(auth)
         do {
             try await signalService.urlSessionForMainSignalService()
                 .promiseForTSRequest(request)
@@ -224,7 +224,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
                 .awaitable()
 
             // No need to set any state, as we wipe the whole app anyway.
-            appContext.resetAppDataAndExit()
+            await appContext.resetAppDataAndExit()
         } catch {
             owsFailDebugUnlessNetworkFailure(error)
             throw error
@@ -245,7 +245,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
         authCredentialStore.removeAllGroupAuthCredentials(tx: tx)
         authCredentialStore.removeAllCallLinkAuthCredentials(tx: tx)
 
-        storageServiceManager.setLocalIdentifiers(.init(.init(aci: aci, pni: pni, e164: e164)))
+        storageServiceManager.setLocalIdentifiers(LocalIdentifiers(aci: aci, pni: pni, e164: e164))
 
         let recipient = recipientMerger.applyMergeForLocalAccount(
             aci: aci,
@@ -261,15 +261,15 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
     // MARK: Notifications
 
     private func postRegistrationStateDidChangeNotification() {
-        NotificationCenter.default.postNotificationNameAsync(
-            .registrationStateDidChange,
+        NotificationCenter.default.postOnMainThread(
+            name: .registrationStateDidChange,
             object: nil
         )
     }
 
     private func postLocalNumberDidChangeNotification() {
-        NotificationCenter.default.postNotificationNameAsync(
-            .localNumberDidChange,
+        NotificationCenter.default.postOnMainThread(
+            name: .localNumberDidChange,
             object: nil
         )
     }
@@ -345,7 +345,7 @@ extension RegistrationStateChangeManagerImpl {
             e164: E164(localIdentifiers.phoneNumber)!,
             aci: localIdentifiers.aci,
             pni: localIdentifiers.pni!,
-            deviceId: OWSDevice.primaryDeviceId,
+            deviceId: .primary,
             serverAuthToken: "",
             tx: tx
         )

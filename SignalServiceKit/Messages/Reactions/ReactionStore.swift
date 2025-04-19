@@ -35,24 +35,6 @@ public protocol ReactionStore {
         tx: DBReadTransaction
     ) -> [String]
 
-    /// Create a new reaction from a backup.
-    func createReactionFromRestoredBackup(
-        uniqueMessageId: String,
-        emoji: String,
-        reactorAci: Aci,
-        sentAtTimestamp: UInt64,
-        sortOrder: UInt64,
-        tx: DBWriteTransaction
-    )
-    func createReactionFromRestoredBackup(
-        uniqueMessageId: String,
-        emoji: String,
-        reactorE164: E164,
-        sentAtTimestamp: UInt64,
-        sortOrder: UInt64,
-        tx: DBWriteTransaction
-    )
-
     /// Delete all reaction records associated with this message
     func deleteAllReactions(
         messageId: MessageId,
@@ -67,127 +49,26 @@ public class ReactionStoreImpl: ReactionStore {
         tx: DBReadTransaction
     ) -> OWSReaction? {
         ReactionFinder(uniqueMessageId: messageId)
-            .reaction(for: aci, tx: SDSDB.shimOnlyBridge(tx).unwrapGrdbRead)
+            .reaction(for: aci, tx: SDSDB.shimOnlyBridge(tx))
     }
 
     public func allReactions(messageId: MessageId, tx: DBReadTransaction) -> [OWSReaction] {
         ReactionFinder(uniqueMessageId: messageId)
-            .allReactions(transaction: SDSDB.shimOnlyBridge(tx).unwrapGrdbRead)
+            .allReactions(transaction: SDSDB.shimOnlyBridge(tx))
     }
 
     public func unreadReactions(messageId: MessageId, tx: DBReadTransaction) -> [OWSReaction] {
         ReactionFinder(uniqueMessageId: messageId)
-            .unreadReactions(transaction: SDSDB.shimOnlyBridge(tx).unwrapGrdbRead)
+            .unreadReactions(transaction: SDSDB.shimOnlyBridge(tx))
     }
 
     public func allUniqueIds(messageId: MessageId, tx: DBReadTransaction) -> [String] {
         ReactionFinder(uniqueMessageId: messageId)
-            .allUniqueIds(transaction: SDSDB.shimOnlyBridge(tx).unwrapGrdbRead)
-    }
-
-    public func createReactionFromRestoredBackup(
-        uniqueMessageId: String,
-        emoji: String,
-        reactorAci: Aci,
-        sentAtTimestamp: UInt64,
-        sortOrder: UInt64,
-        tx: DBWriteTransaction
-    ) {
-        OWSReaction.fromRestoredBackup(
-            uniqueMessageId: uniqueMessageId,
-            emoji: emoji,
-            reactorAci: reactorAci,
-            sentAtTimestamp: sentAtTimestamp,
-            sortOrder: sortOrder
-        ).anyInsert(transaction: SDSDB.shimOnlyBridge(tx))
-    }
-
-    public func createReactionFromRestoredBackup(
-        uniqueMessageId: String,
-        emoji: String,
-        reactorE164: E164,
-        sentAtTimestamp: UInt64,
-        sortOrder: UInt64,
-        tx: DBWriteTransaction
-    ) {
-        OWSReaction.fromRestoredBackup(
-            uniqueMessageId: uniqueMessageId,
-            emoji: emoji,
-            reactorE164: reactorE164,
-            sentAtTimestamp: sentAtTimestamp,
-            sortOrder: sortOrder
-        ).anyInsert(transaction: SDSDB.shimOnlyBridge(tx))
+            .allUniqueIds(transaction: SDSDB.shimOnlyBridge(tx))
     }
 
     public func deleteAllReactions(messageId: MessageId, tx: DBWriteTransaction) {
         ReactionFinder(uniqueMessageId: messageId)
-            .deleteAllReactions(transaction: SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite)
+            .deleteAllReactions(transaction: SDSDB.shimOnlyBridge(tx))
     }
 }
-
-#if TESTABLE_BUILD
-
-open class MockReactionStore: ReactionStore {
-
-    public var reactions = [OWSReaction]()
-
-    public func reaction(
-        for aci: Aci,
-        messageId: MessageId,
-        tx: DBReadTransaction
-    ) -> OWSReaction? {
-        return reactions.first(where: { $0.uniqueMessageId == messageId && $0.reactorAci == aci })
-    }
-
-    public func allReactions(messageId: MessageId, tx: DBReadTransaction) -> [OWSReaction] {
-        return reactions.filter { $0.uniqueMessageId == messageId }
-    }
-
-    public func unreadReactions(messageId: MessageId, tx: DBReadTransaction) -> [OWSReaction] {
-        return reactions.filter { $0.uniqueMessageId == messageId && $0.read.negated }
-    }
-
-    public func allUniqueIds(messageId: MessageId, tx: DBReadTransaction) -> [String] {
-        return reactions.compactMap { $0.uniqueMessageId == messageId ? $0.uniqueId : nil }
-    }
-
-    public func createReactionFromRestoredBackup(
-        uniqueMessageId: String,
-        emoji: String,
-        reactorAci: Aci,
-        sentAtTimestamp: UInt64,
-        sortOrder: UInt64,
-        tx: DBWriteTransaction
-    ) {
-        reactions.append(OWSReaction.fromRestoredBackup(
-            uniqueMessageId: uniqueMessageId,
-            emoji: emoji,
-            reactorAci: reactorAci,
-            sentAtTimestamp: sentAtTimestamp,
-            sortOrder: sortOrder
-        ))
-    }
-
-    public func createReactionFromRestoredBackup(
-        uniqueMessageId: String,
-        emoji: String,
-        reactorE164: E164,
-        sentAtTimestamp: UInt64,
-        sortOrder: UInt64,
-        tx: DBWriteTransaction
-    ) {
-        reactions.append(OWSReaction.fromRestoredBackup(
-            uniqueMessageId: uniqueMessageId,
-            emoji: emoji,
-            reactorE164: reactorE164,
-            sentAtTimestamp: sentAtTimestamp,
-            sortOrder: sortOrder
-        ))
-    }
-
-    public func deleteAllReactions(messageId: MessageId, tx: DBWriteTransaction) {
-        return reactions = reactions.filter { $0.uniqueMessageId != messageId }
-    }
-}
-
-#endif

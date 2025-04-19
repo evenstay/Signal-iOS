@@ -8,10 +8,9 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class DBReadTransaction;
+@class DBWriteTransaction;
 @class MessageBodyRanges;
-@class SDSAnyReadTransaction;
-@class SDSAnyWriteTransaction;
-@class TSAttachmentStream;
 @class TSGroupModelV2;
 
 extern NSString *const TSGroupThreadAvatarChangedNotification;
@@ -78,29 +77,9 @@ NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(grdbId:uniqueId:conversationColorNa
 
 // --- CODE GENERATION MARKER
 
-@property (nonatomic, readonly) TSGroupModel *groupModel;
-
-+ (nullable instancetype)fetchWithGroupId:(NSData *)groupId
-                              transaction:(SDSAnyReadTransaction *)transaction
-    NS_SWIFT_NAME(fetch(groupId:transaction:));
-
+@property (nonatomic) TSGroupModel *groupModel;
 @property (nonatomic, readonly) NSString *groupNameOrDefault;
 @property (nonatomic, readonly, class) NSString *defaultGroupName;
-
-#pragma mark - Update With...
-
-// This method should only be called by GroupManager.
-- (void)updateWithGroupModel:(TSGroupModel *)groupModel transaction:(SDSAnyWriteTransaction *)transaction;
-
-/// The `shouldUpdateChatListUi` parameter denotes whether the update of
-/// this group thread should trigger an update of the chat list UI (which
-/// is expensive; we don't want to do it unless we have to). In practice,
-/// `shouldUpdateChatListUi` should be true when the changes are user-facing.
-/// Multiple collapsed updates have `shouldUpdateChatListUi` if it is true
-/// for any of them.
-- (void)updateWithGroupModel:(TSGroupModel *)groupModel
-      shouldUpdateChatListUi:(BOOL)shouldUpdateChatListUi
-                 transaction:(SDSAnyWriteTransaction *)transaction;
 
 @end
 

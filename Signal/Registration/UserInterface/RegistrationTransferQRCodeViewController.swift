@@ -19,7 +19,7 @@ public class RegistrationTransferQRCodeViewController: OWSViewController, OWSNav
         return isQRCodeExpanded ? .lightContent : super.preferredStatusBarStyle
     }
 
-    private lazy var qrCodeView = QRCodeView(useCircularWrapper: false)
+    private lazy var qrCodeView = QRCodeView(contentInset: 8)
 
     private lazy var expansionButton: ExpansionButton = {
         let button = ExpansionButton()
@@ -177,24 +177,29 @@ public class RegistrationTransferQRCodeViewController: OWSViewController, OWSNav
     override public func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
-        deviceTransferService.addObserver(self)
+        AppEnvironment.shared.deviceTransferServiceRef.addObserver(self)
 
-        do {
-            let url = try deviceTransferService.startAcceptingTransfersFromOldDevices(
-                mode: .primary
-            )
+        Task { @MainActor in
+            do {
+                let url = try AppEnvironment.shared.deviceTransferServiceRef.startAcceptingTransfersFromOldDevices(
+                    mode: .primary
+                )
 
-            qrCodeView.setQR(url: url)
-        } catch {
-            owsFailDebug("error \(error)")
+                qrCodeView.setQRCode(
+                    url: url,
+                    stylingMode: .brandedWithoutLogo
+                )
+            } catch {
+                owsFailDebug("error \(error)")
+            }
         }
     }
 
     public override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
 
-        deviceTransferService.removeObserver(self)
-        deviceTransferService.stopAcceptingTransfersFromOldDevices()
+        AppEnvironment.shared.deviceTransferServiceRef.removeObserver(self)
+        AppEnvironment.shared.deviceTransferServiceRef.stopAcceptingTransfersFromOldDevices()
     }
 
     // MARK: - QR Code expansion
@@ -363,8 +368,8 @@ public class RegistrationTransferQRCodeViewController: OWSViewController, OWSNav
         permissionActionSheetController?.dismiss(animated: true)
         permissionActionSheetController = nil
 
-        ContactSupportAlert.presentStep2(
-            emailSupportFilter: "Signal iOS Transfer",
+        ContactSupportActionSheet.present(
+            emailFilter: .deviceTransfer,
             fromViewController: self
         )
     }

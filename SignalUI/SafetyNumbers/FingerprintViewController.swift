@@ -17,17 +17,17 @@ public class FingerprintViewController: OWSViewController, OWSNavigationChildCon
         for theirAci: Aci?,
         from viewController: UIViewController
     ) {
-        let fingerprintResult = databaseStorage.read { (tx) -> OWSFingerprintBuilder.FingerprintResult? in
+        let fingerprintResult = SSKEnvironment.shared.databaseStorageRef.read { (tx) -> OWSFingerprintBuilder.FingerprintResult? in
             guard let theirAci else {
                 return nil
             }
             let identityManager = DependenciesBridge.shared.identityManager
             let theirAddress = SignalServiceAddress(theirAci)
-            guard let theirRecipientIdentity = identityManager.recipientIdentity(for: theirAddress, tx: tx.asV2Read) else {
+            guard let theirRecipientIdentity = identityManager.recipientIdentity(for: theirAddress, tx: tx) else {
                 return nil
             }
             return OWSFingerprintBuilder(
-                contactsManager: contactsManager,
+                contactsManager: SSKEnvironment.shared.contactManagerRef,
                 identityManager: identityManager,
                 tsAccountManager: DependenciesBridge.shared.tsAccountManager
             ).fingerprints(
@@ -225,8 +225,8 @@ public class FingerprintViewController: OWSViewController, OWSNavigationChildCon
 
     private func updateVerificationStateLabel() {
         let identityManager = DependenciesBridge.shared.identityManager
-        isVerified = databaseStorage.read { tx in
-            return identityManager.verificationState(for: SignalServiceAddress(recipientAci), tx: tx.asV2Read) == .verified
+        isVerified = SSKEnvironment.shared.databaseStorageRef.read { tx in
+            return identityManager.verificationState(for: SignalServiceAddress(recipientAci), tx: tx) == .verified
         }
 
         if isVerified {
@@ -382,7 +382,7 @@ public class FingerprintViewController: OWSViewController, OWSNavigationChildCon
     }
 
     fileprivate static func showLearnMoreUrl(from viewController: UIViewController) {
-        let learnMoreUrl = URL(string: "https://support.signal.org/hc/articles/213134107")!
+        let learnMoreUrl = URL(string: "https://support.signal.org/hc/articles/360007060632")!
         let safariVC = SFSafariViewController(url: learnMoreUrl)
         viewController.present(safariVC, animated: true)
     }
@@ -391,16 +391,16 @@ public class FingerprintViewController: OWSViewController, OWSNavigationChildCon
     private func didTapVerifyUnverify(_ gestureRecognizer: UITapGestureRecognizer) {
         guard gestureRecognizer.state == .recognized else { return }
 
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             let identityManager = DependenciesBridge.shared.identityManager
             let newVerificationState: VerificationState = isVerified ? .implicit(isAcknowledged: false) : .verified
-            identityManager.saveIdentityKey(identityKey, for: recipientAci, tx: tx.asV2Write)
+            identityManager.saveIdentityKey(identityKey, for: recipientAci, tx: tx)
             _ = identityManager.setVerificationState(
                 newVerificationState,
                 of: identityKey,
                 for: SignalServiceAddress(recipientAci),
                 isUserInitiatedChange: true,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
 
@@ -466,27 +466,24 @@ public class FingerprintViewController: OWSViewController, OWSNavigationChildCon
 
 extension FingerprintViewController: CompareSafetyNumbersActivityDelegate {
 
-    public func compareSafetyNumbersActivitySucceeded(activity: CompareSafetyNumbersActivity) {
+    func compareSafetyNumbersActivitySucceeded(activity: CompareSafetyNumbersActivity) {
         FingerprintScanViewController.showVerificationSucceeded(
             from: self,
             identityKey: identityKey,
             recipientAci: recipientAci,
             contactName: fingerprint.theirName,
-            tag: logTag
+            tag: "[\(type(of: self))]"
         )
     }
 
-    public func compareSafetyNumbersActivity(_ activity: CompareSafetyNumbersActivity, failedWithError error: Error) {
-        let isUserError = (error as NSError).code == OWSErrorCode.userError.rawValue
-
+    func compareSafetyNumbersActivity(_ activity: CompareSafetyNumbersActivity, failedWithError error: CompareSafetyNumberError) {
         FingerprintScanViewController.showVerificationFailed(
             from: self,
-            isUserError: isUserError,
-            localizedErrorDescription: error.userErrorDescription,
-            tag: logTag
+            isUserError: error == .userError,
+            localizedErrorDescription: error.localizedError,
+            tag: "[\(type(of: self))]"
         )
     }
-
 }
 
 extension FingerprintViewController: UITextViewDelegate {

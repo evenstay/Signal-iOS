@@ -21,10 +21,10 @@ extension DonationViewsUtil {
         let (success, intent, localIntent) = databaseStorage.read { tx in
             switch donationType {
             case let .oneTime(didSucceed: success, paymentIntentId: intentId):
-                let localIntentId = donationStore.getPendingOneTimeDonation(tx: tx.asV2Read)
+                let localIntentId = donationStore.getPendingOneTimeDonation(tx: tx)
                 return (success, intentId, localIntentId?.paymentIntentId)
             case let .monthly(didSucceed: success, _, setupIntentId: intentId):
-                let localIntentId = donationStore.getPendingSubscription(tx: tx.asV2Read)
+                let localIntentId = donationStore.getPendingSubscription(tx: tx)
                 return (success, intentId, localIntentId?.setupIntentId)
             }
         }
@@ -141,10 +141,12 @@ extension DonationViewsUtil {
         }.then(on: DispatchQueue.main) { badge in
             DonationViewsUtil.wrapPromiseInProgressView(
                 from: donationsVC,
-                promise: DonationViewsUtil.completeIDEALDonation(
-                    donationType: donationType,
-                    databaseStorage: databaseStorage
-                )
+                promise: Promise.wrapAsync {
+                    try await DonationViewsUtil.completeIDEALDonation(
+                        donationType: donationType,
+                        databaseStorage: databaseStorage
+                    )
+                }
             ).done(on: DispatchQueue.main) {
                 // Do this after the `wrapPromiseInProgressView` completes
                 // to dismiss the progress spinner.  Then display the
@@ -171,7 +173,7 @@ extension DonationViewsUtil {
             }.ensure(on: DispatchQueue.main) {
                 // refresh the local state upon completing the donation
                 // to refresh any pending donation messages
-                _ = donationsVC.loadAndUpdateState()
+                Task { await donationsVC.loadAndUpdateState() }
             }
         }
     }
@@ -187,9 +189,9 @@ extension DonationViewsUtil {
             databaseStorage.write { tx in
                 switch donationType {
                 case .monthly:
-                    idealStore.clearPendingSubscription(tx: tx.asV2Write)
+                    idealStore.clearPendingSubscription(tx: tx)
                 case .oneTime:
-                    idealStore.clearPendingOneTimeDonation(tx: tx.asV2Write)
+                    idealStore.clearPendingOneTimeDonation(tx: tx)
                 }
             }
         }
@@ -236,7 +238,7 @@ extension DonationViewsUtil {
         return databaseStorage.read { tx in
             switch donationType {
             case .oneTime:
-                return SubscriptionManagerImpl.getCachedBadge(level: .boostBadge)
+                return DonationSubscriptionManager.getCachedBadge(level: .boostBadge)
                     .fetchIfNeeded()
                     .map(on: DispatchQueue.main) { result in
                         switch result {
@@ -247,13 +249,12 @@ extension DonationViewsUtil {
                         }
                     }
             case .monthly:
-                guard let monthlyDonation = donationStore.getPendingSubscription(tx: tx.asV2Read) else {
+                guard let monthlyDonation = donationStore.getPendingSubscription(tx: tx) else {
                     return .value(nil)
                 }
-                return OWSProfileManager.shared.badgeStore.populateAssetsOnBadge(
-                    monthlyDonation.newSubscriptionLevel.badge
-                )
-                .map {
+                return Promise.wrapAsync {
+                    try await SSKEnvironment.shared.profileManagerRef.badgeStore.populateAssetsOnBadge(monthlyDonation.newSubscriptionLevel.badge)
+                }.map {
                     return monthlyDonation.newSubscriptionLevel.badge
                 }
             }
@@ -263,7 +264,7 @@ extension DonationViewsUtil {
 
 private extension Stripe.IDEALCallbackType {
 
-    var asSuccessMode: ReceiptCredentialResultStore.Mode {
+    var asSuccessMode: DonationReceiptCredentialResultStore.Mode {
         switch self {
         case .oneTime: return .oneTimeBoost
         case .monthly: return .recurringSubscriptionInitiation

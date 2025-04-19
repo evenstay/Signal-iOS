@@ -17,28 +17,11 @@ public struct VersionedProfileUpdate {
 
 // MARK: -
 
-@objc
-public protocol VersionedProfileRequest: AnyObject {
-    var request: TSRequest { get }
-    var profileKey: Aes256Key? { get }
-}
-
-// MARK: -
-
-@objc
 public protocol VersionedProfiles: AnyObject {
-    @objc(clearProfileKeyCredentialForServiceId:transaction:)
-    func clearProfileKeyCredential(
-        for aci: AciObjC,
-        transaction: SDSAnyWriteTransaction
-    )
 
-    func clearProfileKeyCredentials(transaction: SDSAnyWriteTransaction)
-}
+    func clearProfileKeyCredential(for aci: Aci, transaction: DBWriteTransaction)
 
-// MARK: -
-
-public protocol VersionedProfilesSwift: VersionedProfiles {
+    func clearProfileKeyCredentials(transaction: DBWriteTransaction)
 
     func updateProfile(
         profileGivenName: OWSUserProfile.NameComponent?,
@@ -53,13 +36,15 @@ public protocol VersionedProfilesSwift: VersionedProfiles {
 
     func versionedProfileRequest(
         for aci: Aci,
+        profileKey: ProfileKey,
+        shouldRequestCredential: Bool,
         udAccessKey: SMKUDAccessKey?,
         auth: ChatServiceAuth
     ) throws -> VersionedProfileRequest
 
     func validProfileKeyCredential(
         for aci: Aci,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) throws -> ExpiringProfileKeyCredential?
 
     func didFetchProfile(
@@ -84,12 +69,10 @@ public enum VersionedProfileAvatarMutation {
 
 // MARK: -
 
-@objc
-public class MockVersionedProfiles: NSObject, VersionedProfilesSwift, VersionedProfiles {
-    public func clearProfileKeyCredential(for aci: AciObjC,
-                                          transaction: SDSAnyWriteTransaction) {}
+public class MockVersionedProfiles: VersionedProfiles {
+    public func clearProfileKeyCredential(for aci: Aci, transaction: DBWriteTransaction) {}
 
-    public func clearProfileKeyCredentials(transaction: SDSAnyWriteTransaction) {}
+    public func clearProfileKeyCredentials(transaction: DBWriteTransaction) {}
 
     var didClearProfileKeyCredentials = false
 
@@ -99,6 +82,8 @@ public class MockVersionedProfiles: NSObject, VersionedProfilesSwift, VersionedP
 
     public func versionedProfileRequest(
         for aci: Aci,
+        profileKey: ProfileKey,
+        shouldRequestCredential: Bool,
         udAccessKey: SMKUDAccessKey?,
         auth: ChatServiceAuth
     ) throws -> VersionedProfileRequest {
@@ -121,7 +106,7 @@ public class MockVersionedProfiles: NSObject, VersionedProfilesSwift, VersionedP
     }
 
     public func validProfileKeyCredential(for aci: Aci,
-                                          transaction: SDSAnyReadTransaction) throws -> ExpiringProfileKeyCredential? {
+                                          transaction: DBReadTransaction) throws -> ExpiringProfileKeyCredential? {
         owsFail("Not implemented")
     }
 }

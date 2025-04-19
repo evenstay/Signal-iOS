@@ -10,22 +10,6 @@ import SignalUI
 
 class DebugUITableViewController: OWSTableViewController {
 
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-
-        // Block device from sleeping while in the Debug UI.
-        //
-        // This is useful if you're using long-running actions in the
-        // Debug UI, like "send 1k messages", etc.
-        DeviceSleepManager.shared.addBlock(blockObject: self)
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-
-        DeviceSleepManager.shared.removeBlock(blockObject: self)
-    }
-
     // MARK: Public
 
     static func presentDebugUI(from fromViewController: UIViewController, appReadiness: AppReadinessSetter) {
@@ -62,8 +46,7 @@ class DebugUITableViewController: OWSTableViewController {
             subsectionItems.append(itemForSubsection(DebugUICalling(), viewController: viewController, thread: thread))
         }
         subsectionItems += [
-            itemForSubsection(DebugUINotifications(databaseStorage: databaseStorage, notificationPresenterImpl: notificationPresenterImpl), viewController: viewController, thread: thread),
-            itemForSubsection(DebugUIStress(contactsManager: contactsManager, databaseStorage: databaseStorage, messageSender: messageSender), viewController: viewController, thread: thread),
+            itemForSubsection(DebugUIStress(contactsManager: SSKEnvironment.shared.contactManagerRef, databaseStorage: SSKEnvironment.shared.databaseStorageRef, messageSender: SSKEnvironment.shared.messageSenderRef), viewController: viewController, thread: thread),
             itemForSubsection(DebugUISyncMessages(), viewController: viewController, thread: thread),
 
             OWSTableItem(

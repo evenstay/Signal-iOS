@@ -34,7 +34,7 @@ struct MediaGalleryIndexPath: Comparable {
 
 /// The minimal requirements needed for items loaded and managed by MediaGallerySections.
 internal protocol MediaGallerySectionItem {
-    var attachmentId: MediaGalleryResourceId { get }
+    var attachmentId: AttachmentReferenceId { get }
     var galleryDate: GalleryDate { get }
 }
 
@@ -49,24 +49,24 @@ internal protocol MediaGallerySectionLoader {
         for date: GalleryDate,
         offset: Int,
         ascending: Bool,
-        transaction: SDSAnyReadTransaction
-    ) -> [DatedMediaGalleryItemId]
+        transaction: DBReadTransaction
+    ) -> [DatedAttachmentReferenceId]
 
     /// Should call `block` once for every item (loaded or unloaded) before `date`, up to `count` times.
     func enumerateTimestamps(
         before date: Date,
         count: Int,
-        transaction: SDSAnyReadTransaction,
-        block: (DatedMediaGalleryItemId) -> Void
-    ) -> MediaGalleryResourceFinder.EnumerationCompletion
+        transaction: DBReadTransaction,
+        block: (DatedAttachmentReferenceId) -> Void
+    ) -> MediaGalleryAttachmentFinder.EnumerationCompletion
 
     /// Should call `block` once for every item (loaded or unloaded) after `date`, up to `count` times.
     func enumerateTimestamps(
         after date: Date,
         count: Int,
-        transaction: SDSAnyReadTransaction,
-        block: (DatedMediaGalleryItemId) -> Void
-    ) -> MediaGalleryResourceFinder.EnumerationCompletion
+        transaction: DBReadTransaction,
+        block: (DatedAttachmentReferenceId) -> Void
+    ) -> MediaGalleryAttachmentFinder.EnumerationCompletion
 
     /// Should selects a range of items in `interval` and call `block` once for each.
     ///
@@ -76,8 +76,8 @@ internal protocol MediaGallerySectionLoader {
     func enumerateItems(
         in interval: DateInterval,
         range: Range<Int>,
-        transaction: SDSAnyReadTransaction,
-        block: (_ offset: Int, _ attachmentId: MediaGalleryResourceId, _ buildItem: () -> Item) -> Void
+        transaction: DBReadTransaction,
+        block: (_ offset: Int, _ attachmentId: AttachmentReferenceId, _ buildItem: () -> Item) -> Void
     )
 }
 
@@ -88,12 +88,12 @@ internal protocol MediaGallerySectionLoader {
 /// know their number of items. Items are also loaded on demand, potentially non-contiguously.
 ///
 /// This model is designed around the needs of UICollectionView, but it also supports flat views of media.
-internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUserData>: Dependencies {
+internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUserData> {
     internal typealias Item = Loader.Item
 
     struct MediaGallerySlot {
         /// This is a stable and unique identifier for an item.
-        var itemId: MediaGalleryItemId
+        var itemId: AttachmentReferenceId
         /// This comes from `TSInteraction.receivedAtTimestamp`.
         var receivedAt: Date
         var item: Item?
@@ -115,7 +115,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         /// Operates in bulk in an attempt to cut down on database traffic, meaning it may measure multiple sections at once.
         ///
         /// Returns the number of new sections loaded, which can be used to update section indexes.
-        internal mutating func loadEarlierSections(batchSize: Int, transaction: SDSAnyReadTransaction) -> Int {
+        internal mutating func loadEarlierSections(batchSize: Int, transaction: DBReadTransaction) -> Int {
             guard !hasFetchedOldest else {
                 return 0
             }
@@ -173,7 +173,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         /// Operates in bulk in an attempt to cut down on database traffic, meaning it may measure multiple sections at once.
         ///
         /// Returns the number of new sections loaded.
-        internal mutating func loadLaterSections(batchSize: Int, transaction: SDSAnyReadTransaction) -> Int {
+        internal mutating func loadLaterSections(batchSize: Int, transaction: DBReadTransaction) -> Int {
             guard batchSize > 0 else {
                 owsFailDebug("batch size must be positive")
                 return 0
@@ -233,7 +233,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
             return sortedDates.count
         }
 
-        internal mutating func loadInitialSection(for date: GalleryDate, transaction: SDSAnyReadTransaction) {
+        internal mutating func loadInitialSection(for date: GalleryDate, transaction: DBReadTransaction) {
             owsPrecondition(itemsBySection.isEmpty, "already has sections, use loadEarlierSections or loadLaterSections")
             let rowids = loader.rowIdsAndDatesOfItemsInSection(
                 for: date,
@@ -249,7 +249,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
 
         /// Returns the number of items in the section after reloading (which may be 0).
         @discardableResult
-        internal mutating func reloadSection(for date: GalleryDate, transaction: SDSAnyReadTransaction) -> Int {
+        internal mutating func reloadSection(for date: GalleryDate, transaction: DBReadTransaction) -> Int {
             let rowids = loader.rowIdsAndDatesOfItemsInSection(
                 for: date,
                 offset: 0,
@@ -277,7 +277,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
             hasFetchedMostRecent = false
         }
 
-        internal mutating func reset(transaction: SDSAnyReadTransaction) {
+        internal mutating func reset(transaction: DBReadTransaction) {
             let oldestLoadedSection = itemsBySection.orderedKeys.first
             let newestLoadedSection = itemsBySection.orderedKeys.last
             let numItemsAfterOldestSection = itemsBySection.lazy.dropFirst().map { $0.value.count }.reduce(0, +)
@@ -321,7 +321,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         internal mutating func replaceLoader(loader: Loader,
                                              batchSize: Int,
                                              loadUntil: GalleryDate,
-                                             transaction: SDSAnyReadTransaction) {
+                                             transaction: DBReadTransaction) {
             self = .init(loader: loader)
 
             // Ensure there is a journal.
@@ -342,7 +342,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         internal func indexPathAtApproximateLocation(
             sectionDate: GalleryDate,
             itemDate: Date,
-            itemId: MediaGalleryItemId
+            itemId: AttachmentReferenceId
         ) -> MediaGalleryIndexPath? {
             let si = itemsBySection.orderedKeys.firstIndex { key in
                 key >= sectionDate
@@ -380,7 +380,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
 
         internal mutating func resolveNaiveStartIndex(request: LoadItemsRequest,
                                                       batchSize: Int,
-                                                      transaction: SDSAnyReadTransaction?) -> (path: MediaGalleryIndexPath?, numberOfSectionsLoaded: Int) {
+                                                      transaction: DBReadTransaction?) -> (path: MediaGalleryIndexPath?, numberOfSectionsLoaded: Int) {
             guard let naiveRange = resolveLoadItemsRequest(request) else {
                 return (path: nil, numberOfSectionsLoaded: 0)
             }
@@ -410,7 +410,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
             _ naiveIndex: Int,
             relativeToSection initialSectionIndex: Int,
             batchSize: Int,
-            transaction: SDSAnyReadTransaction?
+            transaction: DBReadTransaction?
         ) -> (path: MediaGalleryIndexPath?, numberOfSectionsLoaded: Int) {
             guard naiveIndex < 0 else {
                 let items = itemsBySection[initialSectionIndex].value
@@ -628,7 +628,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         /// Returns the indexes of newly loaded *sections,* which could shift the indexes of existing sections. These will
         /// always be before and/or after the existing sections, never interleaving.
         internal mutating func ensureItemsLoaded(request: LoadItemsRequest,
-                                                 transaction: SDSAnyReadTransaction) -> IndexSet {
+                                                 transaction: DBReadTransaction) -> IndexSet {
             guard let naiveRange = resolveLoadItemsRequest(request) else {
                 return IndexSet()
             }
@@ -832,7 +832,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         }
     }
 
-    class SnapshotManager: Dependencies {
+    class SnapshotManager {
         private var mutableState: State
         private var snapshot: State
         private(set) var pendingUpdate = AtomicValue(Update.noop, lock: .init())
@@ -887,9 +887,9 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
             }
         }
 
-        func mutate<T>(userData: UpdateUserData?, _ block: (inout State, SDSAnyReadTransaction) -> (T)) -> T {
+        func mutate<T>(userData: UpdateUserData?, _ block: (inout State, DBReadTransaction) -> (T)) -> T {
             return mutate(userData: userData) { mutableState in
-                return Self.databaseStorage.read { transaction in
+                return SSKEnvironment.shared.databaseStorageRef.read { transaction in
                     return block(&mutableState, transaction)
                 }
             }
@@ -934,10 +934,10 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
         func mutateAsync<T>(userData: UpdateUserData?,
                             highPriority: Bool,
                             title: String? = nil,
-                            _ block: @escaping (inout State, SDSAnyReadTransaction) -> (T),
+                            _ block: @escaping (inout State, DBReadTransaction) -> (T),
                             completion: @escaping (T) -> Void) {
             mutateAsync(userData: userData, highPriority: highPriority, title: title) { mutableState in
-                return Self.databaseStorage.read { transaction in
+                return SSKEnvironment.shared.databaseStorageRef.read { transaction in
                     block(&mutableState, transaction)
                 }
             } completion: { value in
@@ -1013,9 +1013,9 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
     /// valid.
     internal mutating func loadInitialSection(
         for date: GalleryDate,
-        replacement: (item: Item, itemId: MediaGalleryItemId)? = nil,
+        replacement: (item: Item, itemId: AttachmentReferenceId)? = nil,
         userData: UpdateUserData? = nil,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> Item? {
         return snapshotManager.mutate(userData: userData) { state in
             state.loadInitialSection(for: date, transaction: transaction)
@@ -1257,7 +1257,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
             return IndexSet()
         }
         return snapshotManager.mutate(userData: userData) { state in
-            return Self.databaseStorage.read { transaction in
+            return SSKEnvironment.shared.databaseStorageRef.read { transaction in
                 return state.ensureItemsLoaded(request: request,
                                                transaction: transaction)
             }
@@ -1286,7 +1286,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
 
     internal mutating func getOrReplaceItem(
         _ newItem: Item,
-        itemId: MediaGalleryItemId,
+        itemId: AttachmentReferenceId,
         userData: UpdateUserData? = nil
     ) -> Item? {
         return snapshotManager.mutate(userData: userData) { state in
@@ -1299,7 +1299,7 @@ internal struct MediaGallerySections<Loader: MediaGallerySectionLoader, UpdateUs
 
     private struct Location {
         var date: GalleryDate
-        var itemId: MediaGalleryItemId
+        var itemId: AttachmentReferenceId
     }
 
     internal mutating func removeLoadedItems(atIndexPaths paths: [MediaGalleryIndexPath],

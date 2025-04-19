@@ -4,7 +4,6 @@
 //
 
 #import "OWSDynamicOutgoingMessage.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -22,7 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
 @implementation OWSDynamicOutgoingMessage
 
 - (instancetype)initWithThread:(TSThread *)thread
-                   transaction:(SDSAnyReadTransaction *)transaction
+                   transaction:(DBReadTransaction *)transaction
             plainTextDataBlock:(DynamicOutgoingMessageBlock)block
 {
     TSOutgoingMessageBuilder *messageBuilder = [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:thread];
@@ -44,7 +43,7 @@ NS_ASSUME_NONNULL_BEGIN
     return NO;
 }
 
-- (nullable NSData *)buildPlainTextData:(TSThread *)thread transaction:(SDSAnyWriteTransaction *)transaction
+- (nullable NSData *)buildPlainTextData:(TSThread *)thread transaction:(DBWriteTransaction *)transaction
 {
     NSData *plainTextData = self.block();
     OWSAssertDebug(plainTextData);

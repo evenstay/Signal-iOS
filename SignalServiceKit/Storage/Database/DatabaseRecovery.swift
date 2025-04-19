@@ -45,12 +45,21 @@ public extension DatabaseRecovery {
     static func rebuildExistingDatabase(databaseStorage: SDSDatabaseStorage) {
         Logger.info("Attempting to reindex the database...")
         do {
-            try databaseStorage.writeThrows { tx in
-                try SqliteUtil.reindex(db: tx.unwrapGrdbWrite.database)
+            // We use the `performWrite` method directly instead of the usual
+            // `write` methods because we explicitly do NOT want to owsFail if
+            // opening the write throws an error (probably a corruption error).
+            try databaseStorage.performWriteWithTxCompletion { tx in
+                do {
+                    try SqliteUtil.reindex(db: tx.database)
+                    Logger.info("Reindexed database")
+                    return .commit(())
+                } catch {
+                    Logger.warn("Failed to reindex database")
+                    return .rollback(())
+                }
             }
-            Logger.info("Reindexed database")
         } catch {
-            Logger.warn("Failed to reindex database")
+            Logger.warn("Failed to write to database")
         }
     }
 }
@@ -250,12 +259,11 @@ public extension DatabaseRecovery {
         static let tablesToCopyWithBestEffort: [String] = [
             // We should try to copy thread data.
             OWSReaction.databaseTableName,
-            OWSRecipientIdentity.table.tableName,
+            OWSRecipientIdentity.databaseTableName,
             OWSUserProfile.databaseTableName,
             SignalAccount.databaseTableName,
             SignalRecipient.databaseTableName,
             StoryMessage.databaseTableName,
-            TSAttachment.table.tableName,
             TSInteraction.table.tableName,
             TSGroupMember.databaseTableName,
             TSMention.databaseTableName,
@@ -272,6 +280,7 @@ public extension DatabaseRecovery {
             EditRecord.databaseTableName,
             TSPaymentsActivationRequestModel.databaseTableName,
             // Okay to best-effort recover calls.
+            CallLinkRecord.databaseTableName,
             CallRecord.databaseTableName,
             DeletedCallRecord.databaseTableName,
             NicknameRecord.databaseTableName,
@@ -282,15 +291,16 @@ public extension DatabaseRecovery {
             OrphanedAttachmentRecord.databaseTableName,
             QueuedAttachmentDownloadRecord.databaseTableName,
             ArchivedPayment.databaseTableName,
-            // TODO: remove this once the attachment migration is blocking; by the time
-            // this runs migrations are done and the migration table will be deleted.
-            TSAttachmentMigration.V1AttachmentReservedFileIds.databaseTableName,
             QueuedBackupAttachmentDownload.databaseTableName,
             AttachmentUploadRecord.databaseTableName,
             "AttachmentValidationBackfillQueue",
             QueuedBackupAttachmentUpload.databaseTableName,
             QueuedBackupStickerPackDownload.databaseTableName,
             OrphanedBackupAttachment.databaseTableName,
+            "MessageBackupAvatarFetchQueue",
+            "model_TSAttachment",
+            "TSAttachmentMigration",
+            "AvatarDefaultColor",
         ]
 
         private static func prepareToCopyTablesWithBestEffort(
@@ -341,14 +351,16 @@ public extension DatabaseRecovery {
 
         static let tablesThatMustBeCopiedFlawlessly: [String] = [
             // The app will be too unpredictable with strange key-value stores.
-            SDSKeyValueStore.table.tableName,
+            KeyValueStore.tableName,
             // If we get a disappearing timer wrong, users might send messages incorrectly.
             DisappearingMessagesConfigurationRecord.databaseTableName,
             // We don't want to get our linked devices wrong.
             // We *could* fetch these from the server. Could be a good followup change.
             OWSDevice.databaseTableName,
-            // We must get this right to keep everyone blocked.
+            // We must get these 3 right to keep everyone blocked.
             BlockedRecipient.databaseTableName,
+            BlockedGroup.databaseTableName,
+            StoryRecipient.databaseTableName,
         ]
 
         /// Copy tables that must be copied flawlessly. Operation throws if any tables fail.
@@ -448,12 +460,8 @@ public extension DatabaseRecovery {
             JobRecord.databaseTableName,
             PendingReadReceiptRecord.databaseTableName,
             PendingViewedReceiptRecord.databaseTableName,
-            OWSMessageContentJob.table.tableName, // also, this one is deprecated
-            // Recovered manually in other steps.
-            MediaGalleryRecord.databaseTableName,
             // Can be recovered in other ways, after recovery is done.
             IncomingGroupsV2MessageJob.table.tableName,
-            KnownStickerPack.table.tableName,
             ProfileBadge.databaseTableName,
             StickerPack.table.tableName,
             HiddenRecipient.databaseTableName,
@@ -464,7 +472,9 @@ public extension DatabaseRecovery {
             CancelledGroupRing.databaseTableName,
             CdsPreviousE164.databaseTableName,
             SpamReportingTokenRecord.databaseTableName,
-            "VersionedDMTimerCapabilities",
+            // Can be easily re-created.
+            CombinedGroupSendEndorsementRecord.databaseTableName,
+            IndividualGroupSendEndorsementRecord.databaseTableName,
         ]
 
         /// Log the tables we're explicitly skipping.
@@ -501,7 +511,7 @@ public extension DatabaseRecovery {
 
             do {
                 return try from.readThrows { fromTransaction -> TableCopyResult in
-                    let fromDb = fromTransaction.unwrapGrdbRead.database
+                    let fromDb = fromTransaction.database
 
                     let columnNames: [String]
                     let cursor: RowCursor
@@ -516,7 +526,7 @@ public extension DatabaseRecovery {
                     let insertSql = insertSql(tableName: tableName, columnNames: columnNames)
 
                     return to.write { toTransaction in
-                        let toDb = toTransaction.unwrapGrdbWrite.database
+                        let toDb = toTransaction.database
 
                         let insertStatement: Statement
                         do {
@@ -589,7 +599,7 @@ public extension DatabaseRecovery {
                 owsPrecondition(SqliteUtil.isSafe(sqlName: columnName))
             }
 
-            let columnNamesSql = columnNames.joined(separator: ", ")
+            let columnNamesSql = columnNames.map({"'\($0)'"}).joined(separator: ", ")
             let valuesSql = columnNames.map({ ":\($0)" }).joined(separator: ", ")
             return "INSERT INTO \(tableName) (\(columnNamesSql)) VALUES (\(valuesSql))"
         }
@@ -630,7 +640,7 @@ public extension DatabaseRecovery {
             Logger.info("Attempting to recreate media gallery records...")
             databaseStorage.write { transaction in
                 do {
-                    try createInitialGalleryRecords(transaction: transaction.unwrapGrdbWrite)
+                    try createInitialGalleryRecords(transaction: transaction)
                     Logger.info("Recreated media gallery records.")
                 } catch {
                     Logger.warn("Failed to recreate media gallery records, but moving on: \(error)")
@@ -643,7 +653,7 @@ public extension DatabaseRecovery {
 
             databaseStorage.write { tx in
                 let searchableNameIndexer = DependenciesBridge.shared.searchableNameIndexer
-                searchableNameIndexer.indexEverything(tx: tx.asV2Write)
+                searchableNameIndexer.indexEverything(tx: tx)
             }
 
             databaseStorage.write { tx in
@@ -651,7 +661,11 @@ public extension DatabaseRecovery {
                     guard let message = interaction as? TSMessage else {
                         return
                     }
-                    FullTextSearchIndexer.insert(message, tx: tx)
+                    do {
+                        try FullTextSearchIndexer.insert(message, tx: tx)
+                    } catch {
+                        owsFail("Error: \(error)")
+                    }
                 }
             }
 
@@ -680,7 +694,7 @@ extension DatabaseRecovery {
     public static func integrityCheck(databaseStorage: SDSDatabaseStorage) -> SqliteUtil.IntegrityCheckResult {
         Logger.info("Running integrity check on database...")
         let result = databaseStorage.write { transaction in
-            let db = transaction.unwrapGrdbWrite.database
+            let db = transaction.database
             return SqliteUtil.quickCheck(db: db)
         }
         switch result {

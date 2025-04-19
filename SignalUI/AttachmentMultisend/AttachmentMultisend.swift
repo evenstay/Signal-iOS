@@ -39,7 +39,7 @@ public class AttachmentMultisend {
                     approvedMessageBody,
                     to: conversations,
                     db: deps.databaseStorage,
-                    attachmentValidator: deps.tsResourceValidator
+                    attachmentValidator: deps.attachmentValidator
                 )
 
                 var hasNonStoryDestination = false
@@ -175,18 +175,16 @@ public class AttachmentMultisend {
         let imageQualityLevel: ImageQualityLevel.Type
         let messageSenderJobQueue: MessageSenderJobQueue
         let tsAccountManager: TSAccountManager
-        let tsResourceValidator: TSResourceContentValidator
     }
 
     private static var deps = Dependencies(
         attachmentManager: DependenciesBridge.shared.attachmentManager,
         attachmentValidator: DependenciesBridge.shared.attachmentContentValidator,
         contactsMentionHydrator: ContactsMentionHydrator.self,
-        databaseStorage: SSKEnvironment.shared.databaseStorage,
+        databaseStorage: SSKEnvironment.shared.databaseStorageRef,
         imageQualityLevel: ImageQualityLevel.self,
         messageSenderJobQueue: SSKEnvironment.shared.messageSenderJobQueueRef,
-        tsAccountManager: DependenciesBridge.shared.tsAccountManager,
-        tsResourceValidator: DependenciesBridge.shared.tsResourceContentValidator
+        tsAccountManager: DependenciesBridge.shared.tsAccountManager
     )
 
     // MARK: - Segmenting Attachments
@@ -260,8 +258,7 @@ public class AttachmentMultisend {
             for (index, attachment) in approvedAttachments.enumerated() {
                 taskGroup.addTask(operation: {
                     let segmentingResult = try await attachment.preparedForOutput(qualityLevel: qualityLevel)
-                        .segmentedIfNecessary(on: ThreadUtil.enqueueSendQueue, segmentDuration: requiredSegmentDuration)
-                        .awaitable()
+                        .segmentedIfNecessary(segmentDuration: requiredSegmentDuration)
 
                     let originalDataSource: AttachmentDataSource?
                     if hasNonStoryDestination || segmentingResult.segmented == nil {
@@ -320,7 +317,7 @@ public class AttachmentMultisend {
         destinations: [Destination],
         messageBodyForStories: MessageBody?,
         approvedAttachments: [SegmentAttachmentResult],
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) throws -> ([TSThread], [PreparedOutgoingMessage]) {
         let segmentedAttachments = approvedAttachments.reduce([], { arr, segmented in
             return arr + segmented.segmentedOrOriginal.map { ($0, segmented.renderingFlag == .shouldLoop) }
@@ -330,7 +327,7 @@ public class AttachmentMultisend {
                 return nil
             }
             return SignalAttachment.ForSending(
-                dataSource: original.tsDataSource,
+                dataSource: original,
                 isViewOnce: attachment.isViewOnce,
                 renderingFlag: attachment.renderingFlag
             )
@@ -390,7 +387,7 @@ public class AttachmentMultisend {
     private class func prepareForSending(
         conversations: [ConversationItem],
         _ textAttachment: UnsentTextAttachment.ForSending,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) throws -> ([TSThread], [PreparedOutgoingMessage]) {
         var allStoryThreads = [TSThread]()
         var privateStoryThreads = [TSPrivateStoryThread]()
@@ -439,7 +436,7 @@ public class AttachmentMultisend {
         threadDestinations: [Destination],
         unsegmentedAttachments: [SignalAttachment.ForSending],
         isViewOnceMessage: Bool,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) throws -> [PreparedOutgoingMessage] {
         return try threadDestinations.map { destination in
             let thread = destination.thread
@@ -464,10 +461,10 @@ public class AttachmentMultisend {
     }
 
     private class func prepareNonStoryMessage(
-        messageBody: ValidatedTSMessageBody?,
+        messageBody: ValidatedMessageBody?,
         attachments: [SignalAttachment.ForSending],
         thread: TSThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) throws -> PreparedOutgoingMessage {
         let unpreparedMessage = UnpreparedOutgoingMessage.build(
             thread: thread,
@@ -491,7 +488,7 @@ public class AttachmentMultisend {
     private class func prepareGroupStoryMessages(
         groupStoryThreads: [TSGroupThread],
         builders: [StoryMessageBuilder],
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) throws -> [PreparedOutgoingMessage] {
         return try groupStoryThreads
             .flatMap { groupThread in
@@ -522,7 +519,7 @@ public class AttachmentMultisend {
     private class func createAndInsertStoryMessage(
         builder: StoryMessageBuilder,
         groupThread: TSGroupThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) throws -> StoryMessage {
         let storyManifest: StoryManifest = .outgoing(
             recipientStates: groupThread.recipientAddresses(with: tx)
@@ -550,7 +547,7 @@ public class AttachmentMultisend {
     private class func preparePrivateStoryMessages(
         privateStoryThreads: [TSPrivateStoryThread],
         builders: [StoryMessageBuilder],
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) throws -> [PreparedOutgoingMessage] {
         if privateStoryThreads.isEmpty {
             return []
@@ -579,12 +576,12 @@ public class AttachmentMultisend {
     private class func createAndInsertStoryMessage(
         builder: StoryMessageBuilder,
         privateStoryThreads: [TSPrivateStoryThread],
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) throws -> StoryMessage {
         var recipientStates = [ServiceId: StoryRecipientState]()
         for thread in privateStoryThreads {
             guard let threadUuid = UUID(uuidString: thread.uniqueId) else {
-                throw OWSAssertionError("Invalid uniqueId for thread \(thread.uniqueId)")
+                throw OWSAssertionError("Invalid uniqueId for thread \(thread.logString)")
             }
             for recipientAddress in thread.recipientAddresses(with: tx) {
                 guard let recipient = recipientAddress.serviceId else {
@@ -622,7 +619,7 @@ public class AttachmentMultisend {
         func build(
             groupId: Data?,
             manifest: StoryManifest,
-            tx: SDSAnyWriteTransaction
+            tx: DBWriteTransaction
         ) throws -> StoryMessage {
             let attachmentBuilder: OwnedAttachmentBuilder<StoryMessageAttachment>?
             if let groupId {
@@ -654,25 +651,25 @@ public class AttachmentMultisend {
         approvedMessageBody: MessageBody?,
         groupStoryThreads: [TSGroupThread],
         privateStoryThreads: [TSPrivateStoryThread],
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) throws -> [StoryMessageBuilder] {
         if groupStoryThreads.isEmpty && privateStoryThreads.isEmpty {
             // No story destinations, no need to build story messages.
             return []
         }
 
-        guard let localAci = deps.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci else {
+        guard let localAci = deps.tsAccountManager.localIdentifiers(tx: tx)?.aci else {
             throw OWSAssertionError("Sending without a local aci!")
         }
 
         let storyCaption = approvedMessageBody?
-            .hydrating(mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: tx.asV2Read))
+            .hydrating(mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: tx))
             .asStyleOnlyBody()
 
         return segmentedAttachments.map { attachmentDataSource, isLoopingVideo in
             let attachmentManager = deps.attachmentManager
             let attachmentBuilder = OwnedAttachmentBuilder<StoryMessageAttachment>(
-                info: .foreignReferenceAttachment,
+                info: .media,
                 finalize: { owner, tx in
                     try attachmentManager.createAttachmentStream(
                         consuming: .init(dataSource: attachmentDataSource, owner: owner),
@@ -695,9 +692,9 @@ public class AttachmentMultisend {
         textAttachment: UnsentTextAttachment.ForSending,
         groupStoryThreads: [TSGroupThread],
         privateStoryThreads: [TSPrivateStoryThread],
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) throws -> StoryMessageBuilder {
-        guard let localAci = deps.tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci else {
+        guard let localAci = deps.tsAccountManager.localIdentifiers(tx: tx)?.aci else {
             throw OWSAssertionError("Sending without a local aci!")
         }
         guard

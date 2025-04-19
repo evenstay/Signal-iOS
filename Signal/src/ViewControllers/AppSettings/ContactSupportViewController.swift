@@ -17,14 +17,18 @@ class SupportConstants: NSObject {
     static let donationPendingLearnMoreURL = URL(string: "https://support.signal.org/hc/en-us/articles/360031949872#pending")!
 }
 
-enum ContactSupportFilter: String, CaseIterable {
-    case featureRequest = "Feature Request"
-    case question = "Question"
-    case feedback = "Feedback"
-    case somethingNotWorking = "Something Not Working"
-    case other = "Other"
-    case payments = "Payments"
-    case donationsAndBadges = "Donations & Badges"
+private extension ContactSupportViewController.Filter {
+    var emailFilterString: String {
+        return switch self {
+        case .featureRequest: "Feature Request"
+        case .question: "Question"
+        case .feedback: "Feedback"
+        case .somethingNotWorking: "Something Not Working"
+        case .other: "Other"
+        case .payments: "Payments"
+        case .donationsAndBadges: "Donations & Badges"
+        }
+    }
 
     var localizedString: String {
         switch self {
@@ -108,8 +112,17 @@ enum ContactSupportFilter: String, CaseIterable {
 }
 
 final class ContactSupportViewController: OWSTableViewController2 {
+    enum Filter: CaseIterable {
+        case featureRequest
+        case question
+        case feedback
+        case somethingNotWorking
+        case other
+        case payments
+        case donationsAndBadges
+    }
 
-    var selectedFilter: ContactSupportFilter?
+    var selectedFilter: Filter?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -231,11 +244,11 @@ final class ContactSupportViewController: OWSTableViewController2 {
     // MARK: - Actions
 
     private func didTapCancel() {
-        currentEmailComposeOperation?.cancel()
+        self.currentEmailComposeTask?.cancel()
         navigationController?.presentingViewController?.dismiss(animated: true, completion: nil)
     }
 
-    var currentEmailComposeOperation: ComposeSupportEmailOperation?
+    private var currentEmailComposeTask: Task<Void, any Error>?
 
     private func didTapNext() {
         var emailRequest = SupportEmailModel()
@@ -243,20 +256,21 @@ final class ContactSupportViewController: OWSTableViewController2 {
         emailRequest.emojiMood = emojiPicker.selectedMood
         emailRequest.debugLogPolicy = debugSwitch.isOn ? .attemptUpload : .none
         if let selectedFilter = selectedFilter {
-            emailRequest.supportFilter = "iOS \(selectedFilter.rawValue)"
+            emailRequest.supportFilter = "iOS \(selectedFilter.emailFilterString)"
         }
-        let operation = ComposeSupportEmailOperation(model: emailRequest)
-        currentEmailComposeOperation = operation
         showSpinnerOnNextButton = true
 
         firstly { () -> Promise<Void> in
-            operation.perform(on: DispatchQueue.sharedUserInitiated)
-
+            let composeTask = Task {
+                try await ComposeSupportEmailOperation(model: emailRequest).perform()
+            }
+            self.currentEmailComposeTask = composeTask
+            return Promise.wrapAsync { try await composeTask.value }
         }.done(on: DispatchQueue.main) { _ in
             self.navigationController?.presentingViewController?.dismiss(animated: true, completion: nil)
 
         }.ensure(on: DispatchQueue.main) {
-            self.currentEmailComposeOperation = nil
+            self.currentEmailComposeTask = nil
             self.showSpinnerOnNextButton = false
 
         }.catch(on: DispatchQueue.main) { error in
@@ -406,7 +420,7 @@ extension ContactSupportViewController {
         ))
         actionSheet.addAction(OWSActionSheets.cancelAction)
 
-        for filter in ContactSupportFilter.allCases {
+        for filter in Filter.allCases {
             let action = ActionSheetAction(title: filter.localizedString) { [weak self] _ in
                 self?.selectedFilter = filter
                 self?.updateRightBarButton()

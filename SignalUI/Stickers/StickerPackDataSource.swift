@@ -48,7 +48,7 @@ public class BaseStickerPackDataSource: NSObject {
     private lazy var didChangeEvent: DebouncedEvent = {
         DebouncedEvents.build(mode: .firstLast,
                               maxFrequencySeconds: 0.5,
-                              onQueue: .asyncOnQueue(queue: .main)) { [weak self] in
+                              onQueue: .main) { [weak self] in
             AssertIsOnMainThread()
             guard let self = self else {
                 return
@@ -145,7 +145,7 @@ public class InstalledStickerPackDataSource: BaseStickerPackDataSource {
     }
 
     func ensureState() {
-        databaseStorage.read { readTx in
+        SSKEnvironment.shared.databaseStorageRef.read { readTx in
             let stateTuple = Self.fetchInstalledState(for: self.stickerPackInfo, readTx: readTx)
 
             guard let stickerPack = stateTuple.stickerPack, stickerPack.isInstalled else {
@@ -165,7 +165,7 @@ public class InstalledStickerPackDataSource: BaseStickerPackDataSource {
 
     func ensureStateAsync(completion: (() -> Void)? = nil) {
         DispatchQueue.sharedUserInitiated.async {
-            let stateTuple = self.databaseStorage.read { readTx in
+            let stateTuple = SSKEnvironment.shared.databaseStorageRef.read { readTx in
                 return Self.fetchInstalledState(for: self.stickerPackInfo, readTx: readTx)
             }
 
@@ -188,7 +188,7 @@ public class InstalledStickerPackDataSource: BaseStickerPackDataSource {
         }
     }
 
-    private static func fetchInstalledState(for stickerPackInfo: StickerPackInfo, readTx: SDSAnyReadTransaction) -> (
+    private static func fetchInstalledState(for stickerPackInfo: StickerPackInfo, readTx: DBReadTransaction) -> (
         stickerPack: StickerPack?,
         installedCoverInfo: StickerInfo?,
         installedStickers: [StickerInfo]) {

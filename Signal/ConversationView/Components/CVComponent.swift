@@ -60,13 +60,7 @@ public protocol CVComponent: AnyObject {
                           renderItem: CVRenderItem,
                           messageSwipeActionState: CVMessageSwipeActionState)
 
-    func cellDidLayoutSubviews(componentView: CVComponentView,
-                               renderItem: CVRenderItem,
-                               messageSwipeActionState: CVMessageSwipeActionState)
-
-    func cellDidBecomeVisible(componentView: CVComponentView,
-                              renderItem: CVRenderItem,
-                              messageSwipeActionState: CVMessageSwipeActionState)
+    func cellWillBecomeVisible(componentDelegate: CVComponentDelegate)
 
     func updateScrollingContent(componentView: CVComponentView)
 
@@ -163,15 +157,7 @@ public class CVComponentBase: NSObject {
         owsFailDebug("No pan in progress.")
     }
 
-    public func cellDidLayoutSubviews(componentView: CVComponentView,
-                                      renderItem: CVRenderItem,
-                                      messageSwipeActionState: CVMessageSwipeActionState) {
-        // Do nothing.
-    }
-
-    public func cellDidBecomeVisible(componentView: CVComponentView,
-                                     renderItem: CVRenderItem,
-                                     messageSwipeActionState: CVMessageSwipeActionState) {
+    public func cellWillBecomeVisible(componentDelegate: CVComponentDelegate) {
         // Do nothing.
     }
 
@@ -349,6 +335,7 @@ public enum CVComponentKey: CustomStringConvertible, CaseIterable {
     case genericAttachment
     case paymentAttachment
     case archivedPaymentAttachment
+    case undownloadableAttachment
     case contactShare
     case bottomButtons
     case sendFailureBadge
@@ -395,6 +382,8 @@ public enum CVComponentKey: CustomStringConvertible, CaseIterable {
             return ".paymentAttchment"
         case .archivedPaymentAttachment:
             return ".archivedPaymentAttachment"
+        case .undownloadableAttachment:
+            return ".undownloadableAttachment"
         case .contactShare:
             return ".contactShare"
         case .bottomButtons:

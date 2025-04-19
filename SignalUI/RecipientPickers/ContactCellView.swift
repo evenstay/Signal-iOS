@@ -71,7 +71,7 @@ public class ContactCellConfiguration: NSObject {
 
     public func useVerifiedSubtitle() {
         let text = NSMutableAttributedString()
-        text.appendTemplatedImage(named: "check-extra-small", font: ContactCellView.subtitleFont)
+        text.append(SignalSymbol.safetyNumber.attributedString(for: .caption1, clamped: true))
         text.append(" ", attributes: [:])
         text.append(SafetyNumberStrings.verified, attributes: [:])
         self.attributedSubtitle = text
@@ -158,7 +158,7 @@ public class ContactCellView: ManualStackView {
     }
 
     public func configure(configuration: ContactCellConfiguration,
-                          transaction: SDSAnyReadTransaction) {
+                          transaction: DBReadTransaction) {
         AssertIsOnMainThread()
         owsAssertDebug(!shouldDeactivateConstraints)
 
@@ -274,13 +274,13 @@ public class ContactCellView: ManualStackView {
     // MARK: -
 
     private func updateNameLabelsWithSneakyTransaction(configuration: ContactCellConfiguration) {
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             updateNameLabels(configuration: configuration, transaction: transaction)
         }
     }
 
     private func updateNameLabels(configuration: ContactCellConfiguration,
-                                  transaction: SDSAnyReadTransaction) {
+                                  transaction: DBReadTransaction) {
         AssertIsOnMainThread()
 
         let textColor = self.nameLabelColor(forceDarkAppearance: configuration.forceDarkAppearance)
@@ -292,12 +292,26 @@ public class ContactCellView: ManualStackView {
 
             switch configuration.dataSource {
             case .address(let address):
-                return contactsManager.nameForAddress(address,
-                                                      localUserDisplayMode: configuration.localUserDisplayMode,
-                                                      short: false,
-                                                      transaction: transaction)
+                let name = SSKEnvironment.shared.contactManagerRef.nameForAddress(
+                    address,
+                    localUserDisplayMode: configuration.localUserDisplayMode,
+                    short: false,
+                    transaction: transaction
+                )
+
+                switch (address.isLocalAddress, configuration.localUserDisplayMode) {
+                case (false, _), (true, .asLocalUser), (true, .asUser):
+                    return name
+                case (true, .noteToSelf):
+                    let verifiedIcon = NSAttributedString.with(
+                        image: Theme.iconImage(.official),
+                        font: .dynamicTypeSubheadline,
+                        centerVerticallyRelativeTo: .dynamicTypeBody
+                    )
+                    return name.stringByAppendingString(" ").stringByAppendingString(verifiedIcon)
+                }
             case .groupThread(let thread):
-                let threadName = contactsManager.displayName(for: thread, transaction: transaction)
+                let threadName = SSKEnvironment.shared.contactManagerRef.displayName(for: thread, transaction: transaction)
                 return threadName.asAttributedString(attributes: [
                     .foregroundColor: textColor,
                 ])

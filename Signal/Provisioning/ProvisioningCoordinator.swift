@@ -4,7 +4,7 @@
 //
 
 import Foundation
-public import SignalServiceKit
+import SignalServiceKit
 
 /**
  * Manages the series of network requests and state changes required to provision
@@ -22,16 +22,23 @@ public import SignalServiceKit
  * Eventually, it would be nice to mirror RegistrationCoordinator and have this
  * class behave like a state machine that handles the preceding steps as well.
  */
-public protocol ProvisioningCoordinator {
+protocol ProvisioningCoordinator {
 
     func completeProvisioning(
-        provisionMessage: ProvisionMessage,
-        deviceName: String
-    ) async -> CompleteProvisioningResult
+        provisionMessage: LinkingProvisioningMessage,
+        deviceName: String,
+        progressViewModel: LinkAndSyncSecondaryProgressViewModel
+    ) async throws(CompleteProvisioningError)
 }
 
-public enum CompleteProvisioningResult {
-    case success
+protocol ProvisioningLinkAndSyncError {
+    var error: SecondaryLinkNSyncError { get }
+    func retryLinkAndSync() async throws(CompleteProvisioningError)
+    func continueWithoutSyncing() async throws(CompleteProvisioningError)
+    func restartProvisioning() async throws
+}
+
+enum CompleteProvisioningError: Error {
     /// This device was previously linked (or was previously a registered primary)
     /// but the new linking was being done with a different account, which is disallowed.
     case previouslyLinkedWithDifferentAccount
@@ -39,5 +46,8 @@ public enum CompleteProvisioningResult {
     case obsoleteLinkedDeviceError
     /// The server told us the number of devices on the account has exceeded the limit.
     case deviceLimitExceededError(DeviceLimitExceededError)
+
+    case linkAndSyncError(ProvisioningLinkAndSyncError)
+
     case genericError(Error)
 }

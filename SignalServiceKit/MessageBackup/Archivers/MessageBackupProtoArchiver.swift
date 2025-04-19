@@ -15,6 +15,13 @@ public protocol MessageBackupLoggableId {
 
 extension MessageBackup {
 
+    public struct BackupInfoId: MessageBackupLoggableId {
+        init() {}
+
+        public var typeLogString: String = "BackupProto_BackupInfo"
+        public var idLogString: String = "info"
+    }
+
     /// Represents the result of archiving a single frame.
     public enum ArchiveSingleFrameResult<SuccessType, AppIdType: MessageBackupLoggableId> {
         case success(SuccessType)
@@ -38,6 +45,9 @@ extension MessageBackup {
     /// Frames are always restored individually.
     public enum RestoreFrameResult<ProtoIdType: MessageBackupLoggableId> {
         case success
+        /// There was an unrecognized enum (or oneOf) for which we skip restoring this frame
+        /// but we should proceed restoring other frames.
+        case unrecognizedEnum(UnrecognizedEnumError)
         /// We managed to restore some part of the frame, meaning it is represented in our database.
         /// For example, we restored a message but dropped some invalid recipients.
         /// Generally restoration of other frames can proceed, but the caller can determine
@@ -47,6 +57,21 @@ extension MessageBackup {
         /// Generally restoration of other frames can proceed, but the caller can determine
         /// whether to stop or not based on the specific error(s).
         case failure([RestoreFrameError<ProtoIdType>])
+    }
+
+    public class UnrecognizedEnumError: MessageBackupLoggableError {
+
+        private let enumType: Any.Type
+
+        init(enumType: Any.Type) {
+            self.enumType = enumType
+        }
+
+        var typeLogString: String { String(describing: enumType) }
+        var idLogString: String { "Unrecognized Enum" }
+        var callsiteLogString: String { "" }
+        var collapseKey: String? { typeLogString }
+        var logLevel: MessageBackup.LogLevel { .warning }
     }
 }
 
@@ -63,9 +88,11 @@ extension MessageBackupProtoArchiver {
     internal static func writeFrameToStream<AppIdType>(
         _ stream: MessageBackupProtoOutputStream,
         objectId: AppIdType,
+        frameBencher: MessageBackup.Bencher.FrameBencher,
         frameBuilder: () -> BackupProto_Frame
     ) -> MessageBackup.ArchiveFrameError<AppIdType>? {
         let frame = frameBuilder()
+        frameBencher.didProcessFrame(frame)
         switch stream.writeFrame(frame) {
         case .success:
             return nil

@@ -139,8 +139,8 @@ public class TextApprovalViewController: OWSViewController, BodyRangesTextViewDe
             linkPreviewView.isHidden = false
         case .loaded(let linkPreviewDraft):
             let state: LinkPreviewState
-            if let _ = CallLink(url: linkPreviewDraft.url) {
-                state = LinkPreviewCallLink(previewType: .draft(linkPreviewDraft))
+            if let callLink = CallLink(url: linkPreviewDraft.url) {
+                state = LinkPreviewCallLink(previewType: .draft(linkPreviewDraft), callLink: callLink)
             } else {
                 state = LinkPreviewDraft(linkPreviewDraft: linkPreviewDraft)
             }
@@ -165,7 +165,7 @@ public class TextApprovalViewController: OWSViewController, BodyRangesTextViewDe
         bottomConstraint = stackView.autoPinEdge(toSuperviewEdge: .bottom)
 
         // Text View
-        textView.mentionDelegate = self
+        textView.bodyRangesDelegate = self
         textView.backgroundColor = Theme.backgroundColor
         textView.textColor = Theme.primaryTextColor
         textView.font = UIFont.dynamicTypeBody

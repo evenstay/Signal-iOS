@@ -3,103 +3,53 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import Foundation
-public import SignalRingRTC
+import LibSignalClient
 
-@objc
-public protocol StorageServiceManagerObjc {
-    func recordPendingUpdates(updatedRecipientUniqueIds: [RecipientUniqueId])
-    func recordPendingUpdates(updatedAddresses: [SignalServiceAddress])
-    func recordPendingUpdates(updatedGroupV2MasterKeys: [Data])
-    func recordPendingUpdates(updatedStoryDistributionListIds: [Data])
-
-    // A convenience method that calls recordPendingUpdates(updatedGroupV2MasterKeys:).
-    func recordPendingUpdates(groupModel: TSGroupModel)
-
-    func recordPendingLocalAccountUpdates()
-
-    /// Updates the local user's identity.
-    ///
-    /// Called during app launch, registration, and change number.
-    func setLocalIdentifiers(_ localIdentifiers: LocalIdentifiersObjC)
-}
-
-public protocol StorageServiceManager: StorageServiceManagerObjc {
-    func recordPendingUpdates(callLinkRootKeys: [CallLinkRootKey])
-
-    func backupPendingChanges(authedDevice: AuthedDevice)
-
-    @discardableResult
-    func restoreOrCreateManifestIfNecessary(authedDevice: AuthedDevice) -> Promise<Void>
-
-    func resetLocalData(transaction: DBWriteTransaction)
-
-    /// Waits for pending restores to finish.
-    ///
-    /// When this is resolved, it means the current device has the latest state
-    /// available on storage service.
-    ///
-    /// If this device believes there's new state available on storage service
-    /// but the request to fetch it has failed, this Promise will be rejected.
-    ///
-    /// If the local device doesn't believe storage service has new state, this
-    /// will resolve without performing any network requests.
-    ///
-    /// Due to the asynchronous nature of network requests, it's possible for
-    /// another device to write to storage service at the same time the returned
-    /// Promise resolves. Therefore, the precise behavior of this method is best
-    /// described as: "if this device has knowledge that storage service has new
-    /// state at the time this method is invoked, the returned Promise will be
-    /// resolved after that state has been fetched".
-    func waitForPendingRestores() -> Promise<Void>
-}
-
-// MARK: -
-
-public struct StorageService: Dependencies {
-    public enum StorageError: Error, IsRetryableProvider {
+public struct StorageService {
+    public enum StorageError: Error {
         case assertion
-        case retryableAssertion
-        case manifestEncryptionFailed(version: UInt64)
-        case manifestDecryptionFailed(version: UInt64)
-        /// Decryption succeeded (passed validation) but interpreting those bytes as a proto failed.
-        case manifestProtoDeserializationFailed(version: UInt64)
-        case itemEncryptionFailed(identifier: StorageIdentifier)
-        case itemDecryptionFailed(identifier: StorageIdentifier)
-        /// Decryption succeeded (passed validation) but interpreting those bytes as a proto failed.
-        case itemProtoDeserializationFailed(identifier: StorageIdentifier)
-        case networkError(statusCode: Int, underlyingError: Error)
 
-        public var isRetryableProvider: Bool {
+        case manifestEncryptionFailed(version: UInt64)
+        case itemEncryptionFailed(identifier: StorageIdentifier)
+
+        case manifestDecryptionFailed(version: UInt64)
+        case itemDecryptionFailed(identifier: StorageIdentifier)
+
+        case manifestProtoSerializationFailed(version: UInt64)
+        case itemProtoSerializationFailed(identifier: StorageIdentifier)
+        case readOperationProtoSerializationFailed
+        case writeOperationProtoSerializationFailed
+
+        case manifestContainerProtoDeserializationFailed
+        case itemsContainerProtoDeserializationFailed
+        case manifestProtoDeserializationFailed(version: UInt64)
+        case itemProtoDeserializationFailed(identifier: StorageIdentifier)
+
+        case networkError
+    }
+
+    public enum MasterKeySource: Equatable {
+        case implicit
+        case explicit(MasterKey)
+
+        public func orIfImplicitUse(_ other: Self) -> Self {
             switch self {
-            case .assertion:
-                return false
-            case .retryableAssertion:
-                return true
-            case .manifestEncryptionFailed:
-                return false
-            case .manifestDecryptionFailed:
-                return false
-            case .manifestProtoDeserializationFailed:
-                return false
-            case .itemEncryptionFailed:
-                return false
-            case .itemDecryptionFailed:
-                return false
-            case .itemProtoDeserializationFailed:
-                return false
-            case .networkError(let statusCode, _):
-                // If this is a server error, retry
-                return statusCode >= 500
+            case .explicit:
+                return self
+            case .implicit:
+                return other
             }
         }
 
-        public var errorUserInfo: [String: Any] {
-            var userInfo: [String: Any] = [:]
-            if case .networkError(_, let underlyingError) = self {
-                userInfo[NSUnderlyingErrorKey] = underlyingError
+        public static func == (lhs: StorageService.MasterKeySource, rhs: StorageService.MasterKeySource) -> Bool {
+            switch (lhs, rhs) {
+            case (.implicit, .implicit):
+                return true
+            case (.explicit(let lhKey), .explicit(let rhKey)):
+                return lhKey.rawData == rhKey.rawData
+            default:
+                return false
             }
-            return userInfo
         }
     }
 
@@ -240,10 +190,13 @@ public struct StorageService: Dependencies {
         }
     }
 
+    // MARK: -
+
     public enum FetchLatestManifestResponse {
         case latestManifest(StorageServiceProtoManifestRecord)
         case noNewerManifest
         case noExistingManifest
+        case error(StorageError)
     }
 
     /// Fetch the latest manifest from the storage service.
@@ -254,51 +207,73 @@ public struct StorageService: Dependencies {
     /// Returns nil if a manifest has never been stored.
     public static func fetchLatestManifest(
         greaterThanVersion: UInt64? = nil,
+        masterKey: MasterKey,
         chatServiceAuth: ChatServiceAuth
-    ) -> Promise<FetchLatestManifestResponse> {
-        Logger.info("")
-
+    ) async -> FetchLatestManifestResponse {
         var endpoint = "v1/storage/manifest"
         if let greaterThanVersion = greaterThanVersion {
             endpoint += "/version/\(greaterThanVersion)"
         }
 
-        return storageRequest(
-            withMethod: .get,
-            endpoint: endpoint,
-            chatServiceAuth: chatServiceAuth
-        ).map(on: DispatchQueue.global()) { response in
-            switch response.status {
-            case .success:
-                let encryptedManifestContainer = try StorageServiceProtoStorageManifest(serializedData: response.data)
-                let decryptResult = self.databaseStorage.read(block: { tx in
-                    return DependenciesBridge.shared.svr.decrypt(
-                        keyType: .storageServiceManifest(version: encryptedManifestContainer.version),
-                        encryptedData: encryptedManifestContainer.value,
-                        transaction: tx.asV2Read
-                    )
-                })
-                switch decryptResult {
-                case .success(let manifestData):
-                    do {
-                        let proto = try StorageServiceProtoManifestRecord(serializedData: manifestData)
-                        return .latestManifest(proto)
-                    } catch {
-                        Logger.error("Failed to deserialize manifest proto after successful decryption.")
-                        throw StorageError.manifestProtoDeserializationFailed(version: encryptedManifestContainer.version)
-                    }
-                case .masterKeyMissing, .cryptographyError:
-                    throw StorageError.manifestDecryptionFailed(version: encryptedManifestContainer.version)
-                }
-            case .notFound:
-                return .noExistingManifest
-            case .noContent:
-                return .noNewerManifest
-            default:
-                owsFailDebug("unexpected response \(response.status)")
-                throw StorageError.retryableAssertion
-            }
+        let response: StorageResponse
+        do {
+            response = try await storageRequest(
+                withMethod: .get,
+                endpoint: endpoint,
+                chatServiceAuth: chatServiceAuth
+            )
+        } catch let storageError {
+            return .error(storageError)
         }
+
+        switch response.status {
+        case .success:
+            let encryptedManifestContainer: StorageServiceProtoStorageManifest
+            do {
+                encryptedManifestContainer = try StorageServiceProtoStorageManifest(serializedData: response.data)
+            } catch {
+                owsFailDebug("Failed to deserialize manifest container proto!")
+                return .error(.manifestContainerProtoDeserializationFailed)
+            }
+
+            let decryptResult = masterKey.decrypt(
+                keyType: .storageServiceManifest(version: encryptedManifestContainer.version),
+                encryptedData: encryptedManifestContainer.value
+            )
+            switch decryptResult {
+            case .success(let manifestData):
+                do {
+                    let proto = try StorageServiceProtoManifestRecord(serializedData: manifestData)
+                    return .latestManifest(proto)
+                } catch {
+                    owsFailDebug("Failed to deserialize manifest proto after successful decryption.")
+                    return .error(.manifestProtoDeserializationFailed(version: encryptedManifestContainer.version))
+                }
+            case .masterKeyMissing, .cryptographyError:
+                owsFailDebug("Failed to decrypt manifest!")
+                return .error(.manifestDecryptionFailed(version: encryptedManifestContainer.version))
+            }
+        case .notFound:
+            return .noExistingManifest
+        case .noContent:
+            return .noNewerManifest
+        case .conflict:
+            owsFailDebug("Got conflict response while fetching manifest!")
+            return .error(.assertion)
+        }
+    }
+
+    // MARK: -
+
+    public enum UpdateManifestResult {
+        /// We succeeded in updating the manifest!
+        case success
+
+        /// We found a manifest with a conflicting version number.
+        case conflictingManifest(StorageServiceProtoManifestRecord)
+
+        /// Something went wrong.
+        case error(StorageError)
     }
 
     /// Update the manifest record on the service.
@@ -309,113 +284,157 @@ public struct StorageService: Dependencies {
     public static func updateManifest(
         _ manifest: StorageServiceProtoManifestRecord,
         newItems: [StorageItem],
-        deletedIdentifiers: [StorageIdentifier] = [],
-        deleteAllExistingRecords: Bool = false,
+        deletedIdentifiers: [StorageIdentifier],
+        deleteAllExistingRecords: Bool,
+        masterKey: MasterKey,
         chatServiceAuth: ChatServiceAuth
-    ) -> Promise<StorageServiceProtoManifestRecord?> {
+    ) async -> UpdateManifestResult {
         Logger.info("newItems: \(newItems.count), deletedIdentifiers: \(deletedIdentifiers.count), deleteAllExistingRecords: \(deleteAllExistingRecords)")
 
-        return DispatchQueue.global().async(.promise) {
-            var builder = StorageServiceProtoWriteOperation.builder()
+        var writeOperationBuilder = StorageServiceProtoWriteOperation.builder()
 
-            // Encrypt the manifest
-            let manifestData = try manifest.serializedData()
-            let encryptedManifestData: Data
-            let encryptResult = self.databaseStorage.read(block: { tx in
-                return DependenciesBridge.shared.svr.encrypt(
-                    keyType: .storageServiceManifest(version: manifest.version),
-                    data: manifestData,
-                    transaction: tx.asV2Read
-                )
-            })
-            switch encryptResult {
-            case .success(let data):
-                encryptedManifestData = data
-            case .masterKeyMissing, .cryptographyError:
-                throw StorageError.manifestEncryptionFailed(version: manifest.version)
+        // Encrypt the manifest
+        let manifestData: Data
+        do {
+            manifestData = try manifest.serializedData()
+        } catch {
+            owsFailDebug("Failed to serialize manifest proto!")
+            return .error(.manifestProtoSerializationFailed(version: manifest.version))
+        }
+
+        let encryptedManifestData: Data
+        let encryptResult = masterKey.encrypt(
+            keyType: .storageServiceManifest(version: manifest.version),
+            data: manifestData
+        )
+        switch encryptResult {
+        case .success(let data):
+            encryptedManifestData = data
+        case .masterKeyMissing, .cryptographyError:
+            owsFailDebug("Failed to encrypt serialized manifest!")
+            return .error(.manifestEncryptionFailed(version: manifest.version))
+        }
+
+        let manifestWrapperBuilder = StorageServiceProtoStorageManifest.builder(
+            version: manifest.version,
+            value: encryptedManifestData
+        )
+        writeOperationBuilder.setManifest(manifestWrapperBuilder.buildInfallibly())
+
+        // Encrypt the new items
+        var newStorageItems = [StorageServiceProtoStorageItem]()
+        for item in newItems {
+            let plaintextRecordData: Data
+            do {
+                plaintextRecordData = try item.record.serializedData()
+            } catch {
+                owsFailDebug("Failed to serialize item proto!")
+                return .error(.itemProtoSerializationFailed(identifier: item.identifier))
             }
 
-            let manifestWrapperBuilder = StorageServiceProtoStorageManifest.builder(
-                version: manifest.version,
-                value: encryptedManifestData
-            )
-            builder.setManifest(manifestWrapperBuilder.buildInfallibly())
-
-            // Encrypt the new items
-            builder.setInsertItem(try newItems.map { item in
-                let itemData = try item.record.serializedData()
-                let encryptedItemData: Data
-                let itemEncryptionResult = self.databaseStorage.read(block: { tx in
-                    return DependenciesBridge.shared.svr.encrypt(
-                        keyType: .storageServiceRecord(identifier: item.identifier),
-                        data: itemData,
-                        transaction: tx.asV2Read
+            let encryptedItemData = { () -> Data? in
+                if let manifestRecordIkm: ManifestRecordIkm = .from(manifest: manifest) {
+                    /// If we have a `recordIkm`, we should always use it.
+                    return try? manifestRecordIkm.encryptStorageItem(
+                        plaintextRecordData: plaintextRecordData,
+                        itemIdentifier: item.identifier
                     )
-                })
-                switch itemEncryptionResult {
-                case .success(let data):
-                    encryptedItemData = data
-                case .masterKeyMissing, .cryptographyError:
-                    throw StorageError.itemEncryptionFailed(identifier: item.identifier)
+                } else {
+                    /// If we don't have a `recordIkm` yet, fall back to the
+                    /// SVR-derived key.
+                    ///
+                    let itemEncryptionResult = masterKey.encrypt(
+                        keyType: .legacy_storageServiceRecord(identifier: item.identifier),
+                        data: plaintextRecordData
+                    )
+                    switch itemEncryptionResult {
+                    case .success(let data):
+                        return data
+                    case .masterKeyMissing, .cryptographyError:
+                        return nil
+                    }
                 }
-                let itemWrapperBuilder = StorageServiceProtoStorageItem.builder(key: item.identifier.data, value: encryptedItemData)
-                return itemWrapperBuilder.buildInfallibly()
-            })
+            }()
 
-            // Flag the deleted keys
-            builder.setDeleteKey(deletedIdentifiers.map { $0.data })
+            guard let encryptedItemData else {
+                owsFailDebug("Failed to encrypt serialized item proto!")
+                return .error(.itemEncryptionFailed(identifier: item.identifier))
+            }
 
-            builder.setDeleteAll(deleteAllExistingRecords)
+            let itemWrapperBuilder = StorageServiceProtoStorageItem.builder(key: item.identifier.data, value: encryptedItemData)
+            newStorageItems.append(itemWrapperBuilder.buildInfallibly())
+        }
+        writeOperationBuilder.setInsertItem(newStorageItems)
 
-            return try builder.buildSerializedData()
-        }.then(on: DispatchQueue.global()) { data in
-            storageRequest(
+        // Flag the deleted keys
+        writeOperationBuilder.setDeleteKey(deletedIdentifiers.map { $0.data })
+
+        writeOperationBuilder.setDeleteAll(deleteAllExistingRecords)
+
+        let writeOperationData: Data
+        do {
+            writeOperationData = try writeOperationBuilder.buildSerializedData()
+        } catch {
+            owsFailDebug("Failed to serialize write operation proto!")
+            return .error(.writeOperationProtoSerializationFailed)
+        }
+
+        let response: StorageResponse
+        do {
+            response = try await storageRequest(
                 withMethod: .put,
                 endpoint: "v1/storage",
-                body: data,
+                body: writeOperationData,
                 chatServiceAuth: chatServiceAuth
             )
-        }.map(on: DispatchQueue.global()) { response in
-            switch response.status {
-            case .success:
-                // We expect a successful response to have no data
-                if !response.data.isEmpty { owsFailDebug("unexpected response data") }
-                return nil
-            case .conflict:
-                // Our version was out of date, we should've received a copy of the latest version
-                let encryptedManifestContainer = try StorageServiceProtoStorageManifest(serializedData: response.data)
+        } catch let storageError {
+            return .error(storageError)
+        }
 
-                let decryptionResult = self.databaseStorage.read(block: { tx in
-                    return DependenciesBridge.shared.svr.decrypt(
-                        keyType: .storageServiceManifest(version: encryptedManifestContainer.version),
-                        encryptedData: encryptedManifestContainer.value,
-                        transaction: tx.asV2Read
-                    )
-                })
-                switch decryptionResult {
-                case .success(let manifestData):
-                    do {
-                        let proto = try StorageServiceProtoManifestRecord(serializedData: manifestData)
-                        return proto
-                    } catch {
-                        Logger.error("Failed to deserialize manifest proto after successful decryption.")
-                        throw StorageError.manifestProtoDeserializationFailed(version: encryptedManifestContainer.version)
-                    }
-                case .masterKeyMissing, .cryptographyError:
-                    throw StorageError.manifestDecryptionFailed(version: encryptedManifestContainer.version)
-                }
-            default:
-                owsFailDebug("unexpected response \(response.status)")
-                throw StorageError.retryableAssertion
+        switch response.status {
+        case .success:
+            // We expect a successful response to have no data
+            if !response.data.isEmpty { owsFailDebug("unexpected response data") }
+            return .success
+        case .conflict:
+            // Our version was out of date, we should've received a copy of the latest version
+            let encryptedManifestContainer: StorageServiceProtoStorageManifest
+            do {
+                encryptedManifestContainer = try StorageServiceProtoStorageManifest(serializedData: response.data)
+            } catch {
+                owsFailDebug("Failed to deserialize manifest container proto!")
+                return .error(.manifestContainerProtoDeserializationFailed)
             }
+
+            let decryptionResult = masterKey.decrypt(
+                keyType: .storageServiceManifest(version: encryptedManifestContainer.version),
+                encryptedData: encryptedManifestContainer.value
+            )
+
+            switch decryptionResult {
+            case .success(let manifestData):
+                do {
+                    let proto = try StorageServiceProtoManifestRecord(serializedData: manifestData)
+                    return .conflictingManifest(proto)
+                } catch {
+                    owsFailDebug("Failed to deserialize manifest proto after successful decryption!")
+                    return .error(.manifestProtoDeserializationFailed(version: encryptedManifestContainer.version))
+                }
+            case .masterKeyMissing, .cryptographyError:
+                owsFailDebug("Failed to decrypt conflicting manifest proto!")
+                return .error(.manifestDecryptionFailed(version: encryptedManifestContainer.version))
+            }
+        case .notFound, .noContent:
+            owsFailDebug("Unexpectedly got \(response.status) while updating manifest!")
+            return .error(.assertion)
         }
     }
 
-    /// Fetch an item record from the service
-    ///
-    /// Returns nil if this record does not exist
-    public static func fetchItem(for key: StorageIdentifier, chatServiceAuth: ChatServiceAuth) -> Promise<StorageItem?> {
-        return fetchItems(for: [key], chatServiceAuth: chatServiceAuth).map { $0.first }
+    // MARK: -
+
+    public enum FetchItemsResult {
+        case success([StorageItem])
+        case error(StorageError)
     }
 
     /// Fetch a list of item records from the service
@@ -423,8 +442,10 @@ public struct StorageService: Dependencies {
     /// The response will include only the items that could be found on the service
     public static func fetchItems(
         for identifiers: [StorageIdentifier],
+        manifest: StorageServiceProtoManifestRecord,
+        masterKey: MasterKey,
         chatServiceAuth: ChatServiceAuth
-    ) -> Promise<[StorageItem]> {
+    ) async -> FetchItemsResult {
         Logger.info("")
 
         let keys = StorageIdentifier.deduplicate(identifiers)
@@ -432,63 +453,169 @@ public struct StorageService: Dependencies {
         // The server will 500 if we try and request too many keys at once.
         owsAssertDebug(keys.count <= 1024)
 
-        guard !keys.isEmpty else { return Promise.value([]) }
+        if keys.isEmpty {
+            return .success([])
+        }
 
-        return DispatchQueue.global().async(.promise) {
-            var builder = StorageServiceProtoReadOperation.builder()
-            builder.setReadKey(keys.map { $0.data })
-            return try builder.buildSerializedData()
-        }.then(on: DispatchQueue.global()) { data in
-            storageRequest(
+        var builder = StorageServiceProtoReadOperation.builder()
+        builder.setReadKey(keys.map { $0.data })
+        let data: Data
+        do {
+            data = try builder.buildSerializedData()
+        } catch {
+            owsFailDebug("Failed to serialize read operation proto!")
+            return .error(.readOperationProtoSerializationFailed)
+        }
+
+        let response: StorageResponse
+        do {
+            response = try await storageRequest(
                 withMethod: .put,
                 endpoint: "v1/storage/read",
                 body: data,
                 chatServiceAuth: chatServiceAuth
             )
-        }.map(on: DispatchQueue.global()) { response in
-            guard case .success = response.status else {
-                owsFailDebug("unexpected response \(response.status)")
-                throw StorageError.retryableAssertion
+        } catch let storageError {
+            return .error(storageError)
+        }
+
+        switch response.status {
+        case .success:
+            break
+        case .conflict, .noContent, .notFound:
+            owsFailDebug("Unexpectedly got \(response.status) while fetching items!")
+            return .error(.assertion)
+        }
+
+        let itemsProto: StorageServiceProtoStorageItems
+        do {
+            itemsProto = try StorageServiceProtoStorageItems(serializedData: response.data)
+        } catch {
+            owsFailDebug("Failed to deserialize items container proto!")
+            return .error(.itemsContainerProtoDeserializationFailed)
+        }
+
+        let keyToIdentifier = Dictionary(uniqueKeysWithValues: keys.map { ($0.data, $0) })
+
+        var fetchedItems = [StorageItem]()
+        for item in itemsProto.items {
+            guard let itemIdentifier = keyToIdentifier[item.key] else {
+                owsFailDebug("Missing identifier for fetched item!")
+                return .error(.assertion)
             }
 
-            let itemsProto = try StorageServiceProtoStorageItems(serializedData: response.data)
-
-            let keyToIdentifier = Dictionary(uniqueKeysWithValues: keys.map { ($0.data, $0) })
-
-            return try itemsProto.items.map { item in
-                let encryptedItemData = item.value
-                guard let itemIdentifier = keyToIdentifier[item.key] else {
-                    owsFailDebug("missing identifier for fetched item")
-                    throw StorageError.assertion
-                }
-                let itemDecryptionResult = self.databaseStorage.read(block: { tx in
-                    return DependenciesBridge.shared.svr.decrypt(
-                        keyType: .storageServiceRecord(identifier: itemIdentifier),
-                        encryptedData: encryptedItemData,
-                        transaction: tx.asV2Read
+            let decryptedItemData: Data
+            if let manifestRecordIkm: ManifestRecordIkm = .from(manifest: manifest) {
+                do {
+                    decryptedItemData = try manifestRecordIkm.decryptStorageItem(
+                        encryptedRecordData: item.value,
+                        itemIdentifier: itemIdentifier
                     )
-                })
+                } catch {
+                    owsFailDebug("Failed to decrypt record using recordIkm!")
+                    return .error(.itemDecryptionFailed(identifier: itemIdentifier))
+                }
+            } else {
+                /// If we don't yet have a `recordIkm` set we should
+                /// continue using the SVR-derived record key.
+                let itemDecryptionResult = masterKey.decrypt(
+                    keyType: .legacy_storageServiceRecord(identifier: itemIdentifier),
+                    encryptedData: item.value
+                )
                 switch itemDecryptionResult {
                 case .success(let itemData):
-                    do {
-                        let record = try StorageServiceProtoStorageRecord(serializedData: itemData)
-                        return StorageItem(identifier: itemIdentifier, record: record)
-                    } catch {
-                        Logger.error("Failed to deserialize item proto after decryption succeeded")
-                        throw StorageError.itemProtoDeserializationFailed(identifier: itemIdentifier)
-                    }
+                    decryptedItemData = itemData
                 case .masterKeyMissing, .cryptographyError:
-                    throw StorageError.itemDecryptionFailed(identifier: itemIdentifier)
+                    owsFailDebug("Failed to decrypt record using SVR-derived key!")
+                    return .error(.itemDecryptionFailed(identifier: itemIdentifier))
                 }
-
             }
+
+            do {
+                let record = try StorageServiceProtoStorageRecord(serializedData: decryptedItemData)
+                fetchedItems.append(StorageItem(identifier: itemIdentifier, record: record))
+            } catch {
+                owsFailDebug("Failed to deserialize item proto!")
+                return .error(.itemProtoDeserializationFailed(identifier: itemIdentifier))
+            }
+        }
+
+        return .success(fetchedItems)
+    }
+
+    // MARK: -
+
+    /// Wraps a `recordIkm` stored in a Storage Service manifest, which is used
+    /// to encrypt/decrypt Storage Service records ("storage items").
+    struct ManifestRecordIkm {
+        static let expectedLength: UInt = 32
+
+        private let data: Data
+        private let manifestVersion: UInt64
+
+        private init(data: Data, manifestVersion: UInt64) {
+            self.data = data
+            self.manifestVersion = manifestVersion
+        }
+
+        static func from(manifest: StorageServiceProtoManifestRecord) -> ManifestRecordIkm? {
+            guard let recordIkm = manifest.recordIkm else {
+                return nil
+            }
+
+            return ManifestRecordIkm(
+                data: recordIkm,
+                manifestVersion: manifest.version
+            )
+        }
+
+        static func generateForNewManifest() -> Data {
+            return Randomness.generateRandomBytes(Self.expectedLength)
+        }
+
+        // MARK: -
+
+        func encryptStorageItem(
+            plaintextRecordData: Data,
+            itemIdentifier: StorageIdentifier
+        ) throws -> Data {
+            let recordKey = try recordKey(forIdentifier: itemIdentifier)
+
+            return try Aes256GcmEncryptedData.encrypt(
+                plaintextRecordData,
+                key: recordKey
+            ).concatenate()
+        }
+
+        func decryptStorageItem(
+            encryptedRecordData: Data,
+            itemIdentifier: StorageIdentifier
+        ) throws -> Data {
+            let recordKey = try recordKey(forIdentifier: itemIdentifier)
+
+            return try Aes256GcmEncryptedData(
+                concatenated: encryptedRecordData
+            ).decrypt(key: recordKey)
+        }
+
+        private func recordKey(forIdentifier identifier: StorageIdentifier) throws -> Data {
+            /// The info used to derive the key incorporates the identifier for
+            /// this Storage Service record.
+            let infoData = Data("20240801_SIGNAL_STORAGE_SERVICE_ITEM_".utf8) + identifier.data
+
+            return try hkdf(
+                outputLength: 32,
+                inputKeyMaterial: data,
+                salt: Data(),
+                info: infoData
+            ).asData
         }
     }
 
     // MARK: - Dependencies
 
     private static var urlSession: OWSURLSessionProtocol {
-        return self.signalService.urlSessionForStorageService()
+        return SSKEnvironment.shared.signalServiceRef.urlSessionForStorageService()
     }
 
     // MARK: - Storage Requests
@@ -509,62 +636,81 @@ public struct StorageService: Dependencies {
         endpoint: String,
         body: Data? = nil,
         chatServiceAuth: ChatServiceAuth
-    ) -> Promise<StorageResponse> {
-        return serviceClient
-            .requestStorageAuth(chatServiceAuth: chatServiceAuth)
-            .then { username, password -> Promise<HTTPResponse> in
-                if method == .get { assert(body == nil) }
-
-                let httpHeaders = OWSHttpHeaders()
-                httpHeaders.addHeader("Content-Type", value: MimeType.applicationXProtobuf.rawValue, overwriteOnConflict: true)
-                try httpHeaders.addAuthHeader(username: username, password: password)
-
-                Logger.info("Storage request started: \(method) \(endpoint)")
-
-                let urlSession = self.urlSession
-                // Some 4xx responses are expected;
-                // we'll discriminate the status code ourselves.
-                urlSession.require2xxOr3xx = false
-                return urlSession.dataTaskPromise(endpoint,
-                                                  method: method,
-                                                  headers: httpHeaders.headers,
-                                                  body: body)
-            }
-            .map(on: DispatchQueue.global()) { (response: HTTPResponse) -> StorageResponse in
-                let status: StorageResponse.Status
-
-                let statusCode = response.responseStatusCode
-                switch statusCode {
-                case 200:
-                    status = .success
-                case 204:
-                    status = .noContent
-                case 409:
-                    status = .conflict
-                case 404:
-                    status = .notFound
-                default:
-                    let error = OWSAssertionError("Unexpected statusCode: \(statusCode)")
-                    throw StorageError.networkError(statusCode: statusCode, underlyingError: error)
-                }
-
-                // We should always receive response data, for some responses it will be empty.
-                guard let responseData = response.responseBodyData else {
-                    owsFailDebug("missing response data")
-                    throw StorageError.retryableAssertion
-                }
-
-                // The layers that use this only want to process 200 and 409 responses,
-                // anything else we should raise as an error.
-
-                Logger.info("Storage request succeeded: \(method) \(endpoint)")
-
-                return StorageResponse(status: status, data: responseData)
-            }.recover(on: DispatchQueue.global()) { (error: Error) -> Promise<StorageResponse> in
-                owsFailDebugUnlessNetworkFailure(error)
-                throw StorageError.networkError(statusCode: 0, underlyingError: error)
-            }
+    ) async throws(StorageError) -> StorageResponse {
+        if method == .get {
+            owsAssertDebug(body == nil)
         }
+
+        let requestDescription = "SS \(method) \(endpoint)"
+
+        let httpResponse: HTTPResponse
+        do {
+            let (username, password) = try await requestStorageAuth(chatServiceAuth: chatServiceAuth)
+
+            var httpHeaders = HttpHeaders()
+            httpHeaders.addHeader("Content-Type", value: MimeType.applicationXProtobuf.rawValue, overwriteOnConflict: true)
+            httpHeaders.addAuthHeader(username: username, password: password)
+
+            Logger.info("Sending… -> \(requestDescription)")
+
+            let urlSession = self.urlSession
+            urlSession.require2xxOr3xx = false
+            httpResponse = try await urlSession.performRequest(
+                endpoint,
+                method: method,
+                headers: httpHeaders,
+                body: body
+            )
+        } catch {
+            Logger.warn("Failure. <- \(requestDescription): \(error)")
+            throw .networkError
+        }
+
+        let status: StorageResponse.Status
+        switch httpResponse.responseStatusCode {
+        case 200:
+            status = .success
+        case 204:
+            status = .noContent
+        case 409:
+            status = .conflict
+        case 404:
+            status = .notFound
+        default:
+            owsFailDebug("Unexpected response status code: \(httpResponse.responseStatusCode)")
+            throw .assertion
+        }
+
+        // We should always receive response data, for some responses it will be empty.
+        guard let httpResponseData = httpResponse.responseBodyData else {
+            owsFailDebug("Missing response data!")
+            throw .assertion
+        }
+
+        Logger.info("HTTP \(httpResponse.responseStatusCode) <- \(requestDescription)")
+        return StorageResponse(status: status, data: httpResponseData)
+    }
+
+    private static func requestStorageAuth(
+        chatServiceAuth: ChatServiceAuth
+    ) async throws -> (username: String, password: String) {
+        let request = OWSRequestFactory.storageAuthRequest(auth: chatServiceAuth)
+
+        let response = try await SSKEnvironment.shared.networkManagerRef
+            .asyncRequest(request, canUseWebSocket: false)
+
+        guard let json = response.responseBodyJson else {
+            throw OWSAssertionError("Missing or invalid JSON.")
+        }
+        guard let parser = ParamParser(responseObject: json) else {
+            throw OWSAssertionError("Missing or invalid response.")
+        }
+
+        let username: String = try parser.required(key: "username")
+        let password: String = try parser.required(key: "password")
+
+        return (username: username, password: password)
+    }
 }
 
 // MARK: -

@@ -4,13 +4,13 @@
 //
 
 import Foundation
+public import LibSignalClient
 
-@objc
 public protocol PaymentsHelper: AnyObject {
 
     func warmCaches()
 
-    var keyValueStore: SDSKeyValueStore { get }
+    var keyValueStore: KeyValueStore { get }
 
     var isKillSwitchActive: Bool { get }
     var hasValidPhoneNumberForPayments: Bool { get }
@@ -19,47 +19,55 @@ public protocol PaymentsHelper: AnyObject {
     var isPaymentsVersionOutdated: Bool { get }
     func setPaymentsVersionOutdated(_ value: Bool)
 
-    func setArePaymentsEnabled(for serviceId: ServiceIdObjC, hasPaymentsEnabled: Bool, transaction: SDSAnyWriteTransaction)
-    func arePaymentsEnabled(for address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> Bool
+    func setArePaymentsEnabled(for serviceId: ServiceId, hasPaymentsEnabled: Bool, transaction: DBWriteTransaction)
+    func arePaymentsEnabled(for address: SignalServiceAddress, transaction: DBReadTransaction) -> Bool
 
     var arePaymentsEnabled: Bool { get }
-    func arePaymentsEnabled(tx: SDSAnyReadTransaction) -> Bool
+    func arePaymentsEnabled(tx: DBReadTransaction) -> Bool
     var paymentsEntropy: Data? { get }
-    func enablePayments(transaction: SDSAnyWriteTransaction)
-    func enablePayments(withPaymentsEntropy: Data, transaction: SDSAnyWriteTransaction) -> Bool
-    func disablePayments(transaction: SDSAnyWriteTransaction)
+    func enablePayments(transaction: DBWriteTransaction)
+    func enablePayments(withPaymentsEntropy: Data, transaction: DBWriteTransaction) -> Bool
+    func disablePayments(transaction: DBWriteTransaction)
 
-    func setLastKnownLocalPaymentAddressProtoData(_ data: Data?, transaction: SDSAnyWriteTransaction)
-    func lastKnownLocalPaymentAddressProtoData(transaction: SDSAnyWriteTransaction) -> Data?
+    func setLastKnownLocalPaymentAddressProtoData(_ data: Data?, transaction: DBWriteTransaction)
+    func lastKnownLocalPaymentAddressProtoData(transaction: DBWriteTransaction) -> Data?
 
-    func processIncomingPaymentSyncMessage(_ paymentProto: SSKProtoSyncMessageOutgoingPayment,
-                                           messageTimestamp: UInt64,
-                                           transaction: SDSAnyWriteTransaction)
+    func processIncomingPaymentSyncMessage(
+        _ paymentProto: SSKProtoSyncMessageOutgoingPayment,
+        messageTimestamp: UInt64,
+        transaction: DBWriteTransaction
+    )
 
-    func processIncomingPaymentNotification(thread: TSThread,
-                                            paymentNotification: TSPaymentNotification,
-                                            senderAci: AciObjC,
-                                            transaction: SDSAnyWriteTransaction)
+    func processIncomingPaymentNotification(
+        thread: TSThread,
+        paymentNotification: TSPaymentNotification,
+        senderAci: Aci,
+        transaction: DBWriteTransaction
+    )
 
     func processIncomingPaymentsActivationRequest(
         thread: TSThread,
-        senderAci: AciObjC,
-        transaction: SDSAnyWriteTransaction
+        senderAci: Aci,
+        transaction: DBWriteTransaction
     )
 
     func processIncomingPaymentsActivatedMessage(
         thread: TSThread,
-        senderAci: AciObjC,
-        transaction: SDSAnyWriteTransaction
+        senderAci: Aci,
+        transaction: DBWriteTransaction
     )
 
-    func processReceivedTranscriptPaymentNotification(thread: TSThread,
-                                                      paymentNotification: TSPaymentNotification,
-                                                      messageTimestamp: UInt64,
-                                                      transaction: SDSAnyWriteTransaction)
+    func processReceivedTranscriptPaymentNotification(
+        thread: TSThread,
+        paymentNotification: TSPaymentNotification,
+        messageTimestamp: UInt64,
+        transaction: DBWriteTransaction
+    )
 
-    func tryToInsertPaymentModel(_ paymentModel: TSPaymentModel,
-                                 transaction: SDSAnyWriteTransaction) throws
+    func tryToInsertPaymentModel(
+        _ paymentModel: TSPaymentModel,
+        transaction: DBWriteTransaction
+    ) throws
 }
 
 // MARK: -
@@ -69,13 +77,13 @@ public protocol PaymentsHelperSwift: PaymentsHelper {
     var paymentsState: PaymentsState { get }
     func setPaymentsState(_ value: PaymentsState,
                           originatedLocally: Bool,
-                          transaction: SDSAnyWriteTransaction)
-    func clearState(transaction: SDSAnyWriteTransaction)
+                          transaction: DBWriteTransaction)
+    func clearState(transaction: DBWriteTransaction)
 }
 
 // MARK: -
 
-public enum PaymentsState: Equatable, Dependencies {
+public enum PaymentsState: Equatable {
 
     case disabled
     case disabledWithPaymentsEntropy(paymentsEntropy: Data)
@@ -133,8 +141,7 @@ public enum PaymentsState: Equatable, Dependencies {
 
 // MARK: -
 
-public class MockPaymentsHelper: NSObject {
-}
+public class MockPaymentsHelper {}
 
 // MARK: -
 
@@ -147,16 +154,16 @@ extension MockPaymentsHelper: PaymentsHelperSwift, PaymentsHelper {
     public var isPaymentsVersionOutdated: Bool { false }
     public func setPaymentsVersionOutdated(_ value: Bool) {}
 
-    fileprivate static let keyValueStore = SDSKeyValueStore(collection: "MockPayments")
-    public var keyValueStore: SDSKeyValueStore { Self.keyValueStore}
+    fileprivate static let keyValueStore = KeyValueStore(collection: "MockPayments")
+    public var keyValueStore: KeyValueStore { Self.keyValueStore}
 
     public func warmCaches() {}
 
-    public func setArePaymentsEnabled(for serviceId: ServiceIdObjC, hasPaymentsEnabled: Bool, transaction: SDSAnyWriteTransaction) {
+    public func setArePaymentsEnabled(for serviceId: ServiceId, hasPaymentsEnabled: Bool, transaction: DBWriteTransaction) {
         // Do nothing.
     }
 
-    public func arePaymentsEnabled(for address: SignalServiceAddress, transaction: SDSAnyReadTransaction) -> Bool {
+    public func arePaymentsEnabled(for address: SignalServiceAddress, transaction: DBReadTransaction) -> Bool {
         owsFail("Not implemented.")
     }
 
@@ -164,7 +171,7 @@ extension MockPaymentsHelper: PaymentsHelperSwift, PaymentsHelper {
         owsFail("Not implemented.")
     }
 
-    public func arePaymentsEnabled(tx: SDSAnyReadTransaction) -> Bool {
+    public func arePaymentsEnabled(tx: DBReadTransaction) -> Bool {
         owsFail("Not implemented.")
     }
 
@@ -172,15 +179,15 @@ extension MockPaymentsHelper: PaymentsHelperSwift, PaymentsHelper {
         owsFail("Not implemented.")
     }
 
-    public func enablePayments(transaction: SDSAnyWriteTransaction) {
+    public func enablePayments(transaction: DBWriteTransaction) {
         owsFail("Not implemented.")
     }
 
-    public func enablePayments(withPaymentsEntropy: Data, transaction: SDSAnyWriteTransaction) -> Bool {
+    public func enablePayments(withPaymentsEntropy: Data, transaction: DBWriteTransaction) -> Bool {
         owsFail("Not implemented.")
     }
 
-    public func disablePayments(transaction: SDSAnyWriteTransaction) {
+    public func disablePayments(transaction: DBWriteTransaction) {
         owsFail("Not implemented.")
     }
 
@@ -188,41 +195,43 @@ extension MockPaymentsHelper: PaymentsHelperSwift, PaymentsHelper {
 
     public func setPaymentsState(_ value: PaymentsState,
                                  originatedLocally: Bool,
-                                 transaction: SDSAnyWriteTransaction) {
+                                 transaction: DBWriteTransaction) {
         owsFail("Not implemented.")
     }
 
-    public func clearState(transaction: SDSAnyWriteTransaction) {
+    public func clearState(transaction: DBWriteTransaction) {
         owsFail("Not implemented.")
     }
 
-    public func setLastKnownLocalPaymentAddressProtoData(_ data: Data?, transaction: SDSAnyWriteTransaction) {
+    public func setLastKnownLocalPaymentAddressProtoData(_ data: Data?, transaction: DBWriteTransaction) {
         owsFail("Not implemented.")
     }
 
-    public func lastKnownLocalPaymentAddressProtoData(transaction: SDSAnyWriteTransaction) -> Data? {
+    public func lastKnownLocalPaymentAddressProtoData(transaction: DBWriteTransaction) -> Data? {
         owsFail("Not implemented.")
     }
 
-    public func processIncomingPaymentNotification(thread: TSThread,
-                                                   paymentNotification: TSPaymentNotification,
-                                                   senderAci: AciObjC,
-                                                   transaction: SDSAnyWriteTransaction) {
+    public func processIncomingPaymentNotification(
+        thread: TSThread,
+        paymentNotification: TSPaymentNotification,
+        senderAci: Aci,
+        transaction: DBWriteTransaction
+    ) {
         owsFail("Not implemented.")
     }
 
     public func processIncomingPaymentsActivationRequest(
         thread: TSThread,
-        senderAci: AciObjC,
-        transaction: SDSAnyWriteTransaction
+        senderAci: Aci,
+        transaction: DBWriteTransaction
     ) {
         owsFail("Not implemented.")
     }
 
     public func processIncomingPaymentsActivatedMessage(
         thread: TSThread,
-        senderAci: AciObjC,
-        transaction: SDSAnyWriteTransaction
+        senderAci: Aci,
+        transaction: DBWriteTransaction
     ) {
         owsFail("Not implemented.")
     }
@@ -230,18 +239,18 @@ extension MockPaymentsHelper: PaymentsHelperSwift, PaymentsHelper {
     public func processReceivedTranscriptPaymentNotification(thread: TSThread,
                                                              paymentNotification: TSPaymentNotification,
                                                              messageTimestamp: UInt64,
-                                                             transaction: SDSAnyWriteTransaction) {
+                                                             transaction: DBWriteTransaction) {
         owsFail("Not implemented.")
     }
 
     public func processIncomingPaymentSyncMessage(_ paymentProto: SSKProtoSyncMessageOutgoingPayment,
                                                   messageTimestamp: UInt64,
-                                                  transaction: SDSAnyWriteTransaction) {
+                                                  transaction: DBWriteTransaction) {
         owsFail("Not implemented.")
     }
 
     public func tryToInsertPaymentModel(_ paymentModel: TSPaymentModel,
-                                        transaction: SDSAnyWriteTransaction) throws {
+                                        transaction: DBWriteTransaction) throws {
         owsFail("Not implemented.")
     }
 }

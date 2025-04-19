@@ -67,7 +67,7 @@ public class PreparedOutgoingMessage {
     /// Returns nil if the message no longer exists; records keep a pointer to a message which may be since deleted.
     public static func restore(
         from jobRecord: MessageSenderJobRecord,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> PreparedOutgoingMessage? {
         switch jobRecord.messageType {
         case .persisted(let messageId, _):
@@ -92,6 +92,13 @@ public class PreparedOutgoingMessage {
             )))
         case .transient(let message):
             if let storyMessage = message as? OutgoingStoryMessage {
+                guard storyMessage.storyMessageRowId != nil else {
+                    /// This field was, in the past, inadvertently not exposed
+                    /// to ObjC. If we deserialize one of these as `nil`, drop
+                    /// it.
+                    return nil
+                }
+
                 return .init(messageType: .story(.init(message: storyMessage)))
             }
             return .init(messageType: .transient(message))
@@ -151,32 +158,19 @@ public class PreparedOutgoingMessage {
         return messageForSendStateUpdates.uniqueThreadId
     }
 
-    public func attachmentIdsForUpload(tx: SDSAnyReadTransaction) -> [TSResourceId] {
+    public func attachmentIdsForUpload(tx: DBReadTransaction) -> [Attachment.IDType] {
         switch messageType {
         case .persisted(let persisted):
-            var attachmentIds = DependenciesBridge.shared.tsResourceStore.allAttachments(
-                for: persisted.message,
-                tx: tx.asV2Read
-            ).map(\.resourceId)
-            if
-                let quoteAttachentInfo = persisted.message.quotedMessage?.attachmentInfo(),
-                let quoteLegacyAttachmentId = quoteAttachentInfo.attachmentId
-            {
-                switch quoteAttachentInfo.attachmentType {
-                case .originalForSend, .original, .untrustedPointer:
-                    // Only for legacy attachments, ignore "original" and "untrusted pointer"
-                    // quote attachments for uploading purposes.
-                    attachmentIds.removeAll(where: { $0 == .legacy(uniqueId: quoteLegacyAttachmentId) })
-                default:
-                    break
-                }
-            }
+            let attachmentIds = DependenciesBridge.shared.attachmentStore.allAttachments(
+                forMessageWithRowId: persisted.rowId,
+                tx: tx
+            ).map(\.attachmentRowId)
             return attachmentIds
         case .editMessage(let editMessage):
-            return DependenciesBridge.shared.tsResourceStore.allAttachments(
-                for: editMessage.editedMessage,
-                tx: tx.asV2Read
-            ).map(\.resourceId)
+            return DependenciesBridge.shared.attachmentStore.allAttachments(
+                forMessageWithRowId: editMessage.editedMessageRowId,
+                tx: tx
+            ).map(\.attachmentRowId)
         case .contactSync:
             // These are pre-uploaded.
             return []
@@ -185,15 +179,19 @@ public class PreparedOutgoingMessage {
                 return []
             }
             switch storyMessage.attachment {
-            case .file, .foreignReferenceAttachment:
+            case .media:
                 return [
-                    DependenciesBridge.shared.tsResourceStore
-                        .mediaAttachment(for: storyMessage, tx: tx.asV2Read)?.resourceId
+                    DependenciesBridge.shared.attachmentStore.fetchFirstReference(
+                        owner: .storyMessageMedia(storyMessageRowId: story.storyMessageRowId),
+                        tx: tx
+                    )?.attachmentRowId
                 ].compacted()
             case .text:
                 return [
-                    DependenciesBridge.shared.tsResourceStore
-                        .linkPreviewAttachment(for: storyMessage, tx: tx.asV2Read)?.resourceId
+                    DependenciesBridge.shared.attachmentStore.fetchFirstReference(
+                        owner: .storyMessageLinkPreview(storyMessageRowId: story.storyMessageRowId),
+                        tx: tx
+                    )?.attachmentRowId
                 ].compacted()
             }
         case .transient:
@@ -201,20 +199,20 @@ public class PreparedOutgoingMessage {
         }
     }
 
-    public func sendingQueuePriority(tx: SDSAnyReadTransaction) -> Operation.QueuePriority {
+    public func hasRenderableContent(tx: DBReadTransaction) -> Bool {
         switch messageType {
         case .persisted(let message):
-            return message.message.insertedMessageHasRenderableContent(rowId: message.rowId, tx: tx) ? .normal : .low
+            return message.message.insertedMessageHasRenderableContent(rowId: message.rowId, tx: tx)
         case .editMessage, .story:
             // Always have renderable content; send at normal priority.
-            return .normal
+            return true
         case .transient, .contactSync:
-            return .low
+            return false
         }
     }
 
     /// The message, if any, we should use to donate the ``INSendMessageIntent`` to the OS for sharesheet shortcuts.
-    public func messageForIntentDonation(tx: SDSAnyReadTransaction) -> TSOutgoingMessage? {
+    public func messageForIntentDonation(tx: DBReadTransaction) -> TSOutgoingMessage? {
         switch messageType {
         case .persisted(let persisted):
             if persisted.message.isGroupStoryReply {
@@ -247,13 +245,11 @@ public class PreparedOutgoingMessage {
         try await sender(messageForSending)
     }
 
-    public func attachmentUploadOperations(tx: SDSAnyReadTransaction) -> [Operation] {
-        let legacyMessageOwnerId = messageForSending.uniqueId
+    public func attachmentUploadOperations(tx: DBReadTransaction) -> [() async throws -> Void] {
         return attachmentIdsForUpload(tx: tx).map { attachmentId in
-            return AsyncBlockOperation {
-                try await DependenciesBridge.shared.tsResourceUploadManager.uploadAttachment(
-                    attachmentId: attachmentId,
-                    legacyMessageOwnerIds: [legacyMessageOwnerId]
+            return {
+                try await DependenciesBridge.shared.attachmentUploadManager.uploadTransitTierAttachment(
+                    attachmentId: attachmentId
                 )
             }
         }
@@ -261,13 +257,13 @@ public class PreparedOutgoingMessage {
 
     // MARK: - Message state updates
 
-    public func updateAllUnsentRecipientsAsSending(tx: SDSAnyWriteTransaction) {
+    public func updateAllUnsentRecipientsAsSending(tx: DBWriteTransaction) {
         messageForSendStateUpdates.updateAllUnsentRecipientsAsSending(transaction: tx)
     }
 
     public func updateWithAllSendingRecipientsMarkedAsFailed(
         error: (any Error)? = nil,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         messageForSendStateUpdates.updateWithAllSendingRecipientsMarkedAsFailed(
             error: error,
@@ -279,7 +275,7 @@ public class PreparedOutgoingMessage {
 
     public func asMessageSenderJobRecord(
         isHighPriority: Bool,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) throws -> MessageSenderJobRecord {
         switch messageType {
         case .persisted(let persisted):
@@ -367,7 +363,7 @@ public class PreparedOutgoingMessage {
 
 extension Array where Element == PreparedOutgoingMessage {
 
-    public func attachmentIdsForUpload(tx: SDSAnyReadTransaction) -> [TSResourceId] {
+    public func attachmentIdsForUpload(tx: DBReadTransaction) -> [Attachment.IDType] {
         // Use a non-story message if we have one.
         // When we multisend N attachments to M message threads and S story threads,
         // we create M messages with N attachments each, and (N * S) story messages
@@ -384,18 +380,18 @@ extension Array where Element == PreparedOutgoingMessage {
                 storyMessages.append(preparedMessage)
             }
         }
-        var attachmentIds = Set<TSResourceId>()
+        var attachmentIds = Set<Attachment.IDType>()
         storyMessages.forEach { message in
             message.attachmentIdsForUpload(tx: tx).forEach { attachmentIds.insert($0) }
         }
-        return [TSResourceId](attachmentIds)
+        return [Attachment.IDType](attachmentIds)
     }
 }
 
 extension PreparedOutgoingMessage: CustomStringConvertible {
 
     public var description: String {
-        return "Prepared message \(type(of: messageForSending)), timestamp: \(messageForSending.timestamp)"
+        return "\(type(of: messageForSending)), timestamp: \(messageForSending.timestamp)"
     }
 }
 
@@ -426,23 +422,6 @@ extension PreparedOutgoingMessage {
             return nil
         case .story(let storyMessage):
             return storyMessage.message
-        }
-    }
-
-    public func legacyBodyAttachmentIdsForMultisend() -> [String] {
-        switch messageType {
-        case .persisted(let persisted):
-            return persisted.message.attachmentIds
-        case .editMessage:
-            owsFailDebug("We shouldn't be multisending an edit?")
-            return []
-        case .contactSync:
-            return []
-        case .story:
-            owsFailDebug("Body attachment getter shouldn't be used for story messages")
-            return []
-        case .transient:
-            return []
         }
     }
 }

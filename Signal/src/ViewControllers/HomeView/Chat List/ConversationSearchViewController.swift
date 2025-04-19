@@ -94,7 +94,7 @@ public class ConversationSearchViewController: UITableViewController {
         tableView.register(ChatListCell.self, forCellReuseIdentifier: ChatListCell.reuseIdentifier)
         tableView.register(ContactTableViewCell.self, forCellReuseIdentifier: ContactTableViewCell.reuseIdentifier)
 
-        databaseStorage.appendDatabaseChangeDelegate(self)
+        DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(themeDidChange),
@@ -197,7 +197,7 @@ public class ConversationSearchViewController: UITableViewController {
             }
 
             let threadViewModel = searchResult.threadViewModel
-            SignalApp.shared.presentConversationForThread(threadViewModel.threadRecord, action: .compose, animated: true)
+            SignalApp.shared.presentConversationForThread(threadUniqueId: threadViewModel.threadUniqueId, action: .compose, animated: true)
         case .groupThreads:
             let sectionResults = searchResultSet.groupThreadResults
             guard let searchResult = sectionResults[safe: indexPath.row] else {
@@ -206,7 +206,7 @@ public class ConversationSearchViewController: UITableViewController {
             }
 
             let threadViewModel = searchResult.threadViewModel
-            SignalApp.shared.presentConversationForThread(threadViewModel.threadRecord, action: .compose, animated: true)
+            SignalApp.shared.presentConversationForThread(threadUniqueId: threadViewModel.threadUniqueId, action: .compose, animated: true)
         case .contacts:
             let sectionResults = searchResultSet.contactResults
             guard let searchResult = sectionResults[safe: indexPath.row] else {
@@ -225,7 +225,7 @@ public class ConversationSearchViewController: UITableViewController {
 
             let threadViewModel = searchResult.threadViewModel
             SignalApp.shared.presentConversationForThread(
-                threadViewModel.threadRecord,
+                threadUniqueId: threadViewModel.threadUniqueId,
                 focusMessageId: searchResult.messageId,
                 animated: true
             )
@@ -601,7 +601,7 @@ public class ConversationSearchViewController: UITableViewController {
         }
 
         let (result, future) = Guarantee<HomeScreenSearchResultSet?>.pending()
-        databaseStorage.asyncRead { [searcher] transaction in
+        SSKEnvironment.shared.databaseStorageRef.asyncRead { [searcher] transaction in
             future.resolve(searcher.searchForHomeScreen(
                 searchText: searchText,
                 isCanceled: isCanceled,
@@ -701,8 +701,6 @@ class EmptySearchResultCell: UITableViewCell {
 extension ConversationSearchViewController: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
-        AssertIsOnMainThread()
-
         guard databaseChanges.didUpdateThreads || databaseChanges.didUpdateInteractions else {
             return
         }
@@ -711,14 +709,10 @@ extension ConversationSearchViewController: DatabaseChangeDelegate {
     }
 
     public func databaseChangesDidUpdateExternally() {
-        AssertIsOnMainThread()
-
         refreshSearchResults()
     }
 
     public func databaseChangesDidReset() {
-        AssertIsOnMainThread()
-
         refreshSearchResults()
     }
 }

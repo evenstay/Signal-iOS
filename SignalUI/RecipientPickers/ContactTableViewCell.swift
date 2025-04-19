@@ -40,7 +40,7 @@ open class ContactTableViewCell: UITableViewCell, ReusableTableViewCell {
 
     public func configureWithSneakyTransaction(address: SignalServiceAddress,
                                                localUserDisplayMode: LocalUserDisplayMode) {
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             configure(address: address,
                       localUserDisplayMode: localUserDisplayMode,
                       transaction: transaction)
@@ -49,7 +49,7 @@ open class ContactTableViewCell: UITableViewCell, ReusableTableViewCell {
 
     public func configure(address: SignalServiceAddress,
                           localUserDisplayMode: LocalUserDisplayMode,
-                          transaction: SDSAnyReadTransaction) {
+                          transaction: DBReadTransaction) {
         let configuration = ContactCellConfiguration(address: address,
                                                      localUserDisplayMode: localUserDisplayMode)
         configure(configuration: configuration, transaction: transaction)
@@ -57,7 +57,7 @@ open class ContactTableViewCell: UITableViewCell, ReusableTableViewCell {
 
     public func configure(thread: TSContactThread,
                           localUserDisplayMode: LocalUserDisplayMode,
-                          transaction: SDSAnyReadTransaction) {
+                          transaction: DBReadTransaction) {
         let configuration = ContactCellConfiguration(address: thread.contactAddress,
                                                      localUserDisplayMode: localUserDisplayMode)
         configure(configuration: configuration, transaction: transaction)
@@ -65,7 +65,7 @@ open class ContactTableViewCell: UITableViewCell, ReusableTableViewCell {
 
     open func configure(
         configuration: ContactCellConfiguration,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) {
         OWSTableItem.configureCell(self)
         cellView.configure(configuration: configuration, transaction: transaction)

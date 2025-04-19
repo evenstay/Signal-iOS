@@ -37,8 +37,8 @@ public final class OWSDisappearingMessagesJob: NSObject {
 
         SwiftSingletons.register(self)
 
-        appReadiness.runNowOrWhenMainAppDidBecomeReadyAsync { @MainActor in
-            self.fallbackTimer = .scheduledTimer(withTimeInterval: 5 * kMinuteInterval, repeats: true) { [weak self] timer in
+        appReadiness.runNowOrWhenMainAppDidBecomeReadyAsync { [weak self] in
+            self?.fallbackTimer = .scheduledTimer(withTimeInterval: 5 * .minute, repeats: true) { timer in
                 guard let self else {
                     timer.invalidate()
                     return
@@ -73,7 +73,7 @@ public final class OWSDisappearingMessagesJob: NSObject {
     }
 
     @objc(startAnyExpirationForMessage:expirationStartedAt:transaction:)
-    func startAnyExpiration(for message: TSMessage, expirationStartedAt: UInt64, transaction: SDSAnyWriteTransaction) {
+    func startAnyExpiration(for message: TSMessage, expirationStartedAt: UInt64, transaction: DBWriteTransaction) {
         guard message.shouldStartExpireTimer() else { return }
 
         // Don't clobber if multiple actions simultaneously triggered expiration.
@@ -81,7 +81,7 @@ public final class OWSDisappearingMessagesJob: NSObject {
             message.updateWithExpireStarted(at: expirationStartedAt, transaction: transaction)
         }
 
-        transaction.addAsyncCompletionOffMain { [self] in
+        transaction.addSyncCompletion { [self] in
             // Necessary that the async expiration run happens *after* the message is saved with it's new
             // expiration configuration.
             scheduleRun(by: message.expiresAt)

@@ -6,7 +6,7 @@
 import Foundation
 import LocalAuthentication
 
-public class OWSPaymentsLock: NSObject, Dependencies {
+public class OWSPaymentsLock {
 
     public enum LocalAuthOutcome: Equatable {
         case success
@@ -22,13 +22,12 @@ public class OWSPaymentsLock: NSObject, Dependencies {
 
     init(appReadiness: AppReadiness) {
         self.appReadiness = appReadiness
-        super.init()
         SwiftSingletons.register(self)
     }
 
     // MARK: - KV Store
 
-    private let keyValueStore = SDSKeyValueStore(collection: "OWSPaymentsLock")
+    private let keyValueStore = KeyValueStore(collection: "OWSPaymentsLock")
 
     // MARK: - Properties
 
@@ -41,7 +40,7 @@ public class OWSPaymentsLock: NSObject, Dependencies {
             return true
         }
 
-        return databaseStorage.read { transaction in
+        return SSKEnvironment.shared.databaseStorageRef.read { transaction in
             return self.keyValueStore.getBool(.isPaymentsLockEnabledKey,
                                               defaultValue: false,
                                               transaction: transaction)
@@ -49,13 +48,13 @@ public class OWSPaymentsLock: NSObject, Dependencies {
     }
 
     public func setIsPaymentsLockEnabledAndSnooze(_ value: Bool) {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             setIsPaymentsLockEnabled(value, transaction: transaction)
             snoozeSuggestion(transaction: transaction)
         }
     }
 
-    public func setIsPaymentsLockEnabled(_ value: Bool, transaction: SDSAnyWriteTransaction) {
+    public func setIsPaymentsLockEnabled(_ value: Bool, transaction: DBWriteTransaction) {
         AssertIsOnMainThread()
         assert(appReadiness.isAppReady)
 
@@ -73,7 +72,7 @@ public class OWSPaymentsLock: NSObject, Dependencies {
         }
 
         let defaultDate = Date.distantPast
-        let date = databaseStorage.read { transaction in
+        let date = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             return self.keyValueStore.getDate(.timeToShowSuggestionKey,
                                               transaction: transaction) ?? defaultDate
         }
@@ -81,14 +80,14 @@ public class OWSPaymentsLock: NSObject, Dependencies {
         return Date() > date
     }
 
-    public func snoozeSuggestion(transaction: SDSAnyWriteTransaction) {
+    public func snoozeSuggestion(transaction: DBWriteTransaction) {
         AssertIsOnMainThread()
         assert(appReadiness.isAppReady)
 
         let currentDate = Date()
         let numberOfSnoozeDays = 30.0
         let nextTimeToShowSuggestion = currentDate.addingTimeInterval(
-            Double(numberOfSnoozeDays * kDayInterval)
+            Double(numberOfSnoozeDays * .day)
         )
 
         self.keyValueStore.setDate(nextTimeToShowSuggestion,

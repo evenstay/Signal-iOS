@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import LibSignalClient
 
 extension MessageBackup {
 
@@ -16,22 +17,56 @@ extension MessageBackup {
     /// archiving to be updating the database, just reading from it.
     /// (The exception to this is enqueuing attachment uploads.)
     open class ArchivingContext {
+        struct IncludedContentFilter {
+            /// The minimum absolute expiration time for a message, such that it
+            /// is eligible for inclusion.
+            ///
+            /// For example, a value of 24h will exclude messages with a
+            /// "lifetime" of a day or less, regardless of whether they have
+            /// been read and their expiration timer has started.
+            let minExpirationTimeMs: UInt64
+
+            /// The minimum remaining time before a message will expire, such
+            /// that it is eligible for inclusion.
+            ///
+            /// For example, a value of 24h will exclude messages that will
+            /// expire in the next day, regardless of how long their original
+            /// "lifetime" was.
+            let minRemainingTimeUntilExpirationMs: UInt64
+
+            /// Whether or not the plaintext SVR PIN should be included.
+            let shouldIncludePin: Bool
+        }
+
+        /// For benchmarking archive steps.
+        let bencher: MessageBackup.ArchiveBencher
+
+        /// Parameters configuring what content is included in this archive.
+        let includedContentFilter: IncludedContentFilter
+
+        /// The timestamp at which the archiving process started.
+        let startTimestampMs: UInt64
 
         private let _tx: DBWriteTransaction
-
-        public var tx: DBReadTransaction { _tx }
+        var tx: DBReadTransaction { _tx }
 
         /// Nil if not a paid backups account.
         private let currentBackupAttachmentUploadEra: String?
         private let backupAttachmentUploadManager: BackupAttachmentUploadManager
 
         init(
-            currentBackupAttachmentUploadEra: String?,
             backupAttachmentUploadManager: BackupAttachmentUploadManager,
+            bencher: MessageBackup.ArchiveBencher,
+            currentBackupAttachmentUploadEra: String?,
+            includedContentFilter: IncludedContentFilter,
+            startTimestampMs: UInt64,
             tx: DBWriteTransaction
         ) {
-            self.currentBackupAttachmentUploadEra = currentBackupAttachmentUploadEra
+            self.bencher = bencher
             self.backupAttachmentUploadManager = backupAttachmentUploadManager
+            self.currentBackupAttachmentUploadEra = currentBackupAttachmentUploadEra
+            self.includedContentFilter = includedContentFilter
+            self.startTimestampMs = startTimestampMs
             self._tx = tx
         }
 
@@ -49,31 +84,18 @@ extension MessageBackup {
 
     /// Base context class used for restoring from a backup.
     open class RestoringContext {
-        /// Represents an action that should be taken after all `Frame`s have
-        /// been restored.
-        public enum PostFrameRestoreAction {
-            /// A `TSInfoMessage` indicating a contact is hidden should be
-            /// inserted for the `SignalRecipient` with the given SQLite row ID.
-            ///
-            /// We always want some in-chat indication that a hidden contact is,
-            /// in fact, hidden. However, that "hidden" state is stored on a
-            /// `Contact`, with no related `ChatItem`. Consequently, when we
-            /// encounter a hidden `Contact` frame, we'll track that we should,
-            /// after all other frames are restored, insert an in-chat message
-            /// that the contact is hidden.
-            case insertContactHiddenInfoMessage(recipientRowId: Int64)
-        }
+
+        /// The timestamp at which we began restoring.
+        public let startTimestampMs: UInt64
 
         public let tx: DBWriteTransaction
-        public private(set) var postFrameRestoreActions: [PostFrameRestoreAction]
 
-        init(tx: DBWriteTransaction) {
+        init(
+            startTimestampMs: UInt64,
+            tx: DBWriteTransaction
+        ) {
+            self.startTimestampMs = startTimestampMs
             self.tx = tx
-            self.postFrameRestoreActions = []
-        }
-
-        func addPostRestoreFrameAction(_ action: PostFrameRestoreAction) {
-            postFrameRestoreActions.append(action)
         }
     }
 }

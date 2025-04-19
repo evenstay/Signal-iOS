@@ -14,14 +14,11 @@ public class CVComponentSticker: CVComponentBase, CVComponent {
     private var stickerMetadata: (any StickerMetadata)? {
         sticker.stickerMetadata
     }
-    private var attachmentStream: ReferencedTSResourceStream? {
+    private var attachmentStream: ReferencedAttachmentStream? {
         sticker.attachmentStream
     }
-    private var attachmentPointer: ReferencedTSResourcePointer? {
+    private var attachmentPointer: ReferencedAttachmentPointer? {
         sticker.attachmentPointer
-    }
-    private var stickerInfo: StickerInfo? {
-        stickerMetadata?.stickerInfo
     }
 
     init(itemModel: CVItemModel, sticker: CVComponentState.Sticker) {
@@ -49,8 +46,8 @@ public class CVComponentSticker: CVComponentBase, CVComponent {
 
         switch sticker {
         case .available(_, let attachmentStream):
-            let cacheKey = CVMediaCache.CacheKey.attachment(attachmentStream.attachment.resourceId)
-            let isAnimated = attachmentStream.attachmentStream.computeContentType().isAnimatedImage
+            let cacheKey = CVMediaCache.CacheKey.attachment(attachmentStream.attachment.id)
+            let isAnimated = attachmentStream.attachmentStream.contentType.isAnimatedImage
             let reusableMediaView: ReusableMediaView
             if let cachedView = mediaCache.getMediaView(cacheKey, isAnimated: isAnimated) {
                 reusableMediaView = cachedView
@@ -94,14 +91,14 @@ public class CVComponentSticker: CVComponentBase, CVComponent {
         case .downloading(let attachmentPointer):
             configureForRendering(
                 attachmentPointer: attachmentPointer,
-                transitTierDownloadState: .enqueuedOrDownloading,
+                downloadState: .enqueuedOrDownloading,
                 stackView: stackView,
                 cellMeasurement: cellMeasurement
             )
-        case .failedOrPending(let attachmentPointer, let transitTierDownloadState):
+        case .failedOrPending(let attachmentPointer, let downloadState):
             configureForRendering(
                 attachmentPointer: attachmentPointer,
-                transitTierDownloadState: transitTierDownloadState,
+                downloadState: downloadState,
                 stackView: stackView,
                 cellMeasurement: cellMeasurement
             )
@@ -109,8 +106,8 @@ public class CVComponentSticker: CVComponentBase, CVComponent {
     }
 
     private func configureForRendering(
-        attachmentPointer: ReferencedTSResourcePointer,
-        transitTierDownloadState: AttachmentDownloadState,
+        attachmentPointer: ReferencedAttachmentPointer,
+        downloadState: AttachmentDownloadState,
         stackView: ManualStackView,
         cellMeasurement: CVCellMeasurement
     ) {
@@ -127,7 +124,7 @@ public class CVComponentSticker: CVComponentBase, CVComponent {
         let progressView = CVAttachmentProgressView(
             direction: .download(
                 attachmentPointer: attachmentPointer.attachmentPointer,
-                transitTierDownloadState: transitTierDownloadState
+                downloadState: downloadState
             ),
             isDarkThemeEnabled: conversationStyle.isDarkThemeEnabled,
             mediaCache: mediaCache

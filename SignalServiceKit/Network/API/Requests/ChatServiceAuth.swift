@@ -7,41 +7,22 @@ import Foundation
 public import LibSignalClient
 
 /// Credentials to use on a TSRequest to the chat server.
-@objc
-public class ChatServiceAuth: NSObject {
+public class ChatServiceAuth: Equatable, Hashable {
 
     public enum Credentials: Equatable {
         case implicit
         case explicit(username: String, password: String)
     }
 
-    @nonobjc
     public let credentials: Credentials
 
     private init(_ credentials: Credentials) {
         self.credentials = credentials
-        super.init()
     }
 
     /// Will use auth credentials present on TSAccountManager
-    @objc
     public static func implicit() -> ChatServiceAuth {
         return ChatServiceAuth(.implicit)
-    }
-
-    public typealias DeviceId = AuthedDevice.DeviceId
-
-    @objc
-    public static func explicit(
-        aci: AciObjC,
-        rawDeviceId: UInt32,
-        password: String
-    ) -> ChatServiceAuth {
-        return ChatServiceAuth.explicit(
-            aci: aci.wrappedAciValue,
-            deviceId: rawDeviceId == OWSDevice.primaryDeviceId ? .primary : .secondary(rawDeviceId),
-            password: password
-        )
     }
 
     public static func explicit(
@@ -49,11 +30,17 @@ public class ChatServiceAuth: NSObject {
         deviceId: DeviceId,
         password: String
     ) -> ChatServiceAuth {
-        return ChatServiceAuth(.explicit(username: deviceId.authUsername(aci: aci), password: password))
+        let authUsername = { () -> String in
+            if deviceId.isPrimary {
+                return aci.serviceIdString
+            } else {
+                return "\(aci.serviceIdString).\(deviceId)"
+            }
+        }()
+        return ChatServiceAuth(.explicit(username: authUsername, password: password))
     }
 
-    public override var hash: Int {
-        var hasher = Hasher()
+    public func hash(into hasher: inout Hasher) {
         switch credentials {
         case .implicit:
             break
@@ -61,14 +48,10 @@ public class ChatServiceAuth: NSObject {
             hasher.combine(username)
             hasher.combine(password)
         }
-        return hasher.finalize()
     }
 
-    public override func isEqual(_ object: Any?) -> Bool {
-        guard let other = object as? ChatServiceAuth else {
-            return false
-        }
-        return self.credentials == other.credentials
+    public static func == (lhs: ChatServiceAuth, rhs: ChatServiceAuth) -> Bool {
+        lhs.credentials == rhs.credentials
     }
 
     public func orIfImplicitUse(_ other: ChatServiceAuth) -> ChatServiceAuth {
@@ -79,19 +62,6 @@ public class ChatServiceAuth: NSObject {
             return other
         case (.implicit, .implicit):
             return other
-        }
-    }
-}
-
-extension TSRequest {
-    @objc
-    public func setAuth(_ auth: ChatServiceAuth) {
-        switch auth.credentials {
-        case .implicit:
-            break
-        case let .explicit(username, password):
-            self.authUsername = username
-            self.authPassword = password
         }
     }
 }

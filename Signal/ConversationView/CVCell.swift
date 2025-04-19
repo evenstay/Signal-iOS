@@ -24,30 +24,11 @@ public enum CVCellReuseIdentifier: String, CaseIterable {
 
 // MARK: -
 
-// Represents a single item in the conversation history.
-// Could be a date header or a unread indicator.
-public protocol CVItemCell where Self: UICollectionViewCell {
-    var isCellVisible: Bool { get set }
-}
-
-// MARK: -
-
-public class CVCell: UICollectionViewCell, CVItemCell, CVRootComponentHost {
+public class CVCell: UICollectionViewCell, CVRootComponentHost {
 
     public var isCellVisible: Bool = false {
         didSet {
             componentView?.setIsCellVisible(isCellVisible)
-
-            if isCellVisible {
-                guard let renderItem = renderItem,
-                      let componentView = componentView,
-                      let messageSwipeActionState = messageSwipeActionState else {
-                    return
-                }
-                renderItem.rootComponent.cellDidBecomeVisible(componentView: componentView,
-                                                              renderItem: renderItem,
-                                                              messageSwipeActionState: messageSwipeActionState)
-            }
         }
     }
 
@@ -149,7 +130,7 @@ public class CVCell: UICollectionViewCell, CVItemCell, CVRootComponentHost {
     private func applyLastLayoutAttributes() {
 
         guard let layoutAttributes = self.lastLayoutAttributes else {
-            Logger.warn("Missing layoutAttributes.")
+            Logger.verbose("Missing layoutAttributes.")
             return
         }
 
@@ -191,19 +172,6 @@ public class CVCell: UICollectionViewCell, CVItemCell, CVRootComponentHost {
         messageSwipeActionState = nil
         lastLayoutAttributes = nil
         layer.zPosition = 0
-    }
-
-    public override func layoutSubviews() {
-        super.layoutSubviews()
-
-        guard let renderItem = renderItem,
-              let componentView = componentView,
-              let messageSwipeActionState = messageSwipeActionState else {
-            return
-        }
-        renderItem.rootComponent.cellDidLayoutSubviews(componentView: componentView,
-                                                       renderItem: renderItem,
-                                                       messageSwipeActionState: messageSwipeActionState)
     }
 }
 
@@ -422,7 +390,7 @@ public extension CVRootComponentHost {
                                                   messageSwipeActionState: messageSwipeActionState)
     }
 
-    func albumItemView(forAttachment attachment: ReferencedTSResource) -> UIView? {
+    func albumItemView(forAttachment attachment: ReferencedAttachment) -> UIView? {
         guard let renderItem = renderItem else {
             owsFailDebug("Missing renderItem.")
             return nil

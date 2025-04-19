@@ -40,15 +40,15 @@ public protocol NameCollisionFinder {
     var thread: TSThread { get }
 
     /// Finds collections of thread participants that have a colliding display name
-    func findCollisions(transaction: SDSAnyReadTransaction) -> [NameCollision]
+    func findCollisions(transaction: DBReadTransaction) -> [NameCollision]
 
     /// Invoked whenever the user has opted to ignore any remaining collisions
-    func markCollisionsAsResolved(transaction: SDSAnyWriteTransaction)
+    func markCollisionsAsResolved(transaction: DBWriteTransaction)
 }
 
 /// Finds all name collisions for a given contact thread. Compares the contact
 /// thread recipient with all known Signal accounts.
-public class ContactThreadNameCollisionFinder: NameCollisionFinder, Dependencies {
+public class ContactThreadNameCollisionFinder: NameCollisionFinder {
     private var contactThread: TSContactThread
     private let onlySearchIfMessageRequest: Bool
 
@@ -72,7 +72,7 @@ public class ContactThreadNameCollisionFinder: NameCollisionFinder, Dependencies
 
     public var thread: TSThread { contactThread }
 
-    public func findCollisions(transaction: SDSAnyReadTransaction) -> [NameCollision] {
+    public func findCollisions(transaction: DBReadTransaction) -> [NameCollision] {
         guard let updatedThread = TSContactThread.getWithContactAddress(contactThread.contactAddress, transaction: transaction) else {
             return []
         }
@@ -88,7 +88,7 @@ public class ContactThreadNameCollisionFinder: NameCollisionFinder, Dependencies
 
         let candidateAddresses = { () -> [SignalServiceAddress] in
             var result = Set<SignalServiceAddress>()
-            result.formUnion(profileManager.allWhitelistedRegisteredAddresses(tx: transaction))
+            result.formUnion(SSKEnvironment.shared.profileManagerRef.allWhitelistedRegisteredAddresses(tx: transaction))
             // Include all SignalAccounts as well (even though most are redundant) to
             // ensure we check against blocked system contact names.
             result.formUnion(SignalAccount.anyFetchAll(transaction: transaction).map { $0.recipientAddress })
@@ -101,7 +101,7 @@ public class ContactThreadNameCollisionFinder: NameCollisionFinder, Dependencies
 
         let targetName = ComparableDisplayName(
             address: contactThread.contactAddress,
-            displayName: contactsManager.displayName(for: contactThread.contactAddress, tx: transaction),
+            displayName: SSKEnvironment.shared.contactManagerRef.displayName(for: contactThread.contactAddress, tx: transaction),
             config: config
         )
 
@@ -113,7 +113,7 @@ public class ContactThreadNameCollisionFinder: NameCollisionFinder, Dependencies
         var collisionElements = [NameCollision.Element]()
         collisionElements.append(NameCollision.Element(comparableName: targetName))
 
-        let candidateNames = contactsManager.displayNames(for: candidateAddresses, tx: transaction)
+        let candidateNames = SSKEnvironment.shared.contactManagerRef.displayNames(for: candidateAddresses, tx: transaction)
         for (candidateAddress, candidateName) in zip(candidateAddresses, candidateNames) {
             let candidateName = ComparableDisplayName(address: candidateAddress, displayName: candidateName, config: config)
             // If we don't have a name for this person, don't consider them for collisions.
@@ -129,7 +129,7 @@ public class ContactThreadNameCollisionFinder: NameCollisionFinder, Dependencies
         return [NameCollision(collisionElements)].compacted()
     }
 
-    public func markCollisionsAsResolved(transaction: SDSAnyWriteTransaction) {
+    public func markCollisionsAsResolved(transaction: DBWriteTransaction) {
         // Do nothing
         // Contact threads always display all collisions
     }
@@ -152,7 +152,7 @@ public class GroupMembershipNameCollisionFinder: NameCollisionFinder {
         groupThread = thread
     }
 
-    public func findCollisions(transaction: SDSAnyReadTransaction) -> [NameCollision] {
+    public func findCollisions(transaction: DBReadTransaction) -> [NameCollision] {
         guard let updatedThread = TSGroupThread.anyFetchGroupThread(uniqueId: groupThread.uniqueId, transaction: transaction) else {
             return []
         }
@@ -162,7 +162,7 @@ public class GroupMembershipNameCollisionFinder: NameCollisionFinder {
 
         // Build a dictionary mapping displayName -> (All addresses with that name)
         let groupMembers = groupThread.groupModel.groupMembers
-        let displayNames = NSObject.contactsManager.displayNames(for: groupMembers, tx: transaction)
+        let displayNames = SSKEnvironment.shared.contactManagerRef.displayNames(for: groupMembers, tx: transaction)
         var collisionMap = [String: [ComparableDisplayName]]()
         for (address, displayName) in zip(groupMembers, displayNames) {
             let comparableName = ComparableDisplayName(address: address, displayName: displayName, config: config)
@@ -214,7 +214,7 @@ public class GroupMembershipNameCollisionFinder: NameCollisionFinder {
         // Neat! No collisions. Let's make sure we update our search space since we know there are no collisions
         // in the update interactions we've fetched
         if filteredCollisions.isEmpty {
-            SDSDatabaseStorage.shared.asyncWrite { writeTx in
+            SSKEnvironment.shared.databaseStorageRef.asyncWrite { writeTx in
                 self.markCollisionsAsResolved(transaction: writeTx)
             }
         }
@@ -236,7 +236,7 @@ public class GroupMembershipNameCollisionFinder: NameCollisionFinder {
         return (oldProfileName, newProfileName)
     }
 
-    private func fetchRecentProfileUpdates(transaction: SDSAnyReadTransaction) -> [SignalServiceAddress: [TSInfoMessage]] {
+    private func fetchRecentProfileUpdates(transaction: DBReadTransaction) -> [SignalServiceAddress: [TSInfoMessage]] {
         lock.withLock {
             if let cachedResults = recentProfileUpdateMessages { return cachedResults }
 
@@ -256,7 +256,7 @@ public class GroupMembershipNameCollisionFinder: NameCollisionFinder {
         }
     }
 
-    public func markCollisionsAsResolved(transaction: SDSAnyWriteTransaction) {
+    public func markCollisionsAsResolved(transaction: DBWriteTransaction) {
         lock.withLock {
             let allRecentMessages = recentProfileUpdateMessages?.values.flatMap({ $0 })
             guard let newMaxSortId = allRecentMessages?.max(by: { $0.sortId < $1.sortId })?.sortId else { return }
@@ -268,18 +268,18 @@ public class GroupMembershipNameCollisionFinder: NameCollisionFinder {
 
     // MARK: Storage
 
-    private static var keyValueStore = SDSKeyValueStore(collection: "GroupThreadCollisionFinder")
+    private static var keyValueStore = KeyValueStore(collection: "GroupThreadCollisionFinder")
 
-    private func recentProfileUpdateSearchStartId(transaction: SDSAnyReadTransaction) -> UInt64? {
+    private func recentProfileUpdateSearchStartId(transaction: DBReadTransaction) -> UInt64? {
         Self.keyValueStore.getUInt64(groupThread.uniqueId, transaction: transaction)
     }
 
-    private func setRecentProfileUpdateSearchStartId(newValue: UInt64, transaction: SDSAnyWriteTransaction) {
+    private func setRecentProfileUpdateSearchStartId(newValue: UInt64, transaction: DBWriteTransaction) {
         let existingValue = recentProfileUpdateSearchStartId(transaction: transaction) ?? 0
         Self.keyValueStore.setUInt64(max(newValue, existingValue), key: groupThread.uniqueId, transaction: transaction)
     }
 
-    private func setRecentProfileUpdateSearchStartIdToMax(transaction: SDSAnyReadTransaction) {
+    private func setRecentProfileUpdateSearchStartIdToMax(transaction: DBReadTransaction) {
         // This is a perf optimization to proactively reduce our search space, so it doesn't need to be exact.
         // `lastInteractionRowId` is the current latest interaction on the thread when we checked for collisions.
         //
@@ -292,7 +292,7 @@ public class GroupMembershipNameCollisionFinder: NameCollisionFinder {
         // - In our searchStartId cache, we always set the max(currentValue, newValue). So even if maxInteractionId
         // is unset or invalid, we'll never mistakenly grow our search space by setting the startId to a smaller value.
         let maxInteractionId = UInt64(thread.lastInteractionRowId)
-        SDSDatabaseStorage.shared.asyncWrite { writeTx in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { writeTx in
             self.setRecentProfileUpdateSearchStartId(newValue: maxInteractionId, transaction: writeTx)
         }
     }
@@ -301,7 +301,7 @@ public class GroupMembershipNameCollisionFinder: NameCollisionFinder {
 // MARK: - Helpers
 
 private extension NameCollision {
-    func standardSort(readTx: SDSAnyReadTransaction) -> NameCollision {
+    func standardSort(readTx: DBReadTransaction) -> NameCollision {
         NameCollision(
             elements.sorted { lhs, rhs in
                 // Given two colliding elements, we sort by:
@@ -310,7 +310,7 @@ private extension NameCollision {
                 if lhs.latestUpdateTimestamp != nil || rhs.latestUpdateTimestamp != nil {
                     return (lhs.latestUpdateTimestamp ?? 0) > (rhs.latestUpdateTimestamp ?? 0)
                 } else {
-                    return lhs.address.sortKey < rhs.address.sortKey
+                    return (lhs.address.serviceId?.serviceIdString ?? lhs.address.phoneNumber ?? "") < (rhs.address.serviceId?.serviceIdString ?? rhs.address.phoneNumber ?? "")
                 }
             }
         )!
@@ -318,9 +318,9 @@ private extension NameCollision {
 }
 
 private extension Array where Element == NameCollision {
-    func standardSort(readTx: SDSAnyReadTransaction) -> [NameCollision] {
+    func standardSort(readTx: DBReadTransaction) -> [NameCollision] {
         self.map { $0.standardSort(readTx: readTx) }.sorted { lhs, rhs in
-            return lhs.elements[0].comparableName < rhs.elements[1].comparableName
+            return lhs.elements[0].comparableName < rhs.elements[0].comparableName
         }
     }
 }

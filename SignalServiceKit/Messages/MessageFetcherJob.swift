@@ -7,13 +7,12 @@ import Foundation
 
 // MARK: -
 
-public class MessageFetcherJob: NSObject {
+public class MessageFetcherJob {
 
     private let appReadiness: AppReadiness
 
     public init(appReadiness: AppReadiness) {
         self.appReadiness = appReadiness
-        super.init()
 
         SwiftSingletons.register(self)
 
@@ -70,7 +69,7 @@ public class MessageFetcherJob: NSObject {
                 self.startFetchingIfNeeded()
             }
             do {
-                try await self.pendingAcksPromise().awaitable()
+                try await self.waitForPendingAcks()
                 try await self.fetchMessages()
                 fetchFuture.resolve()
             } catch {
@@ -140,29 +139,38 @@ public class MessageFetcherJob: NSObject {
     // MARK: -
 
     // We want to have multiple ACKs in flight at a time.
-    private let ackOperationQueue: OperationQueue = {
-        let operationQueue = OperationQueue()
-        operationQueue.name = "MessageFetcherJob-ACKs"
-        operationQueue.maxConcurrentOperationCount = 5
-        return operationQueue
-    }()
+    private let ackQueue = ConcurrentTaskQueue(concurrentLimit: 5)
 
-    private let pendingAcks = PendingTasks(label: "Acks")
+    private let pendingAcks = PendingTasks()
 
     private func acknowledgeDelivery(envelopeInfo: EnvelopeInfo) {
-        guard let ackOperation = MessageAckOperation(envelopeInfo: envelopeInfo,
-                                                     pendingAcks: pendingAcks) else {
-            return
+        let pendingAck = pendingAcks.buildPendingTask()
+        Task {
+            defer {
+                pendingAck.complete()
+            }
+            do {
+                try await self.ackQueue.run {
+                    try await self._acknowledgeDelivery(envelopeInfo: envelopeInfo)
+                }
+            } catch {
+                Logger.warn("Couldn't ACK \(envelopeInfo.timestamp): \(error)")
+            }
         }
-        ackOperationQueue.addOperation(ackOperation)
     }
 
-    public func pendingAcksPromise() -> Promise<Void> {
-        // This promise blocks on all operations already in the queue,
-        // but will not block on new operations added after this promise
-        // is created. That's intentional to ensure that NotificationService
-        // instances complete in a timely way.
-        pendingAcks.pendingTasksPromise()
+    private func _acknowledgeDelivery(envelopeInfo: EnvelopeInfo) async throws {
+        try await Retry.performWithBackoff(maxAttempts: 3) {
+            guard let serverGuid = envelopeInfo.serverGuid, !serverGuid.isEmpty else {
+                throw OWSAssertionError("Can't ACK message without serverGuid.")
+            }
+            let request = OWSRequestFactory.acknowledgeMessageDeliveryRequest(serverGuid: serverGuid)
+            _ = try await SSKEnvironment.shared.networkManagerRef.makePromise(request: request, canUseWebSocket: false).awaitable()
+        }
+    }
+
+    public func waitForPendingAcks() async throws {
+        try await pendingAcks.waitForPendingTasks()
     }
 
     // MARK: -
@@ -179,7 +187,12 @@ public class MessageFetcherJob: NSObject {
     }
 
     private func fetchMessagesViaRest() async throws {
-        let batch = try await fetchBatchViaRest()
+        let batch = try await Retry.performWithBackoff(maxAttempts: 2) {
+            // If we get a network failure (≈10 seconds) or 5xx error (< 10 seconds),
+            // it's worth retrying just once in the NSE. This helps ensures we stay
+            // within the 30s execution limit.
+            return try await fetchBatchViaRest()
+        }
 
         let envelopeJobs: [EnvelopeJob] = batch.envelopes.map { envelope in
             let envelopeInfo = Self.buildEnvelopeInfo(envelope: envelope)
@@ -187,7 +200,7 @@ public class MessageFetcherJob: NSObject {
                 let ackBehavior = MessageProcessor.handleMessageProcessingOutcome(error: error)
                 switch ackBehavior {
                 case .shouldAck:
-                    Self.messageFetcherJob.acknowledgeDelivery(envelopeInfo: envelopeInfo)
+                    self.acknowledgeDelivery(envelopeInfo: envelopeInfo)
                 case .shouldNotAck(let error):
                     Logger.info("Skipping ack of message with timestamp \(envelopeInfo.timestamp) because of error: \(error)")
                 }
@@ -195,7 +208,7 @@ public class MessageFetcherJob: NSObject {
         }
 
         for job in envelopeJobs {
-            messageProcessor.processReceivedEnvelope(
+            SSKEnvironment.shared.messageProcessorRef.processReceivedEnvelope(
                 job.encryptedEnvelope,
                 serverDeliveryTimestamp: batch.serverDeliveryTimestamp,
                 envelopeSource: .rest,
@@ -208,38 +221,15 @@ public class MessageFetcherJob: NSObject {
             try await fetchMessagesViaRestWhenReady()
         } else {
             self.didFinishFetchingViaREST.set(true)
-            NotificationCenter.default.postNotificationNameAsync(MessageFetcherJob.didChangeStateNotificationName, object: nil)
+            NotificationCenter.default.postOnMainThread(name: MessageFetcherJob.didChangeStateNotificationName, object: nil)
         }
     }
 
     private func fetchMessagesViaRestWhenReady() async throws {
-        try await Promise<Void>.waitUntil { self.isReadyToFetchMessagesViaRest }.awaitable()
-        try await fetchMessagesViaRest()
-    }
-
-    private var isReadyToFetchMessagesViaRest: Bool {
         owsPrecondition(CurrentAppContext().isNSE)
-
-        // The NSE has tight memory constraints.
-        // For perf reasons, MessageProcessor keeps its queue in memory.
-        // It is not safe for the NSE to fetch more messages
-        // and cause this queue to grow in an unbounded way.
-        // Therefore, the NSE should wait to fetch more messages if
-        // the queue has "some/enough" content.
-        // However, the NSE needs to process messages with high
-        // throughput.
-        // Therefore we need to identify a constant N small enough to
-        // place an acceptable upper bound on memory usage of the processor
-        // (N + next fetched batch size, fetch size in practice is 100),
-        // large enough to avoid introducing latency (e.g. the next fetch
-        // will complete before the queue is empty).
-        // This is tricky since there are multiple variables (e.g. network
-        // perf affects fetch, CPU perf affects processing).
-        let queuedContentCount = messageProcessor.queuedContentCount
-        let pendingAcksCount = MessageAckOperation.pendingAcksCount
-        let incompleteEnvelopeCount = queuedContentCount + pendingAcksCount
-        let maxIncompleteEnvelopeCount: Int = 20
-        return incompleteEnvelopeCount < maxIncompleteEnvelopeCount
+        await SSKEnvironment.shared.messageProcessorRef.waitForProcessingComplete(processingTypes: [.messageProcessor]).awaitable()
+        try await waitForPendingAcks()
+        try await fetchMessagesViaRest()
     }
 
     // MARK: -
@@ -330,12 +320,12 @@ public class MessageFetcherJob: NSObject {
 
     private func fetchBatchViaRest() async throws -> RESTBatch {
         let request = OWSRequestFactory.getMessagesRequest()
-        let response = try await networkManager.makePromise(request: request).awaitable()
+        let response = try await SSKEnvironment.shared.networkManagerRef.asyncRequest(request, canUseWebSocket: false)
         guard let json = response.responseBodyJson else {
             throw OWSAssertionError("Missing or invalid JSON")
         }
         guard
-            let timestampString = response.responseHeaders["x-signal-timestamp"],
+            let timestampString = response.headers["x-signal-timestamp"],
             let serverDeliveryTimestamp = UInt64(timestampString)
         else {
             throw OWSAssertionError("Unable to parse server delivery timestamp.")
@@ -358,150 +348,5 @@ public class MessageFetcherJob: NSObject {
                      serverGuid: envelope.serverGuid,
                      timestamp: envelope.timestamp,
                      serviceTimestamp: envelope.serverTimestamp)
-    }
-}
-
-// MARK: -
-
-private class MessageAckOperation: OWSOperation {
-
-    fileprivate typealias EnvelopeInfo = MessageFetcherJob.EnvelopeInfo
-
-    private let envelopeInfo: EnvelopeInfo
-    private let pendingAck: PendingTask
-
-    // A heuristic to quickly filter out multiple ack attempts for the same message
-    // This doesn't affect correctness, just tries to guard against backing up our operation queue with repeat work
-    static private var inFlightAcks = AtomicSet<String>(lock: .sharedGlobal)
-    private var didRecordAckId = false
-    private let inFlightAckId: String
-
-    public static var pendingAcksCount: Int {
-        inFlightAcks.count
-    }
-
-    private static func inFlightAckId(forEnvelopeInfo envelopeInfo: EnvelopeInfo) -> String {
-        // All messages *should* have a guid, but we'll handle things correctly if they don't
-        owsAssertDebug(envelopeInfo.serverGuid?.nilIfEmpty != nil)
-
-        if let serverGuid = envelopeInfo.serverGuid?.nilIfEmpty {
-            return serverGuid
-        } else if let sourceServiceId = envelopeInfo.sourceAddress?.serviceId {
-            return "\(sourceServiceId.serviceIdUppercaseString)_\(envelopeInfo.timestamp)"
-        } else {
-            // This *could* collide, but we don't have enough info to ack the message anyway. So it should be fine.
-            return "\(envelopeInfo.serviceTimestamp)"
-        }
-    }
-
-    private static let unfairLock = UnfairLock()
-    private static var successfulAckSet = OrderedSet<String>()
-    private static func didAck(inFlightAckId: String) {
-        unfairLock.withLock {
-            successfulAckSet.append(inFlightAckId)
-            // REST fetches are batches of 100.
-            let maxAckCount: Int = 128
-            while successfulAckSet.count > maxAckCount,
-                  let firstAck = successfulAckSet.first {
-                successfulAckSet.remove(firstAck)
-            }
-        }
-    }
-    private static func hasAcked(inFlightAckId: String) -> Bool {
-        unfairLock.withLock {
-            successfulAckSet.contains(inFlightAckId)
-        }
-    }
-
-    fileprivate init?(envelopeInfo: EnvelopeInfo, pendingAcks: PendingTasks) {
-
-        let inFlightAckId = Self.inFlightAckId(forEnvelopeInfo: envelopeInfo)
-        self.inFlightAckId = inFlightAckId
-
-        guard !Self.hasAcked(inFlightAckId: inFlightAckId) else {
-            Logger.info("Skipping new ack operation for \(envelopeInfo). Duplicate ack already complete")
-            return nil
-        }
-        guard !Self.inFlightAcks.contains(inFlightAckId) else {
-            Logger.info("Skipping new ack operation for \(envelopeInfo). Duplicate ack already enqueued")
-            return nil
-        }
-
-        let pendingAck = pendingAcks.buildPendingTask(label: "Ack, timestamp: \(envelopeInfo.timestamp), serviceTimestamp: \(envelopeInfo.serviceTimestamp)")
-
-        self.envelopeInfo = envelopeInfo
-        self.pendingAck = pendingAck
-
-        super.init()
-
-        self.remainingRetries = 3
-
-        // MessageAckOperation must have a higher priority than than the
-        // operations used to flush the ack operation queue.
-        self.queuePriority = .high
-        Self.inFlightAcks.insert(inFlightAckId)
-        didRecordAckId = true
-    }
-
-    public override func run() {
-        let request: TSRequest
-        if let serverGuid = envelopeInfo.serverGuid, !serverGuid.isEmpty {
-            request = OWSRequestFactory.acknowledgeMessageDeliveryRequest(serverGuid: serverGuid)
-        } else {
-            let error = OWSAssertionError("Cannot ACK message which has neither source, nor server GUID and timestamp.")
-            reportError(error)
-            return
-        }
-
-        let inFlightAckId = self.inFlightAckId
-        firstly(on: DispatchQueue.global()) {
-            self.networkManager.makePromise(request: request)
-        }.done(on: DispatchQueue.global()) { _ in
-            Self.didAck(inFlightAckId: inFlightAckId)
-            self.reportSuccess()
-        }.catch(on: DispatchQueue.global()) { error in
-            self.reportError(error)
-        }
-    }
-
-    @objc
-    public override func didComplete() {
-        super.didComplete()
-        if didRecordAckId {
-            Self.inFlightAcks.remove(inFlightAckId)
-        }
-        pendingAck.complete()
-    }
-}
-
-// MARK: -
-
-extension Promise {
-    public static func waitUntil(checkFrequency: TimeInterval = 0.01,
-                                 dispatchQueue: DispatchQueue = .global(),
-                                 conditionBlock: @escaping () -> Bool) -> Promise<Void> {
-
-        let (promise, future) = Promise<Void>.pending()
-        fulfillWaitUntil(future: future,
-                         checkFrequency: checkFrequency,
-                         dispatchQueue: dispatchQueue,
-                         conditionBlock: conditionBlock)
-        return promise
-    }
-
-    private static func fulfillWaitUntil(future: Future<Void>,
-                                         checkFrequency: TimeInterval,
-                                         dispatchQueue: DispatchQueue,
-                                         conditionBlock: @escaping () -> Bool) {
-        if conditionBlock() {
-            future.resolve()
-            return
-        }
-        dispatchQueue.asyncAfter(deadline: .now() + checkFrequency) {
-            fulfillWaitUntil(future: future,
-                             checkFrequency: checkFrequency,
-                             dispatchQueue: dispatchQueue,
-                             conditionBlock: conditionBlock)
-        }
     }
 }

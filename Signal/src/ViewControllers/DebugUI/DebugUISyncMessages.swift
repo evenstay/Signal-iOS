@@ -8,7 +8,7 @@ import SignalUI
 
 #if USE_DEBUG_UI
 
-class DebugUISyncMessages: DebugUIPage, Dependencies {
+class DebugUISyncMessages: DebugUIPage {
 
     let name = "Sync Messages"
 
@@ -33,11 +33,11 @@ class DebugUISyncMessages: DebugUIPage, Dependencies {
     }
 
     private static func sendBlockListSyncMessage() {
-        BlockingManager.shared.syncBlockList(completion: { })
+        _ = SSKEnvironment.shared.blockingManagerRef.syncBlockList()
     }
 
     private static func sendConfigurationSyncMessage() {
-        SSKEnvironment.shared.syncManager.sendConfigurationSyncMessage()
+        SSKEnvironment.shared.syncManagerRef.sendConfigurationSyncMessage()
     }
 }
 

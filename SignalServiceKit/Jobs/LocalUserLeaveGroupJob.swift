@@ -9,19 +9,19 @@ public import LibSignalClient
 private class LocalUserLeaveGroupJobRunnerFactory: JobRunnerFactory {
     func buildRunner() -> LocalUserLeaveGroupJobRunner { buildRunner(future: nil) }
 
-    func buildRunner(future: Future<TSGroupThread>?) -> LocalUserLeaveGroupJobRunner {
+    func buildRunner(future: Future<Void>?) -> LocalUserLeaveGroupJobRunner {
         return LocalUserLeaveGroupJobRunner(future: future)
     }
 }
 
-private class LocalUserLeaveGroupJobRunner: JobRunner, Dependencies {
+private class LocalUserLeaveGroupJobRunner: JobRunner {
     private enum Constants {
         static let maxRetries: UInt = 110
     }
 
-    private let future: Future<TSGroupThread>?
+    private let future: Future<Void>?
 
-    init(future: Future<TSGroupThread>?) {
+    init(future: Future<Void>?) {
         self.future = future
     }
 
@@ -30,28 +30,25 @@ private class LocalUserLeaveGroupJobRunner: JobRunner, Dependencies {
             jobRecord: jobRecord,
             retryLimit: Constants.maxRetries,
             db: DependenciesBridge.shared.db,
-            block: {
-                let groupThread = try await _runJobAttempt(jobRecord)
-                future?.resolve(groupThread)
-            }
+            block: { try await _runJobAttempt(jobRecord) }
         )
     }
 
     func didFinishJob(_ jobRecordId: JobRecord.RowId, result: JobResult) async {
         switch result.ranSuccessfullyOrError {
         case .success:
-            break
+            future?.resolve()
         case .failure(let error):
             future?.reject(error)
         }
     }
 
-    private func _runJobAttempt(_ jobRecord: LocalUserLeaveGroupJobRecord) async throws -> TSGroupThread {
+    private func _runJobAttempt(_ jobRecord: LocalUserLeaveGroupJobRecord) async throws {
         if jobRecord.waitForMessageProcessing {
             try await GroupManager.waitForMessageFetchingAndProcessingWithTimeout(description: #fileID)
         }
 
-        let groupModel = try databaseStorage.read { tx in
+        let groupModel = try SSKEnvironment.shared.databaseStorageRef.read { tx in
             try fetchGroupModel(threadUniqueId: jobRecord.threadId, tx: tx)
         }
 
@@ -62,7 +59,7 @@ private class LocalUserLeaveGroupJobRunner: JobRunner, Dependencies {
             return aci
         }
 
-        let groupThread = try await GroupManager.updateGroupV2(
+        try await GroupManager.updateGroupV2(
             groupModel: groupModel,
             description: #fileID
         ) { groupChangeSet in
@@ -74,14 +71,12 @@ private class LocalUserLeaveGroupJobRunner: JobRunner, Dependencies {
             }
         }
 
-        await databaseStorage.awaitableWrite { tx in
+        await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             jobRecord.anyRemove(transaction: tx)
         }
-
-        return groupThread
     }
 
-    private func fetchGroupModel(threadUniqueId: String, tx: SDSAnyReadTransaction) throws -> TSGroupModelV2 {
+    private func fetchGroupModel(threadUniqueId: String, tx: DBReadTransaction) throws -> TSGroupModelV2 {
         guard
             let groupThread = TSGroupThread.anyFetchGroupThread(uniqueId: threadUniqueId, transaction: tx),
             let groupModel = groupThread.groupModel as? TSGroupModelV2
@@ -97,9 +92,10 @@ public class LocalUserLeaveGroupJobQueue {
         JobRecordFinderImpl<LocalUserLeaveGroupJobRecord>,
         LocalUserLeaveGroupJobRunnerFactory
     >
+    private var jobSerializer = CompletionSerializer()
     private let jobRunnerFactory: LocalUserLeaveGroupJobRunnerFactory
 
-    public init(db: DB, reachabilityManager: SSKReachabilityManager) {
+    public init(db: any DB, reachabilityManager: SSKReachabilityManager) {
         self.jobRunnerFactory = LocalUserLeaveGroupJobRunnerFactory()
         self.jobQueueRunner = JobQueueRunner(
             canExecuteJobsConcurrently: false,
@@ -120,8 +116,8 @@ public class LocalUserLeaveGroupJobQueue {
         groupThread: TSGroupThread,
         replacementAdminAci: Aci?,
         waitForMessageProcessing: Bool,
-        tx: SDSAnyWriteTransaction
-    ) -> Promise<TSGroupThread> {
+        tx: DBWriteTransaction
+    ) -> Promise<Void> {
         guard groupThread.isGroupV2Thread else {
             owsFail("[GV1] Mutations on V1 groups should be impossible!")
         }
@@ -140,8 +136,8 @@ public class LocalUserLeaveGroupJobQueue {
         threadId: String,
         replacementAdminAci: Aci?,
         waitForMessageProcessing: Bool,
-        future: Future<TSGroupThread>,
-        tx: SDSAnyWriteTransaction
+        future: Future<Void>,
+        tx: DBWriteTransaction
     ) {
         let jobRecord = LocalUserLeaveGroupJobRecord(
             threadId: threadId,
@@ -149,7 +145,7 @@ public class LocalUserLeaveGroupJobQueue {
             waitForMessageProcessing: waitForMessageProcessing
         )
         jobRecord.anyInsert(transaction: tx)
-        tx.addSyncCompletion {
+        jobSerializer.addOrderedSyncCompletion(tx: tx) {
             self.jobQueueRunner.addPersistedJob(jobRecord, runner: self.jobRunnerFactory.buildRunner(future: future))
         }
     }

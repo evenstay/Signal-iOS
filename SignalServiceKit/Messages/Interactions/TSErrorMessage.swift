@@ -41,7 +41,7 @@ extension TSErrorMessage {
         sender: SignalServiceAddress,
         groupId: Data?,
         timestamp: UInt64,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> TSErrorMessage? {
         if
             let groupId,
@@ -71,12 +71,13 @@ extension TSErrorMessage {
 // MARK: -
 
 extension TSErrorMessage {
-    public func plaintextBody(_ tx: SDSAnyReadTransaction) -> String {
+
+    public func plaintextBody(_ tx: DBReadTransaction) -> String {
         return self.rawBody(transaction: tx) ?? ""
     }
 
     @objc
-    static func safetyNumberChangeDescription(for address: SignalServiceAddress?, tx: SDSAnyReadTransaction) -> String {
+    static func safetyNumberChangeDescription(for address: SignalServiceAddress?, tx: DBReadTransaction) -> String {
         guard let address else {
             // address will be nil for legacy errors
             return OWSLocalizedString(
@@ -88,7 +89,7 @@ extension TSErrorMessage {
             "ERROR_MESSAGE_NON_BLOCKING_IDENTITY_CHANGE_FORMAT",
             comment: "Shown when signal users safety numbers changed, embeds the user's {{name or phone number}}"
         )
-        let recipientDisplayName = contactsManager.displayName(for: address, tx: tx).resolvedValue()
+        let recipientDisplayName = SSKEnvironment.shared.contactManagerRef.displayName(for: address, tx: tx).resolvedValue()
         return String(format: messageFormat, recipientDisplayName)
     }
 }

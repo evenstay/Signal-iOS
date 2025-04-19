@@ -42,10 +42,10 @@ NS_ASSUME_NONNULL_BEGIN
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -78,10 +78,10 @@ NS_ASSUME_NONNULL_BEGIN
                             sortId:sortId
                          timestamp:timestamp
                     uniqueThreadId:uniqueThreadId
-                     attachmentIds:attachmentIds
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+          deprecated_attachmentIds:deprecated_attachmentIds
                          editState:editState
                    expireStartedAt:expireStartedAt
                 expireTimerVersion:expireTimerVersion
@@ -156,12 +156,12 @@ NS_ASSUME_NONNULL_BEGIN
         return YES;
     }
 
-    DatabaseStorageWrite(self.databaseStorage, ^(SDSAnyWriteTransaction *tx) {
+    DatabaseStorageWrite(SSKEnvironment.shared.databaseStorageRef, ^(DBWriteTransaction *tx) {
         [OWSIdentityManagerObjCBridge saveIdentityKey:newKey forServiceId:serviceId transaction:tx];
     });
 
     __block NSArray<TSInvalidIdentityKeyReceivingErrorMessage *> *_Nullable messagesToDecrypt;
-    [self.databaseStorage readWithBlock:^(SDSAnyReadTransaction *tx) {
+    [SSKEnvironment.shared.databaseStorageRef readWithBlock:^(DBReadTransaction *tx) {
         messagesToDecrypt = [[self threadWithTx:tx] receivedMessagesForInvalidKey:newKey tx:tx];
     }];
 

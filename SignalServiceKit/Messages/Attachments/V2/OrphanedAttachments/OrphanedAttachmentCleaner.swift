@@ -45,7 +45,7 @@ public protocol OrphanedAttachmentCleaner {
     /// 7. Close write transaction
     ///
     /// If the attachment file(s) get deleted between steps 2 and 4, then this
-    /// method will throw in step 6 rolling back the write transaction in step 4/5.
+    /// method will crash in step 6 rolling back the write transaction in step 4/5.
     ///
     /// This ensures that when we reach step 7, either:
     /// A. Step 6 succeeded, attachment is created and not marked for deletion
@@ -55,7 +55,7 @@ public protocol OrphanedAttachmentCleaner {
     func releasePendingAttachment(
         withId: OrphanedAttachmentRecord.IDType,
         tx: DBWriteTransaction
-    ) throws
+    )
 }
 
 public class OrphanedAttachmentCleanerImpl: OrphanedAttachmentCleaner {
@@ -123,13 +123,14 @@ public class OrphanedAttachmentCleanerImpl: OrphanedAttachmentCleaner {
         return id
     }
 
-    public func releasePendingAttachment(withId id: OrphanedAttachmentRecord.IDType, tx: any DBWriteTransaction) throws {
-        let db = SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite.database
-        let foundRecord = try OrphanedAttachmentRecord.fetchOne(db, key: id)
+    public func releasePendingAttachment(withId id: OrphanedAttachmentRecord.IDType, tx: DBWriteTransaction) {
+        let db = tx.database
+        let foundRecord = try! OrphanedAttachmentRecord.fetchOne(db, key: id)
         guard let foundRecord else {
-            throw OWSAssertionError("Pending attachment not marked for deletion")
+            owsFailDebug("Pending attachment not marked for deletion")
+            return
         }
-        try foundRecord.delete(db)
+        try! foundRecord.delete(db)
 
         // Remove from skipped row ids.
         // This isn't critical; now that the row is gone skipping the id does nothing.
@@ -172,7 +173,6 @@ public class OrphanedAttachmentCleanerImpl: OrphanedAttachmentCleaner {
             }
             isRunning = true
             guard let nextRecord = fetchNextOrphanRecord() else {
-                Logger.info("No orphaned attachments to clean up")
                 isRunning = false
                 return
             }
@@ -235,14 +235,40 @@ public class OrphanedAttachmentCleanerImpl: OrphanedAttachmentCleaner {
                 }
                 let rowIdColumn = Column(OrphanedAttachmentRecord.CodingKeys.sqliteId)
                 var query: QueryInterfaceRequest<OrphanedAttachmentRecord>?
-                for skippedRowId in skippedRowIds {
+
+                let skippedRowIdsForQuery: any Collection<OrphanedAttachmentRecord.IDType>
+                let skippedRowIdsForInMemoryFilter: any Collection<OrphanedAttachmentRecord.IDType>
+                if skippedRowIds.count > 50 {
+                    Logger.warn("Too many skipped row ids!")
+                    (
+                        skippedRowIdsForQuery,
+                        skippedRowIdsForInMemoryFilter
+                    ) = skippedRowIds.split(
+                        at: skippedRowIds.index(skippedRowIds.startIndex, offsetBy: 50)
+                    )
+                } else {
+                    skippedRowIdsForQuery = skippedRowIds
+                    skippedRowIdsForInMemoryFilter = []
+                }
+
+                for skippedRowId in skippedRowIdsForQuery {
                     if let querySoFar = query {
                         query = querySoFar.filter(rowIdColumn != skippedRowId)
                     } else {
                         query = OrphanedAttachmentRecord.filter(rowIdColumn != skippedRowId)
                     }
                 }
-                return try? query?.fetchOne(db)
+                if skippedRowIdsForInMemoryFilter.isEmpty {
+                    return try? query?.fetchOne(db)
+                } else {
+                    let cursor = try? query?.fetchCursor(db)
+                    while let next = try? cursor?.next() {
+                        if !skippedRowIdsForInMemoryFilter.contains(next.sqliteId!) {
+                            return next
+                        }
+                    }
+                    return nil
+                }
             }
         }
 

@@ -15,7 +15,7 @@ public class ContactShareDraft {
 
     public var phoneNumbers: [OWSContactPhoneNumber]
 
-    public var existingAvatarAttachment: ReferencedTSResource?
+    public var existingAvatarAttachment: ReferencedAttachment?
 
     public var avatarImageData: Data? {
         didSet {
@@ -47,7 +47,7 @@ public class ContactShareDraft {
         profileManager: any ProfileManager,
         recipientManager: any SignalRecipientManager,
         tsAccountManager: any TSAccountManager,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> ContactShareDraft {
         let avatarData = loadAvatarData(
             cnContact: cnContact,
@@ -77,13 +77,13 @@ public class ContactShareDraft {
         profileManager: any ProfileManager,
         recipientManager: any SignalRecipientManager,
         tsAccountManager: any TSAccountManager,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> Data? {
         if let systemAvatarImageData = contactManager.avatarData(for: cnContact) {
             return systemAvatarImageData
         }
 
-        let localPhoneNumber = tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.phoneNumber
+        let localPhoneNumber = tsAccountManager.localIdentifiers(tx: tx)?.phoneNumber
         let canonicalPhoneNumbers = FetchedSystemContacts.parsePhoneNumbers(
             for: signalContact(),
             phoneNumberUtil: phoneNumberUtil,
@@ -91,11 +91,11 @@ public class ContactShareDraft {
         )
         for canonicalPhoneNumber in canonicalPhoneNumbers {
             for phoneNumber in [canonicalPhoneNumber.rawValue] + canonicalPhoneNumber.alternatePhoneNumbers() {
-                let recipient = recipientManager.fetchRecipientIfPhoneNumberVisible(phoneNumber.stringValue, tx: tx.asV2Read)
+                let recipient = recipientManager.fetchRecipientIfPhoneNumberVisible(phoneNumber.stringValue, tx: tx)
                 guard let recipient else {
                     continue
                 }
-                if let avatarData = profileManager.profileAvatarData(for: recipient.address, transaction: tx) {
+                if let avatarData = profileManager.userProfile(for: recipient.address, tx: tx)?.loadAvatarData() {
                     return avatarData
                 }
             }
@@ -109,7 +109,7 @@ public class ContactShareDraft {
         addresses: [OWSContactAddress],
         emails: [OWSContactEmail],
         phoneNumbers: [OWSContactPhoneNumber],
-        existingAvatarAttachment: ReferencedTSResource?,
+        existingAvatarAttachment: ReferencedAttachment?,
         avatarImageData: Data?
     ) {
         self.name = name
@@ -152,7 +152,7 @@ public class ContactShareDraft {
         public let addresses: [OWSContactAddress]
         public let emails: [OWSContactEmail]
         public let phoneNumbers: [OWSContactPhoneNumber]
-        public let avatar: TSResourceDataSource?
+        public let avatar: AttachmentDataSource?
 
         public var ows_isValid: Bool {
             return OWSContact.isValid(

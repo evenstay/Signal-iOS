@@ -6,13 +6,34 @@
 import Foundation
 import LibSignalClient
 
-public protocol MessageBackupChatArchiver: MessageBackupProtoArchiver {
-
+public class MessageBackupChatArchiver: MessageBackupProtoArchiver {
     typealias ChatId = MessageBackup.ChatId
-
     typealias ArchiveMultiFrameResult = MessageBackup.ArchiveMultiFrameResult<MessageBackup.ThreadUniqueId>
-
     typealias RestoreFrameResult = MessageBackup.RestoreFrameResult<ChatId>
+
+    private typealias ArchiveFrameError = MessageBackup.ArchiveFrameError<MessageBackup.ThreadUniqueId>
+
+    private let chatStyleArchiver: MessageBackupChatStyleArchiver
+    private let contactRecipientArchiver: MessageBackupContactRecipientArchiver
+    private let dmConfigurationStore: DisappearingMessagesConfigurationStore
+    private let pinnedThreadStore: PinnedThreadStoreWrite
+    private let threadStore: MessageBackupThreadStore
+
+    public init(
+        chatStyleArchiver: MessageBackupChatStyleArchiver,
+        contactRecipientArchiver: MessageBackupContactRecipientArchiver,
+        dmConfigurationStore: DisappearingMessagesConfigurationStore,
+        pinnedThreadStore: PinnedThreadStoreWrite,
+        threadStore: MessageBackupThreadStore
+    ) {
+        self.chatStyleArchiver = chatStyleArchiver
+        self.contactRecipientArchiver = contactRecipientArchiver
+        self.dmConfigurationStore = dmConfigurationStore
+        self.pinnedThreadStore = pinnedThreadStore
+        self.threadStore = threadStore
+    }
+
+    // MARK: - Archiving
 
     /// Archive all ``TSThread``s (they map to ``BackupProto_Chat``).
     ///
@@ -25,90 +46,72 @@ public protocol MessageBackupChatArchiver: MessageBackupProtoArchiver {
     func archiveChats(
         stream: MessageBackupProtoOutputStream,
         context: MessageBackup.ChatArchivingContext
-    ) -> ArchiveMultiFrameResult
-
-    /// Restore a single ``BackupProto_Chat`` frame.
-    ///
-    /// - Returns: ``RestoreFrameResult.success`` if all frames were read without error.
-    /// How to handle ``RestoreFrameResult.failure`` is up to the caller,
-    /// but typically an error will be shown to the user, but the restore will be allowed to proceed.
-    func restore(
-        _ chat: BackupProto_Chat,
-        context: MessageBackup.ChatRestoringContext
-    ) -> RestoreFrameResult
-}
-
-public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
-    private typealias ArchiveFrameError = MessageBackup.ArchiveFrameError<MessageBackup.ThreadUniqueId>
-
-    private let chatStyleArchiver: MessageBackupChatStyleArchiver
-    private let dmConfigurationStore: DisappearingMessagesConfigurationStore
-    private let pinnedThreadManager: PinnedThreadManager
-    private let threadStore: ThreadStore
-
-    public init(
-        chatStyleArchiver: MessageBackupChatStyleArchiver,
-        dmConfigurationStore: DisappearingMessagesConfigurationStore,
-        pinnedThreadManager: PinnedThreadManager,
-        threadStore: ThreadStore
-    ) {
-        self.chatStyleArchiver = chatStyleArchiver
-        self.dmConfigurationStore = dmConfigurationStore
-        self.pinnedThreadManager = pinnedThreadManager
-        self.threadStore = threadStore
-    }
-
-    // MARK: - Archiving
-
-    public func archiveChats(
-        stream: MessageBackupProtoOutputStream,
-        context: MessageBackup.ChatArchivingContext
-    ) -> ArchiveMultiFrameResult {
+    ) throws(CancellationError) -> ArchiveMultiFrameResult {
         var completeFailureError: MessageBackup.FatalArchivingError?
         var partialErrors = [ArchiveFrameError]()
 
-        func archiveThread(_ thread: TSThread) -> Bool {
-            let result: ArchiveMultiFrameResult
-            if let thread = thread as? TSContactThread {
-                // Check address directly; isNoteToSelf uses global state.
-                if thread.contactAddress.isEqualToAddress(context.recipientContext.localIdentifiers.aciAddress) {
-                    result = self.archiveNoteToSelfThread(
+        func archiveThread(_ thread: TSThread, _ frameBencher: MessageBackup.Bencher.FrameBencher) -> Bool {
+            var stop = false
+            autoreleasepool {
+                let result: ArchiveMultiFrameResult
+                if let thread = thread as? TSContactThread {
+                    // Check address directly; isNoteToSelf uses global state.
+                    if thread.contactAddress.isEqualToAddress(context.recipientContext.localIdentifiers.aciAddress) {
+                        result = self.archiveNoteToSelfThread(
+                            thread,
+                            stream: stream,
+                            frameBencher: frameBencher,
+                            context: context
+                        )
+                    } else {
+                        result = self.archiveContactThread(
+                            thread,
+                            stream: stream,
+                            frameBencher: frameBencher,
+                            context: context
+                        )
+                    }
+                } else if let thread = thread as? TSGroupThread, thread.isGroupV2Thread {
+                    result = self.archiveGroupV2Thread(
                         thread,
                         stream: stream,
+                        frameBencher: frameBencher,
                         context: context
                     )
+                } else if let thread = thread as? TSGroupThread, thread.isGroupV1Thread {
+                    // Remember which threads were gv1 so we can silently drop their messages.
+                    context.gv1ThreadIds.insert(thread.uniqueThreadIdentifier)
+                    // Skip gv1 threads; count as success.
+                    result = .success
                 } else {
-                    result = self.archiveContactThread(
-                        thread,
-                        stream: stream,
-                        context: context
-                    )
+                    result = .completeFailure(.fatalArchiveError(.unrecognizedThreadType))
                 }
-            } else if let thread = thread as? TSGroupThread, thread.isGroupV2Thread {
-                result = self.archiveGroupV2Thread(
-                    thread,
-                    stream: stream,
-                    context: context
-                )
-            } else {
-                result = .completeFailure(.fatalArchiveError(.unrecognizedThreadType))
+
+                switch result {
+                case .success:
+                    break
+                case .completeFailure(let error):
+                    completeFailureError = error
+                    stop = true
+                    return
+                case .partialSuccess(let errors):
+                    partialErrors.append(contentsOf: errors)
+                }
             }
 
-            switch result {
-            case .success:
-                break
-            case .completeFailure(let error):
-                completeFailureError = error
-                return false
-            case .partialSuccess(let errors):
-                partialErrors.append(contentsOf: errors)
-            }
-
-            return true
+            return !stop
         }
 
         do {
-            try threadStore.enumerateNonStoryThreads(tx: context.tx, block: archiveThread(_:))
+            try context.bencher.wrapEnumeration(
+                threadStore.enumerateNonStoryThreads(tx:block:),
+                tx: context.tx
+            ) { thread, frameBencher in
+                try Task.checkCancellation()
+                return archiveThread(thread, frameBencher)
+            }
+        } catch let error as CancellationError {
+            throw error
         } catch let error {
             return .completeFailure(.fatalArchiveError(.threadIteratorError(error)))
         }
@@ -125,10 +128,9 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
     private func archiveNoteToSelfThread(
         _ thread: TSContactThread,
         stream: MessageBackupProtoOutputStream,
+        frameBencher: MessageBackup.Bencher.FrameBencher,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveMultiFrameResult {
-        let chatId = context.assignChatId(to: MessageBackup.ThreadUniqueId(thread: thread))
-
         guard let threadRowId = thread.sqliteRowId else {
             return .completeFailure(.fatalArchiveError(
                 .fetchedThreadMissingRowId
@@ -137,9 +139,9 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
 
         return archiveThread(
             MessageBackup.ChatThread(threadType: .contact(thread), threadRowId: threadRowId),
-            chatId: chatId,
             recipientId: context.recipientContext.localRecipientId,
             stream: stream,
+            frameBencher: frameBencher,
             context: context
         )
     }
@@ -147,28 +149,41 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
     private func archiveContactThread(
         _ thread: TSContactThread,
         stream: MessageBackupProtoOutputStream,
+        frameBencher: MessageBackup.Bencher.FrameBencher,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveMultiFrameResult {
-        let chatId = context.assignChatId(to: MessageBackup.ThreadUniqueId(thread: thread))
-
         let contactServiceId: ServiceId? = thread.contactUUID.flatMap { try? ServiceId.parseFrom(serviceIdString: $0) }
         guard
-            let recipientAddress = MessageBackup.ContactAddress(
+            let contactAddress = MessageBackup.ContactAddress(
                 serviceId: contactServiceId,
                 e164: E164(thread.contactPhoneNumber)
-            )?.asArchivingAddress()
+            )
         else {
             return .partialSuccess([.archiveFrameError(
                 .contactThreadMissingAddress,
                 thread.uniqueThreadIdentifier
             )])
         }
+        let recipientAddress = contactAddress.asArchivingAddress()
 
-        guard let recipientId = context.recipientContext[recipientAddress] else {
-            return .partialSuccess([.archiveFrameError(
-                .referencedRecipientIdMissing(recipientAddress),
-                thread.uniqueThreadIdentifier
-            )])
+        let recipientId: MessageBackup.RecipientId
+        if let _recipientId = context.recipientContext[recipientAddress] {
+            recipientId = _recipientId
+        } else {
+            // Try and create a recipient for this orphaned TSContactThread
+            // that has no corresponding SignalRecipient.
+            switch contactRecipientArchiver.archiveContactRecipientForOrphanedContactThread(
+                thread,
+                address: contactAddress,
+                stream: stream,
+                frameBencher: frameBencher,
+                context: context
+            ) {
+            case .success(let _recipientId):
+                recipientId = _recipientId
+            case .failure(let error):
+                return .partialSuccess([error])
+            }
         }
 
         guard let threadRowId = thread.sqliteRowId else {
@@ -179,9 +194,9 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
 
         return archiveThread(
             MessageBackup.ChatThread(threadType: .contact(thread), threadRowId: threadRowId),
-            chatId: chatId,
             recipientId: recipientId,
             stream: stream,
+            frameBencher: frameBencher,
             context: context
         )
     }
@@ -189,11 +204,12 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
     private func archiveGroupV2Thread(
         _ thread: TSGroupThread,
         stream: MessageBackupProtoOutputStream,
+        frameBencher: MessageBackup.Bencher.FrameBencher,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveMultiFrameResult {
-        let chatId = context.assignChatId(to: MessageBackup.ThreadUniqueId(thread: thread))
-
-        let recipientAddress = MessageBackup.RecipientArchivingContext.Address.group(thread.groupId)
+        let recipientAddress = MessageBackup.RecipientArchivingContext.Address.group(
+            MessageBackup.GroupId(groupModel: thread.groupModel)
+        )
         guard let recipientId = context.recipientContext[recipientAddress] else {
             return .partialSuccess([.archiveFrameError(
                 .referencedRecipientIdMissing(recipientAddress),
@@ -209,32 +225,34 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
 
         return archiveThread(
             MessageBackup.ChatThread(threadType: .groupV2(thread), threadRowId: threadRowId),
-            chatId: chatId,
             recipientId: recipientId,
             stream: stream,
+            frameBencher: frameBencher,
             context: context
         )
     }
 
     private func archiveThread(
         _ thread: MessageBackup.ChatThread,
-        chatId: ChatId,
         recipientId: MessageBackup.RecipientId,
         stream: MessageBackupProtoOutputStream,
+        frameBencher: MessageBackup.Bencher.FrameBencher,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveMultiFrameResult {
         var partialErrors = [ArchiveFrameError]()
 
-        let threadAssociatedData = threadStore.fetchOrDefaultAssociatedData(for: thread.tsThread, tx: context.tx)
+        let threadAssociatedData = threadStore.fetchOrDefaultAssociatedData(
+            for: thread.tsThread,
+            tx: context.tx
+        )
 
-        let thisThreadPinnedOrder: UInt32
-        let pinnedThreadIds = pinnedThreadManager.pinnedThreadIds(tx: context.tx)
+        let thisThreadPinnedOrder: UInt32?
+        let pinnedThreadIds = pinnedThreadStore.pinnedThreadIds(tx: context.tx)
         if let pinnedThreadIndex: Int = pinnedThreadIds.firstIndex(of: thread.tsThread.uniqueId) {
             // Add one so we don't start at 0.
             thisThreadPinnedOrder = UInt32(clamping: pinnedThreadIndex + 1)
         } else {
-            // Hardcoded 0 for unpinned.
-            thisThreadPinnedOrder = 0
+            thisThreadPinnedOrder = nil
         }
 
         let versionedExpireTimerToken = dmConfigurationStore.fetchOrBuildDefault(
@@ -251,19 +269,29 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
         }
 
         var chat = BackupProto_Chat()
-        chat.id = chatId.value
+        chat.id = context.assignChatId(to: thread.tsThread).value
         chat.recipientID = recipientId.value
         chat.archived = threadAssociatedData.isArchived
-        chat.pinnedOrder = thisThreadPinnedOrder
-        chat.expirationTimerMs = UInt64(versionedExpireTimerToken.durationSeconds) * 1000
+        if let thisThreadPinnedOrder {
+            chat.pinnedOrder = thisThreadPinnedOrder
+        }
+        if versionedExpireTimerToken.isEnabled {
+            chat.expirationTimerMs = UInt64(versionedExpireTimerToken.durationSeconds) * 1000
+        }
         chat.expireTimerVersion = versionedExpireTimerToken.version
-        chat.muteUntilMs = threadAssociatedData.mutedUntilTimestamp
+        if threadAssociatedData.isMuted {
+            let muteUntilMs = threadAssociatedData.mutedUntilTimestamp
+            if MessageBackup.Timestamps.isValid(muteUntilMs) {
+                chat.muteUntilMs = muteUntilMs
+            } else {
+                chat.muteUntilMs = ThreadAssociatedData.alwaysMutedTimestamp
+            }
+        }
         chat.markedUnread = threadAssociatedData.isMarkedUnread
         chat.dontNotifyForMentionsIfMuted = dontNotifyForMentionsIfMuted
 
         let chatStyleResult = chatStyleArchiver.archiveChatStyle(
             thread: thread,
-            chatId: chatId,
             context: context.customChatColorContext
         )
         switch chatStyleResult {
@@ -277,7 +305,8 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
 
         let error = Self.writeFrameToStream(
             stream,
-            objectId: thread.tsThread.uniqueThreadIdentifier
+            objectId: thread.tsThread.uniqueThreadIdentifier,
+            frameBencher: frameBencher
         ) {
             var frame = BackupProto_Frame()
             frame.item = .chat(chat)
@@ -297,7 +326,12 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
 
     // MARK: - Restoring
 
-    public func restore(
+    /// Restore a single ``BackupProto_Chat`` frame.
+    ///
+    /// - Returns: ``RestoreFrameResult.success`` if all frames were read without error.
+    /// How to handle ``RestoreFrameResult.failure`` is up to the caller,
+    /// but typically an error will be shown to the user, but the restore will be allowed to proceed.
+    func restore(
         _ chat: BackupProto_Chat,
         context: MessageBackup.ChatRestoringContext
     ) -> RestoreFrameResult {
@@ -311,10 +345,14 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
                 chat.chatId
             )])
         case .localAddress:
-            let noteToSelfThread = threadStore.getOrCreateContactThread(
-                with: context.recipientContext.localIdentifiers.aciAddress,
-                tx: context.tx
-            )
+            let noteToSelfThread: TSContactThread
+            do {
+                noteToSelfThread = try threadStore.createNoteToSelfThread(
+                    context: context
+                )
+            } catch let error {
+                return .failure([.restoreFrameError(.databaseInsertionFailed(error), chat.chatId)])
+            }
             guard let noteToSelfRowId = noteToSelfThread.sqliteRowId else {
                 return .failure([.restoreFrameError(
                     .databaseModelMissingRowId(modelClass: TSContactThread.self),
@@ -332,7 +370,7 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
             // We don't create the group thread here; that happened when parsing the Group Recipient.
             // Instead, just set metadata.
             guard
-                let groupThread = threadStore.fetchGroupThread(groupId: groupId, tx: context.tx),
+                let groupThread = context.recipientContext[groupId],
                 groupThread.isGroupV2Thread
             else {
                 return .failure([.restoreFrameError(
@@ -351,7 +389,12 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
                 threadRowId: groupThreadRowId
             )
         case .contact(let address):
-            let contactThread = threadStore.getOrCreateContactThread(with: address.asInteropAddress(), tx: context.tx)
+            let contactThread: TSContactThread
+            do {
+                contactThread = try threadStore.createContactThread(with: address, context: context)
+            } catch let error {
+                return .failure([.restoreFrameError(.databaseInsertionFailed(error), chat.chatId)])
+            }
             guard let contactThreadRowId = contactThread.sqliteRowId else {
                 return .failure([.restoreFrameError(
                     .databaseModelMissingRowId(modelClass: TSContactThread.self),
@@ -364,57 +407,55 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
             )
         case .distributionList:
             return .failure([.restoreFrameError(
-                .invalidProtoData(.distributionListUsedAsChat),
+                .invalidProtoData(.distributionListUsedAsChatRecipient),
+                chat.chatId
+            )])
+        case .callLink:
+            return .failure([.restoreFrameError(
+                .invalidProtoData(.callLinkUsedAsChatRecipient),
                 chat.chatId
             )])
         }
 
-        context.mapChatId(chat.chatId, to: chatThread)
+        context.mapChatId(chat.chatId, to: chatThread, recipientId: chat.typedRecipientId)
 
-        var associatedDataNeedsUpdate = false
-        var isArchived: Bool?
-        var isMarkedUnread: Bool?
         var mutedUntilTimestamp: UInt64?
-
-        if chat.archived {
-            // Unarchived is the default, no need to set it if archived = false.
-            isArchived = true
-            associatedDataNeedsUpdate = true
-        }
-        if chat.markedUnread {
-            associatedDataNeedsUpdate = true
-            isMarkedUnread = true
-        }
-        if chat.muteUntilMs != 0 {
-            associatedDataNeedsUpdate = true
+        if chat.hasMuteUntilMs {
             mutedUntilTimestamp = chat.muteUntilMs
         }
 
-        if associatedDataNeedsUpdate {
-            let threadAssociatedData = threadStore.fetchOrDefaultAssociatedData(for: chatThread.tsThread, tx: context.tx)
-            threadStore.updateAssociatedData(
-                threadAssociatedData,
-                isArchived: isArchived,
-                isMarkedUnread: isMarkedUnread,
+        do {
+            try threadStore.createAssociatedData(
+                for: chatThread.tsThread,
+                isArchived: chat.archived,
+                isMarkedUnread: chat.markedUnread,
                 mutedUntilTimestamp: mutedUntilTimestamp,
-                updateStorageService: false,
-                tx: context.tx
+                context: context
             )
+        } catch let error {
+            return .failure(partialErrors + [.restoreFrameError(.databaseInsertionFailed(error), chat.chatId)])
         }
 
-        if chat.pinnedOrder != 0 {
+        if chat.hasPinnedOrder {
             let newPinnedThreadIds = context.pinnedThreadOrder(
                 newPinnedThreadId: MessageBackup.ThreadUniqueId(chatThread: chatThread),
+                newPinnedThreadChatId: chat.chatId,
                 newPinnedThreadIndex: chat.pinnedOrder
             )
-            pinnedThreadManager.updatePinnedThreadIds(newPinnedThreadIds.map(\.value), updateStorageService: false, tx: context.tx)
+            pinnedThreadStore.updatePinnedThreadIds(newPinnedThreadIds.map(\.value), tx: context.tx)
         }
 
-        guard let expiresInSeconds: UInt32 = .msToSecs(chat.expirationTimerMs) else {
-            return .failure([.restoreFrameError(
-                .invalidProtoData(.expirationTimerOverflowedLocalType),
-                chat.chatId
-            )])
+        let expiresInSeconds: UInt32
+        if chat.hasExpirationTimerMs {
+            guard let _expiresInSeconds: UInt32 = .msToSecs(chat.expirationTimerMs) else {
+                return .failure([.restoreFrameError(
+                    .invalidProtoData(.expirationTimerOverflowedLocalType),
+                    chat.chatId
+                )])
+            }
+            expiresInSeconds = _expiresInSeconds
+        } else {
+            expiresInSeconds = 0
         }
 
         dmConfigurationStore.set(
@@ -427,15 +468,14 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
             tx: context.tx
         )
 
-        if chat.dontNotifyForMentionsIfMuted {
-            // We only need to set if its not the default.
-            threadStore.update(
-                thread: chatThread.tsThread,
-                withMentionNotificationMode: .never,
-                // Don't trigger a storage service update.
-                wasLocallyInitiated: false,
-                tx: context.tx
+        do {
+            try threadStore.update(
+                thread: chatThread,
+                dontNotifyForMentionsIfMuted: chat.dontNotifyForMentionsIfMuted,
+                context: context
             )
+        } catch let error {
+            return .failure([.restoreFrameError(.databaseInsertionFailed(error), chat.chatId)])
         }
 
         let chatStyleToRestore: BackupProto_ChatStyle?
@@ -453,6 +493,8 @@ public class MessageBackupChatArchiverImpl: MessageBackupChatArchiver {
         switch chatStyleResult {
         case .success:
             break
+        case .unrecognizedEnum:
+            return chatStyleResult
         case .partialRestore(let errors):
             partialErrors.append(contentsOf: errors)
         case .failure(let errors):

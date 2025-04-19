@@ -7,9 +7,8 @@ import SignalServiceKit
 import SignalUI
 
 class DeleteAccountConfirmationViewController: OWSTableViewController2 {
-    private var callingCode = "+1"
-    private var countryCode = "US"
-    private let phoneNumberTextField = UITextField()
+    private var country: PhoneNumberCountry!
+    private let nationalNumberTextField = UITextField()
     private let nameLabel = UILabel()
 
     // Don't allow swipe to dismiss
@@ -28,12 +27,10 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
     override func loadView() {
         view = UIView()
 
-        phoneNumberTextField.returnKeyType = .done
-        phoneNumberTextField.autocorrectionType = .no
-        phoneNumberTextField.spellCheckingType = .no
-
-        phoneNumberTextField.delegate = self
-        phoneNumberTextField.accessibilityIdentifier = "phone_number_textfield"
+        nationalNumberTextField.returnKeyType = .done
+        nationalNumberTextField.autocorrectionType = .no
+        nationalNumberTextField.spellCheckingType = .no
+        nationalNumberTextField.delegate = self
     }
 
     override func viewDidLoad() {
@@ -50,13 +47,13 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        phoneNumberTextField.becomeFirstResponder()
+        nationalNumberTextField.becomeFirstResponder()
     }
 
     override func themeDidChange() {
         super.themeDidChange()
         nameLabel.textColor = Theme.primaryTextColor
-        phoneNumberTextField.textColor = Theme.primaryTextColor
+        nationalNumberTextField.textColor = Theme.primaryTextColor
         updateTableContents()
     }
 
@@ -82,7 +79,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
                 "DELETE_ACCOUNT_CONFIRMATION_COUNTRY_CODE_TITLE",
                 comment: "Title for the 'country code' row of the 'delete account confirmation' view controller."
             ),
-            accessoryText: "\(callingCode) (\(countryCode))",
+            accessoryText: "\(country.plusPrefixedCallingCode) (\(country.countryCode))",
             actionBlock: { [weak self] in
                 guard let self = self else { return }
                 let countryCodeController = CountryCodeViewController()
@@ -95,7 +92,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
             return self.phoneNumberCell
         },
             actionBlock: { [weak self] in
-                self?.phoneNumberTextField.becomeFirstResponder()
+                self?.nationalNumberTextField.becomeFirstResponder()
             }
         ))
         contents.add(confirmSection)
@@ -161,19 +158,18 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
         nameLabel.lineBreakMode = .byTruncatingTail
         nameLabel.autoSetDimension(.height, toSize: 24, relation: .greaterThanOrEqual)
 
-        phoneNumberTextField.textColor = Theme.primaryTextColor
-        phoneNumberTextField.font = OWSTableItem.accessoryLabelFont
-        phoneNumberTextField.placeholder = TextFieldFormatting.examplePhoneNumber(
-            forCountryCode: countryCode,
-            callingCode: callingCode,
+        nationalNumberTextField.textColor = Theme.primaryTextColor
+        nationalNumberTextField.font = OWSTableItem.accessoryLabelFont
+        nationalNumberTextField.placeholder = TextFieldFormatting.exampleNationalNumber(
+            forCountryCode: country.countryCode,
             includeExampleLabel: false
         )
 
         nameLabel.setCompressionResistanceHigh()
-        phoneNumberTextField.setContentHuggingHorizontalHigh()
+        nationalNumberTextField.setContentHuggingHorizontalHigh()
 
         let contentRow = UIStackView(arrangedSubviews: [
-            nameLabel, phoneNumberTextField
+            nameLabel, nationalNumberTextField
         ])
         contentRow.spacing = OWSTableItem.iconSpacing
         contentRow.alignment = .center
@@ -195,7 +191,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
             return
         }
 
-        guard reachabilityManager.isReachable else {
+        guard SSKEnvironment.shared.reachabilityManagerRef.isReachable else {
             OWSActionSheets.showActionSheet(
                 title: OWSLocalizedString(
                     "DELETE_ACCOUNT_CONFIRMATION_NO_INTERNET",
@@ -205,14 +201,14 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
             return
         }
 
-        phoneNumberTextField.resignFirstResponder()
+        nationalNumberTextField.resignFirstResponder()
 
         showDeletionConfirmUI_checkPayments()
     }
 
     private func showDeletionConfirmUI_checkPayments() {
-        if self.paymentsHelper.arePaymentsEnabled,
-           let paymentBalance = self.paymentsSwift.currentPaymentBalance,
+        if SSKEnvironment.shared.paymentsHelperRef.arePaymentsEnabled,
+           let paymentBalance = SUIEnvironment.shared.paymentsSwiftRef.currentPaymentBalance,
            !paymentBalance.amount.isZero {
             showDeleteAccountPaymentsConfirmationUI(paymentBalance: paymentBalance.amount)
         } else {
@@ -314,7 +310,7 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
             progressView.startAnimating { overlayView.alpha = 1 }
 
             do {
-                try await self.deleteSubscriptionIfNecessary()
+                try await self.deleteDonationSubscriptionIfNecessary()
                 try await self.unregisterAccount()
             } catch {
                 owsFailDebug("Failed to unregister \(error)")
@@ -336,15 +332,15 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
         }
     }
 
-    private func deleteSubscriptionIfNecessary() async throws {
-        let activeSubscriptionId = databaseStorage.read {
-            SubscriptionManagerImpl.getSubscriberID(transaction: $0)
+    private func deleteDonationSubscriptionIfNecessary() async throws {
+        let activeSubscriptionId = SSKEnvironment.shared.databaseStorageRef.read {
+            DonationSubscriptionManager.getSubscriberID(transaction: $0)
         }
         guard let activeSubscriptionId else {
             return
         }
         Logger.info("Found subscriber ID. Canceling subscription...")
-        return try await SubscriptionManagerImpl.cancelSubscription(for: activeSubscriptionId).awaitable()
+        return try await DonationSubscriptionManager.cancelSubscription(for: activeSubscriptionId)
     }
 
     private func unregisterAccount() async throws {
@@ -353,62 +349,46 @@ class DeleteAccountConfirmationViewController: OWSTableViewController2 {
     }
 
     var hasEnteredLocalNumber: Bool {
-        guard let localNumber = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber else {
+        let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+        guard let localNumber = tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber else {
             owsFailDebug("local number unexpectedly nil")
             return false
         }
 
-        guard let phoneNumberText = phoneNumberTextField.text else { return false }
+        guard let nationalNumber = nationalNumberTextField.text else {
+            return false
+        }
 
-        let possiblePhoneNumber = callingCode + phoneNumberText
-        let possibleNumbers = phoneNumberUtil.parsePhoneNumbers(
-            userSpecifiedText: possiblePhoneNumber,
-            localPhoneNumber: localNumber
-        ).map(\.e164)
+        let phoneNumberUtil = SSKEnvironment.shared.phoneNumberUtilRef
+        let parsedNumber = phoneNumberUtil.parsePhoneNumber(countryCode: country.countryCode, nationalNumber: nationalNumber)
 
-        return possibleNumbers.contains(localNumber)
+        return localNumber == parsedNumber?.e164
     }
 }
 
 extension DeleteAccountConfirmationViewController: CountryCodeViewControllerDelegate {
-    public func countryCodeViewController(_ vc: CountryCodeViewController,
-                                          didSelectCountry countryState: RegistrationCountryState) {
-        updateCountry(callingCode: countryState.callingCode,
-                      countryCode: countryState.countryCode)
+    public func countryCodeViewController(_ vc: CountryCodeViewController, didSelectCountry country: PhoneNumberCountry) {
+        updateCountry(country)
     }
 
-    func populateDefaultCountryCode() {
-        guard let localNumber = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber else {
-            return owsFailDebug("Local number unexpectedly nil")
-        }
-
-        var callingCodeInt: Int?
-        var countryCode: String?
-
-        if let localE164 = phoneNumberUtil.parseE164(localNumber), let localCallingCode = localE164.getCallingCode()?.intValue {
-            callingCodeInt = localCallingCode
+    private func populateDefaultCountryCode() {
+        let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+        let phoneNumberUtil = SSKEnvironment.shared.phoneNumberUtilRef
+        let defaultCountry: PhoneNumberCountry
+        if
+            let localNumber = tsAccountManager.localIdentifiersWithMaybeSneakyTransaction?.phoneNumber,
+            let localCountry = PhoneNumberCountry.buildCountry(forCountryCode: phoneNumberUtil.preferredCountryCode(forLocalNumber: localNumber))
+        {
+            defaultCountry = localCountry
         } else {
-            callingCodeInt = phoneNumberUtil.getCallingCode(
-                forRegion: PhoneNumberUtil.defaultCountryCode()
-            ).intValue
+            owsFailDebug("Couldn't determine local country.")
+            defaultCountry = .defaultValue
         }
-
-        var callingCode: String?
-        if let callingCodeInt = callingCodeInt {
-            callingCode = PhoneNumber.countryCodePrefix + "\(callingCodeInt)"
-            countryCode = phoneNumberUtil.probableCountryCode(forCallingCode: callingCode!)
-        }
-
-        updateCountry(callingCode: callingCode, countryCode: countryCode)
+        updateCountry(defaultCountry)
     }
 
-    func updateCountry(callingCode: String?, countryCode: String?) {
-        guard let callingCode = callingCode, !callingCode.isEmpty, let countryCode = countryCode, !countryCode.isEmpty else {
-            return owsFailDebug("missing calling code for selected country")
-        }
-
-        self.callingCode = callingCode
-        self.countryCode = countryCode
+    private func updateCountry(_ country: PhoneNumberCountry) {
+        self.country = country
         updateTableContents()
     }
 }
@@ -420,7 +400,7 @@ extension DeleteAccountConfirmationViewController: UITextFieldDelegate {
     }
 
     func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
-        TextFieldFormatting.phoneNumberTextField(textField, changeCharactersIn: range, replacementString: string, callingCode: callingCode)
+        TextFieldFormatting.phoneNumberTextField(textField, changeCharactersIn: range, replacementString: string, plusPrefixedCallingCode: country.plusPrefixedCallingCode)
         return false
     }
 }

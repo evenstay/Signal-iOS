@@ -9,7 +9,10 @@ import LibSignalClient
 public class OutgoingStoryMessage: TSOutgoingMessage {
     @objc
     public private(set) var storyMessageId: String!
-    public private(set) var storyMessageRowId: Int64!
+
+    @objc
+    public private(set) var _storyMessageRowId: NSNumber!
+    public var storyMessageRowId: Int64! { _storyMessageRowId?.int64Value }
 
     @objc
     public private(set) var storyAllowsReplies: NSNumber!
@@ -25,10 +28,10 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
         storyAllowsReplies: Bool,
         isPrivateStorySend: Bool,
         skipSyncTranscript: Bool,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) {
         self.storyMessageId = storyMessage.uniqueId
-        self.storyMessageRowId = storyMessageRowId
+        self._storyMessageRowId = NSNumber(value: storyMessageRowId)
         self.storyAllowsReplies = NSNumber(value: storyAllowsReplies)
         self.isPrivateStorySend = NSNumber(value: isPrivateStorySend)
         self.skipSyncTranscript = NSNumber(value: skipSyncTranscript)
@@ -51,7 +54,7 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
         storyMessage: StoryMessage,
         storyMessageRowId: Int64,
         skipSyncTranscript: Bool = false,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) {
         let storyAllowsReplies = (thread as? TSPrivateStoryThread)?.allowsReplies ?? true
         let isPrivateStorySend = thread is TSPrivateStoryThread
@@ -82,8 +85,8 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
     public override func shouldSyncTranscript() -> Bool { !skipSyncTranscript.boolValue }
 
     public override func buildTranscriptSyncMessage(
-        localThread: TSThread,
-        transaction: SDSAnyWriteTransaction
+        localThread: TSContactThread,
+        transaction: DBWriteTransaction
     ) -> OWSOutgoingSyncMessage? {
         guard let storyMessage = StoryMessage.anyFetch(uniqueId: storyMessageId, transaction: transaction) else {
             owsFailDebug("Missing story message")
@@ -103,7 +106,7 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
 
     public override func contentBuilder(
         thread: TSThread,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> SSKProtoContentBuilder? {
         guard let storyMessage = storyMessageProto(with: thread, transaction: transaction) else {
             owsFailDebug("Missing story message proto")
@@ -115,7 +118,7 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
     }
 
     @objc
-    public func storyMessageProto(with thread: TSThread, transaction: SDSAnyReadTransaction) -> SSKProtoStoryMessage? {
+    public func storyMessageProto(with thread: TSThread, transaction: DBReadTransaction) -> SSKProtoStoryMessage? {
         guard let storyMessageId = storyMessageId,
               let storyMessage = StoryMessage.anyFetch(uniqueId: storyMessageId, transaction: transaction) else {
             Logger.warn("Missing story message for outgoing story.")
@@ -123,32 +126,27 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
         }
 
         let builder = SSKProtoStoryMessage.builder()
-        if let profileKey = profileManager.profileKeyData(
-            for: DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction.asV2Read)!.aciAddress,
-            transaction: transaction
-        ) {
-            builder.setProfileKey(profileKey)
-        }
+        builder.setProfileKey(ProtoUtils.localProfileKey(tx: transaction).serialize().asData)
 
         switch storyMessage.attachment {
-        case .file, .foreignReferenceAttachment:
+        case .media:
             guard
-                let attachmentReference = DependenciesBridge.shared.tsResourceStore.mediaAttachment(
-                    for: storyMessage,
-                    tx: transaction.asV2Read
+                let storyMessageRowId = storyMessage.id,
+                let attachment = DependenciesBridge.shared.attachmentStore.fetchFirstReferencedAttachment(
+                    for: .storyMessageMedia(storyMessageRowId: storyMessageRowId),
+                    tx: transaction
                 ),
-                let attachment = attachmentReference.fetch(tx: transaction),
-                let pointer = attachment.asTransitTierPointer(),
-                let attachmentProto = DependenciesBridge.shared.tsResourceManager.buildProtoForSending(
-                    from: attachmentReference,
-                    pointer: pointer
-                )
+                let pointer = attachment.attachment.asTransitTierPointer()
             else {
                 owsFailDebug("Missing attachment for outgoing story message")
                 return nil
             }
+            let attachmentProto = DependenciesBridge.shared.attachmentManager.buildProtoForSending(
+                from: attachment.reference,
+                pointer: pointer
+            )
             builder.setFileAttachment(attachmentProto)
-            if let storyMediaCaption = attachmentReference.storyMediaCaption {
+            if let storyMediaCaption = attachment.reference.storyMediaCaption {
                 builder.setBodyRanges(storyMediaCaption.toProtoBodyRanges())
             }
         case .text(let attachment):
@@ -167,7 +165,7 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
 
         do {
             if let groupThread = thread as? TSGroupThread, let groupModel = groupThread.groupModel as? TSGroupModelV2 {
-                builder.setGroup(try groupsV2.buildGroupContextV2Proto(groupModel: groupModel, changeActionsProtoData: nil))
+                builder.setGroup(try GroupsV2Protos.buildGroupContextProto(groupModel: groupModel, groupChangeProtoData: nil))
             }
 
             return try builder.build()
@@ -177,7 +175,7 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
         }
     }
 
-    public override func anyUpdateOutgoingMessage(transaction: SDSAnyWriteTransaction, block: (TSOutgoingMessage) -> Void) {
+    public override func anyUpdateOutgoingMessage(transaction: DBWriteTransaction, block: (TSOutgoingMessage) -> Void) {
         super.anyUpdateOutgoingMessage(transaction: transaction, block: block)
 
         guard
@@ -204,13 +202,13 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
     public static func createDedupedOutgoingMessages(
         for storyMessage: StoryMessage,
         sendingTo threads: [TSPrivateStoryThread],
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> [OutgoingStoryMessage] {
 
         class OutgoingMessageBuilder {
             let thread: TSPrivateStoryThread
             let allowsReplies: Bool
-            var skippedRecipients = Set<SignalServiceAddress>()
+            var skippedRecipientIds = Set<SignalRecipient.RowId>()
 
             init(thread: TSPrivateStoryThread) {
                 self.thread = thread
@@ -218,16 +216,22 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
             }
         }
 
+        let recipientDatabaseTable = DependenciesBridge.shared.recipientDatabaseTable
+        let storyRecipientStore = DependenciesBridge.shared.storyRecipientStore
+
         var messageBuilders = [OutgoingMessageBuilder]()
-        var perRecipientBuilders = [SignalServiceAddress: OutgoingMessageBuilder]()
+        var perRecipientIdBuilders = [SignalRecipient.RowId: OutgoingMessageBuilder]()
         for thread in threads {
             let builderForCurrentThread = OutgoingMessageBuilder(thread: thread)
-            for recipient in thread.addresses {
+            let storyRecipientIds = failIfThrows {
+                return try storyRecipientStore.fetchRecipientIds(forStoryThreadId: thread.sqliteRowId!, tx: tx)
+            }
+            for recipientId in storyRecipientIds {
                 // We only want to send one message per recipient,
                 // and it should be the thread with the most privileges.
-                guard let existingBuilderForThisRecipient = perRecipientBuilders[recipient] else {
+                guard let existingBuilderForThisRecipient = perRecipientIdBuilders[recipientId] else {
                     // If this is the first time we see this recipient, do nothing.
-                    perRecipientBuilders[recipient] = builderForCurrentThread
+                    perRecipientIdBuilders[recipientId] = builderForCurrentThread
                     continue
                 }
                 // Otherwise skip this recipient in the message with _fewer_ privileges.
@@ -236,11 +240,11 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
                     builderForCurrentThread.allowsReplies
                 {
                     // Current thread has more privileges, prefer it for this recipient.
-                    existingBuilderForThisRecipient.skippedRecipients.insert(recipient)
-                    perRecipientBuilders[recipient] = builderForCurrentThread
+                    existingBuilderForThisRecipient.skippedRecipientIds.insert(recipientId)
+                    perRecipientIdBuilders[recipientId] = builderForCurrentThread
                 } else {
                     // Existing has more privileges, skip the recipient for the current thread.
-                    builderForCurrentThread.skippedRecipients.insert(recipient)
+                    builderForCurrentThread.skippedRecipientIds.insert(recipientId)
                 }
             }
             messageBuilders.append(builderForCurrentThread)
@@ -257,8 +261,9 @@ public class OutgoingStoryMessage: TSOutgoingMessage {
                 skipSyncTranscript: index > 0,
                 transaction: tx
             )
-            builder.skippedRecipients.forEach {
-                message.updateWithSkippedRecipient($0, transaction: tx)
+            builder.skippedRecipientIds.forEach {
+                let recipientAddress = recipientDatabaseTable.fetchRecipient(rowId: $0, tx: tx)!.address
+                message.updateWithSkippedRecipient(recipientAddress, transaction: tx)
             }
             return message
         }

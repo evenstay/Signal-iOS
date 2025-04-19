@@ -9,10 +9,11 @@ public import SignalUI
 enum ViewOnceState: Equatable {
     case unknown
     case incomingExpired
-    case incomingDownloading(attachmentPointer: TSResourcePointer, renderingFlag: AttachmentReference.RenderingFlag)
+    case incomingDownloading(attachmentPointer: AttachmentPointer, renderingFlag: AttachmentReference.RenderingFlag)
     case incomingFailed
     case incomingPending
-    case incomingAvailable(attachmentStream: TSResourceStream, renderingFlag: AttachmentReference.RenderingFlag)
+    case incomingAvailable(attachmentStream: AttachmentStream, renderingFlag: AttachmentReference.RenderingFlag)
+    case incomingUndownloadable
     case incomingInvalidContent
     case outgoingSending
     case outgoingFailed
@@ -25,22 +26,24 @@ enum ViewOnceState: Equatable {
             (.incomingExpired, .incomingExpired),
             (.incomingFailed, .incomingFailed),
             (.incomingPending, .incomingPending),
+            (.incomingUndownloadable, .incomingUndownloadable),
             (.incomingInvalidContent, .incomingInvalidContent),
             (.outgoingSending, .outgoingSending),
             (.outgoingFailed, .outgoingFailed),
             (.outgoingSentExpired, .outgoingSentExpired):
             return true
         case let (.incomingDownloading(lhsPointer, lhsFlag), .incomingDownloading(rhsPointer, rhsFlag)):
-            return lhsPointer.resourceId == rhsPointer.resourceId
+            return lhsPointer.id == rhsPointer.id
                 && lhsFlag == rhsFlag
         case let (.incomingAvailable(lhsStream, lhsFlag), .incomingAvailable(rhsStream, rhsFlag)):
-            return lhsStream.resourceId == rhsStream.resourceId
+            return lhsStream.id == rhsStream.id
                 && lhsFlag == rhsFlag
         case
             (.unknown, _),
             (.incomingExpired, _),
             (.incomingFailed, _),
             (.incomingPending, _),
+            (.incomingUndownloadable, _),
             (.incomingInvalidContent, _),
             (.outgoingSending, _),
             (.outgoingFailed, _),
@@ -78,7 +81,7 @@ public class CVComponentViewOnce: CVComponentBase, CVComponent {
             return false
         }
     }
-    private var attachmentStream: TSResourceStream? {
+    private var attachmentStream: AttachmentStream? {
         if case .incomingAvailable(let attachmentStream, _) = viewOnceState {
             return attachmentStream
         }
@@ -127,7 +130,7 @@ public class CVComponentViewOnce: CVComponentBase, CVComponent {
             let progressView = CVAttachmentProgressView(
                 direction: .download(
                     attachmentPointer: attachmentPointer,
-                    transitTierDownloadState: .enqueuedOrDownloading
+                    downloadState: .enqueuedOrDownloading
                 ),
                 diameter: iconSize,
                 isDarkThemeEnabled: conversationStyle.isDarkThemeEnabled,
@@ -226,6 +229,8 @@ public class CVComponentViewOnce: CVComponentBase, CVComponent {
         case .outgoingFailed,
              .outgoingSending:
             break
+        case .incomingUndownloadable:
+            componentDelegate.didTapUndownloadableMedia()
         }
         return true
     }
@@ -265,7 +270,7 @@ fileprivate extension CVComponentViewOnce {
         case .unknown:
             owsFailDebug("Invalid value.")
             return "view_once-dash"
-        case .incomingExpired:
+        case .incomingExpired, .incomingUndownloadable:
             return "view_once-dash"
         case .incomingDownloading:
             owsFailDebug("Unexpected state.")
@@ -294,7 +299,8 @@ fileprivate extension CVComponentViewOnce {
              .incomingDownloading,
              .incomingFailed,
              .incomingPending,
-             .incomingAvailable:
+             .incomingAvailable,
+             .incomingUndownloadable:
             return conversationStyle.bubbleTextColorIncoming
         case .outgoingFailed,
              .outgoingSending,
@@ -312,7 +318,7 @@ fileprivate extension CVComponentViewOnce {
         case .unknown:
             owsFailDebug("Invalid value.")
             return conversationStyle.bubbleTextColorIncoming
-        case .incomingExpired:
+        case .incomingExpired, .incomingUndownloadable:
             return conversationStyle.bubbleTextColorIncoming
         case .incomingDownloading,
              .incomingFailed,
@@ -348,6 +354,12 @@ fileprivate extension CVComponentViewOnce {
         case .incomingExpired:
             let text = OWSLocalizedString("PER_MESSAGE_EXPIRATION_VIEWED",
                                          comment: "Label for view-once messages indicating that the local user has viewed the message's contents.")
+            return buildDefaultConfig(text: text)
+        case .incomingUndownloadable:
+            let text = OWSLocalizedString(
+                "PER_MESSAGE_EXPIRATION_EXPIRED",
+                comment: "Label for view-once messages indicating that the message's contents are expired and unavailable to download."
+            )
             return buildDefaultConfig(text: text)
         case .incomingDownloading:
             let text = OWSLocalizedString("MESSAGE_STATUS_DOWNLOADING", comment: "message status while message is downloading.")
@@ -395,7 +407,7 @@ fileprivate extension CVComponentViewOnce {
     private var viewOnceMessageType: ViewOnceMessageType {
         switch viewOnceState {
         case let .incomingAvailable(attachmentStream, _):
-            switch attachmentStream.cachedContentType {
+            switch attachmentStream.contentType {
             case .file, .invalid, .audio:
                 owsFailDebug("Invalid view once type")
                 return .unknown
@@ -405,23 +417,13 @@ fileprivate extension CVComponentViewOnce {
                 return .video
             case .animatedImage:
                 return .photo
-            case nil:
-                let mimeType = attachmentStream.mimeType
-                if MimeTypeUtil.isSupportedVideoMimeType(mimeType) {
-                    return .video
-                } else {
-                    owsAssertDebug(
-                        MimeTypeUtil.isSupportedImageMimeType(mimeType)
-                        || MimeTypeUtil.isSupportedMaybeAnimatedMimeType(mimeType)
-                    )
-                    return .photo
-                }
             }
         case .unknown,
              .incomingExpired,
              .incomingDownloading,
              .incomingFailed,
              .incomingPending,
+             .incomingUndownloadable,
              .incomingInvalidContent,
              .outgoingSending,
              .outgoingFailed,

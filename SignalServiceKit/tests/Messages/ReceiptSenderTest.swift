@@ -9,18 +9,17 @@ import XCTest
 @testable import SignalServiceKit
 
 class ReceiptSenderTest: XCTestCase {
-    private var mockDb: MockDB!
+    private var mockDb: InMemoryDB!
     private var receiptSender: ReceiptSender!
     private var recipientDatabaseTable: MockRecipientDatabaseTable!
 
     override func setUp() {
         super.setUp()
 
-        mockDb = MockDB()
+        mockDb = InMemoryDB()
         recipientDatabaseTable = MockRecipientDatabaseTable()
         receiptSender = ReceiptSender(
             appReadiness: AppReadinessMock(),
-            kvStoreFactory: InMemoryKeyValueStoreFactory(),
             recipientDatabaseTable: recipientDatabaseTable
         )
     }

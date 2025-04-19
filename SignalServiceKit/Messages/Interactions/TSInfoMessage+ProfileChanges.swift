@@ -9,7 +9,7 @@ public extension TSInfoMessage {
     class func insertProfileChangeMessagesIfNecessary(
         oldProfile: OWSUserProfile,
         newProfile: OWSUserProfile,
-        transaction: SDSAnyWriteTransaction
+        transaction: DBWriteTransaction
     ) {
         let address: SignalServiceAddress
         switch oldProfile.internalAddress {
@@ -71,7 +71,7 @@ public extension TSInfoMessage {
 
 public extension TSInfoMessage {
     @objc
-    func profileChangeDescription(transaction tx: SDSAnyReadTransaction) -> String {
+    func profileChangeDescription(transaction tx: DBReadTransaction) -> String {
         guard
             let profileChanges = profileChanges,
             let updateDescription = profileChanges.descriptionForUpdate(tx: tx)
@@ -187,18 +187,18 @@ public class ProfileChanges: MTLModel {
         try super.init(dictionary: dictionaryValue)
     }
 
-    func descriptionForUpdate(tx: SDSAnyReadTransaction) -> String? {
+    func descriptionForUpdate(tx: DBReadTransaction) -> String? {
         guard let address = address else {
             owsFailDebug("Unexpectedly missing address for profile change")
             return nil
         }
 
-        guard let oldFullName = oldFullName, let newFullName = newFullName else {
+        guard let oldFullName = oldFullName?.filterForDisplay, let newFullName = newFullName?.filterForDisplay else {
             owsFailDebug("Unexpectedly missing old and new full name")
             return nil
         }
 
-        if let phoneNumber = address.phoneNumber, let systemContactName = contactsManager.systemContactName(for: phoneNumber, tx: tx) {
+        if let phoneNumber = address.phoneNumber, let systemContactName = SSKEnvironment.shared.contactManagerRef.systemContactName(for: phoneNumber, tx: tx) {
             let formatString = OWSLocalizedString(
                 "PROFILE_NAME_CHANGE_SYSTEM_CONTACT_FORMAT",
                 comment: "The copy rendered in a conversation when someone in your address book changes their profile name. Embeds {contact name}, {old profile name}, {new profile name}"

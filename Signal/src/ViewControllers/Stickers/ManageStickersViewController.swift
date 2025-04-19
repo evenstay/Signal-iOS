@@ -52,6 +52,8 @@ private class StickerPackActionButton: UIView {
 
 public class ManageStickersViewController: OWSTableViewController2 {
 
+    typealias DatedStickerPackInfo = StickerManager.DatedStickerPackInfo
+
     // MARK: - View Lifecycle
 
     override public func loadView() {
@@ -101,7 +103,7 @@ public class ManageStickersViewController: OWSTableViewController2 {
         DebouncedEvents.build(
             mode: .firstLast,
             maxFrequencySeconds: 0.75,
-            onQueue: .asyncOnQueue(queue: .main),
+            onQueue: .main,
             notifyBlock: { [weak self] in
                 guard let self = self else { return }
                 if self.needsStateUpdate {
@@ -140,8 +142,8 @@ public class ManageStickersViewController: OWSTableViewController2 {
 
         var installedStickerPacks = [StickerPack]()
         var availableBuiltInStickerPacks = [StickerPack]()
-        var availableKnownStickerPacks = [KnownStickerPack]()
-        self.databaseStorage.read { (transaction) in
+        var availableKnownStickerPacksFromMessages = [DatedStickerPackInfo]()
+        SSKEnvironment.shared.databaseStorageRef.read { (transaction) in
             let allPacks = StickerManager.allStickerPacks(transaction: transaction)
             let allPackInfos = allPacks.map { $0.info }
 
@@ -155,8 +157,8 @@ public class ManageStickersViewController: OWSTableViewController2 {
             availableBuiltInStickerPacks = packsWithCovers.filter {
                 !$0.isInstalled && StickerManager.isDefaultStickerPack(packId: $0.info.packId)
             }
-            let allKnownStickerPacks = StickerManager.allKnownStickerPacks(transaction: transaction)
-            availableKnownStickerPacks = allKnownStickerPacks.filter { !allPackInfos.contains($0.info) }
+            let knownStickerPackFromMessages = StickerManager.knownStickerPacksFromMessages(transaction: transaction)
+            availableKnownStickerPacksFromMessages = knownStickerPackFromMessages.filter { !allPackInfos.contains($0.info) }
         }
 
         let installedSource = { (info: StickerPackInfo) -> StickerPackDataSource in
@@ -190,8 +192,8 @@ public class ManageStickersViewController: OWSTableViewController2 {
         }.map {
             transientSource($0.info)
         }
-        self.knownStickerPackSources = availableKnownStickerPacks.sorted {
-            $0.dateCreated > $1.dateCreated
+        self.knownStickerPackSources = availableKnownStickerPacksFromMessages.sorted {
+            $0.timestamp > $1.timestamp
         }.map {
             transientSource($0.info)
         }
@@ -502,11 +504,12 @@ public class ManageStickersViewController: OWSTableViewController2 {
             return
         }
         let messageBody = MessageBody(text: packUrl, ranges: .empty)
-        let unapprovedContent = SendMessageUnapprovedContent.text(messageBody: messageBody)
+        guard let unapprovedContent = SendMessageUnapprovedContent(messageBody: messageBody) else {
+            owsFailDebug("Missing messageBody.")
+            return
+        }
         let sendMessageFlow = SendMessageFlow(
-            flowType: .`default`,
             unapprovedContent: unapprovedContent,
-            useConversationComposeForSingleRecipient: true,
             presentationStyle: .pushOnto(navigationController),
             delegate: self
         )
@@ -523,7 +526,7 @@ public class ManageStickersViewController: OWSTableViewController2 {
 
         // This will be dismissed once we receive a sticker pack update notification from StickerManager
         pendingModalVC = modalVC
-        self.databaseStorage.asyncWrite { transaction in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { transaction in
             StickerManager.installStickerPack(
                 stickerPack: stickerPack,
                 wasLocallyInitiated: true,
@@ -536,7 +539,7 @@ public class ManageStickersViewController: OWSTableViewController2 {
             // If the current modal isn't the one we created, we can ignore it
             guard modalVC == self?.pendingModalVC else { return }
 
-            if self?.reachabilityManager.isReachable == true {
+            if self != nil && SSKEnvironment.shared.reachabilityManagerRef.isReachable {
                 owsFailDebug("Expected to hear back from StickerManager about a newly installed sticker pack")
             }
             self?.updateState()
@@ -570,6 +573,14 @@ extension ManageStickersViewController: SendMessageDelegate {
         sendMessageFlow = nil
 
         navigationController?.popToViewController(self, animated: true)
+    }
+
+    public func sendMessageFlowWillShowConversation() {
+        AssertIsOnMainThread()
+
+        sendMessageFlow = nil
+
+        // Don't pop anything -- the flow does that itself.
     }
 
     public func sendMessageFlowDidCancel() {

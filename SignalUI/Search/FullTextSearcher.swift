@@ -71,17 +71,17 @@ public class ConversationSearchResult<SortKey>: Comparable where SortKey: Compar
 
 // MARK: -
 
-public class ContactSearchResult: Comparable, Dependencies {
+public class ContactSearchResult: Comparable {
 
     public let recipientAddress: SignalServiceAddress
     private let comparableName: ComparableDisplayName
     private let lastInteractionRowID: UInt64?
 
-    init(recipientAddress: SignalServiceAddress, transaction: SDSAnyReadTransaction) {
+    init(recipientAddress: SignalServiceAddress, transaction: DBReadTransaction) {
         self.recipientAddress = recipientAddress
         self.comparableName = ComparableDisplayName(
             address: recipientAddress,
-            displayName: Self.contactsManager.displayName(for: recipientAddress, tx: transaction),
+            displayName: SSKEnvironment.shared.contactManagerRef.displayName(for: recipientAddress, tx: transaction),
             config: .current()
         )
         let thread = ContactThreadFinder().contactThread(for: recipientAddress, tx: transaction)
@@ -185,7 +185,7 @@ public class GroupSearchResult: Comparable {
         sortKey: ConversationSortKey,
         searchText: String,
         nameResolver: NameResolver,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> GroupSearchResult {
         owsAssertDebug(threadViewModel.threadRecord === groupThread)
         let matchedMembers = groupThread.sortedMemberNames(
@@ -294,18 +294,18 @@ public class FullTextSearcher: NSObject {
         includeLocalUser: Bool,
         includeStories: Bool,
         maxResults: Int = kDefaultMaxResults,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> RecipientSearchResultSet {
         var groupResults = [GroupSearchResult]()
         var storyResults = [StorySearchResult]()
 
         let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-        guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx.asV2Read) else {
+        guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) else {
             owsFail("Can't search if you've never been registered.")
         }
 
         var addresses = SearchableNameFinder(
-            contactManager: contactsManager,
+            contactManager: SSKEnvironment.shared.contactManagerRef,
             searchableNameIndexer: DependenciesBridge.shared.searchableNameIndexer,
             phoneNumberVisibilityFetcher: DependenciesBridge.shared.phoneNumberVisibilityFetcher,
             recipientDatabaseTable: DependenciesBridge.shared.recipientDatabaseTable
@@ -313,7 +313,7 @@ public class FullTextSearcher: NSObject {
             for: searchText,
             maxResults: maxResults,
             localIdentifiers: localIdentifiers,
-            tx: tx.asV2Read,
+            tx: tx,
             checkCancellation: {},
             addGroupThread: { groupThread in
                 let sortKey = ConversationSortKey(
@@ -357,7 +357,7 @@ public class FullTextSearcher: NSObject {
         }
 
         for address in addresses {
-            if profileManager.isUser(inProfileWhitelist: address, transaction: tx) {
+            if SSKEnvironment.shared.profileManagerRef.isUser(inProfileWhitelist: address, transaction: tx) {
                 contactResults.append(ContactSearchResult(recipientAddress: address, transaction: tx))
             }
         }
@@ -376,12 +376,12 @@ public class FullTextSearcher: NSObject {
         case none
     }
 
-    private func noteToSelfMatch(searchText: String, localIdentifiers: LocalIdentifiers, tx: SDSAnyReadTransaction) -> NoteToSelfMatch {
+    private func noteToSelfMatch(searchText: String, localIdentifiers: LocalIdentifiers, tx: DBReadTransaction) -> NoteToSelfMatch {
         let searchTerms = searchText.split(separator: " ")
         if searchTerms.contains(where: { localIdentifiers.phoneNumber.contains($0) }) {
             return .nameOrNumber
         }
-        let displayName = contactsManager.displayName(for: localIdentifiers.aciAddress, tx: tx).resolvedValue()
+        let displayName = SSKEnvironment.shared.contactManagerRef.displayName(for: localIdentifiers.aciAddress, tx: tx).resolvedValue()
         if searchTerms.contains(where: { displayName.contains($0) }) {
             return .nameOrNumber
         }
@@ -395,7 +395,7 @@ public class FullTextSearcher: NSObject {
         searchText: String,
         maxResults: Int = kDefaultMaxResults,
         isCanceled: () -> Bool,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> HomeScreenSearchResultSet? {
         do {
             return try _searchForHomeScreen(
@@ -416,7 +416,7 @@ public class FullTextSearcher: NSObject {
         searchText: String,
         maxResults: Int,
         isCanceled: () -> Bool,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) throws -> HomeScreenSearchResultSet? {
         var contactResults = [ContactSearchResult]()
         var contactThreadResults = [ConversationSearchResult<ConversationSortKey>]()
@@ -424,7 +424,7 @@ public class FullTextSearcher: NSObject {
         var groupThreadIds = Set<String>()
         var messages: [UInt64: ConversationSearchResult<MessageSortKey>] = [:]
 
-        let nameResolver = NameResolverImpl(contactsManager: contactsManager)
+        let nameResolver = NameResolverImpl(contactsManager: SSKEnvironment.shared.contactManagerRef)
 
         var threadCache = [String: TSThread?]()
         func fetchThread<T: TSThread>(threadUniqueId: String) -> T? {
@@ -570,12 +570,12 @@ public class FullTextSearcher: NSObject {
         }
 
         let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-        guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: transaction.asV2Read) else {
+        guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: transaction) else {
             owsFail("Can't search if you've never been registered.")
         }
 
         var addresses = try SearchableNameFinder(
-            contactManager: contactsManager,
+            contactManager: SSKEnvironment.shared.contactManagerRef,
             searchableNameIndexer: DependenciesBridge.shared.searchableNameIndexer,
             phoneNumberVisibilityFetcher: DependenciesBridge.shared.phoneNumberVisibilityFetcher,
             recipientDatabaseTable: DependenciesBridge.shared.recipientDatabaseTable
@@ -583,7 +583,7 @@ public class FullTextSearcher: NSObject {
             for: searchText,
             maxResults: remainingResultCount(),
             localIdentifiers: localIdentifiers,
-            tx: transaction.asV2Read,
+            tx: transaction,
             checkCancellation: { if isCanceled() { throw CancellationError() } },
             addGroupThread: { groupThread in
                 appendGroup(threadUniqueId: groupThread.uniqueId, groupThread: groupThread)
@@ -613,7 +613,7 @@ public class FullTextSearcher: NSObject {
         for address in addresses {
             appendAddress(
                 address,
-                isInWhitelist: profileManager.isUser(inProfileWhitelist: address, transaction: transaction),
+                isInWhitelist: SSKEnvironment.shared.profileManagerRef.isUser(inProfileWhitelist: address, transaction: transaction),
                 fetchGroups: true,
                 fetchMentions: true
             )
@@ -662,7 +662,7 @@ public class FullTextSearcher: NSObject {
                     mergedMessageBody = MessageBody(text: matchStyleApplied.string, ranges: .init(mentions: [:], styles: singleStyles))
                 }
                 return .messageBody(mergedMessageBody
-                    .hydrating(mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: transaction.asV2Read)))
+                    .hydrating(mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: transaction)))
             }()
             appendMessage(message, snippet: styledSnippet)
         }
@@ -687,7 +687,7 @@ public class FullTextSearcher: NSObject {
         thread: TSThread,
         searchText: String,
         maxResults: Int = kDefaultMaxResults,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> ConversationScreenSearchResultSet {
         var messages: [UInt64: MessageSearchResult] = [:]
 
@@ -714,11 +714,11 @@ public class FullTextSearcher: NSObject {
         let canSearchForMentions: Bool = thread is TSGroupThread
         if canSearchForMentions {
             let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-            guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: transaction.asV2Read) else {
+            guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: transaction) else {
                 owsFail("Can't search if you've never been registered.")
             }
             let addresses = SearchableNameFinder(
-                contactManager: contactsManager,
+                contactManager: SSKEnvironment.shared.contactManagerRef,
                 searchableNameIndexer: DependenciesBridge.shared.searchableNameIndexer,
                 phoneNumberVisibilityFetcher: DependenciesBridge.shared.phoneNumberVisibilityFetcher,
                 recipientDatabaseTable: DependenciesBridge.shared.recipientDatabaseTable
@@ -726,7 +726,7 @@ public class FullTextSearcher: NSObject {
                 for: searchText,
                 maxResults: maxResults - messages.count,
                 localIdentifiers: localIdentifiers,
-                tx: transaction.asV2Read,
+                tx: transaction,
                 checkCancellation: {},
                 addGroupThread: { _ in },
                 addStoryThread: { _ in }

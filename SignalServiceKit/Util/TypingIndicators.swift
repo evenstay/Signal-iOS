@@ -4,30 +4,22 @@
 //
 
 import Foundation
-import LibSignalClient
+public import LibSignalClient
 
-@objc(OWSTypingIndicators)
 public protocol TypingIndicators: AnyObject {
-    @objc
-    var keyValueStore: SDSKeyValueStore { get }
+    var keyValueStore: KeyValueStore { get }
 
-    @objc
     func warmCaches()
 
-    @objc
     func didStartTypingOutgoingInput(inThread thread: TSThread)
 
-    @objc
     func didSendOutgoingMessage(inThread thread: TSThread)
 
-    @objc
-    func didReceiveTypingStartedMessage(inThread thread: TSThread, senderAci: AciObjC, deviceId: UInt32)
+    func didReceiveTypingStartedMessage(inThread thread: TSThread, senderAci: Aci, deviceId: DeviceId)
 
-    @objc
-    func didReceiveTypingStoppedMessage(inThread thread: TSThread, senderAci: AciObjC, deviceId: UInt32)
+    func didReceiveTypingStoppedMessage(inThread thread: TSThread, senderAci: Aci, deviceId: DeviceId)
 
-    @objc
-    func didReceiveIncomingMessage(inThread thread: TSThread, senderAci: AciObjC, deviceId: UInt32)
+    func didReceiveIncomingMessage(inThread thread: TSThread, senderAci: Aci, deviceId: DeviceId)
 
     // Returns the address of the user who should currently be shown typing for a given thread.
     //
@@ -35,39 +27,31 @@ public protocol TypingIndicators: AnyObject {
     // If multiple users are typing in that thread, returns the user to show.
     //
     // TODO: Use this method.
-    @objc
     func typingAddress(forThread thread: TSThread) -> SignalServiceAddress?
 
-    @objc
     func setTypingIndicatorsEnabledAndSendSyncMessage(value: Bool)
 
-    @objc
-    func setTypingIndicatorsEnabled(value: Bool, transaction: SDSAnyWriteTransaction)
+    func setTypingIndicatorsEnabled(value: Bool, transaction: DBWriteTransaction)
 
-    @objc
     func areTypingIndicatorsEnabled() -> Bool
 }
 
 // MARK: -
 
-@objc(OWSTypingIndicatorsImpl)
 public class TypingIndicatorsImpl: NSObject, TypingIndicators {
 
-    @objc
     public static let typingIndicatorStateDidChange = Notification.Name("typingIndicatorStateDidChange")
 
     private let kDatabaseKey_TypingIndicatorsEnabled = "kDatabaseKey_TypingIndicatorsEnabled"
 
     private let _areTypingIndicatorsEnabled = AtomicBool(false, lock: .sharedGlobal)
 
-    @objc
-    public let keyValueStore = SDSKeyValueStore(collection: "TypingIndicators")
+    public let keyValueStore = KeyValueStore(collection: "TypingIndicators")
 
-    @objc
     public func warmCaches() {
         owsAssertDebug(GRDBSchemaMigrator.areMigrationsComplete)
 
-        let enabled = databaseStorage.read { transaction in
+        let enabled = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             self.keyValueStore.getBool(
                 self.kDatabaseKey_TypingIndicatorsEnabled,
                 defaultValue: true,
@@ -78,26 +62,24 @@ public class TypingIndicatorsImpl: NSObject, TypingIndicators {
         _areTypingIndicatorsEnabled.set(enabled)
     }
 
-    @objc
     public func setTypingIndicatorsEnabledAndSendSyncMessage(value: Bool) {
         Logger.info("\(_areTypingIndicatorsEnabled.get()) -> \(value)")
         _areTypingIndicatorsEnabled.set(value)
 
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             self.keyValueStore.setBool(value,
                                        key: self.kDatabaseKey_TypingIndicatorsEnabled,
                                        transaction: transaction)
         }
 
-        syncManager.sendConfigurationSyncMessage()
+        SSKEnvironment.shared.syncManagerRef.sendConfigurationSyncMessage()
 
-        Self.storageServiceManager.recordPendingLocalAccountUpdates()
+        SSKEnvironment.shared.storageServiceManagerRef.recordPendingLocalAccountUpdates()
 
-        NotificationCenter.default.postNotificationNameAsync(TypingIndicatorsImpl.typingIndicatorStateDidChange, object: nil)
+        NotificationCenter.default.postOnMainThread(name: TypingIndicatorsImpl.typingIndicatorStateDidChange, object: nil)
     }
 
-    @objc
-    public func setTypingIndicatorsEnabled(value: Bool, transaction: SDSAnyWriteTransaction) {
+    public func setTypingIndicatorsEnabled(value: Bool, transaction: DBWriteTransaction) {
         Logger.info("\(_areTypingIndicatorsEnabled.get()) -> \(value)")
         _areTypingIndicatorsEnabled.set(value)
 
@@ -105,17 +87,15 @@ public class TypingIndicatorsImpl: NSObject, TypingIndicators {
                               key: kDatabaseKey_TypingIndicatorsEnabled,
                               transaction: transaction)
 
-        NotificationCenter.default.postNotificationNameAsync(TypingIndicatorsImpl.typingIndicatorStateDidChange, object: nil)
+        NotificationCenter.default.postOnMainThread(name: TypingIndicatorsImpl.typingIndicatorStateDidChange, object: nil)
     }
 
-    @objc
     public func areTypingIndicatorsEnabled() -> Bool {
         return _areTypingIndicatorsEnabled.get()
     }
 
     // MARK: -
 
-    @objc
     public func didStartTypingOutgoingInput(inThread thread: TSThread) {
         AssertIsOnMainThread()
         guard let outgoingIndicators = ensureOutgoingIndicators(forThread: thread) else {
@@ -125,7 +105,6 @@ public class TypingIndicatorsImpl: NSObject, TypingIndicators {
         outgoingIndicators.didStartTypingOutgoingInput()
     }
 
-    @objc
     public func didSendOutgoingMessage(inThread thread: TSThread) {
         AssertIsOnMainThread()
         guard let outgoingIndicators = ensureOutgoingIndicators(forThread: thread) else {
@@ -135,28 +114,24 @@ public class TypingIndicatorsImpl: NSObject, TypingIndicators {
         outgoingIndicators.didSendOutgoingMessage()
     }
 
-    @objc
-    public func didReceiveTypingStartedMessage(inThread thread: TSThread, senderAci: AciObjC, deviceId: UInt32) {
+    public func didReceiveTypingStartedMessage(inThread thread: TSThread, senderAci: Aci, deviceId: DeviceId) {
         AssertIsOnMainThread()
-        ensureIncomingIndicators(forThread: thread, senderAci: senderAci.wrappedAciValue, deviceId: deviceId)
+        ensureIncomingIndicators(forThread: thread, senderAci: senderAci, deviceId: deviceId)
             .didReceiveTypingStartedMessage()
     }
 
-    @objc
-    public func didReceiveTypingStoppedMessage(inThread thread: TSThread, senderAci: AciObjC, deviceId: UInt32) {
+    public func didReceiveTypingStoppedMessage(inThread thread: TSThread, senderAci: Aci, deviceId: DeviceId) {
         AssertIsOnMainThread()
-        ensureIncomingIndicators(forThread: thread, senderAci: senderAci.wrappedAciValue, deviceId: deviceId)
+        ensureIncomingIndicators(forThread: thread, senderAci: senderAci, deviceId: deviceId)
             .didReceiveTypingStoppedMessage()
     }
 
-    @objc
-    public func didReceiveIncomingMessage(inThread thread: TSThread, senderAci: AciObjC, deviceId: UInt32) {
+    public func didReceiveIncomingMessage(inThread thread: TSThread, senderAci: Aci, deviceId: DeviceId) {
         AssertIsOnMainThread()
-        ensureIncomingIndicators(forThread: thread, senderAci: senderAci.wrappedAciValue, deviceId: deviceId)
+        ensureIncomingIndicators(forThread: thread, senderAci: senderAci, deviceId: deviceId)
             .didReceiveIncomingMessage()
     }
 
-    @objc
     public func typingAddress(forThread thread: TSThread) -> SignalServiceAddress? {
         AssertIsOnMainThread()
 
@@ -287,26 +262,30 @@ public class TypingIndicatorsImpl: NSObject, TypingIndicators {
             // or show typing indicators for other users.
             guard delegate.areTypingIndicatorsEnabled() else { return }
 
-            SDSDatabaseStorage.shared.write(.promise) { transaction in
-                guard let thread = TSThread.anyFetch(uniqueId: threadUniqueId, transaction: transaction) else {
-                    return Promise<Void>.value(())
+            Task {
+                do {
+                    let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+                    let sendMessagePromise = await databaseStorage.awaitableWrite { transaction -> Promise<Void> in
+                        guard let thread = TSThread.anyFetch(uniqueId: threadUniqueId, transaction: transaction) else {
+                            return .value(())
+                        }
+
+                        let message = TypingIndicatorMessage(thread: thread, action: action, transaction: transaction)
+                        let preparedMessage = PreparedOutgoingMessage.preprepared(
+                            transientMessageWithoutAttachments: message
+                        )
+
+                        return SSKEnvironment.shared.messageSenderJobQueueRef.add(
+                            .promise,
+                            message: preparedMessage,
+                            limitToCurrentProcessLifetime: true,
+                            transaction: transaction
+                        )
+                    }
+                    try await sendMessagePromise.awaitable()
+                } catch {
+                    Logger.warn("\(error)")
                 }
-
-                let message = TypingIndicatorMessage(thread: thread, action: action, transaction: transaction)
-                let preparedMessage = PreparedOutgoingMessage.preprepared(
-                    transientMessageWithoutAttachments: message
-                )
-
-                return SSKEnvironment.shared.messageSenderJobQueueRef.add(
-                    .promise,
-                    message: preparedMessage,
-                    limitToCurrentProcessLifetime: true,
-                    transaction: transaction
-                )
-            }.then(on: SyncScheduler()) { messageSendPromise in
-                return messageSendPromise
-            }.catch { error in
-                Logger.error("Error: \(error)")
             }
         }
     }
@@ -317,18 +296,18 @@ public class TypingIndicatorsImpl: NSObject, TypingIndicators {
     private var incomingIndicatorsMap = [String: [AddressWithDeviceId: IncomingIndicators]]()
     private struct AddressWithDeviceId: Hashable {
         let aci: Aci
-        let deviceId: UInt32
+        let deviceId: DeviceId
     }
 
     private func incomingIndicatorsKey(forThread thread: TSThread) -> String {
-        return String(describing: thread.uniqueId)
+        return thread.uniqueId
     }
 
-    private func incomingIndicatorsKey(aci: Aci, deviceId: UInt32) -> AddressWithDeviceId {
+    private func incomingIndicatorsKey(aci: Aci, deviceId: DeviceId) -> AddressWithDeviceId {
         return AddressWithDeviceId(aci: aci, deviceId: deviceId)
     }
 
-    private func ensureIncomingIndicators(forThread thread: TSThread, senderAci: Aci, deviceId: UInt32) -> IncomingIndicators {
+    private func ensureIncomingIndicators(forThread thread: TSThread, senderAci: Aci, deviceId: DeviceId) -> IncomingIndicators {
         AssertIsOnMainThread()
 
         let threadKey = incomingIndicatorsKey(forThread: thread)
@@ -353,7 +332,7 @@ public class TypingIndicatorsImpl: NSObject, TypingIndicators {
         private weak var delegate: TypingIndicators?
         private let thread: TSThread
         fileprivate let senderAci: Aci
-        private let deviceId: UInt32
+        private let deviceId: DeviceId
         private var displayTypingTimer: Timer?
         fileprivate var startedTypingTimestamp: UInt64?
 
@@ -368,7 +347,7 @@ public class TypingIndicatorsImpl: NSObject, TypingIndicators {
             }
         }
 
-        init(delegate: TypingIndicators, thread: TSThread, senderAci: Aci, deviceId: UInt32) {
+        init(delegate: TypingIndicators, thread: TSThread, senderAci: Aci, deviceId: DeviceId) {
             self.delegate = delegate
             self.thread = thread
             self.senderAci = senderAci
@@ -426,7 +405,7 @@ public class TypingIndicatorsImpl: NSObject, TypingIndicators {
             guard delegate.areTypingIndicatorsEnabled() else {
                 return
             }
-            NotificationCenter.default.postNotificationNameAsync(TypingIndicatorsImpl.typingIndicatorStateDidChange, object: thread.uniqueId)
+            NotificationCenter.default.postOnMainThread(name: TypingIndicatorsImpl.typingIndicatorStateDidChange, object: thread.uniqueId)
         }
     }
 }

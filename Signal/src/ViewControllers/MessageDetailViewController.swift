@@ -25,6 +25,7 @@ class MessageDetailViewController: OWSTableViewController2 {
     private var thread: TSThread? { renderItem?.itemModel.thread }
 
     private(set) var message: TSMessage
+    private let threadViewModel: ThreadViewModel
     public let spoilerState: SpoilerRenderState
     private let editManager: EditManager
     private var wasDeleted: Bool = false
@@ -40,8 +41,8 @@ class MessageDetailViewController: OWSTableViewController2 {
 
     private let cellView = CVCellView()
 
-    private var bodyMediaAttachments: [ReferencedTSResource]?
-    private var bodyMediaAttachmentStreams: [ReferencedTSResourceStream]? {
+    private var bodyMediaAttachments: [ReferencedAttachment]?
+    private var bodyMediaAttachmentStreams: [ReferencedAttachmentStream]? {
         return bodyMediaAttachments?.compactMap { $0.asReferencedStream }
     }
 
@@ -110,11 +111,13 @@ class MessageDetailViewController: OWSTableViewController2 {
 
     init(
         message: TSMessage,
+        threadViewModel: ThreadViewModel,
         spoilerState: SpoilerRenderState,
         editManager: EditManager,
         thread: TSThread
     ) {
         self.message = message
+        self.threadViewModel = threadViewModel
         self.spoilerState = spoilerState
         self.editManager = editManager
         super.init()
@@ -142,7 +145,7 @@ class MessageDetailViewController: OWSTableViewController2 {
             comment: "Title for the 'message metadata' view."
         )
 
-        databaseStorage.appendDatabaseChangeDelegate(self)
+        DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
 
         startExpiryLabelTimerIfNecessary()
 
@@ -205,7 +208,7 @@ class MessageDetailViewController: OWSTableViewController2 {
     private func buildRenderItem(
         message interaction: TSMessage,
         spoilerState: SpoilerRenderState,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> CVRenderItem? {
         guard let thread = TSThread.anyFetch(
             uniqueId: interaction.uniqueThreadId,
@@ -224,7 +227,7 @@ class MessageDetailViewController: OWSTableViewController2 {
             isWallpaperPhoto: false,
             chatColor: DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(
                 for: thread,
-                tx: transaction.asV2Read
+                tx: transaction
             )
         )
 
@@ -301,7 +304,7 @@ class MessageDetailViewController: OWSTableViewController2 {
                 ))
             }
 
-            if let formattedByteCount = byteCountFormatter.string(for: attachment.attachment.unencryptedResourceByteCount ?? 0) {
+            if let formattedByteCount = byteCountFormatter.string(for: attachment.attachment.asStream()?.unencryptedByteCount ?? 0) {
                 messageStack.addArrangedSubview(Self.buildValueLabel(
                     name: OWSLocalizedString("MESSAGE_METADATA_VIEW_ATTACHMENT_FILE_SIZE",
                                             comment: "Label for file size of attachments in the 'message metadata' view."),
@@ -384,9 +387,11 @@ class MessageDetailViewController: OWSTableViewController2 {
                 guard let self else { return }
                 let sheet = EditHistoryTableSheetViewController(
                     message: self.message,
+                    threadViewModel: self.threadViewModel,
                     spoilerState: self.spoilerState,
                     editManager: self.editManager,
-                    database: self.databaseStorage
+                    database: SSKEnvironment.shared.databaseStorageRef,
+                    databaseChangeObserver: DependenciesBridge.shared.databaseChangeObserver
                 )
                 sheet.delegate = self.detailDelegate
                 self.present(sheet, animated: true)
@@ -396,7 +401,7 @@ class MessageDetailViewController: OWSTableViewController2 {
     }
 
     private func buildStatusSections() -> [OWSTableSection] {
-        guard nil != message as? TSOutgoingMessage else {
+        guard message is TSOutgoingMessage else {
             owsFailDebug("Unexpected message type")
             return []
         }
@@ -483,7 +488,7 @@ class MessageDetailViewController: OWSTableViewController2 {
                     return UITableViewCell()
                 }
 
-                Self.databaseStorage.read { transaction in
+                SSKEnvironment.shared.databaseStorageRef.read { transaction in
                     let configuration = ContactCellConfiguration(address: address, localUserDisplayMode: .asUser)
                     configuration.accessoryView = self.buildAccessoryView(text: accessoryText,
                                                                           displayUDIndicator: displayUDIndicator,
@@ -510,7 +515,7 @@ class MessageDetailViewController: OWSTableViewController2 {
 
     private func buildAccessoryView(text: String,
                                     displayUDIndicator: Bool,
-                                    transaction: SDSAnyReadTransaction) -> ContactCellAccessoryView {
+                                    transaction: DBReadTransaction) -> ContactCellAccessoryView {
         let label = CVLabel()
         label.textAlignment = .right
         let labelConfig = CVLabelConfig.unstyledText(
@@ -521,7 +526,7 @@ class MessageDetailViewController: OWSTableViewController2 {
         labelConfig.applyForRendering(label: label)
         let labelSize = CVText.measureLabel(config: labelConfig, maxWidth: .greatestFiniteMagnitude)
 
-        let shouldShowUD = preferences.shouldShowUnidentifiedDeliveryIndicators(transaction: transaction)
+        let shouldShowUD = SSKEnvironment.shared.preferencesRef.shouldShowUnidentifiedDeliveryIndicators(transaction: transaction)
 
         guard displayUDIndicator && shouldShowUD else {
             return ContactCellAccessoryView(accessoryView: label, size: labelSize)
@@ -814,8 +819,6 @@ extension MediaPresentationContext {
 extension MessageDetailViewController: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
-        AssertIsOnMainThread()
-
         guard databaseChanges.didUpdate(interaction: self.message) else {
             return
         }
@@ -824,14 +827,10 @@ extension MessageDetailViewController: DatabaseChangeDelegate {
     }
 
     public func databaseChangesDidUpdateExternally() {
-        AssertIsOnMainThread()
-
         refreshContentForDatabaseUpdate()
     }
 
     public func databaseChangesDidReset() {
-        AssertIsOnMainThread()
-
         refreshContentForDatabaseUpdate()
     }
 
@@ -875,14 +874,17 @@ extension MessageDetailViewController: DatabaseChangeDelegate {
             return
         }
 
-        let messageStillExists = databaseStorage.read { transaction in
+        let messageStillExists = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             let uniqueId = message.uniqueId
             guard let newMessage = TSInteraction.anyFetch(uniqueId: uniqueId, transaction: transaction) as? TSMessage else {
                 return false
             }
             self.message = newMessage
-            self.bodyMediaAttachments = DependenciesBridge.shared.tsResourceStore
-                .referencedBodyMediaAttachments(for: newMessage, tx: transaction.asV2Read)
+            self.bodyMediaAttachments = DependenciesBridge.shared.attachmentStore
+                .fetchReferencedAttachments(
+                    for: .messageBodyAttachment(messageRowId: newMessage.sqliteRowId!),
+                    tx: transaction
+                )
             guard let renderItem = buildRenderItem(
                 message: newMessage,
                 spoilerState: spoilerState,
@@ -918,10 +920,10 @@ extension MessageDetailViewController: DatabaseChangeDelegate {
             guard let self = self else { return }
 
             let messageRecipientAddressesUnsorted = outgoingMessage.recipientAddresses()
-            let (hasBodyAttachments, messageRecipientAddressesSorted) = self.databaseStorage.read { transaction in
+            let (hasBodyAttachments, messageRecipientAddressesSorted) = SSKEnvironment.shared.databaseStorageRef.read { transaction in
                 return (
                     outgoingMessage.hasBodyAttachments(transaction: transaction),
-                    self.contactsManagerImpl.sortSignalServiceAddresses(
+                    SSKEnvironment.shared.contactManagerImplRef.sortSignalServiceAddresses(
                         messageRecipientAddressesUnsorted,
                         transaction: transaction
                     )
@@ -1038,6 +1040,14 @@ extension MessageDetailViewController: CVComponentDelegate {
 
     // MARK: -
 
+    func willBecomeVisibleWithFailedOrPendingDownloads(_ message: TSMessage) {}
+
+    func didTapFailedOrPendingDownloads(_ message: TSMessage) {}
+
+    func didCancelDownload(_ message: TSMessage, attachmentId: Attachment.IDType) {}
+
+    // MARK: -
+
     // TODO:
     func didTapReplyToItem(_ itemViewModel: CVItemViewModelImpl) {}
 
@@ -1056,7 +1066,15 @@ extension MessageDetailViewController: CVComponentDelegate {
     // TODO:
     var hasPendingMessageRequest: Bool { false }
 
-    func didTapFailedOrPendingDownloads(_ message: TSMessage) {}
+    func didTapUndownloadableMedia() {}
+
+    func didTapUndownloadableGenericFile() {}
+
+    func didTapUndownloadableOversizeText() {}
+
+    func didTapUndownloadableAudio() {}
+
+    func didTapUndownloadableSticker() {}
 
     func didTapBrokenVideo() {}
 
@@ -1064,7 +1082,7 @@ extension MessageDetailViewController: CVComponentDelegate {
 
     func didTapBodyMedia(
         itemViewModel: CVItemViewModelImpl,
-        attachmentStream: ReferencedTSResourceStream,
+        attachmentStream: ReferencedAttachmentStream,
         imageView: UIView
     ) {
         guard let thread = thread else {
@@ -1208,6 +1226,8 @@ extension MessageDetailViewController: CVComponentDelegate {
 
     func didTapViewGroupDescription(newGroupDescription: String) {}
 
+    func didTapNameEducation(type: SafetyTipsType) {}
+
     // TODO:
     func didTapShowConversationSettings() {}
 
@@ -1260,6 +1280,8 @@ extension MessageDetailViewController: CVComponentDelegate {
     func didTapReportSpamLearnMore() {}
 
     func didTapMessageRequestAcceptedOptions() {}
+
+    func didTapJoinCallLinkCall(callLink: CallLink) {}
 }
 
 extension MessageDetailViewController: UINavigationControllerDelegate {

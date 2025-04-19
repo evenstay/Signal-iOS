@@ -202,10 +202,7 @@ public class AttachmentContentValidatorImpl: AttachmentContentValidator {
         }
         let truncatedBody = MessageBody(text: truncatedText, ranges: messageBody.ranges)
 
-        guard let textData = messageBody.text.data(using: .utf8) else {
-            throw OWSAssertionError("Unable to encode text")
-        }
-        let input = Input.inMemory(textData)
+        let input = Input.inMemory(Data(messageBody.text.utf8))
         let encryptionKey = Cryptography.randomAttachmentEncryptionKey()
         let pendingAttachment = try self.validateContents(
             input: input,
@@ -239,6 +236,8 @@ public class AttachmentContentValidatorImpl: AttachmentContentValidator {
 
         return .fromPendingAttachment(
             pendingAttachment,
+            originalAttachmentMimeType: originalAttachment.attachment.mimeType,
+            originalAttachmentSourceFilename: originalReference.sourceFilename,
             originalMessageRowId: originalMessageRowId
         )
     }
@@ -265,10 +264,19 @@ public class AttachmentContentValidatorImpl: AttachmentContentValidator {
         let encryptionKey: Data
         let digestSHA256Ciphertext: Data
         let localRelativeFilePath: String
-        let renderingFlag: AttachmentReference.RenderingFlag
+        private(set) var renderingFlag: AttachmentReference.RenderingFlag
         let sourceFilename: String?
         let validatedContentType: Attachment.ContentType
         let orphanRecordId: OrphanedAttachmentRecord.IDType
+
+        mutating func removeBorderlessRenderingFlagIfPresent() {
+            switch renderingFlag {
+            case .borderless:
+                renderingFlag = .default
+            default:
+                return
+            }
+        }
     }
 
     private struct RevalidatedAttachmentImpl: RevalidatedAttachment {

@@ -13,7 +13,7 @@ func convertDateForGrdb(_ value: Date) -> Double {
 // MARK: - SDSSerializer
 
 public protocol SDSSerializer {
-    func asRecord() throws -> SDSRecord
+    func asRecord() -> SDSRecord
 }
 
 // MARK: - SDSSerializer Helpers
@@ -48,24 +48,25 @@ public extension SDSSerializer {
 
     // MARK: - Blob
 
-    func optionalArchive<T: SDSSwiftSerializable>(_ value: T?) -> Data? {
+    func optionalArchive(_ value: Any?) -> Data? {
         guard let value = value else {
             return nil
         }
         return requiredArchive(value)
     }
 
-    func requiredArchive<T: SDSSwiftSerializable>(_ value: T) -> Data {
-        do {
-            return try JSONEncoder().encode(value)
-        } catch {
-            // owsFail() to match NSKeyedArchiver behavior (it throws an ObjC exception)
-            owsFail("Failed to deserialize \(T.self): \(error)")
+    /// Avoid the cost of actually archiving empty string arrays that are
+    /// declared optional (e.g. TSInteraction.attachmentIds)
+    func optionalArchive(_ value: [String]?) -> Data? {
+        guard let value = value, !value.isEmpty else {
+            return nil
         }
+        return requiredArchive(value)
     }
 
-    func optionalArchive(_ value: Any?) -> Data? {
-        guard let value = value else {
+    /// Avoide the cost of actually archiving empty message body range objects.
+    func optionalArchive(_ value: MessageBodyRanges?) -> Data? {
+        guard let value = value, value.hasRanges else {
             return nil
         }
         return requiredArchive(value)

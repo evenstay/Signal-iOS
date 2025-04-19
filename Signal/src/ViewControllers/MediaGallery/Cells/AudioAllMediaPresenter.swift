@@ -305,11 +305,11 @@ class AudioAllMediaPresenter: AudioPresenter {
         return CVLabelConfig.unstyledText(text, font: Constants.bottomLineFont, textColor: .label)
     }
 
-    static func hasAttachmentLabel(attachment: TSResource, isVoiceMessage: Bool) -> Bool {
+    static func hasAttachmentLabel(attachment: Attachment, isVoiceMessage: Bool) -> Bool {
         return !isVoiceMessage
     }
 
-    func hasAttachmentLabel(attachment: TSResource, isVoiceMessage: Bool) -> Bool {
+    func hasAttachmentLabel(attachment: Attachment, isVoiceMessage: Bool) -> Bool {
         return Self.hasAttachmentLabel(attachment: attachment, isVoiceMessage: isVoiceMessage)
     }
 
@@ -330,11 +330,11 @@ class AudioAllMediaPresenter: AudioPresenter {
         return CVLabelConfig.unstyledText(
             text,
             font: Constants.filenameFont,
-            textColor: conversationStyle?.bubbleTextColor(isIncoming: false) ?? .label
+            textColor: .label
         )
     }
 
-    func audioWaveform(attachmentStream: TSResourceStream?) -> Task<AudioWaveform, Error>? {
+    func audioWaveform(attachmentStream: AttachmentStream?) -> Task<AudioWaveform, Error>? {
         return attachmentStream?.highPriorityAudioWaveform()
     }
 }

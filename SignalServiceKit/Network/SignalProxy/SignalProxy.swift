@@ -28,11 +28,11 @@ public class SignalProxy: NSObject {
 
     private static let relayServer = RelayServer()
 
-    private static let keyValueStore = SDSKeyValueStore(collection: "SignalProxy")
+    private static let keyValueStore = KeyValueStore(collection: "SignalProxy")
     private static let proxyHostKey = "proxyHostKey"
     private static let proxyUseKey = "proxyUseKey"
 
-    public static func setProxyHost(host: String?, useProxy: Bool, transaction: SDSAnyWriteTransaction) {
+    public static func setProxyHost(host: String?, useProxy: Bool, transaction: DBWriteTransaction) {
         let hostToStore = host?.nilIfEmpty
         let useProxyToStore = hostToStore == nil ? false : useProxy
         owsAssertDebug(useProxyToStore == useProxy)
@@ -47,14 +47,19 @@ public class SignalProxy: NSObject {
         }
     }
 
+    private static var didAddObserver = false
+
     public class func warmCaches(appReadiness: AppReadiness) {
         appReadiness.runNowOrWhenAppWillBecomeReady {
-            databaseStorage.read { transaction in
+            SSKEnvironment.shared.databaseStorageRef.read { transaction in
                 host = keyValueStore.getString(proxyHostKey, transaction: transaction)
                 useProxy = keyValueStore.getBool(proxyUseKey, defaultValue: false, transaction: transaction)
             }
 
-            NotificationCenter.default.addObserver(self, selector: #selector(applicationDidBecomeActive), name: .OWSApplicationDidBecomeActive, object: nil)
+            if !didAddObserver {
+                NotificationCenter.default.addObserver(self, selector: #selector(applicationDidBecomeActive), name: .OWSApplicationDidBecomeActive, object: nil)
+                didAddObserver = true
+            }
 
             ensureProxyState()
         }
@@ -127,11 +132,11 @@ public class SignalProxy: NSObject {
         // The NSE manages the proxy relay itself
         guard !CurrentAppContext().isNSE else { return }
 
-        let libsignalNet = NSObject.networkManager.libsignalNet
+        let networkManager = SSKEnvironment.shared.networkManagerRef
         if isEnabled {
             if let (proxyHost, proxyPort) = host.flatMap({ ProxyClient.parseHost($0) }) {
                 do {
-                    try libsignalNet?.setProxy(host: proxyHost, port: proxyPort)
+                    try networkManager.libsignalNet?.setProxy(host: proxyHost, port: proxyPort)
                 } catch {
                     owsFailDebug("failed to set proxy on libsignal-net (need better validation)")
                     // This will poison the Net instance, failing all new connections,
@@ -148,7 +153,7 @@ public class SignalProxy: NSObject {
                 relayServer.start()
             }
         } else {
-            libsignalNet?.clearProxy()
+            networkManager.resetLibsignalNetProxySettings()
             relayServer.stop()
         }
     }

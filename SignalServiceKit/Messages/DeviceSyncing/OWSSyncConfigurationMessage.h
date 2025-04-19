@@ -11,17 +11,19 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
-- (instancetype)initWithThread:(TSThread *)thread transaction:(SDSAnyReadTransaction *)transaction NS_UNAVAILABLE;
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
+                        transaction:(DBReadTransaction *)transaction NS_UNAVAILABLE;
 - (instancetype)initWithTimestamp:(uint64_t)timestamp
-                           thread:(TSThread *)thread
-                      transaction:(SDSAnyReadTransaction *)transaction NS_UNAVAILABLE;
+                      localThread:(TSContactThread *)localThread
+                      transaction:(DBReadTransaction *)transaction NS_UNAVAILABLE;
 
-- (instancetype)initWithThread:(TSThread *)thread
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
                    readReceiptsEnabled:(BOOL)readReceiptsEnabled
     showUnidentifiedDeliveryIndicators:(BOOL)showUnidentifiedDeliveryIndicators
                   showTypingIndicators:(BOOL)showTypingIndicators
                       sendLinkPreviews:(BOOL)sendLinkPreviews
-                           transaction:(SDSAnyReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
+                   provisioningVersion:(uint32_t)provisioningVersion
+                           transaction:(DBReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
 
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
 

@@ -68,14 +68,51 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
     }
 
     func chatColorDidChange() {
-        viewState.chatColor = databaseStorage.read { tx in Self.loadChatColor(for: thread, tx: tx) }
+        viewState.chatColor = SSKEnvironment.shared.databaseStorageRef.read { tx in Self.loadChatColor(for: thread, tx: tx) }
         updateConversationStyle()
     }
 
-    func updateAccessibilityCustomActionsForCell(_ cell: CVItemCell) {
-        if let cvcell = cell as? CVCell {
-            updateAccessibilityCustomActionsForCell(cell: cvcell)
+    func updateAccessibilityCustomActionsForCell(_ cell: CVCell) {
+        guard let renderItem = cell.renderItem else {
+            return
         }
+
+        let itemViewModel = CVItemViewModelImpl(renderItem: renderItem)
+        let shouldAllowReply = shouldAllowReplyForItem(itemViewModel)
+        let messageActions: [MessageAction]
+        if itemViewModel.messageCellType == .systemMessage {
+            messageActions = MessageActions.infoMessageActions(itemViewModel: itemViewModel,
+                                                               delegate: self)
+        } else if itemViewModel.messageCellType == .stickerMessage || itemViewModel.messageCellType == .genericAttachment {
+            messageActions = MessageActions.mediaActions(itemViewModel: itemViewModel,
+                                                         shouldAllowReply: shouldAllowReply,
+                                                         delegate: self)
+        } else {
+            messageActions = MessageActions.textActions(itemViewModel: itemViewModel,
+                                                        shouldAllowReply: shouldAllowReply,
+                                                        delegate: self)
+        }
+
+        var actions: [CVAccessibilityCustomAction] = []
+        for messageAction in messageActions {
+            let action = CVAccessibilityCustomAction(
+                name: messageAction.accessibilityLabel ?? messageAction.accessibilityIdentifier,
+                target: self,
+                selector: #selector(handleCustomAccessibilityActionInvoked(sender:))
+            )
+            action.messageAction = messageAction
+            actions.append(action)
+        }
+        cell.accessibilityCustomActions = actions
+    }
+
+    @objc
+    private func handleCustomAccessibilityActionInvoked(sender: UIAccessibilityCustomAction) {
+        guard let cvCustomAction = sender as? CVAccessibilityCustomAction else {
+            return
+        }
+
+        cvCustomAction.messageAction?.block(self)
     }
 
     func willUpdateWithNewRenderState(_ renderState: CVRenderState) -> CVUpdateToken {
@@ -260,7 +297,7 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
         let shouldHideCollectionViewContent: Bool = {
             // Don't hide content for more than a couple of seconds.
             let viewAge = abs(self.viewState.viewCreationDate.timeIntervalSinceNow)
-            let maxHideTime = kSecondInterval * 2
+            let maxHideTime: TimeInterval = .second * 2
             guard viewAge < maxHideTime else {
                 // This should only occur on very slow devices.
                 Logger.warn("View taking a long time to render content.")
@@ -684,7 +721,7 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
             return buildDefaultConversationStyle(type: .`default`)
         } else {
             let viewAge = abs(self.viewState.viewCreationDate.timeIntervalSinceNow)
-            let maxHideTime = kSecondInterval * 2
+            let maxHideTime: TimeInterval = .second * 2
             guard viewAge < maxHideTime else {
                 // This should never happen, but we want to put an upper bound on
                 // how long we're willing to infer view state from the

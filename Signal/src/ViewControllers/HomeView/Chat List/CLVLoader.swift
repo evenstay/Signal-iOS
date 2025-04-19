@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-public import SignalServiceKit
+import SignalServiceKit
 
 enum CLVRowChangeType {
     case delete(oldIndexPath: IndexPath)
@@ -56,9 +56,9 @@ enum CLVLoadResult {
 
 // MARK: -
 
-public class CLVLoader: Dependencies {
+public class CLVLoader {
 
-    static func loadRenderStateForReset(viewInfo: CLVViewInfo, transaction: SDSAnyReadTransaction) -> CLVLoadResult {
+    static func loadRenderStateForReset(viewInfo: CLVViewInfo, transaction: DBReadTransaction) -> CLVLoadResult {
         AssertIsOnMainThread()
 
         do {
@@ -70,103 +70,48 @@ public class CLVLoader: Dependencies {
         }
     }
 
-    private static func loadRenderStateInternal(viewInfo: CLVViewInfo, transaction: SDSAnyReadTransaction) throws -> CLVRenderState {
+    private static func loadRenderStateInternal(viewInfo: CLVViewInfo, transaction: DBReadTransaction) throws -> CLVRenderState {
         let threadFinder = ThreadFinder()
         let isViewingArchive = viewInfo.chatListMode == .archive
 
-        var loadedPinnedThreads: [String: TSThread] = [:]
-        var threads: [TSThread] = []
+        let pinnedThreadUniqueIds = DependenciesBridge.shared.pinnedThreadStore
+            .pinnedThreadIds(tx: transaction)
 
-        let pinInfo = ChatListPinInfo(store: DependenciesBridge.shared.pinnedThreadStore, transaction: transaction.asV2Read)
+        let visibleThreadUniqueIds: [String]
+        if isViewingArchive {
+            visibleThreadUniqueIds = try threadFinder.visibleArchivedThreadIds(transaction: transaction)
+        } else {
+            visibleThreadUniqueIds = try threadFinder.visibleInboxThreadIds(
+                filteredBy: viewInfo.inboxFilter,
+                requiredVisibleThreadIds: viewInfo.requiredVisibleThreadIds,
+                transaction: transaction
+            )
+        }
 
-        // This method is a perf hotspot. To improve perf, we try to leverage
-        // the model cache. If any problems arise, we fall back to using
-        // threadFinder.enumerateVisibleThreads() which is robust but expensive.
-        func loadWithoutCache() throws {
-            try threadFinder.enumerateVisibleThreads(isArchived: isViewingArchive, transaction: transaction) { thread in
-                if pinInfo.isThreadPinned(thread) {
-                    loadedPinnedThreads[thread.uniqueId] = thread
-                } else {
-                    threads.append(thread)
-                }
+        var pinnedThreadUniqueIdsToRender = Set<String>()
+        var unpinnedThreadUniqueIdsForRender = [String]()
+        for threadUniqueId in visibleThreadUniqueIds {
+            if !isViewingArchive && pinnedThreadUniqueIds.contains(threadUniqueId) {
+                pinnedThreadUniqueIdsToRender.insert(threadUniqueId)
+            } else {
+                unpinnedThreadUniqueIdsForRender.append(threadUniqueId)
             }
         }
 
-        loading: do {
-            // Loading the mapping from the cache has the following steps:
-            //
-            // 1. Fetch the uniqueIds for the visible threads.
-            let threadIds = isViewingArchive
-                ? try threadFinder.visibleArchivedThreadIds(transaction: transaction)
-                : try threadFinder.visibleInboxThreadIds(
-                    filteredBy: viewInfo.inboxFilter,
-                    requiredVisibleThreadIds: viewInfo.requiredVisibleThreadIds,
-                    transaction: transaction
-                )
+        // Preserve the order from pinnedThreadUniqueIds
+        let orderedPinnedThreadUniqueIdsForRender = pinnedThreadUniqueIds.filter(pinnedThreadUniqueIdsToRender.contains(_:))
 
-            guard !threadIds.isEmpty else {
-                break loading
-            }
-
-            // 2. Try to pull as many threads as possible from the cache.
-            var threadIdToModelMap: [String: TSThread] = modelReadCaches.threadReadCache.getThreadsIfInCache(forUniqueIds: threadIds,
-                                                                                                             transaction: transaction)
-            var threadsToLoad = Set(threadIds)
-            threadsToLoad.subtract(threadIdToModelMap.keys)
-
-            // 3. Bulk load any threads that are not in the cache in a
-            //    single query.
-            //
-            // NOTE: There's an upper bound on how long SQL queries should be.
-            //       We use kMaxIncrementalRowChanges to limit query size.
-            guard threadsToLoad.count <= DatabaseChangeObserver.kMaxIncrementalRowChanges else {
-                try loadWithoutCache()
-                break loading
-            }
-
-            if !threadsToLoad.isEmpty {
-                let loadedThreads = try threadFinder.threads(withThreadIds: threadsToLoad, transaction: transaction)
-                guard loadedThreads.count == threadsToLoad.count else {
-                    owsFailDebug("Loading threads failed.")
-                    try loadWithoutCache()
-                    break loading
-                }
-                for thread in loadedThreads {
-                    threadIdToModelMap[thread.uniqueId] = thread
-                }
-            }
-
-            guard threadIds.count == threadIdToModelMap.count else {
-                owsFailDebug("Missing threads.")
-                try loadWithoutCache()
-                break loading
-            }
-
-            // 4. Build the ordered list of threads.
-            for threadId in threadIds {
-                guard let thread = threadIdToModelMap[threadId] else {
-                    owsFailDebug("Couldn't read thread: \(threadId)")
-                    try loadWithoutCache()
-                    break loading
-                }
-
-                if !isViewingArchive && pinInfo.isThreadPinned(thread) {
-                    loadedPinnedThreads[thread.uniqueId] = thread
-                } else {
-                    threads.append(thread)
-                }
-            }
-        }
-
-        let sortedPinnedThreads = pinInfo.threadIds.compactMap { loadedPinnedThreads[$0] }
-
-        return CLVRenderState(viewInfo: viewInfo, pinInfo: pinInfo, pinnedThreads: sortedPinnedThreads, unpinnedThreads: threads)
+        return CLVRenderState(
+            viewInfo: viewInfo,
+            pinnedThreadUniqueIds: orderedPinnedThreadUniqueIdsForRender,
+            unpinnedThreadUniqueIds: unpinnedThreadUniqueIdsForRender
+        )
     }
 
     static func loadRenderStateAndDiff(viewInfo: CLVViewInfo,
                                        updatedItemIds: Set<String>,
                                        lastRenderState: CLVRenderState,
-                                       transaction: SDSAnyReadTransaction) -> CLVLoadResult {
+                                       transaction: DBReadTransaction) -> CLVLoadResult {
         do {
             return try loadRenderStateAndDiffInternal(
                 viewInfo: viewInfo,
@@ -185,9 +130,8 @@ public class CLVLoader: Dependencies {
         .renderStateWithRowChanges(
             renderState: CLVRenderState(
                 viewInfo: viewInfo,
-                pinInfo: lastRenderState.pinInfo,
-                pinnedThreads: lastRenderState.pinnedThreads,
-                unpinnedThreads: lastRenderState.unpinnedThreads
+                pinnedThreadUniqueIds: lastRenderState.pinnedThreadUniqueIds,
+                unpinnedThreadUniqueIds: lastRenderState.unpinnedThreadUniqueIds
             ),
             rowChanges: []
         )
@@ -196,7 +140,7 @@ public class CLVLoader: Dependencies {
     private static func loadRenderStateAndDiffInternal(viewInfo: CLVViewInfo,
                                                        updatedItemIds allUpdatedItemIds: Set<String>,
                                                        lastRenderState: CLVRenderState,
-                                                       transaction: SDSAnyReadTransaction) throws -> CLVLoadResult {
+                                                       transaction: DBReadTransaction) throws -> CLVLoadResult {
 
         // Ignore updates to non-visible threads.
         var updatedItemIds = Set<String>()
@@ -212,10 +156,10 @@ public class CLVLoader: Dependencies {
 
         let newRenderState = try Self.loadRenderStateInternal(viewInfo: viewInfo, transaction: transaction)
 
-        let oldPinnedThreadIds: [String] = lastRenderState.pinnedThreads.map(\.uniqueId)
-        let oldUnpinnedThreadIds: [String] = lastRenderState.unpinnedThreads.map(\.uniqueId)
-        let newPinnedThreadIds: [String] = newRenderState.pinnedThreads.map(\.uniqueId)
-        let newUnpinnedThreadIds: [String] = newRenderState.unpinnedThreads.map(\.uniqueId)
+        let oldPinnedThreadIds: [String] = lastRenderState.pinnedThreadUniqueIds
+        let oldUnpinnedThreadIds: [String] = lastRenderState.unpinnedThreadUniqueIds
+        let newPinnedThreadIds: [String] = newRenderState.pinnedThreadUniqueIds
+        let newUnpinnedThreadIds: [String] = newRenderState.unpinnedThreadUniqueIds
 
         struct CLVBatchUpdateValue: BatchUpdateValue {
             let threadUniqueId: String

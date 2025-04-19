@@ -127,16 +127,16 @@ public final class OWSReaction: NSObject, SDSCodableModel, Decodable, NSSecureCo
         )
     }
 
-    public func markAsRead(transaction: SDSAnyWriteTransaction) {
+    public func markAsRead(transaction: DBWriteTransaction) {
         anyUpdate(transaction: transaction) { reaction in
             reaction.read = true
         }
-        notificationPresenter.cancelNotifications(reactionId: uniqueId)
+        SSKEnvironment.shared.notificationPresenterRef.cancelNotifications(reactionId: uniqueId)
     }
 
     @objc
     public static func anyEnumerateObjc(
-        transaction: SDSAnyReadTransaction,
+        transaction: DBReadTransaction,
         batched: Bool,
         block: @escaping (OWSReaction, UnsafeMutablePointer<ObjCBool>) -> Void
     ) {

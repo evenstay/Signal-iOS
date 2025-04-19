@@ -3,18 +3,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
-import LibSignalClient
+public import LibSignalClient
 public import SignalRingRTC
 
 public protocol CurrentCallProvider {
     var hasCurrentCall: Bool { get }
-    var currentGroupCallThread: TSGroupThread? { get }
+    var currentGroupThreadCallGroupId: GroupIdentifier? { get }
 }
 
 public class CurrentCallNoOpProvider: CurrentCallProvider {
     public init() {}
     public var hasCurrentCall: Bool { false }
-    public var currentGroupCallThread: TSGroupThread? { nil }
+    public var currentGroupThreadCallGroupId: GroupIdentifier? { nil }
 }
 
 /// Fetches & updates group call state.
@@ -48,10 +48,10 @@ public class GroupCallManager {
     }
 
     private var callRecordStore: CallRecordStore { DependenciesBridge.shared.callRecordStore }
-    private var databaseStorage: SDSDatabaseStorage { NSObject.databaseStorage }
+    private var databaseStorage: SDSDatabaseStorage { SSKEnvironment.shared.databaseStorageRef }
     private var groupCallRecordManager: GroupCallRecordManager { DependenciesBridge.shared.groupCallRecordManager }
     private var interactionStore: InteractionStore { DependenciesBridge.shared.interactionStore }
-    private var notificationPresenter: any NotificationPresenter { NSObject.notificationPresenter }
+    private var notificationPresenter: any NotificationPresenter { SSKEnvironment.shared.notificationPresenterRef }
     private var schedulers: Schedulers { DependenciesBridge.shared.schedulers }
     private var tsAccountManager: TSAccountManager { DependenciesBridge.shared.tsAccountManager }
 
@@ -69,20 +69,21 @@ public class GroupCallManager {
     }
 
     public func peekGroupCallAndUpdateThread(
-        _ thread: TSGroupThread,
+        forGroupId groupId: GroupIdentifier,
         peekTrigger: PeekTrigger
     ) async {
-        logger.info("Peek requested for thread \(thread.uniqueId) with trigger: \(peekTrigger)")
+        logger.info("Peek requested for group \(groupId) with trigger: \(peekTrigger)")
 
         // If the currentCall is for the provided thread, we don't need to
         // perform an explicit peek. Connected calls will receive automatic
         // updates from RingRTC.
-        guard currentCallProvider.currentGroupCallThread != thread else {
+        if currentCallProvider.currentGroupThreadCallGroupId?.serialize() == groupId.serialize() {
             logger.info("Ignoring peek request for the current call.")
             return
         }
 
-        guard thread.isLocalUserFullMember else {
+        let groupThread = databaseStorage.read { tx in TSGroupThread.fetch(forGroupId: groupId, tx: tx) }
+        guard let groupThread, groupThread.isLocalUserFullMember else {
             logger.warn("Ignoring peek request for non-member thread!")
             return
         }
@@ -102,11 +103,11 @@ public class GroupCallManager {
                 await self.upsertPlaceholderGroupCallModelsIfNecessary(
                     eraId: eraId,
                     triggerEventTimestamp: messageTimestamp,
-                    groupThread: thread
+                    groupId: groupId
                 )
             }
 
-            let info = try await self.groupCallPeekClient.fetchPeekInfo(groupThread: thread)
+            let info = try await self.groupCallPeekClient.fetchPeekInfo(groupId: groupId)
 
             let shouldUpdateCallModels: Bool = {
                 guard let infoEraId = info.eraId else {
@@ -130,28 +131,28 @@ public class GroupCallManager {
             }()
 
             if shouldUpdateCallModels {
-                self.logger.info("Applying group call PeekInfo for thread: \(thread.uniqueId), callId: \(info.callId?.description ?? "(null)")")
+                self.logger.info("Applying group call PeekInfo for groupId: \(groupId), callId: \(info.callId?.description ?? "(null)")")
 
                 await self.databaseStorage.awaitableWrite { tx in
                     self.updateGroupCallModelsForPeek(
                         peekInfo: info,
-                        groupThread: thread,
+                        groupId: groupId,
                         triggerEventTimestamp: peekTrigger.timestamp,
                         tx: tx
                     )
                 }
             } else {
-                self.logger.info("Ignoring group call PeekInfo for thread: \(thread.uniqueId), stale callId: \(info.callId?.description ?? "(null)")")
+                self.logger.info("Ignoring group call PeekInfo for groupId: \(groupId), stale callId: \(info.callId?.description ?? "(null)")")
             }
         } catch {
             if error.isNetworkFailureOrTimeout {
-                self.logger.warn("Failed to fetch PeekInfo for \(thread.uniqueId): \(error)")
+                self.logger.warn("Failed to fetch PeekInfo for \(groupId): \(error)")
             } else if !TSConstants.isUsingProductionService {
                 // Staging uses the production credentials, so trying to send a request
                 // with the staging credentials is expected to fail.
-                self.logger.warn("Expected failure to fetch PeekInfo for \(thread.uniqueId): \(error)")
+                self.logger.warn("Expected failure to fetch PeekInfo for \(groupId): \(error)")
             } else {
-                owsFailDebug("Failed to fetch PeekInfo for \(thread.uniqueId): \(error)")
+                owsFailDebug("Failed to fetch PeekInfo for \(groupId): \(error)")
             }
         }
     }
@@ -160,11 +161,16 @@ public class GroupCallManager {
     /// peek info.
     public func updateGroupCallModelsForPeek(
         peekInfo: PeekInfo,
-        groupThread: TSGroupThread,
+        groupId: GroupIdentifier,
         triggerEventTimestamp: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         let currentCallId: CallId? = peekInfo.callId
+
+        guard let groupThread = TSGroupThread.fetch(forGroupId: groupId, tx: tx) else {
+            owsFailDebug("Can't update call with missing thread.")
+            return
+        }
 
         // Clean up any unended group calls that don't match the currently
         // in-progress call.
@@ -202,7 +208,7 @@ public class GroupCallManager {
             switch self.callRecordStore.fetch(
                 callId: currentCallId.rawValue,
                 conversationId: .thread(threadRowId: groupThreadRowId),
-                tx: tx.asV2Write
+                tx: tx
             ) {
             case .matchNotFound:
                 return .notFound
@@ -212,7 +218,7 @@ public class GroupCallManager {
                 if let associatedInteraction: OWSGroupCallMessage = self.interactionStore
                     .fetchAssociatedInteraction(
                         callRecord: existingCallRecordForCallId,
-                        tx: tx.asV2Read
+                        tx: tx
                     )
                 {
                     return .found(associatedInteraction)
@@ -226,7 +232,7 @@ public class GroupCallManager {
         case .found(let interactionToUpdate):
             let wasOldMessageEmpty = interactionToUpdate.joinedMemberAcis.isEmpty && !interactionToUpdate.hasEnded
 
-            logger.info("Updating group call interaction for thread \(groupThread.uniqueId), callId \(currentCallId). Joined member count: \(joinedMemberAcis.count)")
+            logger.info("Updating group call interaction for thread \(groupId), callId \(currentCallId). Joined member count: \(joinedMemberAcis.count)")
 
             self.interactionStore.updateGroupCallInteractionAcis(
                 groupCallInteraction: interactionToUpdate,
@@ -234,8 +240,7 @@ public class GroupCallManager {
                 creatorAci: creatorAci,
                 callId: currentCallId.rawValue,
                 groupThreadRowId: groupThreadRowId,
-                notificationScheduler: self.schedulers.main,
-                tx: tx.asV2Write
+                tx: tx
             )
 
             if wasOldMessageEmpty {
@@ -257,7 +262,7 @@ public class GroupCallManager {
                 triggerEventTimestamp: triggerEventTimestamp,
                 groupThread: groupThread,
                 groupThreadRowId: groupThreadRowId,
-                tx: tx.asV2Write
+                tx: tx
             )
 
             postUserNotificationIfNecessary(
@@ -290,13 +295,17 @@ public class GroupCallManager {
         )
 
         logger.info("Creating record for group call discovered via peek.")
-        _ = groupCallRecordManager.createGroupCallRecordForPeek(
-            callId: callId.rawValue,
-            groupCallInteraction: newGroupCallInteraction,
-            groupCallInteractionRowId: interactionRowId,
-            groupThreadRowId: groupThreadRowId,
-            tx: tx
-        )
+        do {
+            _ = try groupCallRecordManager.createGroupCallRecordForPeek(
+                callId: callId.rawValue,
+                groupCallInteraction: newGroupCallInteraction,
+                groupCallInteractionRowId: interactionRowId,
+                groupThreadRowId: groupThreadRowId,
+                tx: tx
+            )
+        } catch let error {
+            owsFailBeta("Failed to insert call record: \(error)")
+        }
 
         return newGroupCallInteraction
     }
@@ -313,7 +322,7 @@ public class GroupCallManager {
     private func cleanUpUnendedCallMessagesAsNecessary(
         currentCallId: CallId?,
         groupThread: TSGroupThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) -> OWSGroupCallMessage? {
         enum CallIdProvider {
             case legacyEraId(eraId: String)
@@ -344,7 +353,7 @@ public class GroupCallManager {
                     let callRowId = groupCallInteraction.sqliteRowId,
                     let recordForCall = callRecordStore.fetch(
                         interactionRowId: callRowId,
-                        tx: tx.asV2Write
+                        tx: tx
                     )
                 {
                     return (
@@ -367,14 +376,13 @@ public class GroupCallManager {
                 continue
             }
 
-            logger.info("Marking unended group call interaction as ended for thread \(groupThread.uniqueId), callId \(callIdProvider.callId).")
+            logger.info("Marking unended group call interaction as ended for thread \(groupThread.logString), callId \(callIdProvider.callId).")
 
             interactionStore.markGroupCallInteractionAsEnded(
                 groupCallInteraction: unendedCallInteraction,
                 callId: callIdProvider.callId.rawValue,
                 groupThreadRowId: groupThreadRowId,
-                notificationScheduler: schedulers.main,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
 
@@ -397,9 +405,13 @@ public class GroupCallManager {
     private func upsertPlaceholderGroupCallModelsIfNecessary(
         eraId: String,
         triggerEventTimestamp: UInt64,
-        groupThread: TSGroupThread
+        groupId: GroupIdentifier
     ) async {
         await databaseStorage.awaitableWrite { tx in
+            guard let groupThread = TSGroupThread.fetch(forGroupId: groupId, tx: tx) else {
+                owsFailDebug("Can't find TSGroupThread that must exist.")
+                return
+            }
             guard !GroupCallInteractionFinder().existsGroupCallMessageForEraId(
                 eraId, thread: groupThread, transaction: tx
             ) else {
@@ -419,7 +431,7 @@ public class GroupCallManager {
             switch self.callRecordStore.fetch(
                 callId: callId.rawValue,
                 conversationId: .thread(threadRowId: groupThreadRowId),
-                tx: tx.asV2Read
+                tx: tx
             ) {
             case .matchDeleted:
                 self.logger.warn("Ignoring: call record was deleted!")
@@ -431,7 +443,7 @@ public class GroupCallManager {
                 self.groupCallRecordManager.updateCallBeganTimestampIfEarlier(
                     existingCallRecord: existingCallRecord,
                     callEventTimestamp: triggerEventTimestamp,
-                    tx: tx.asV2Write
+                    tx: tx
                 )
             case .matchNotFound:
                 self.logger.info("Inserting placeholder group call message with callId: \(callId)")
@@ -443,7 +455,7 @@ public class GroupCallManager {
                     triggerEventTimestamp: triggerEventTimestamp,
                     groupThread: groupThread,
                     groupThreadRowId: groupThreadRowId,
-                    tx: tx.asV2Write
+                    tx: tx
                 )
             }
         }
@@ -454,12 +466,12 @@ public class GroupCallManager {
         joinedMemberAcis: [Aci],
         creatorAci: Aci,
         groupThread: TSGroupThread,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         AssertNotOnMainThread()
 
         // The message can't be for the current call
-        guard currentCallProvider.currentGroupCallThread != groupThread else {
+        if currentCallProvider.currentGroupThreadCallGroupId?.serialize().asData == groupThread.groupId {
             return
         }
 
@@ -467,7 +479,7 @@ public class GroupCallManager {
         // by the local user.
         guard
             !joinedMemberAcis.isEmpty,
-            let localAci = tsAccountManager.localIdentifiers(tx: tx.asV2Read)?.aci,
+            let localAci = tsAccountManager.localIdentifiers(tx: tx)?.aci,
             creatorAci != localAci
         else {
             return

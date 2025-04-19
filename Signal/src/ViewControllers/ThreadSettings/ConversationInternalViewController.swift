@@ -33,10 +33,10 @@ public class ConversationInternalViewController: OWSTableViewController2 {
         let thread = self.thread
 
         let infoSection = OWSTableSection()
-        self.databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             let section = infoSection
 
-            let isThreadInProfileWhitelist = Self.profileManager.isThread(
+            let isThreadInProfileWhitelist = SSKEnvironment.shared.profileManagerRef.isThread(
                 inProfileWhitelist: thread, transaction: transaction
             )
             section.add(.copyableItem(
@@ -48,7 +48,7 @@ public class ConversationInternalViewController: OWSTableViewController2 {
                 let address = contactThread.contactAddress
 
                 let recipientDatabaseTable = DependenciesBridge.shared.recipientDatabaseTable
-                let signalRecipient = recipientDatabaseTable.fetchRecipient(address: address, tx: transaction.asV2Read)
+                let signalRecipient = recipientDatabaseTable.fetchRecipient(address: address, tx: transaction)
 
                 section.add(.copyableItem(
                     label: "ACI",
@@ -70,7 +70,7 @@ public class ConversationInternalViewController: OWSTableViewController2 {
                     value: signalRecipient?.phoneNumber?.isDiscoverable == true ? "Yes" : "No"
                 ))
 
-                let userProfile = profileManager.getUserProfile(for: address, transaction: transaction)
+                let userProfile = SSKEnvironment.shared.profileManagerRef.userProfile(for: address, tx: transaction)
 
                 section.add(.copyableItem(
                     label: "Sharing Phone Number?",
@@ -92,20 +92,23 @@ public class ConversationInternalViewController: OWSTableViewController2 {
                 ))
 
                 let identityManager = DependenciesBridge.shared.identityManager
-                let identityKey = identityManager.recipientIdentity(for: address, tx: transaction.asV2Read)?.identityKey
+                let identityKey = identityManager.recipientIdentity(for: address, tx: transaction)?.identityKey
                 section.add(.copyableItem(
                     label: "Identity Key",
                     value: identityKey?.hexadecimalString
                 ))
 
-                let arePaymentsEnabled = paymentsHelper.arePaymentsEnabled(for: address, transaction: transaction)
+                let arePaymentsEnabled = SSKEnvironment.shared.paymentsHelperRef.arePaymentsEnabled(for: address, transaction: transaction)
                 section.add(.copyableItem(
                     label: "Payments",
                     value: arePaymentsEnabled ? "Yes" : "No"
                 ))
 
-            } else {
-                // Nothing extra to show for groups.
+            } else if let groupThread = thread as? TSGroupThread {
+                section.add(.copyableItem(
+                    label: "Group ID",
+                    value: groupThread.groupId.toHex()
+                ))
             }
 
             section.add(.copyableItem(
@@ -131,9 +134,9 @@ public class ConversationInternalViewController: OWSTableViewController2 {
 
             let sessionSection = OWSTableSection()
             sessionSection.add(.actionItem(withText: "Delete Session") {
-                self.databaseStorage.write { transaction in
+                SSKEnvironment.shared.databaseStorageRef.write { transaction in
                     let aciStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci)
-                    aciStore.sessionStore.deleteAllSessions(for: address.serviceId!, tx: transaction.asV2Write)
+                    aciStore.sessionStore.deleteAllSessions(for: address.serviceId!, tx: transaction)
                 }
             })
 

@@ -15,8 +15,6 @@ protocol GroupMemberViewDelegate: AnyObject {
 
     func groupMemberViewAddRecipient(_ recipient: PickedRecipient)
 
-    func groupMemberViewCanAddRecipient(_ recipient: PickedRecipient) -> Bool
-
     func groupMemberViewShouldShowMemberCount() -> Bool
 
     func groupMemberViewGroupMemberCountForDisplay() -> Int
@@ -26,7 +24,7 @@ protocol GroupMemberViewDelegate: AnyObject {
     func groupMemberViewIsGroupFull_RecommendedLimit() -> Bool
 
     func groupMemberViewIsPreExistingMember(_ recipient: PickedRecipient,
-                                            transaction: SDSAnyReadTransaction) -> Bool
+                                            transaction: DBReadTransaction) -> Bool
 
     func groupMemberViewDismiss()
 
@@ -52,12 +50,6 @@ public class BaseGroupMemberViewController: BaseMemberViewController {
         super.init()
 
         memberViewDelegate = self
-    }
-
-    public override func viewDidLoad() {
-        super.viewDidLoad()
-
-        recipientPicker.shouldUseAsyncSelection = true
     }
 
     private func showGroupFullAlert_HardLimit() {
@@ -129,20 +121,17 @@ extension BaseGroupMemberViewController: MemberViewDelegate {
         groupMemberViewDelegate.groupMemberViewRemoveRecipient(recipient)
     }
 
-    public func memberViewAddRecipient(_ recipient: PickedRecipient) {
-        guard let groupMemberViewDelegate = groupMemberViewDelegate else {
-            owsFailDebug("Missing groupMemberViewDelegate.")
-            return
-        }
-        groupMemberViewDelegate.groupMemberViewAddRecipient(recipient)
-    }
-
-    public func memberViewCanAddRecipient(_ recipient: PickedRecipient) -> Bool {
+    public func memberViewAddRecipient(_ recipient: PickedRecipient) -> Bool {
         guard let groupMemberViewDelegate = groupMemberViewDelegate else {
             owsFailDebug("Missing groupMemberViewDelegate.")
             return false
         }
-        guard groupMemberViewDelegate.groupMemberViewCanAddRecipient(recipient) else {
+        guard let address = recipient.address else {
+            owsFailDebug("Invalid recipient.")
+            GroupViewUtils.showInvalidGroupMemberAlert(fromViewController: self)
+            return false
+        }
+        guard GroupManager.doesUserSupportGroupsV2(address: address) else {
             GroupViewUtils.showInvalidGroupMemberAlert(fromViewController: self)
             return false
         }
@@ -154,26 +143,8 @@ extension BaseGroupMemberViewController: MemberViewDelegate {
             showGroupFullAlert_SoftLimit(recipient: recipient, groupMemberViewDelegate: groupMemberViewDelegate)
             return false
         }
+        groupMemberViewDelegate.groupMemberViewAddRecipient(recipient)
         return true
-    }
-
-    public func memberViewPrepareToSelectRecipient(_ recipient: PickedRecipient) -> Promise<Void> {
-        return tryToEnableGroupsV2(for: recipient)
-    }
-
-    private func tryToEnableGroupsV2(for recipient: PickedRecipient) -> Promise<Void> {
-        guard let address = recipient.address else {
-            owsFailDebug("Invalid recipient.")
-            return .value(())
-        }
-        guard !GroupManager.doesUserSupportGroupsV2(address: address) else {
-            // Recipient already supports groups v2.
-            return .value(())
-        }
-        guard let phoneNumber = address.phoneNumber, !phoneNumber.isEmpty else {
-            return Promise(error: OWSAssertionError("Invalid address: \(address)."))
-        }
-        return contactDiscoveryManager.lookUp(phoneNumbers: [phoneNumber], mode: .oneOffUserRequest).asVoid()
     }
 
     public func memberViewShouldShowMemberCount() -> Bool {
@@ -194,7 +165,7 @@ extension BaseGroupMemberViewController: MemberViewDelegate {
         return groupMemberViewDelegate.groupMemberViewGroupMemberCountForDisplay()
     }
 
-    public func memberViewIsPreExistingMember(_ recipient: PickedRecipient, transaction: SDSAnyReadTransaction) -> Bool {
+    public func memberViewIsPreExistingMember(_ recipient: PickedRecipient, transaction: DBReadTransaction) -> Bool {
         guard let groupMemberViewDelegate = groupMemberViewDelegate else {
             owsFailDebug("Missing groupMemberViewDelegate.")
             return false

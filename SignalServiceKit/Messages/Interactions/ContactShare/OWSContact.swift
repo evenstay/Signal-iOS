@@ -157,13 +157,13 @@ public class OWSContact: MTLModel {
         var canLinkToSystemContact: Bool
     }
 
-    public func phoneNumberPartition(tx: SDSAnyReadTransaction) -> PhoneNumberPartition {
+    public func phoneNumberPartition(tx: DBReadTransaction) -> PhoneNumberPartition {
         let recipientDatabaseTable = DependenciesBridge.shared.recipientDatabaseTable
         let phoneNumberStatuses = e164PhoneNumbers().map { phoneNumber in
-            let recipient = recipientDatabaseTable.fetchRecipient(phoneNumber: phoneNumber, transaction: tx.asV2Read)
+            let recipient = recipientDatabaseTable.fetchRecipient(phoneNumber: phoneNumber, transaction: tx)
             return PhoneNumberStatus(
                 phoneNumber: phoneNumber,
-                isSystemContact: Self.contactsManager.cnContactId(for: phoneNumber) != nil,
+                isSystemContact: SSKEnvironment.shared.contactManagerRef.cnContactId(for: phoneNumber) != nil,
                 canLinkToSystemContact: recipient?.isRegistered == true
             )
         }
@@ -188,10 +188,7 @@ public class OWSContact: MTLModel {
         }
 
         let e164PhoneNumbers: [String] = phoneNumbers.compactMap { phoneNumber in
-            if let parsedPhoneNumber = phoneNumberUtil.parseE164(phoneNumber.phoneNumber) {
-                return parsedPhoneNumber.e164
-            }
-            if let parsedPhoneNumber = phoneNumberUtil.parsePhoneNumber(userSpecifiedText: phoneNumber.phoneNumber) {
+            if let parsedPhoneNumber = SSKEnvironment.shared.phoneNumberUtilRef.parsePhoneNumber(userSpecifiedText: phoneNumber.phoneNumber) {
                 return parsedPhoneNumber.e164
             }
             return nil

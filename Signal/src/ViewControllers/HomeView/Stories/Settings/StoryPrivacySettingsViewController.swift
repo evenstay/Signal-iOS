@@ -58,7 +58,7 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
                     comment: "Button to turn on stories on the story privacy settings view"
                 ),
                 actionBlock: {
-                    Self.databaseStorage.write { transaction in
+                    SSKEnvironment.shared.databaseStorageRef.write { transaction in
                         StoryManager.setAreStoriesEnabled(true, transaction: transaction)
                     }
                 }))
@@ -80,12 +80,12 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
         )
         contents.add(myStoriesSection)
 
-        let storyItems = databaseStorage.read { transaction -> [StoryConversationItem] in
+        let storyItems = SSKEnvironment.shared.databaseStorageRef.read { transaction -> [StoryConversationItem] in
             StoryConversationItem
                 .allItems(
                     includeImplicitGroupThreads: false,
                     excludeHiddenContexts: false,
-                    blockingManager: self.blockingManager,
+                    blockingManager: SSKEnvironment.shared.blockingManagerRef,
                     transaction: transaction
                 )
                 .lazy
@@ -105,7 +105,7 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
                         owsFailDebug("Missing cell.")
                         return UITableViewCell()
                     }
-                    Self.databaseStorage.read { transaction in
+                    SSKEnvironment.shared.databaseStorageRef.read { transaction in
                         cell.configure(conversationItem: item, transaction: transaction)
                     }
                     return cell
@@ -152,7 +152,7 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
         updateTableContents()
     }
 
-    func showSettings(for item: StoryConversationItem) {
+    private func showSettings(for item: StoryConversationItem) {
         switch item.backingItem {
         case .groupStory(let groupItem):
             showGroupStorySettings(for: groupItem)
@@ -171,7 +171,9 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
     }
 
     func showPrivateStorySettings(for item: PrivateStoryConversationItem) {
-        guard let storyThread = item.storyThread else {
+        let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+        let storyThread = databaseStorage.read { tx in item.fetchThread(tx: tx) }
+        guard let storyThread else {
             return owsFailDebug("Missing thread for private story")
         }
         let vc = PrivateStorySettingsViewController(thread: storyThread)
@@ -208,15 +210,17 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
 
     func turnOffStories() {
         ModalActivityIndicatorViewController.present(fromViewController: self, canCancel: false) { modal in
-            Self.databaseStorage.asyncWrite { transaction in
+            SSKEnvironment.shared.databaseStorageRef.asyncWrite { transaction in
                 StoryFinder.enumerateOutgoingStories(transaction: transaction) { storyMessage, _ in
                     storyMessage.remotelyDeleteForAllRecipients(transaction: transaction)
                 }
 
                 StoryManager.setAreStoriesEnabled(false, transaction: transaction)
 
-                transaction.addAsyncCompletionOnMain {
-                    modal.dismiss()
+                transaction.addSyncCompletion {
+                    Task { @MainActor in
+                        modal.dismiss()
+                    }
                 }
             }
         }
@@ -224,7 +228,7 @@ class StoryPrivacySettingsViewController: OWSTableViewController2 {
 
     @objc
     private func didToggleViewReceipts(_ sender: UISwitch) {
-        databaseStorage.write {
+        SSKEnvironment.shared.databaseStorageRef.write {
             StoryManager.setAreViewReceiptsEnabled(sender.isOn, transaction: $0)
         }
     }
@@ -241,7 +245,7 @@ private class StoryThreadCell: ContactTableViewCell {
 
     // MARK: - ContactTableViewCell
 
-    public func configure(conversationItem: StoryConversationItem, transaction: SDSAnyReadTransaction) {
+    public func configure(conversationItem: StoryConversationItem, transaction: DBReadTransaction) {
         let configuration: ContactCellConfiguration
         switch conversationItem.messageRecipient {
         case .contact:

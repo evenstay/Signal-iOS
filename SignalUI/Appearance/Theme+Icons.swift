@@ -42,6 +42,7 @@ public enum ThemeIcon: UInt {
     case contactInfoSafetyNumber
     case contactInfoUserInContacts
     case contactInfoAddToContacts
+    case contactInfoNameEducation
     case contactInfoSignalConnection
     case contactInfoNoDirectChat
     case contactInfoPendingRequest
@@ -154,10 +155,12 @@ public enum ThemeIcon: UInt {
     case timer16
     case refresh16
     case merge16
+    case link16
 
     case transfer
     case register
     case backup
+    case noDevice
 
     case emojiActivity
     case emojiAnimal
@@ -271,15 +274,18 @@ public extension Theme {
             return "person-circle"
         case .contactInfoAddToContacts:
             return "person-circle-plus"
+        case .contactInfoNameEducation:
+            return "person-questionmark-compact"
         case .contactInfoSignalConnection:
             return "connections"
         case .contactInfoNoDirectChat:
             return "chat-x"
-        case .chatListFilterByUnread,
-             .contactInfoPendingRequest:
+        case .contactInfoPendingRequest:
             return "chat-badge"
+        case .chatListFilterByUnread:
+            return "chat-badge-light"
         case .chatListClearFilter:
-            return "chat-badge-fill"
+            return "chat-x-light"
         case .contactInfoPhone:
             return "phone"
         case .contactInfoGroups:
@@ -498,6 +504,8 @@ public extension Theme {
             return "refresh-compact"
         case .merge16:
             return "merge-compact"
+        case .link16:
+            return "link-compact"
 
         case .transfer:
             return "transfer-\(UIDevice.current.isIPad ? "ipad" : "phone")-outline-60-\(isDarkThemeEnabled ? "dark" : "light")"
@@ -505,6 +513,8 @@ public extension Theme {
             return "register-\(UIDevice.current.isIPad ? "ipad" : "phone")-outline-60-\(isDarkThemeEnabled ? "dark" : "light")"
         case .backup:
             return "backup-display"
+        case .noDevice:
+            return "device-phone-slash"
 
         case .emojiActivity:
             return "emoji-activity"

@@ -5,7 +5,7 @@
 
 public import SignalServiceKit
 
-public class BlockListUIUtils: Dependencies {
+public class BlockListUIUtils {
 
     public typealias Completion = (Bool) -> Void
 
@@ -34,7 +34,7 @@ public class BlockListUIUtils: Dependencies {
         from viewController: UIViewController,
         completion: Completion?
     ) {
-        let displayName = databaseStorage.read { tx in contactsManager.displayName(for: address, tx: tx).resolvedValue() }
+        let displayName = SSKEnvironment.shared.databaseStorageRef.read { tx in SSKEnvironment.shared.contactManagerRef.displayName(for: address, tx: tx).resolvedValue() }
         showBlockAddressesActionSheet(address, displayName: displayName, from: viewController, completion: completion)
     }
 
@@ -149,8 +149,8 @@ public class BlockListUIUtils: Dependencies {
         owsAssertDebug(!displayName.isEmpty)
         owsAssertDebug(address.isValid)
 
-        databaseStorage.write { tx in
-            self.blockingManager.addBlockedAddress(address, blockMode: .localShouldLeaveGroups, transaction: tx)
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
+            SSKEnvironment.shared.blockingManagerRef.addBlockedAddress(address, blockMode: .localShouldLeaveGroups, transaction: tx)
         }
 
         showOkActionSheet(
@@ -196,9 +196,9 @@ public class BlockListUIUtils: Dependencies {
     ) {
         // block the group regardless of the ability to deliver the
         // "leave group" message.
-        databaseStorage.write(block: { tx in
-            self.blockingManager.addBlockedGroup(
-                groupModel: groupThread.groupModel,
+        SSKEnvironment.shared.databaseStorageRef.write(block: { tx in
+            SSKEnvironment.shared.blockingManagerRef.addBlockedGroupId(
+                groupThread.groupId,
                 blockMode: .localShouldLeaveGroups,
                 transaction: tx
             )
@@ -229,7 +229,12 @@ public class BlockListUIUtils: Dependencies {
             return
         }
         if let groupThread = thread as? TSGroupThread {
-            showUnblockGroupActionSheet(groupThread.groupModel, from: viewController, completion: completion)
+            showUnblockGroupActionSheet(
+                groupId: groupThread.groupModel.groupId,
+                groupNameOrDefault: groupThread.groupModel.groupNameOrDefault,
+                from: viewController,
+                completion: completion
+            )
             return
         }
         owsFailDebug("unexpected thread type: \(thread.self)")
@@ -240,7 +245,7 @@ public class BlockListUIUtils: Dependencies {
         from viewController: UIViewController,
         completion: Completion?
     ) {
-        let displayName = databaseStorage.read { tx in contactsManager.displayName(for: address, tx: tx).resolvedValue() }
+        let displayName = SSKEnvironment.shared.databaseStorageRef.read { tx in SSKEnvironment.shared.contactManagerRef.displayName(for: address, tx: tx).resolvedValue() }
         owsAssertDebug(!displayName.isEmpty)
 
         let actionSheetTitle = String(
@@ -273,7 +278,8 @@ public class BlockListUIUtils: Dependencies {
     }
 
     public static func showUnblockGroupActionSheet(
-        _ groupModel: TSGroupModel,
+        groupId: Data,
+        groupNameOrDefault: String,
         from viewController: UIViewController,
         completion: Completion?
     ) {
@@ -291,7 +297,7 @@ public class BlockListUIUtils: Dependencies {
             accessibilityIdentifier: "BlockListUIUtils.unblock",
             style: .destructive,
             handler: { _ in
-                unblockGroup(groupModel, from: viewController) { _ in
+                unblockGroup(groupId: groupId, groupNameOrDefault: groupNameOrDefault, from: viewController) { _ in
                     completion?(false)
                 }
             }
@@ -316,8 +322,8 @@ public class BlockListUIUtils: Dependencies {
         owsAssertDebug(address.isValid)
         owsAssertDebug(!displayName.isEmpty)
 
-        databaseStorage.write { tx in
-            self.blockingManager.removeBlockedAddress(address, wasLocallyInitiated: true, transaction: tx)
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
+            SSKEnvironment.shared.blockingManagerRef.removeBlockedAddress(address, wasLocallyInitiated: true, transaction: tx)
         }
 
         let actionSheetTitleFormat = OWSLocalizedString(
@@ -329,19 +335,20 @@ public class BlockListUIUtils: Dependencies {
     }
 
     private static func unblockGroup(
-        _ groupModel: TSGroupModel,
+        groupId: Data,
+        groupNameOrDefault: String,
         from viewController: UIViewController,
         completion: ((ActionSheetAction) -> Void)?
     ) {
-        databaseStorage.write { tx in
-            self.blockingManager.removeBlockedGroup(groupId: groupModel.groupId, wasLocallyInitiated: true, transaction: tx)
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
+            SSKEnvironment.shared.blockingManagerRef.removeBlockedGroup(groupId: groupId, wasLocallyInitiated: true, transaction: tx)
         }
 
         let actionSheetTitleFormat = OWSLocalizedString(
             "BLOCK_LIST_VIEW_UNBLOCKED_ALERT_TITLE_FORMAT",
             comment: "Alert title after unblocking a group or 1:1 chat. Embeds the {{conversation title}}."
         )
-        let actionSheetTitle = String(format: actionSheetTitleFormat, groupModel.groupNameOrDefault.formattedForActionSheetMessage())
+        let actionSheetTitle = String(format: actionSheetTitleFormat, groupNameOrDefault.formattedForActionSheetMessage())
         let actionSheetMessage = OWSLocalizedString(
             "BLOCK_LIST_VIEW_UNBLOCKED_GROUP_ALERT_BODY",
             comment: "Alert body after unblocking a group."

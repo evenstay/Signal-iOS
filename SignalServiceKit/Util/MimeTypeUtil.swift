@@ -31,87 +31,33 @@ public enum MimeType: String {
     case unknownMimetype = "unknown/mimetype"
 }
 
-@objc
-public class MimeTypeUtil: NSObject {
-    override private init() {}
-
-    // MARK: - Objective-C Exposed MimeType Raw Values
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeApplicationOctetStream = MimeType.applicationOctetStream.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeImagePng = MimeType.imagePng.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeImageJpeg = MimeType.imageJpeg.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeImageGif = MimeType.imageGif.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeImageTiff1 = MimeType.imageTiff.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeImageTiff2 = MimeType.imageXTiff.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeImageBmp1 = MimeType.imageBmp.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeImageBmp2 = MimeType.imageXWindowsBmp.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeImageWebp = MimeType.imageWebp.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeImageHeic = MimeType.imageHeic.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeImageHeif = MimeType.imageHeif.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeOversizeTextMessage = MimeType.textXSignalPlain.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeImageApng1 = MimeType.imageApng.rawValue
-    @objc
-    @available(swift, obsoleted: 1)
-    public static let mimeTypeImageApng2 = MimeType.imageVndMozillaApng.rawValue
+public enum MimeTypeUtil {
 
     // MARK: - Constants
     public static let oversizeTextAttachmentUti = "org.whispersystems.oversize-text-attachment"
-    @objc
     public static let oversizeTextAttachmentFileExtension = "txt"
     public static let unknownTestAttachmentUti = "org.whispersystems.unknown"
-    @objc
     public static let syncMessageFileExtension = "bin"
 
     // MARK: - Supported Mime Types
-    @objc
     public static func isSupportedVideoMimeType(_ contentType: String) -> Bool {
         supportedVideoMimeTypesToExtensionTypes[contentType] != nil
     }
-    @objc
     public static func isSupportedAudioMimeType(_ contentType: String) -> Bool {
         supportedAudioMimeTypesToExtensionTypes[contentType] != nil
     }
-    @objc
     public static func isSupportedImageMimeType(_ contentType: String) -> Bool {
         supportedImageMimeTypesToExtensionTypes[contentType] != nil
     }
-    @objc
     public static func isSupportedDefinitelyAnimatedMimeType(_ contentType: String) -> Bool {
         supportedDefinitelyAnimatedMimeTypesToExtensionTypes[contentType] != nil
     }
-    @objc
     public static func isSupportedMaybeAnimatedMimeType(_ contentType: String) -> Bool {
         supportedMaybeAnimatedMimeTypesToExtensionTypes[contentType] != nil
     }
     public static func isSupportedBinaryDataMimeType(_ contentType: String) -> Bool {
         supportedBinaryDataMimeTypesToExtensionTypes[contentType] != nil
     }
-    @objc
     public static func isSupportedVisualMediaMimeType(_ contentType: String) -> Bool {
         isSupportedImageMimeType(contentType)
         || isSupportedVideoMimeType(contentType)
@@ -119,7 +65,6 @@ public class MimeTypeUtil: NSObject {
     }
 
     // MARK: - Supported File Extensions
-    @objc
     public static func isSupportedVideoFile(_ filePath: String) -> Bool {
         supportedVideoFileExtensions.contains((filePath as NSString).pathExtension.lowercased())
     }
@@ -173,12 +118,10 @@ public class MimeTypeUtil: NSObject {
         return UTType(filenameExtension: fileExtension)?.identifier
     }
 
-    @objc
     public static func mimeTypeForFileExtension(_ fileExtension: String) -> String? {
         owsAssertDebug(!fileExtension.isEmpty)
         return genericExtensionTypesToMimeTypes[fileExtension]
     }
-    @objc
     public static func fileExtensionForUtiType(_ utiType: String) -> String? {
         // Special-case the "aac" filetype we use for voice messages (for legacy reasons)
         // to use a .m4a file extension, not .aac, since AVAudioPlayer can't handle .aac
@@ -189,7 +132,6 @@ public class MimeTypeUtil: NSObject {
             return UTType(utiType)?.preferredFilenameExtension
         }
     }
-    @objc
     public static func fileExtensionForMimeType(_ mimeType: String) -> String? {
         if mimeType == MimeType.textXSignalPlain.rawValue {
             return oversizeTextAttachmentFileExtension
@@ -457,6 +399,7 @@ public class MimeTypeUtil: NSObject {
         "application/vnd.antix.game-component": "atx",
         "application/vnd.apple.installer+xml": "mpkg",
         "application/vnd.apple.mpegurl": "m3u8",
+        "application/vnd.apple.pkpass": "pkpass",
         "application/vnd.aristanetworks.swi": "swi",
         "application/vnd.astraea-software.iota": "iota",
         "application/vnd.audiograph": "aep",
@@ -2386,99 +2329,5 @@ extension MimeTypeUtil {
     public static func thumbnailMimetype(fullsizeMimeType: String) -> String {
         let isWebp = fullsizeMimeType == MimeType.imageWebp.rawValue
         return isWebp ? MimeType.imagePng.rawValue : MimeType.imageJpeg.rawValue
-    }
-}
-
-// MARK: - TSAttachmentStream Extension Migrated from MIMETypeUtil.h/m
-// TODO: Move this to TSAttachmentStream once it is converted to Swift
-extension TSAttachmentStream {
-    @objc
-    static func filePath(forAttachment uniqueId: String, mimeType: String, sourceFilename: String?, folder: String) -> String? {
-        let defaultFileExtension = "bin"
-        if let sourceFilename, !sourceFilename.isEmpty {
-            var normalizedFilename = sourceFilename.trimmingCharacters(in: .whitespaces)
-
-            // Ensure that the filename is a valid filesystem name, replacing invalid characters with an underscore.
-            let invalidCharacterSets: [CharacterSet] = [.whitespacesAndNewlines, .illegalCharacters, .controlCharacters, .init(charactersIn: "<>|\\:()&;?*/~")]
-            for invalidCharacterSet in invalidCharacterSets {
-                normalizedFilename = normalizedFilename.components(separatedBy: invalidCharacterSet).joined(separator: "_")
-            }
-
-            // Remove leading periods to prevent hidden files, "." and ".." special file names.
-            let dotPrefixLength = normalizedFilename.prefix { $0 == "." }.count
-            normalizedFilename.removeFirst(dotPrefixLength)
-
-            var fileExtension = (normalizedFilename as NSString).pathExtension.trimmingCharacters(in: .whitespaces)
-            let filenameWithoutExtension = ((normalizedFilename as NSString).lastPathComponent as NSString).deletingPathExtension.trimmingCharacters(in: .whitespaces)
-
-            // If the filename has not file extension, deduce one from the MIME type.
-            if fileExtension.isEmpty {
-                fileExtension = MimeTypeUtil.fileExtensionForMimeType(mimeType)?.nilIfEmpty ?? defaultFileExtension
-            }
-            fileExtension = fileExtension.lowercased()
-
-            if !filenameWithoutExtension.isEmpty {
-                // Store the file in a subdirectory whose name is the uniqueId of this attachment,
-                // to avoid collisions between multiple attachments with the same name.
-                let attachmentFolderPath = folder.appendingPathComponent(uniqueId)
-                if !OWSFileSystem.ensureDirectoryExists(attachmentFolderPath) {
-                    return nil
-                }
-                return attachmentFolderPath.appendingPathComponent("\(filenameWithoutExtension).\(fileExtension)")
-            }
-        }
-
-        if MimeTypeUtil.isSupportedVideoMimeType(mimeType) {
-            return filePath(forVideo: uniqueId, mimeType: mimeType, folder: folder)
-        } else if MimeTypeUtil.isSupportedAudioMimeType(mimeType) {
-            return filePath(forAudio: uniqueId, mimeType: mimeType, folder: folder)
-        } else if MimeTypeUtil.isSupportedImageMimeType(mimeType) {
-            return filePath(forImage: uniqueId, mimeType: mimeType, folder: folder)
-        } else if MimeTypeUtil.isSupportedMaybeAnimatedMimeType(mimeType) {
-            return filePath(forAnimated: uniqueId, mimeType: mimeType, folder: folder)
-        } else if MimeTypeUtil.isSupportedBinaryDataMimeType(mimeType) {
-            return filePath(forBinaryData: uniqueId, mimeType: mimeType, folder: folder)
-        } else if MimeType.textXSignalPlain.rawValue == mimeType {
-            // We need to use a ".txt" file extension since this file extension is used
-            // by UIActivityViewController to determine which kinds of sharing are
-            // appropriate for this text.
-            // be used outside the app.
-            return filePath(forData: uniqueId, fileExtension: MimeTypeUtil.oversizeTextAttachmentFileExtension, folder: folder)
-        } else if MimeType.unknownMimetype.rawValue == mimeType {
-            // This file extension is arbitrary - it should never be exposed to the user or
-            // be used outside the app.
-            return filePath(forData: uniqueId, fileExtension: "unknown", folder: folder)
-        }
-
-        if let fileExtension = MimeTypeUtil.fileExtensionForMimeType(mimeType) {
-            return filePath(forData: uniqueId, fileExtension: fileExtension, folder: folder)
-        }
-
-        Logger.error("Got asked for path of file with mime type \(mimeType) which is unsupported")
-
-        // Use a fallback file extension.
-        return filePath(forData: uniqueId, fileExtension: defaultFileExtension, folder: folder)
-    }
-
-    private static func filePath(forImage uniqueId: String, mimeType: String, folder: String) -> String? {
-        filePath(forData: uniqueId, fileExtension: MimeTypeUtil.getSupportedExtensionFromImageMimeType(mimeType), folder: folder)
-    }
-    private static func filePath(forVideo uniqueId: String, mimeType: String, folder: String) -> String? {
-        filePath(forData: uniqueId, fileExtension: MimeTypeUtil.getSupportedExtensionFromVideoMimeType(mimeType), folder: folder)
-    }
-    private static func filePath(forAudio uniqueId: String, mimeType: String, folder: String) -> String? {
-        filePath(forData: uniqueId, fileExtension: MimeTypeUtil.getSupportedExtensionFromAudioMimeType(mimeType), folder: folder)
-    }
-    private static func filePath(forAnimated uniqueId: String, mimeType: String, folder: String) -> String? {
-        filePath(forData: uniqueId, fileExtension: MimeTypeUtil.getSupportedExtensionFromAnimatedMimeType(mimeType), folder: folder)
-    }
-    private static func filePath(forBinaryData uniqueId: String, mimeType: String, folder: String) -> String? {
-        filePath(forData: uniqueId, fileExtension: MimeTypeUtil.getSupportedExtensionFromBinaryDataMimeType(mimeType), folder: folder)
-    }
-    private static func filePath(forData uniqueId: String, fileExtension: String?, folder: String) -> String? {
-        guard let fileExtension else {
-            return nil
-        }
-        return folder.appendingPathComponent(uniqueId.appendingFileExtension(fileExtension))
     }
 }

@@ -18,11 +18,9 @@ public enum SSKProtoError: Error {
 public enum SSKProtoEnvelopeType: Int32 {
     case unknown = 0
     case ciphertext = 1
-    case keyExchange = 2
     case prekeyBundle = 3
     case receipt = 5
     case unidentifiedSender = 6
-    case senderkeyMessage = 7
     case plaintextContent = 8
 }
 
@@ -30,11 +28,9 @@ private func SSKProtoEnvelopeTypeWrap(_ value: SignalServiceProtos_Envelope.Type
     switch value {
     case .unknown: return .unknown
     case .ciphertext: return .ciphertext
-    case .keyExchange: return .keyExchange
     case .prekeyBundle: return .prekeyBundle
     case .receipt: return .receipt
     case .unidentifiedSender: return .unidentifiedSender
-    case .senderkeyMessage: return .senderkeyMessage
     case .plaintextContent: return .plaintextContent
     }
 }
@@ -43,11 +39,9 @@ private func SSKProtoEnvelopeTypeUnwrap(_ value: SSKProtoEnvelopeType) -> Signal
     switch value {
     case .unknown: return .unknown
     case .ciphertext: return .ciphertext
-    case .keyExchange: return .keyExchange
     case .prekeyBundle: return .prekeyBundle
     case .receipt: return .receipt
     case .unidentifiedSender: return .unidentifiedSender
-    case .senderkeyMessage: return .senderkeyMessage
     case .plaintextContent: return .plaintextContent
     }
 }
@@ -201,14 +195,14 @@ public class SSKProtoEnvelope: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_Envelope(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_Envelope) throws {
         guard proto.hasTimestamp else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: timestamp")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: timestamp")
         }
         let timestamp = proto.timestamp
 
@@ -522,14 +516,14 @@ public class SSKProtoTypingMessage: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_TypingMessage(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_TypingMessage) throws {
         guard proto.hasTimestamp else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: timestamp")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: timestamp")
         }
         let timestamp = proto.timestamp
 
@@ -731,7 +725,7 @@ public class SSKProtoStoryMessage: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_StoryMessage(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -999,14 +993,14 @@ public class SSKProtoPreview: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_Preview(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_Preview) throws {
         guard proto.hasURL else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: url")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: url")
         }
         let url = proto.url
 
@@ -1244,7 +1238,7 @@ public class SSKProtoTextAttachmentGradient: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_TextAttachment.Gradient(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -1521,7 +1515,7 @@ public class SSKProtoTextAttachment: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_TextAttachment(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -1804,7 +1798,7 @@ public class SSKProtoContent: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_Content(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -2199,14 +2193,14 @@ public class SSKProtoCallMessageOffer: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_CallMessage.Offer(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_CallMessage.Offer) throws {
         guard proto.hasID else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: id")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: id")
         }
         let id = proto.id
 
@@ -2384,14 +2378,14 @@ public class SSKProtoCallMessageAnswer: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_CallMessage.Answer(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_CallMessage.Answer) throws {
         guard proto.hasID else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: id")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: id")
         }
         let id = proto.id
 
@@ -2561,14 +2555,14 @@ public class SSKProtoCallMessageIceUpdate: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_CallMessage.IceUpdate(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_CallMessage.IceUpdate) throws {
         guard proto.hasID else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: id")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: id")
         }
         let id = proto.id
 
@@ -2726,14 +2720,14 @@ public class SSKProtoCallMessageBusy: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_CallMessage.Busy(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_CallMessage.Busy) throws {
         guard proto.hasID else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: id")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: id")
         }
         let id = proto.id
 
@@ -2937,14 +2931,14 @@ public class SSKProtoCallMessageHangup: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_CallMessage.Hangup(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_CallMessage.Hangup) throws {
         guard proto.hasID else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: id")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: id")
         }
         let id = proto.id
 
@@ -3153,7 +3147,7 @@ public class SSKProtoCallMessageOpaque: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_CallMessage.Opaque(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -3354,7 +3348,7 @@ public class SSKProtoCallMessage: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_CallMessage(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -3648,7 +3642,7 @@ public class SSKProtoDataMessageQuoteQuotedAttachment: NSObject, Codable, NSSecu
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Quote.QuotedAttachment(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -3905,14 +3899,14 @@ public class SSKProtoDataMessageQuote: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Quote(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_DataMessage.Quote) throws {
         guard proto.hasID else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: id")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: id")
         }
         let id = proto.id
 
@@ -4177,7 +4171,7 @@ public class SSKProtoDataMessageContactName: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Contact.Name(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -4447,7 +4441,7 @@ public class SSKProtoDataMessageContactPhone: NSObject, Codable, NSSecureCoding 
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Contact.Phone(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -4683,7 +4677,7 @@ public class SSKProtoDataMessageContactEmail: NSObject, Codable, NSSecureCoding 
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Contact.Email(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -4988,7 +4982,7 @@ public class SSKProtoDataMessageContactPostalAddress: NSObject, Codable, NSSecur
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Contact.PostalAddress(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -5250,7 +5244,7 @@ public class SSKProtoDataMessageContactAvatar: NSObject, Codable, NSSecureCoding
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Contact.Avatar(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -5443,7 +5437,7 @@ public class SSKProtoDataMessageContact: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Contact(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -5702,29 +5696,29 @@ public class SSKProtoDataMessageSticker: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Sticker(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_DataMessage.Sticker) throws {
         guard proto.hasPackID else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: packID")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: packID")
         }
         let packID = proto.packID
 
         guard proto.hasPackKey else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: packKey")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: packKey")
         }
         let packKey = proto.packKey
 
         guard proto.hasStickerID else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: stickerID")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: stickerID")
         }
         let stickerID = proto.stickerID
 
         guard proto.hasData else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: data")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: data")
         }
         let data = SSKProtoAttachmentPointer(proto.data)
 
@@ -5947,19 +5941,19 @@ public class SSKProtoDataMessageReaction: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Reaction(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_DataMessage.Reaction) throws {
         guard proto.hasEmoji else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: emoji")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: emoji")
         }
         let emoji = proto.emoji
 
         guard proto.hasTimestamp else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: timestamp")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: timestamp")
         }
         let timestamp = proto.timestamp
 
@@ -6138,14 +6132,14 @@ public class SSKProtoDataMessageDelete: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Delete(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_DataMessage.Delete) throws {
         guard proto.hasTargetSentTimestamp else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: targetSentTimestamp")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: targetSentTimestamp")
         }
         let targetSentTimestamp = proto.targetSentTimestamp
 
@@ -6296,7 +6290,7 @@ public class SSKProtoDataMessageGroupCallUpdate: NSObject, Codable, NSSecureCodi
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.GroupCallUpdate(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -6443,14 +6437,14 @@ public class SSKProtoDataMessagePaymentAmountMobileCoin: NSObject, Codable, NSSe
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Payment.Amount.MobileCoin(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_DataMessage.Payment.Amount.MobileCoin) throws {
         guard proto.hasPicoMob else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: picoMob")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: picoMob")
         }
         let picoMob = proto.picoMob
 
@@ -6594,7 +6588,7 @@ public class SSKProtoDataMessagePaymentAmount: NSObject, Codable, NSSecureCoding
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Payment.Amount(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -6747,14 +6741,14 @@ public class SSKProtoDataMessagePaymentNotificationMobileCoin: NSObject, Codable
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Payment.Notification.MobileCoin(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_DataMessage.Payment.Notification.MobileCoin) throws {
         guard proto.hasReceipt else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: receipt")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: receipt")
         }
         let receipt = proto.receipt
 
@@ -6916,7 +6910,7 @@ public class SSKProtoDataMessagePaymentNotification: NSObject, Codable, NSSecure
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Payment.Notification(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -7120,7 +7114,7 @@ public class SSKProtoDataMessagePaymentActivation: NSObject, Codable, NSSecureCo
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Payment.Activation(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -7266,7 +7260,7 @@ public class SSKProtoDataMessagePayment: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.Payment(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -7455,7 +7449,7 @@ public class SSKProtoDataMessageStoryContext: NSObject, Codable, NSSecureCoding 
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.StoryContext(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -7617,7 +7611,7 @@ public class SSKProtoDataMessageGiftBadge: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage.GiftBadge(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -7967,7 +7961,7 @@ public class SSKProtoDataMessage: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DataMessage(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -8423,7 +8417,7 @@ public class SSKProtoNullMessage: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_NullMessage(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -8615,7 +8609,7 @@ public class SSKProtoReceiptMessage: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_ReceiptMessage(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -8843,7 +8837,7 @@ public class SSKProtoVerified: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_Verified(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -9042,7 +9036,7 @@ public class SSKProtoSyncMessageSentUnidentifiedDeliveryStatus: NSObject, Codabl
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.Sent.UnidentifiedDeliveryStatus(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -9218,7 +9212,7 @@ public class SSKProtoSyncMessageSentStoryMessageRecipient: NSObject, Codable, NS
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.Sent.StoryMessageRecipient(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -9455,7 +9449,7 @@ public class SSKProtoSyncMessageSent: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.Sent(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -9739,14 +9733,14 @@ public class SSKProtoSyncMessageContacts: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.Contacts(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_SyncMessage.Contacts) throws {
         guard proto.hasBlob else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: blob")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: blob")
         }
         let blob = SSKProtoAttachmentPointer(proto.blob)
 
@@ -9914,7 +9908,7 @@ public class SSKProtoSyncMessageBlocked: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.Blocked(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -10126,7 +10120,7 @@ public class SSKProtoSyncMessageRequest: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.Request(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -10279,14 +10273,14 @@ public class SSKProtoSyncMessageRead: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.Read(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_SyncMessage.Read) throws {
         guard proto.hasTimestamp else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: timestamp")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: timestamp")
         }
         let timestamp = proto.timestamp
 
@@ -10456,14 +10450,14 @@ public class SSKProtoSyncMessageViewed: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.Viewed(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_SyncMessage.Viewed) throws {
         guard proto.hasTimestamp else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: timestamp")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: timestamp")
         }
         let timestamp = proto.timestamp
 
@@ -10661,7 +10655,7 @@ public class SSKProtoSyncMessageConfiguration: NSObject, Codable, NSSecureCoding
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.Configuration(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -10881,19 +10875,19 @@ public class SSKProtoSyncMessageStickerPackOperation: NSObject, Codable, NSSecur
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.StickerPackOperation(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_SyncMessage.StickerPackOperation) throws {
         guard proto.hasPackID else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: packID")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: packID")
         }
         let packID = proto.packID
 
         guard proto.hasPackKey else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: packKey")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: packKey")
         }
         let packKey = proto.packKey
 
@@ -11076,14 +11070,14 @@ public class SSKProtoSyncMessageViewOnceOpen: NSObject, Codable, NSSecureCoding 
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.ViewOnceOpen(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_SyncMessage.ViewOnceOpen) throws {
         guard proto.hasTimestamp else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: timestamp")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: timestamp")
         }
         let timestamp = proto.timestamp
 
@@ -11284,7 +11278,7 @@ public class SSKProtoSyncMessageFetchLatest: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.FetchLatest(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -11403,18 +11397,6 @@ public class SSKProtoSyncMessageKeys: NSObject, Codable, NSSecureCoding {
     fileprivate let proto: SignalServiceProtos_SyncMessage.Keys
 
     @objc
-    public var storageService: Data? {
-        guard hasStorageService else {
-            return nil
-        }
-        return proto.storageService
-    }
-    @objc
-    public var hasStorageService: Bool {
-        return proto.hasStorageService
-    }
-
-    @objc
     public var master: Data? {
         guard hasMaster else {
             return nil
@@ -11424,6 +11406,30 @@ public class SSKProtoSyncMessageKeys: NSObject, Codable, NSSecureCoding {
     @objc
     public var hasMaster: Bool {
         return proto.hasMaster
+    }
+
+    @objc
+    public var accountEntropyPool: String? {
+        guard hasAccountEntropyPool else {
+            return nil
+        }
+        return proto.accountEntropyPool
+    }
+    @objc
+    public var hasAccountEntropyPool: Bool {
+        return proto.hasAccountEntropyPool
+    }
+
+    @objc
+    public var mediaRootBackupKey: Data? {
+        guard hasMediaRootBackupKey else {
+            return nil
+        }
+        return proto.mediaRootBackupKey
+    }
+    @objc
+    public var hasMediaRootBackupKey: Bool {
+        return proto.hasMediaRootBackupKey
     }
 
     public var hasUnknownFields: Bool {
@@ -11444,7 +11450,7 @@ public class SSKProtoSyncMessageKeys: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.Keys(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -11499,11 +11505,14 @@ extension SSKProtoSyncMessageKeys {
     @objc
     public func asBuilder() -> SSKProtoSyncMessageKeysBuilder {
         let builder = SSKProtoSyncMessageKeysBuilder()
-        if let _value = storageService {
-            builder.setStorageService(_value)
-        }
         if let _value = master {
             builder.setMaster(_value)
+        }
+        if let _value = accountEntropyPool {
+            builder.setAccountEntropyPool(_value)
+        }
+        if let _value = mediaRootBackupKey {
+            builder.setMediaRootBackupKey(_value)
         }
         if let _value = unknownFields {
             builder.setUnknownFields(_value)
@@ -11522,17 +11531,6 @@ public class SSKProtoSyncMessageKeysBuilder: NSObject {
 
     @objc
     @available(swift, obsoleted: 1.0)
-    public func setStorageService(_ valueParam: Data?) {
-        guard let valueParam = valueParam else { return }
-        proto.storageService = valueParam
-    }
-
-    public func setStorageService(_ valueParam: Data) {
-        proto.storageService = valueParam
-    }
-
-    @objc
-    @available(swift, obsoleted: 1.0)
     public func setMaster(_ valueParam: Data?) {
         guard let valueParam = valueParam else { return }
         proto.master = valueParam
@@ -11540,6 +11538,28 @@ public class SSKProtoSyncMessageKeysBuilder: NSObject {
 
     public func setMaster(_ valueParam: Data) {
         proto.master = valueParam
+    }
+
+    @objc
+    @available(swift, obsoleted: 1.0)
+    public func setAccountEntropyPool(_ valueParam: String?) {
+        guard let valueParam = valueParam else { return }
+        proto.accountEntropyPool = valueParam
+    }
+
+    public func setAccountEntropyPool(_ valueParam: String) {
+        proto.accountEntropyPool = valueParam
+    }
+
+    @objc
+    @available(swift, obsoleted: 1.0)
+    public func setMediaRootBackupKey(_ valueParam: Data?) {
+        guard let valueParam = valueParam else { return }
+        proto.mediaRootBackupKey = valueParam
+    }
+
+    public func setMediaRootBackupKey(_ valueParam: Data) {
+        proto.mediaRootBackupKey = valueParam
     }
 
     public func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {
@@ -11681,7 +11701,7 @@ public class SSKProtoSyncMessageMessageRequestResponse: NSObject, Codable, NSSec
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.MessageRequestResponse(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -11903,24 +11923,24 @@ public class SSKProtoSyncMessageOutgoingPaymentMobileCoin: NSObject, Codable, NS
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.OutgoingPayment.MobileCoin(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_SyncMessage.OutgoingPayment.MobileCoin) throws {
         guard proto.hasAmountPicoMob else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: amountPicoMob")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: amountPicoMob")
         }
         let amountPicoMob = proto.amountPicoMob
 
         guard proto.hasFeePicoMob else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: feePicoMob")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: feePicoMob")
         }
         let feePicoMob = proto.feePicoMob
 
         guard proto.hasLedgerBlockIndex else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: ledgerBlockIndex")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: ledgerBlockIndex")
         }
         let ledgerBlockIndex = proto.ledgerBlockIndex
 
@@ -12160,7 +12180,7 @@ public class SSKProtoSyncMessageOutgoingPayment: NSObject, Codable, NSSecureCodi
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.OutgoingPayment(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -12393,7 +12413,7 @@ public class SSKProtoSyncMessagePniChangeNumber: NSObject, Codable, NSSecureCodi
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.PniChangeNumber(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -12762,7 +12782,7 @@ public class SSKProtoSyncMessageCallEvent: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.CallEvent(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -13007,7 +13027,7 @@ public class SSKProtoSyncMessageCallLinkUpdate: NSObject, Codable, NSSecureCodin
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.CallLinkUpdate(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -13246,7 +13266,7 @@ public class SSKProtoSyncMessageCallLogEvent: NSObject, Codable, NSSecureCoding 
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.CallLogEvent(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -13448,7 +13468,7 @@ public class SSKProtoSyncMessageDeleteForMeConversationIdentifier: NSObject, Cod
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.DeleteForMe.ConversationIdentifier(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -13651,7 +13671,7 @@ public class SSKProtoSyncMessageDeleteForMeAddressableMessage: NSObject, Codable
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.DeleteForMe.AddressableMessage(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -13825,7 +13845,7 @@ public class SSKProtoSyncMessageDeleteForMeMessageDeletes: NSObject, Codable, NS
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.DeleteForMe.MessageDeletes(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -14034,7 +14054,7 @@ public class SSKProtoSyncMessageDeleteForMeAttachmentDelete: NSObject, Codable, 
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.DeleteForMe.AttachmentDelete(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -14268,7 +14288,7 @@ public class SSKProtoSyncMessageDeleteForMeConversationDelete: NSObject, Codable
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.DeleteForMe.ConversationDelete(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -14459,7 +14479,7 @@ public class SSKProtoSyncMessageDeleteForMeLocalOnlyConversationDelete: NSObject
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.DeleteForMe.LocalOnlyConversationDelete(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -14627,7 +14647,7 @@ public class SSKProtoSyncMessageDeleteForMe: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage.DeleteForMe(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -14790,6 +14810,151 @@ extension SSKProtoSyncMessageDeleteForMeBuilder {
 
 #endif
 
+// MARK: - SSKProtoSyncMessageDeviceNameChange
+
+@objc
+public class SSKProtoSyncMessageDeviceNameChange: NSObject, Codable, NSSecureCoding {
+
+    fileprivate let proto: SignalServiceProtos_SyncMessage.DeviceNameChange
+
+    @objc
+    public var deviceID: UInt32 {
+        return proto.deviceID
+    }
+    @objc
+    public var hasDeviceID: Bool {
+        return proto.hasDeviceID
+    }
+
+    public var hasUnknownFields: Bool {
+        return !proto.unknownFields.data.isEmpty
+    }
+    public var unknownFields: SwiftProtobuf.UnknownStorage? {
+        guard hasUnknownFields else { return nil }
+        return proto.unknownFields
+    }
+
+    private init(proto: SignalServiceProtos_SyncMessage.DeviceNameChange) {
+        self.proto = proto
+    }
+
+    @objc
+    public func serializedData() throws -> Data {
+        return try self.proto.serializedData()
+    }
+
+    @objc
+    public required convenience init(serializedData: Data) throws {
+        let proto = try SignalServiceProtos_SyncMessage.DeviceNameChange(serializedBytes: serializedData)
+        self.init(proto)
+    }
+
+    fileprivate convenience init(_ proto: SignalServiceProtos_SyncMessage.DeviceNameChange) {
+        self.init(proto: proto)
+    }
+
+    public required convenience init(from decoder: Swift.Decoder) throws {
+        let singleValueContainer = try decoder.singleValueContainer()
+        let serializedData = try singleValueContainer.decode(Data.self)
+        try self.init(serializedData: serializedData)
+    }
+    public func encode(to encoder: Swift.Encoder) throws {
+        var singleValueContainer = encoder.singleValueContainer()
+        try singleValueContainer.encode(try serializedData())
+    }
+
+    public static var supportsSecureCoding: Bool { true }
+
+    public required convenience init?(coder: NSCoder) {
+        guard let serializedData = coder.decodeData() else { return nil }
+        do {
+            try self.init(serializedData: serializedData)
+        } catch {
+            owsFailDebug("Failed to decode serialized data \(error)")
+            return nil
+        }
+    }
+
+    public func encode(with coder: NSCoder) {
+        do {
+            coder.encode(try serializedData())
+        } catch {
+            owsFailDebug("Failed to encode serialized data \(error)")
+        }
+    }
+
+    @objc
+    public override var debugDescription: String {
+        return "\(proto)"
+    }
+}
+
+extension SSKProtoSyncMessageDeviceNameChange {
+    @objc
+    public static func builder() -> SSKProtoSyncMessageDeviceNameChangeBuilder {
+        return SSKProtoSyncMessageDeviceNameChangeBuilder()
+    }
+
+    // asBuilder() constructs a builder that reflects the proto's contents.
+    @objc
+    public func asBuilder() -> SSKProtoSyncMessageDeviceNameChangeBuilder {
+        let builder = SSKProtoSyncMessageDeviceNameChangeBuilder()
+        if hasDeviceID {
+            builder.setDeviceID(deviceID)
+        }
+        if let _value = unknownFields {
+            builder.setUnknownFields(_value)
+        }
+        return builder
+    }
+}
+
+@objc
+public class SSKProtoSyncMessageDeviceNameChangeBuilder: NSObject {
+
+    private var proto = SignalServiceProtos_SyncMessage.DeviceNameChange()
+
+    @objc
+    fileprivate override init() {}
+
+    @objc
+    public func setDeviceID(_ valueParam: UInt32) {
+        proto.deviceID = valueParam
+    }
+
+    public func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {
+        proto.unknownFields = unknownFields
+    }
+
+    @objc
+    public func buildInfallibly() -> SSKProtoSyncMessageDeviceNameChange {
+        return SSKProtoSyncMessageDeviceNameChange(proto)
+    }
+
+    @objc
+    public func buildSerializedData() throws -> Data {
+        return try SSKProtoSyncMessageDeviceNameChange(proto).serializedData()
+    }
+}
+
+#if TESTABLE_BUILD
+
+extension SSKProtoSyncMessageDeviceNameChange {
+    @objc
+    public func serializedDataIgnoringErrors() -> Data? {
+        return try! self.serializedData()
+    }
+}
+
+extension SSKProtoSyncMessageDeviceNameChangeBuilder {
+    @objc
+    public func buildIgnoringErrors() -> SSKProtoSyncMessageDeviceNameChange? {
+        return self.buildInfallibly()
+    }
+}
+
+#endif
+
 // MARK: - SSKProtoSyncMessage
 
 @objc
@@ -14855,6 +15020,9 @@ public class SSKProtoSyncMessage: NSObject, Codable, NSSecureCoding {
     public let deleteForMe: SSKProtoSyncMessageDeleteForMe?
 
     @objc
+    public let deviceNameChange: SSKProtoSyncMessageDeviceNameChange?
+
+    @objc
     public var padding: Data? {
         guard hasPadding else {
             return nil
@@ -14893,7 +15061,8 @@ public class SSKProtoSyncMessage: NSObject, Codable, NSSecureCoding {
                  callEvent: SSKProtoSyncMessageCallEvent?,
                  callLinkUpdate: SSKProtoSyncMessageCallLinkUpdate?,
                  callLogEvent: SSKProtoSyncMessageCallLogEvent?,
-                 deleteForMe: SSKProtoSyncMessageDeleteForMe?) {
+                 deleteForMe: SSKProtoSyncMessageDeleteForMe?,
+                 deviceNameChange: SSKProtoSyncMessageDeviceNameChange?) {
         self.proto = proto
         self.sent = sent
         self.contacts = contacts
@@ -14914,6 +15083,7 @@ public class SSKProtoSyncMessage: NSObject, Codable, NSSecureCoding {
         self.callLinkUpdate = callLinkUpdate
         self.callLogEvent = callLogEvent
         self.deleteForMe = deleteForMe
+        self.deviceNameChange = deviceNameChange
     }
 
     @objc
@@ -14922,7 +15092,7 @@ public class SSKProtoSyncMessage: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_SyncMessage(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -15017,6 +15187,11 @@ public class SSKProtoSyncMessage: NSObject, Codable, NSSecureCoding {
             deleteForMe = SSKProtoSyncMessageDeleteForMe(proto.deleteForMe)
         }
 
+        var deviceNameChange: SSKProtoSyncMessageDeviceNameChange?
+        if proto.hasDeviceNameChange {
+            deviceNameChange = SSKProtoSyncMessageDeviceNameChange(proto.deviceNameChange)
+        }
+
         self.init(proto: proto,
                   sent: sent,
                   contacts: contacts,
@@ -15036,7 +15211,8 @@ public class SSKProtoSyncMessage: NSObject, Codable, NSSecureCoding {
                   callEvent: callEvent,
                   callLinkUpdate: callLinkUpdate,
                   callLogEvent: callLogEvent,
-                  deleteForMe: deleteForMe)
+                  deleteForMe: deleteForMe,
+                  deviceNameChange: deviceNameChange)
     }
 
     public required convenience init(from decoder: Swift.Decoder) throws {
@@ -15138,6 +15314,9 @@ extension SSKProtoSyncMessage {
         }
         if let _value = deleteForMe {
             builder.setDeleteForMe(_value)
+        }
+        if let _value = deviceNameChange {
+            builder.setDeviceNameChange(_value)
         }
         if let _value = unknownFields {
             builder.setUnknownFields(_value)
@@ -15369,6 +15548,17 @@ public class SSKProtoSyncMessageBuilder: NSObject {
 
     public func setDeleteForMe(_ valueParam: SSKProtoSyncMessageDeleteForMe) {
         proto.deleteForMe = valueParam.proto
+    }
+
+    @objc
+    @available(swift, obsoleted: 1.0)
+    public func setDeviceNameChange(_ valueParam: SSKProtoSyncMessageDeviceNameChange?) {
+        guard let valueParam = valueParam else { return }
+        proto.deviceNameChange = valueParam.proto
+    }
+
+    public func setDeviceNameChange(_ valueParam: SSKProtoSyncMessageDeviceNameChange) {
+        proto.deviceNameChange = valueParam.proto
     }
 
     public func setUnknownFields(_ unknownFields: SwiftProtobuf.UnknownStorage) {
@@ -15625,7 +15815,7 @@ public class SSKProtoAttachmentPointer: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_AttachmentPointer(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -15968,7 +16158,7 @@ public class SSKProtoGroupContextV2: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_GroupContextV2(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -16153,7 +16343,7 @@ public class SSKProtoContactDetailsAvatar: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_ContactDetails.Avatar(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -16371,7 +16561,7 @@ public class SSKProtoContactDetails: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_ContactDetails(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -16614,14 +16804,14 @@ public class SSKProtoPackSticker: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_Pack.Sticker(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_Pack.Sticker) throws {
         guard proto.hasID else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: id")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: id")
         }
         let id = proto.id
 
@@ -16822,7 +17012,7 @@ public class SSKProtoPack: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_Pack(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -17023,19 +17213,19 @@ public class SSKProtoPaymentAddressMobileCoin: NSObject, Codable, NSSecureCoding
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_PaymentAddress.MobileCoin(serializedBytes: serializedData)
         try self.init(proto)
     }
 
     fileprivate convenience init(_ proto: SignalServiceProtos_PaymentAddress.MobileCoin) throws {
         guard proto.hasPublicAddress else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: publicAddress")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: publicAddress")
         }
         let publicAddress = proto.publicAddress
 
         guard proto.hasSignature else {
-            throw SSKProtoError.invalidProtobuf(description: "\(Self.logTag()) missing required field: signature")
+            throw SSKProtoError.invalidProtobuf(description: "[\(Self.self)] missing required field: signature")
         }
         let signature = proto.signature
 
@@ -17198,7 +17388,7 @@ public class SSKProtoPaymentAddress: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_PaymentAddress(serializedBytes: serializedData)
         try self.init(proto)
     }
@@ -17376,7 +17566,7 @@ public class SSKProtoDecryptionErrorMessage: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_DecryptionErrorMessage(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -17558,7 +17748,7 @@ public class SSKProtoPniSignatureMessage: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_PniSignatureMessage(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -17798,7 +17988,7 @@ public class SSKProtoBodyRange: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_BodyRange(serializedBytes: serializedData)
         self.init(proto)
     }
@@ -17978,7 +18168,7 @@ public class SSKProtoEditMessage: NSObject, Codable, NSSecureCoding {
     }
 
     @objc
-    public convenience init(serializedData: Data) throws {
+    public required convenience init(serializedData: Data) throws {
         let proto = try SignalServiceProtos_EditMessage(serializedBytes: serializedData)
         try self.init(proto)
     }

@@ -12,9 +12,7 @@ extension ChatListViewController {
             if newValue != viewState.isViewVisible {
                 viewState.isViewVisible = newValue
                 updateCellVisibility()
-                if newValue {
-                    shouldBeUpdatingView = true
-                }
+                shouldBeUpdatingView = newValue
             }
         }
     }
@@ -32,10 +30,6 @@ extension ChatListViewController {
 
     // MARK: -
 
-    public func loadIfNecessary() {
-        loadCoordinator.loadIfNecessary()
-    }
-
     func updateShouldBeUpdatingView() {
         AssertIsOnMainThread()
 
@@ -47,7 +41,7 @@ extension ChatListViewController {
     // MARK: -
 
     fileprivate func loadRenderStateForReset(viewInfo: CLVViewInfo,
-                                             transaction: SDSAnyReadTransaction) -> CLVLoadResult {
+                                             transaction: DBReadTransaction) -> CLVLoadResult {
         AssertIsOnMainThread()
 
         return CLVLoader.loadRenderStateForReset(viewInfo: viewInfo, transaction: transaction)
@@ -60,7 +54,7 @@ extension ChatListViewController {
 
     fileprivate func loadNewRenderStateWithDiff(viewInfo: CLVViewInfo,
                                                 updatedThreadIds: Set<String>,
-                                                transaction: SDSAnyReadTransaction) -> CLVLoadResult {
+                                                transaction: DBReadTransaction) -> CLVLoadResult {
         AssertIsOnMainThread()
 
         return CLVLoader.loadRenderStateAndDiff(viewInfo: viewInfo,
@@ -74,14 +68,14 @@ extension ChatListViewController {
 
         switch loadResult {
         case .renderStateForReset(renderState: let renderState):
-            let previousSelection = tableDataSource.selectedThreads(in: tableView)
+            let previousSelection = tableDataSource.selectedThreadUniqueIds(in: tableView)
             tableDataSource.renderState = renderState
 
             threadViewModelCache.clear()
             cellContentCache.clear()
             conversationCellHeightCache = nil
 
-            reloadTableData(withSelection: previousSelection)
+            reloadTableData(previouslySelectedThreadUniqueIds: previousSelection)
 
         case .renderStateWithRowChanges(renderState: let renderState, let rowChanges):
             applyRowChanges(rowChanges, renderState: renderState, animated: animated)
@@ -182,12 +176,22 @@ extension ChatListViewController {
                 if tableView.isEditing && !viewState.multiSelectState.isActive {
                     checkAndSetTableUpdates()
                 }
-                if !useFallBackUpdateMechanism, let tds = tableView.dataSource as? CLVTableDataSource {
-                    useFallBackUpdateMechanism = !tds.updateVisibleCellContent(at: oldIndexPath, for: tableView)
-                }
+
                 if useFallBackUpdateMechanism {
                     checkAndSetTableUpdates()
                     tableView.reloadRows(at: [oldIndexPath], with: .none)
+                } else if let tableDataSource = tableView.dataSource as? CLVTableDataSource {
+                    // If we can, we'll do an in-place update to the cell rather
+                    // than call `reloadRows`, to avoid what can be a disruptive
+                    // re-layout of the chat list.
+                    //
+                    // This optimization is particularly important when there are
+                    // many rapid-fire chat-list-cell updates needed, such as when
+                    // fetching avatars after a Backup restore. (See:
+                    // `MessageBackupAvatarFetcher`.)
+                    tableDataSource.updateCellContent(at: oldIndexPath, for: tableView)
+                } else {
+                    owsFailDebug("Failed to apply row update: unexpectedly missing table data source!")
                 }
             }
         }
@@ -246,7 +250,7 @@ private enum CLVLoadType {
 
 // MARK: -
 
-public class CLVLoadCoordinator: Dependencies {
+public class CLVLoadCoordinator {
     private let filterStore: ChatListFilterStore
     private var loadInfoBuilder: CLVLoadInfoBuilder
 
@@ -275,9 +279,9 @@ public class CLVLoadCoordinator: Dependencies {
             lastSelectedThreadId: String?,
             hasVisibleReminders: Bool,
             lastViewInfo: CLVViewInfo,
-            transaction: SDSAnyReadTransaction
+            transaction: DBReadTransaction
         ) -> CLVLoadInfo {
-            let inboxFilter = inboxFilter ?? loadCoordinator.filterStore.inboxFilter(transaction: transaction.asV2Read) ?? .none
+            let inboxFilter = inboxFilter ?? loadCoordinator.filterStore.inboxFilter(transaction: transaction) ?? .none
 
             let viewInfo = CLVViewInfo.build(
                 chatListMode: chatListMode,
@@ -301,8 +305,8 @@ public class CLVLoadCoordinator: Dependencies {
     }
 
     public func saveInboxFilter(_ inboxFilter: InboxFilter) {
-        databaseStorage.asyncWrite { [filterStore] transaction in
-            filterStore.setInboxFilter(inboxFilter, transaction: transaction.asV2Write)
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { [filterStore] transaction in
+            filterStore.setInboxFilter(inboxFilter, transaction: transaction)
         }
     }
 
@@ -376,7 +380,7 @@ public class CLVLoadCoordinator: Dependencies {
         let reminderViews = viewController.viewState.reminderViews
         let hasVisibleReminders = reminderViews.hasVisibleReminders
 
-        let loadResult: CLVLoadResult = databaseStorage.read { transaction in
+        let loadResult: CLVLoadResult = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             // Decide what kind of load we prefer.
             let loadInfo = loadInfoBuilder.build(
                 loadCoordinator: self,

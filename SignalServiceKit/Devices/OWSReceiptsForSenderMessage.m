@@ -4,7 +4,6 @@
 //
 
 #import "OWSReceiptsForSenderMessage.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -23,7 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (OWSReceiptsForSenderMessage *)deliveryReceiptsForSenderMessageWithThread:(TSThread *)thread
                                                                  receiptSet:(MessageReceiptSet *)receiptSet
-                                                                transaction:(SDSAnyReadTransaction *)transaction
+                                                                transaction:(DBReadTransaction *)transaction
 {
     return [[OWSReceiptsForSenderMessage alloc] initWithThread:thread
                                                     receiptSet:receiptSet
@@ -33,7 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (OWSReceiptsForSenderMessage *)readReceiptsForSenderMessageWithThread:(TSThread *)thread
                                                              receiptSet:(MessageReceiptSet *)receiptSet
-                                                            transaction:(SDSAnyReadTransaction *)transaction
+                                                            transaction:(DBReadTransaction *)transaction
 {
     return [[OWSReceiptsForSenderMessage alloc] initWithThread:thread
                                                     receiptSet:receiptSet
@@ -43,7 +42,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (OWSReceiptsForSenderMessage *)viewedReceiptsForSenderMessageWithThread:(TSThread *)thread
                                                                receiptSet:(MessageReceiptSet *)receiptSet
-                                                              transaction:(SDSAnyReadTransaction *)transaction
+                                                              transaction:(DBReadTransaction *)transaction
 {
     return [[OWSReceiptsForSenderMessage alloc] initWithThread:thread
                                                     receiptSet:receiptSet
@@ -54,7 +53,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithThread:(TSThread *)thread
                     receiptSet:(MessageReceiptSet *)receiptSet
                    receiptType:(SSKProtoReceiptMessageType)receiptType
-                   transaction:(SDSAnyReadTransaction *)transaction
+                   transaction:(DBReadTransaction *)transaction
 {
     TSOutgoingMessageBuilder *messageBuilder = [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:thread];
     self = [super initOutgoingMessageWithBuilder:messageBuilder
@@ -86,7 +85,7 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 - (nullable SSKProtoContentBuilder *)contentBuilderWithThread:(TSThread *)thread
-                                                  transaction:(SDSAnyReadTransaction *)transaction
+                                                  transaction:(DBReadTransaction *)transaction
 {
     SSKProtoReceiptMessage *_Nullable receiptMessage = [self buildReceiptMessageWithTransaction:transaction];
     if (!receiptMessage) {
@@ -99,7 +98,7 @@ NS_ASSUME_NONNULL_BEGIN
     return contentBuilder;
 }
 
-- (nullable SSKProtoReceiptMessage *)buildReceiptMessageWithTransaction:(SDSAnyReadTransaction *)transaction
+- (nullable SSKProtoReceiptMessage *)buildReceiptMessageWithTransaction:(DBReadTransaction *)transaction
 {
     OWSAssertDebug(self.recipientAddresses.count == 1);
     OWSAssertDebug(self.messageTimestamps.count > 0);
@@ -123,7 +122,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)debugDescription
 {
     return [NSString
-        stringWithFormat:@"%@ with message timestamps: %lu", self.logTag, (unsigned long)self.messageTimestamps.count];
+        stringWithFormat:@"[%@] with message timestamps: %lu", self.class, (unsigned long)self.messageTimestamps.count];
 }
 
 - (NSSet<NSString *> *)relatedUniqueIds

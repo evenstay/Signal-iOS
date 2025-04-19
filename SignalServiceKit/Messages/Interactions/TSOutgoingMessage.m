@@ -5,11 +5,9 @@
 
 #import "TSOutgoingMessage.h"
 #import "OWSOutgoingSyncMessage.h"
-#import "TSAttachmentStream.h"
 #import "TSContactThread.h"
 #import "TSGroupThread.h"
 #import "TSQuotedMessage.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -40,7 +38,7 @@ NSString *NSStringForOutgoingMessageState(TSOutgoingMessageState value)
 
 @interface TSMessage (Private)
 
-- (void)removeAllAttachmentsWithTransaction:(SDSAnyWriteTransaction *)transaction;
+- (void)removeAllAttachmentsWithTransaction:(DBWriteTransaction *)transaction;
 
 @end
 
@@ -81,10 +79,10 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -121,10 +119,10 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
                             sortId:sortId
                          timestamp:timestamp
                     uniqueThreadId:uniqueThreadId
-                     attachmentIds:attachmentIds
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+          deprecated_attachmentIds:deprecated_attachmentIds
                          editState:editState
                    expireStartedAt:expireStartedAt
                 expireTimerVersion:expireTimerVersion
@@ -187,7 +185,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
                           additionalRecipients:(NSArray<SignalServiceAddress *> *)additionalRecipients
                             explicitRecipients:(NSArray<AciObjC *> *)explicitRecipients
                              skippedRecipients:(NSArray<SignalServiceAddress *> *)skippedRecipients
-                                   transaction:(SDSAnyReadTransaction *)transaction
+                                   transaction:(DBReadTransaction *)transaction
 {
     self = [super initMessageWithBuilder:outgoingMessageBuilder];
     if (!self) {
@@ -244,7 +242,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
     _groupMetaMessage = [[self class] groupMetaMessageForBuilder:outgoingMessageBuilder];
     _hasSyncedTranscript = NO;
     _outgoingMessageSchemaVersion = TSOutgoingMessageSchemaVersion;
-    _changeActionsProtoData = outgoingMessageBuilder.changeActionsProtoData;
+    _changeActionsProtoData = outgoingMessageBuilder.groupChangeProtoData;
     _isVoiceMessage = outgoingMessageBuilder.isVoiceMessage;
 
     return self;
@@ -264,7 +262,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
     _groupMetaMessage = [[self class] groupMetaMessageForBuilder:outgoingMessageBuilder];
     _hasSyncedTranscript = NO;
     _outgoingMessageSchemaVersion = TSOutgoingMessageSchemaVersion;
-    _changeActionsProtoData = outgoingMessageBuilder.changeActionsProtoData;
+    _changeActionsProtoData = outgoingMessageBuilder.groupChangeProtoData;
     _isVoiceMessage = outgoingMessageBuilder.isVoiceMessage;
 
     return self;
@@ -342,27 +340,32 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
     return NO;
 }
 
-- (void)anyWillInsertWithTransaction:(SDSAnyWriteTransaction *)transaction
+- (void)updateStoredMessageState
 {
-    [super anyWillInsertWithTransaction:transaction];
-
     _storedMessageState = self.messageState;
 }
 
-- (void)anyDidInsertWithTransaction:(SDSAnyWriteTransaction *)transaction
+- (void)anyWillInsertWithTransaction:(DBWriteTransaction *)transaction
+{
+    [super anyWillInsertWithTransaction:transaction];
+
+    [self updateStoredMessageState];
+}
+
+- (void)anyDidInsertWithTransaction:(DBWriteTransaction *)transaction
 {
     [super anyDidInsertWithTransaction:transaction];
     [self markMessageSendLogEntryCompleteIfNeededWithTx:transaction];
 }
 
-- (void)anyWillUpdateWithTransaction:(SDSAnyWriteTransaction *)transaction
+- (void)anyWillUpdateWithTransaction:(DBWriteTransaction *)transaction
 {
     [super anyWillUpdateWithTransaction:transaction];
 
-    _storedMessageState = self.messageState;
+    [self updateStoredMessageState];
 }
 
-- (void)anyDidUpdateWithTransaction:(SDSAnyWriteTransaction *)transaction
+- (void)anyDidUpdateWithTransaction:(DBWriteTransaction *)transaction
 {
     [super anyDidUpdateWithTransaction:transaction];
     [self markMessageSendLogEntryCompleteIfNeededWithTx:transaction];
@@ -381,13 +384,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
         return NO;
     }
 
-    // It's not clear if we should wait until _all_ recipients have reached "sent or later"
-    // (which could never occur if one group member is unregistered) or only wait until
-    // the first recipient has reached "sent or later" (which could cause partially delivered
-    // messages to expire).  For now, we'll do the latter.
-    //
-    // TODO: Revisit this decision.
-    return self.messageState == TSOutgoingMessageStateSent;
+    return [TSOutgoingMessage isEligibleToStartExpireTimerWithMessageState:self.messageState];
 }
 
 - (BOOL)isOnline
@@ -407,7 +404,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
 
 #pragma mark - Update With... Methods
 
-- (void)updateWithHasSyncedTranscript:(BOOL)hasSyncedTranscript transaction:(SDSAnyWriteTransaction *)transaction
+- (void)updateWithHasSyncedTranscript:(BOOL)hasSyncedTranscript transaction:(DBWriteTransaction *)transaction
 {
     [self anyUpdateOutgoingMessageWithTransaction:transaction
                                             block:^(TSOutgoingMessage *message) {
@@ -418,7 +415,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
 #pragma mark -
 
 - (nullable SSKProtoDataMessageBuilder *)dataMessageBuilderWithThread:(TSThread *)thread
-                                                          transaction:(SDSAnyReadTransaction *)transaction
+                                                          transaction:(DBReadTransaction *)transaction
 {
     OWSAssertDebug(thread);
 
@@ -478,11 +475,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
     }
 
     [builder setExpireTimer:self.expiresInSeconds];
-    if (self.expireTimerVersion) {
-        [builder setExpireTimerVersion:[self.expireTimerVersion unsignedIntValue]];
-    } else {
-        [builder setExpireTimerVersion:0];
-    }
+    [builder setExpireTimerVersion:[self.expireTimerVersion unsignedIntValue]];
 
 
     // Group Messages
@@ -596,7 +589,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
 
 
 // recipientId is nil when building "sent" sync messages for messages sent to groups.
-- (nullable SSKProtoDataMessage *)buildDataMessage:(TSThread *)thread transaction:(SDSAnyReadTransaction *)transaction
+- (nullable SSKProtoDataMessage *)buildDataMessage:(TSThread *)thread transaction:(DBReadTransaction *)transaction
 {
     OWSAssertDebug(thread);
     OWSAssertDebug([thread.uniqueId isEqualToString:self.uniqueThreadId]);
@@ -618,7 +611,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
 }
 
 - (nullable SSKProtoContentBuilder *)contentBuilderWithThread:(TSThread *)thread
-                                                  transaction:(SDSAnyReadTransaction *)transaction
+                                                  transaction:(DBReadTransaction *)transaction
 {
     SSKProtoDataMessage *_Nullable dataMessage = [self buildDataMessage:thread transaction:transaction];
     if (!dataMessage) {
@@ -630,7 +623,7 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
     return contentBuilder;
 }
 
-- (nullable NSData *)buildPlainTextData:(TSThread *)thread transaction:(SDSAnyWriteTransaction *)transaction
+- (nullable NSData *)buildPlainTextData:(TSThread *)thread transaction:(DBWriteTransaction *)transaction
 {
     SSKProtoContentBuilder *_Nullable contentBuilder = [self contentBuilderWithThread:thread transaction:transaction];
     if (!contentBuilder) {
@@ -654,8 +647,8 @@ NSUInteger const TSOutgoingMessageSchemaVersion = 1;
     return YES;
 }
 
-- (nullable OWSOutgoingSyncMessage *)buildTranscriptSyncMessageWithLocalThread:(TSThread *)localThread
-                                                                   transaction:(SDSAnyWriteTransaction *)transaction
+- (nullable OWSOutgoingSyncMessage *)buildTranscriptSyncMessageWithLocalThread:(TSContactThread *)localThread
+                                                                   transaction:(DBWriteTransaction *)transaction
 {
     OWSAssertDebug(self.shouldSyncTranscript);
 

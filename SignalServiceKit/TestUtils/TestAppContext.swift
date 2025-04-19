@@ -52,13 +52,13 @@ public class TestAppContext: NSObject, AppContext {
 
     public let type: SignalServiceKit.AppContextType = .main
     public let isMainAppAndActive: Bool = true
+    public let isMainAppAndActiveIsolated: Bool = true
     public func mainApplicationStateOnLaunch() -> UIApplication.State { .inactive }
     public let isRTL: Bool = false
     public func isInBackground() -> Bool { false }
     public func isAppForegroundAndActive() -> Bool { true }
     public func beginBackgroundTask(with expirationHandler: BackgroundTaskExpirationHandler) -> UIBackgroundTaskIdentifier { .invalid }
     public func endBackgroundTask(_ backgroundTaskIdentifier: UIBackgroundTaskIdentifier) {}
-    public func ensureSleepBlocking(_ shouldBeBlocking: Bool, blockingObjectsDescription: String) {}
     public func frontmostViewController() -> UIViewController? { nil }
     public func openSystemSettings() {}
     public func open(_ url: URL, completion: ((Bool) -> Void)?) {}
@@ -73,9 +73,11 @@ public class TestAppContext: NSObject, AppContext {
     public func appSharedDataDirectoryPath() -> String { mockAppSharedDataDirectoryPath }
     public func appDatabaseBaseDirectoryPath() -> String { appSharedDataDirectoryPath() }
     public func canPresentNotifications() -> Bool { false }
-    public let shouldProcessIncomingMessages: Bool = true
+    public var shouldProcessIncomingMessages = true
     public let hasUI: Bool = true
     public let debugLogsDirPath: String = testDebugLogsDirPath
+
+    @MainActor
     public func resetAppDataAndExit() -> Never {
         owsFail("resetAppDataAndExit called during tests")
     }

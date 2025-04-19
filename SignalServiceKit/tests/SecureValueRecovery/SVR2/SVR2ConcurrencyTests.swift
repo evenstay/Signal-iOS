@@ -11,7 +11,7 @@ import LibSignalClient
 
 class SVR2ConcurrencyTests: XCTestCase {
 
-    private var db: MockDB!
+    private var db: InMemoryDB!
     private var svr: SecureValueRecovery2Impl!
 
     private var credentialStorage: SVRAuthCredentialStorageMock!
@@ -20,7 +20,7 @@ class SVR2ConcurrencyTests: XCTestCase {
     private var mockConnection: MockSgxWebsocketConnection<SVR2WebsocketConfigurator>!
 
     override func setUp() {
-        self.db = MockDB()
+        self.db = InMemoryDB()
         self.credentialStorage = SVRAuthCredentialStorageMock()
 
         mockConnection = MockSgxWebsocketConnection<SVR2WebsocketConfigurator>()
@@ -29,8 +29,8 @@ class SVR2ConcurrencyTests: XCTestCase {
 
         let mockClientWrapper = MockSVR2ClientWrapper()
 
-        let kvStore = InMemoryKeyValueStoreFactory()
-        let localStorage = SVRLocalStorageImpl(keyValueStoreFactory: kvStore)
+        let accountKeyStore = AccountKeyStore()
+        let localStorage = SVRLocalStorageImpl()
 
         self.svr = SecureValueRecovery2Impl(
             accountAttributesUpdater: MockAccountAttributesUpdater(),
@@ -41,7 +41,7 @@ class SVR2ConcurrencyTests: XCTestCase {
             connectionFactory: mockConnectionFactory,
             credentialStorage: credentialStorage,
             db: db,
-            keyValueStoreFactory: kvStore,
+            accountKeyStore: accountKeyStore,
             schedulers: Schedulers(queue),
             storageServiceManager: FakeStorageServiceManager(),
             svrLocalStorage: localStorage,
@@ -102,8 +102,9 @@ class SVR2ConcurrencyTests: XCTestCase {
             }
         }
 
+        let firstMasterKey = MasterKey()
         let firstBackupExpectation = self.expectation(description: "first backup")
-        svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit).observe(on: SyncScheduler()) { (_: Result<Void, Error>) in
+        svr.backupMasterKey(pin: "1234", masterKey: firstMasterKey, authMethod: .implicit).observe(on: SyncScheduler()) { (_: Result<MasterKey, Error>) in
             firstBackupExpectation.fulfill()
         }
 
@@ -114,8 +115,9 @@ class SVR2ConcurrencyTests: XCTestCase {
             madeRequestExpectations[1]
         ], timeout: 10, enforceOrder: true)
 
+        let secondMasterKey = MasterKey()
         let secondBackupExpectation = self.expectation(description: "second backup")
-        svr.generateAndBackupKeys(pin: "abcd", authMethod: .implicit).observe(on: SyncScheduler()) { (_: Result<Void, Error>) in
+        svr.backupMasterKey(pin: "abcd", masterKey: secondMasterKey, authMethod: .implicit).observe(on: SyncScheduler()) { (_: Result<MasterKey, Error>) in
             secondBackupExpectation.fulfill()
         }
 
@@ -178,12 +180,14 @@ class SVR2ConcurrencyTests: XCTestCase {
             }
         }
 
+        let firstMasterKey = MasterKey()
         let firstBackupExpectation = self.expectation(description: "first backup")
-        svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit).observe(on: SyncScheduler()) { (_: Result<Void, Error>) in
+        svr.backupMasterKey(pin: "1234", masterKey: firstMasterKey, authMethod: .implicit).observe(on: SyncScheduler()) { (_: Result<MasterKey, Error>) in
             firstBackupExpectation.fulfill()
         }
+        let secondMasterKey = MasterKey()
         let secondBackupExpectation = self.expectation(description: "first backup")
-        svr.generateAndBackupKeys(pin: "abcd", authMethod: .implicit).observe(on: SyncScheduler()) { (_: Result<Void, Error>) in
+        svr.backupMasterKey(pin: "abcd", masterKey: secondMasterKey, authMethod: .implicit).observe(on: SyncScheduler()) { (_: Result<MasterKey, Error>) in
             secondBackupExpectation.fulfill()
         }
 
@@ -257,8 +261,9 @@ class SVR2ConcurrencyTests: XCTestCase {
 
         let firstBackupError = WebSocketError.closeError(statusCode: 400, closeReason: nil)
 
+        let firstMasterKey = MasterKey()
         let firstBackupExpectation = self.expectation(description: "first backup")
-        svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit).observe(on: SyncScheduler()) { (result: Result<Void, Error>) in
+        svr.backupMasterKey(pin: "1234", masterKey: firstMasterKey, authMethod: .implicit).observe(on: SyncScheduler()) { (result: Result<MasterKey, Error>) in
             switch result {
             case .success:
                 XCTFail("Expected error on second backup.")
@@ -267,8 +272,9 @@ class SVR2ConcurrencyTests: XCTestCase {
             }
             firstBackupExpectation.fulfill()
         }
+        let secondMasterKey = MasterKey()
         let secondBackupExpectation = self.expectation(description: "second backup")
-        svr.generateAndBackupKeys(pin: "abcd", authMethod: .implicit).observe(on: SyncScheduler()) { (result: Result<Void, Error>) in
+        svr.backupMasterKey(pin: "abcd", masterKey: secondMasterKey, authMethod: .implicit).observe(on: SyncScheduler()) { (result: Result<MasterKey, Error>) in
             switch result {
             case .success:
                 XCTFail("Expected error on second backup.")
@@ -295,7 +301,8 @@ class SVR2ConcurrencyTests: XCTestCase {
             return Promise<SVR2Proto_Response>.pending().0
         }
 
-        let _: Promise<Void> = svr.generateAndBackupKeys(pin: "zzzz", authMethod: .implicit)
+        let thirdMasterKey = MasterKey()
+        let _: Promise<MasterKey> = svr.backupMasterKey(pin: "zzzz", masterKey: thirdMasterKey, authMethod: .implicit)
 
         wait(for: [secondOpenExpectation], timeout: 10)
         XCTAssertEqual(numOpenedConnections, 2)
@@ -306,8 +313,8 @@ class SVR2ConcurrencyTests: XCTestCase {
         // Never resolve the request future; deinitialization should reject all external promises.
         let (requestPromise, _) = Promise<SVR2Proto_Response>.pending()
 
-        var firstBackupPromise: Promise<Void>!
-        var secondBackupPromise: Promise<Void>!
+        var firstBackupPromise: Promise<MasterKey>!
+        var secondBackupPromise: Promise<MasterKey>!
 
         autoreleasepool {
             let mockConnection = MockSgxWebsocketConnection<SVR2WebsocketConfigurator>()
@@ -328,8 +335,8 @@ class SVR2ConcurrencyTests: XCTestCase {
                 return requestPromise
             }
 
-            let kvStore = InMemoryKeyValueStoreFactory()
-            let localStorage = SVRLocalStorageImpl(keyValueStoreFactory: kvStore)
+            let accountKeyStore = AccountKeyStore()
+            let localStorage = SVRLocalStorageImpl()
 
             let svr = SecureValueRecovery2Impl(
                 accountAttributesUpdater: MockAccountAttributesUpdater(),
@@ -340,7 +347,7 @@ class SVR2ConcurrencyTests: XCTestCase {
                 connectionFactory: mockConnectionFactory,
                 credentialStorage: credentialStorage,
                 db: db,
-                keyValueStoreFactory: kvStore,
+                accountKeyStore: accountKeyStore,
                 schedulers: Schedulers(queue),
                 storageServiceManager: FakeStorageServiceManager(),
                 svrLocalStorage: localStorage,
@@ -349,8 +356,9 @@ class SVR2ConcurrencyTests: XCTestCase {
                 tsConstants: TSConstants.shared,
                 twoFAManager: SVR2.TestMocks.OWS2FAManager()
             )
-            firstBackupPromise = svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit)
-            secondBackupPromise = svr.generateAndBackupKeys(pin: "1234", authMethod: .implicit)
+            let masterKey = MasterKey()
+            firstBackupPromise = svr.backupMasterKey(pin: "1234", masterKey: masterKey, authMethod: .implicit)
+            secondBackupPromise = svr.backupMasterKey(pin: "1234", masterKey: masterKey, authMethod: .implicit)
 
             wait(for: [sendRequestExpectation], timeout: 10)
         }

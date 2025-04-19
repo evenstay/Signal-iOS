@@ -6,7 +6,6 @@
 #import "OWSOutgoingNullMessage.h"
 #import "OWSVerificationStateSyncMessage.h"
 #import "TSContactThread.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -21,7 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @implementation OWSOutgoingNullMessage
 
-- (instancetype)initWithContactThread:(TSContactThread *)contactThread transaction:(SDSAnyReadTransaction *)transaction
+- (instancetype)initWithContactThread:(TSContactThread *)contactThread transaction:(DBReadTransaction *)transaction
 {
     TSOutgoingMessageBuilder *messageBuilder =
         [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:contactThread];
@@ -34,7 +33,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithContactThread:(TSContactThread *)contactThread
          verificationStateSyncMessage:(OWSVerificationStateSyncMessage *)verificationStateSyncMessage
-                          transaction:(SDSAnyReadTransaction *)transaction
+                          transaction:(DBReadTransaction *)transaction
 {
     TSOutgoingMessageBuilder *messageBuilder =
         [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:contactThread];
@@ -55,7 +54,7 @@ NS_ASSUME_NONNULL_BEGIN
 #pragma mark - override TSOutgoingMessage
 
 - (nullable SSKProtoContentBuilder *)contentBuilderWithThread:(TSThread *)thread
-                                                  transaction:(SDSAnyReadTransaction *)transaction
+                                                  transaction:(DBReadTransaction *)transaction
 {
     SSKProtoNullMessageBuilder *nullMessageBuilder = [SSKProtoNullMessage builder];
 

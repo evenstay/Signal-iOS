@@ -6,7 +6,7 @@
 public class SessionResetJobQueue {
     private let jobQueueRunner: JobQueueRunner<JobRecordFinderImpl<SessionResetJobRecord>, SessionResetJobRunnerFactory>
 
-    public init(db: DB, reachabilityManager: SSKReachabilityManager) {
+    public init(db: any DB, reachabilityManager: SSKReachabilityManager) {
         self.jobQueueRunner = JobQueueRunner(
             canExecuteJobsConcurrently: true,
             db: db,
@@ -21,7 +21,7 @@ public class SessionResetJobQueue {
         jobQueueRunner.start(shouldRestartExistingJobs: true)
     }
 
-    public func add(contactThread: TSContactThread, transaction tx: SDSAnyWriteTransaction) {
+    public func add(contactThread: TSContactThread, transaction tx: DBWriteTransaction) {
         let jobRecord = SessionResetJobRecord(contactThread: contactThread)
         jobRecord.anyInsert(transaction: tx)
         tx.addSyncCompletion { self.jobQueueRunner.addPersistedJob(jobRecord) }
@@ -32,7 +32,7 @@ private class SessionResetJobRunnerFactory: JobRunnerFactory {
     func buildRunner() -> SessionResetJobRunner { SessionResetJobRunner() }
 }
 
-private class SessionResetJobRunner: JobRunner, Dependencies {
+private class SessionResetJobRunner: JobRunner {
     private enum Constants {
         static let maxRetries: UInt = 10
     }
@@ -44,9 +44,9 @@ private class SessionResetJobRunner: JobRunner, Dependencies {
             try await _runJobAttempt(jobRecord)
             return .finished(.success(()))
         } catch {
-            return await databaseStorage.awaitableWrite { tx in
+            return await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
                 let result = JobAttemptResult.performDefaultErrorHandler(
-                    error: error, jobRecord: jobRecord, retryLimit: Constants.maxRetries, tx: tx.asV2Write
+                    error: error, jobRecord: jobRecord, retryLimit: Constants.maxRetries, tx: tx
                 )
                 if case .finished(.failure) = result {
                     // Even though this is the failure handler - which means probably the
@@ -54,7 +54,7 @@ private class SessionResetJobRunner: JobRunner, Dependencies {
                     // did succeed and the server just timed out our response or something.
                     // Since the cost of sending a future message using a session the recipient
                     // doesn't have is so high, we archive the session just in case.
-                    Logger.warn("Terminal failure: \(error.userErrorDescription)")
+                    Logger.warn("Terminal failure: \(error)")
                     if let contactThread = try? self.fetchThread(jobRecord: jobRecord, tx: tx) {
                         self.archiveAllSessions(for: contactThread, tx: tx)
                     }
@@ -67,7 +67,7 @@ private class SessionResetJobRunner: JobRunner, Dependencies {
     func didFinishJob(_ jobRecordId: JobRecord.RowId, result: JobResult) async {}
 
     private func _runJobAttempt(_ jobRecord: SessionResetJobRecord) async throws {
-        let endSessionMessagePromise = try await databaseStorage.awaitableWrite { tx in
+        let endSessionMessagePromise = try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             let contactThread = try self.fetchThread(jobRecord: jobRecord, tx: tx)
             if !self.hasArchivedAllSessions {
                 self.archiveAllSessions(for: contactThread, tx: tx)
@@ -83,7 +83,7 @@ private class SessionResetJobRunner: JobRunner, Dependencies {
         try await endSessionMessagePromise.awaitable()
 
         Logger.info("successfully sent EndSessionMessage.")
-        try await databaseStorage.awaitableWrite { tx in
+        try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             let contactThread = try self.fetchThread(jobRecord: jobRecord, tx: tx)
             // Archive the just-created session since the recipient should delete their
             // corresponding session upon receiving and decrypting our EndSession
@@ -96,7 +96,7 @@ private class SessionResetJobRunner: JobRunner, Dependencies {
         }
     }
 
-    private func fetchThread(jobRecord: SessionResetJobRecord, tx: SDSAnyReadTransaction) throws -> TSContactThread {
+    private func fetchThread(jobRecord: SessionResetJobRecord, tx: DBReadTransaction) throws -> TSContactThread {
         let threadId = jobRecord.contactThreadId
         guard let contactThread = TSContactThread.anyFetchContactThread(uniqueId: threadId, transaction: tx) else {
             throw OWSGenericError("thread for session reset no longer exists")
@@ -104,8 +104,8 @@ private class SessionResetJobRunner: JobRunner, Dependencies {
         return contactThread
     }
 
-    private func archiveAllSessions(for contactThread: TSContactThread, tx: SDSAnyWriteTransaction) {
+    private func archiveAllSessions(for contactThread: TSContactThread, tx: DBWriteTransaction) {
         let sessionStore = DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore
-        sessionStore.archiveAllSessions(for: contactThread.contactAddress, tx: tx.asV2Write)
+        sessionStore.archiveAllSessions(for: contactThread.contactAddress, tx: tx)
     }
 }

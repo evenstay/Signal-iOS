@@ -13,13 +13,13 @@ public enum PinnedThreadError: Error {
 
 public class PinnedThreadManagerImpl: PinnedThreadManager {
 
-    private let db: DB
+    private let db: any DB
     private let pinnedThreadStore: PinnedThreadStoreWrite
     private let storageServiceManager: StorageServiceManager
     private let threadStore: ThreadStore
 
     public init(
-        db: DB,
+        db: any DB,
         pinnedThreadStore: PinnedThreadStoreWrite,
         storageServiceManager: StorageServiceManager,
         threadStore: ThreadStore
@@ -92,7 +92,7 @@ public class PinnedThreadManagerImpl: PinnedThreadManager {
                     )
                     threadStore.update(thread, withShouldThreadBeVisible: true, tx: tx)
                 } else {
-                    self.db.touch(thread, shouldReindex: false, tx: tx)
+                    self.db.touch(thread: thread, shouldReindex: false, shouldUpdateChatListUi: true, tx: tx)
                 }
             }
         }

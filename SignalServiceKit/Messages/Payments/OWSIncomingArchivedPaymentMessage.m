@@ -40,10 +40,10 @@ NS_ASSUME_NONNULL_BEGIN
                           sortId:(uint64_t)sortId
                        timestamp:(uint64_t)timestamp
                   uniqueThreadId:(NSString *)uniqueThreadId
-                   attachmentIds:(NSArray<NSString *> *)attachmentIds
                             body:(nullable NSString *)body
                       bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                     contactShare:(nullable OWSContact *)contactShare
+        deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                        editState:(TSEditState)editState
                  expireStartedAt:(uint64_t)expireStartedAt
               expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -64,7 +64,7 @@ NS_ASSUME_NONNULL_BEGIN
               wasRemotelyDeleted:(BOOL)wasRemotelyDeleted
                authorPhoneNumber:(nullable NSString *)authorPhoneNumber
                       authorUUID:(nullable NSString *)authorUUID
-       deprecated_sourceDeviceId:(unsigned int)deprecated_sourceDeviceId
+       deprecated_sourceDeviceId:(nullable NSNumber *)deprecated_sourceDeviceId
                             read:(BOOL)read
          serverDeliveryTimestamp:(uint64_t)serverDeliveryTimestamp
                       serverGuid:(nullable NSString *)serverGuid
@@ -79,10 +79,10 @@ NS_ASSUME_NONNULL_BEGIN
                             sortId:sortId
                          timestamp:timestamp
                     uniqueThreadId:uniqueThreadId
-                     attachmentIds:attachmentIds
                               body:body
                         bodyRanges:bodyRanges
                       contactShare:contactShare
+          deprecated_attachmentIds:deprecated_attachmentIds
                          editState:editState
                    expireStartedAt:expireStartedAt
                 expireTimerVersion:expireTimerVersion

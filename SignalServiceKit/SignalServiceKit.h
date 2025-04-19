@@ -15,9 +15,6 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/DebuggerUtils.h>
 #import <SignalServiceKit/IncomingGroupsV2MessageJob.h>
 #import <SignalServiceKit/InstalledSticker.h>
-#import <SignalServiceKit/KnownStickerPack.h>
-#import <SignalServiceKit/NSDate+OWS.h>
-#import <SignalServiceKit/NSObject+OWS.h>
 #import <SignalServiceKit/OWSAddToContactsOfferMessage.h>
 #import <SignalServiceKit/OWSAddToProfileWhitelistOfferMessage.h>
 #import <SignalServiceKit/OWSArchivedPaymentMessage.h>
@@ -33,7 +30,6 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/OWSIncomingPaymentMessage.h>
 #import <SignalServiceKit/OWSLinkedDeviceReadReceipt.h>
 #import <SignalServiceKit/OWSLogs.h>
-#import <SignalServiceKit/OWSMessageContentJob.h>
 #import <SignalServiceKit/OWSOutgoingArchivedPaymentMessage.h>
 #import <SignalServiceKit/OWSOutgoingCallMessage.h>
 #import <SignalServiceKit/OWSOutgoingNullMessage.h>
@@ -50,7 +46,6 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/OWSReadReceiptsForLinkedDevicesMessage.h>
 #import <SignalServiceKit/OWSReadTracking.h>
 #import <SignalServiceKit/OWSReceiptsForSenderMessage.h>
-#import <SignalServiceKit/OWSRecipientIdentity.h>
 #import <SignalServiceKit/OWSRecoverableDecryptionPlaceholder.h>
 #import <SignalServiceKit/OWSStaticOutgoingMessage.h>
 #import <SignalServiceKit/OWSStickerPackSyncMessage.h>
@@ -61,20 +56,16 @@ FOUNDATION_EXPORT const unsigned char SignalServiceKitVersionString[];
 #import <SignalServiceKit/OWSSyncRequestMessage.h>
 #import <SignalServiceKit/OWSUnknownContactBlockOfferMessage.h>
 #import <SignalServiceKit/OWSUnknownProtocolVersionMessage.h>
+#import <SignalServiceKit/OWSVerificationState.h>
 #import <SignalServiceKit/OWSVerificationStateChangeMessage.h>
 #import <SignalServiceKit/OWSVerificationStateSyncMessage.h>
 #import <SignalServiceKit/OWSViewOnceMessageReadSyncMessage.h>
 #import <SignalServiceKit/OWSViewedReceiptsForLinkedDevicesMessage.h>
 #import <SignalServiceKit/OutgoingPaymentSyncMessage.h>
 #import <SignalServiceKit/SDSDatabaseStorage+Objc.h>
-#import <SignalServiceKit/SDSKeyValueStore+ObjC.h>
 #import <SignalServiceKit/SSKAccessors+SDS.h>
-#import <SignalServiceKit/SSKAsserts.h>
 #import <SignalServiceKit/StickerInfo.h>
 #import <SignalServiceKit/StickerPack.h>
-#import <SignalServiceKit/TSAttachment.h>
-#import <SignalServiceKit/TSAttachmentPointer.h>
-#import <SignalServiceKit/TSAttachmentStream.h>
 #import <SignalServiceKit/TSCall.h>
 #import <SignalServiceKit/TSContactThread.h>
 #import <SignalServiceKit/TSErrorMessage.h>

@@ -93,14 +93,14 @@ class CallHeader: UIView {
 
         // Avatar
         switch groupCall.concreteType {
-        case .groupThread(let groupThreadCall):
+        case .groupThread(let call):
             let avatarView = ConversationAvatarView(
                 sizeClass: .customDiameter(96),
                 localUserDisplayMode: .asLocalUser,
                 badged: false
             )
             avatarView.updateWithSneakyTransactionIfNecessary {
-                $0.dataSource = .thread(groupThreadCall.groupThread)
+                $0.setGroupIdWithSneakyTransaction(groupId: call.groupId.serialize().asData)
             }
             let avatarPaddingView = UIView()
             avatarPaddingView.addSubview(avatarView)
@@ -202,23 +202,18 @@ class CallHeader: UIView {
     }
 
     private func fetchGroupSizeAndMemberNamesWithSneakyTransaction(groupThreadCall: GroupThreadCall) -> (Int, [String]) {
-        let groupThread = groupThreadCall.groupThread
-        return databaseStorage.read { transaction in
+        return SSKEnvironment.shared.databaseStorageRef.read { transaction in
             // FIXME: Register for notifications so we can update if someone leaves the group while the screen is up?
-            let firstTwoNames = groupThread.sortedMemberNames(
+            guard let groupThread = TSGroupThread.fetch(forGroupId: groupThreadCall.groupId, tx: transaction) else {
+                owsFailDebug("Couldn't fetch thread for active call.")
+                return (0, [] as [String])
+            }
+            let memberNames = groupThread.sortedMemberNames(
                 includingBlocked: false,
-                limit: 2,
                 useShortNameIfAvailable: true,
                 transaction: transaction
             )
-            if firstTwoNames.count < 2 {
-                return (firstTwoNames.count, firstTwoNames)
-            }
-
-            let count = groupThread.groupMembership.fullMembers.lazy.filter {
-                !$0.isLocalAddress && !self.blockingManager.isAddressBlocked($0, transaction: transaction)
-            }.count
-            return (count, firstTwoNames)
+            return (memberNames.count, Array(memberNames.prefix(2)))
         }
     }
 
@@ -247,7 +242,10 @@ class CallHeader: UIView {
                     return willNotifyOthersText(groupThreadCall: groupThreadCall)
                 }
             case .callLink:
-                return whoIsHereText(joinedMembers: ringRtcCall.peekInfo?.joinedMembers ?? [])
+                return whoIsHereText(joinedMembers: (
+                    ringRtcCall.peekInfo?.joinedMembers.nilIfEmpty
+                    ?? Array(repeating: nil, count: Int(ringRtcCall.peekInfo?.deviceCountExcludingPendingDevices ?? 0))
+                ))
             }
         case .pending:
             return OWSLocalizedString(
@@ -283,8 +281,8 @@ class CallHeader: UIView {
     }
 
     private func incomingRingText(caller: SignalServiceAddress) -> String {
-        let callerName = databaseStorage.read { transaction in
-            contactsManager.displayName(for: caller, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
+        let callerName = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            SSKEnvironment.shared.contactManagerRef.displayName(for: caller, tx: transaction).resolvedValue(useShortNameIfAvailable: true)
         }
         let formatString = OWSLocalizedString(
             "GROUP_CALL_INCOMING_RING_FORMAT",
@@ -293,14 +291,15 @@ class CallHeader: UIView {
         return String(format: formatString, callerName)
     }
 
-    private func whoIsHereText(joinedMembers: [UUID]) -> String {
+    private func whoIsHereText(joinedMembers: [UUID?]) -> String {
         if joinedMembers.isEmpty {
             return noOneElseIsHereText()
         }
-        let upToTwoKnownMemberNames: [String] = databaseStorage.read { tx -> [String] in
+        let upToTwoKnownMemberNames: [String] = SSKEnvironment.shared.databaseStorageRef.read { tx -> [String] in
             joinedMembers
                 .lazy
-                .map { [contactsManager] in contactsManager.displayName(for: SignalServiceAddress(Aci(fromUUID: $0)), tx: tx) }
+                .compactMap { $0 }
+                .map { SSKEnvironment.shared.contactManagerRef.displayName(for: SignalServiceAddress(Aci(fromUUID: $0)), tx: tx) }
                 .filter { $0.hasKnownValue }
                 .prefix(2)
                 .map { $0.resolvedValue(useShortNameIfAvailable: true) }
@@ -452,8 +451,8 @@ class CallHeader: UIView {
             let firstMember = ringRtcCall.remoteDeviceStates.sortedBySpeakerTime.first,
             firstMember.presenting == true
         {
-            let presentingName = databaseStorage.read { tx in
-                contactsManager.displayName(for: SignalServiceAddress(Aci(fromUUID: firstMember.userId)), tx: tx).resolvedValue(useShortNameIfAvailable: true)
+            let presentingName = SSKEnvironment.shared.databaseStorageRef.read { tx in
+                SSKEnvironment.shared.contactManagerRef.displayName(for: SignalServiceAddress(Aci(fromUUID: firstMember.userId)), tx: tx).resolvedValue(useShortNameIfAvailable: true)
             }
             let formatString = OWSLocalizedString(
                 "GROUP_CALL_PRESENTING_FORMAT",
@@ -464,8 +463,13 @@ class CallHeader: UIView {
         switch groupCall.concreteType {
         case .groupThread(let groupThreadCall):
             // FIXME: This should auto-update if the group name changes.
-            return databaseStorage.read { transaction in
-                contactsManager.displayName(for: groupThreadCall.groupThread, transaction: transaction)
+            let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+            return databaseStorage.read { tx in
+                let contactManager = SSKEnvironment.shared.contactManagerRef
+                guard let groupThread = TSGroupThread.fetch(forGroupId: groupThreadCall.groupId, tx: tx) else {
+                    return TSGroupThread.defaultGroupName
+                }
+                return contactManager.displayName(for: groupThread, transaction: tx)
             }
         case .callLink(let call):
             return call.callLinkState.localizedName

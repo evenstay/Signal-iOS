@@ -23,11 +23,11 @@ public class OutgoingCallLogEventSyncMessage: OWSOutgoingSyncMessage {
 
     init(
         callLogEvent: CallLogEvent,
-        thread: TSThread,
-        tx: SDSAnyReadTransaction
+        localThread: TSContactThread,
+        tx: DBReadTransaction
     ) {
         self.callLogEvent = callLogEvent
-        super.init(thread: thread, transaction: tx)
+        super.init(localThread: localThread, transaction: tx)
     }
 
     required public init?(coder: NSCoder) {
@@ -40,7 +40,7 @@ public class OutgoingCallLogEventSyncMessage: OWSOutgoingSyncMessage {
 
     override public var isUrgent: Bool { false }
 
-    override public func syncMessageBuilder(transaction: SDSAnyReadTransaction) -> SSKProtoSyncMessageBuilder? {
+    override public func syncMessageBuilder(transaction: DBReadTransaction) -> SSKProtoSyncMessageBuilder? {
         let callLogEventBuilder = SSKProtoSyncMessageCallLogEvent.builder()
 
         callLogEventBuilder.setTimestamp(callLogEvent.timestamp)

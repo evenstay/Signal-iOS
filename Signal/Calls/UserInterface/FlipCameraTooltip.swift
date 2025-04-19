@@ -7,13 +7,13 @@ import SignalServiceKit
 import SignalUI
 
 class FlipCameraTooltipManager {
-    private let db: DB
+    private let db: any DB
 
-    init(db: DB) {
+    init(db: any DB) {
         self.db = db
     }
 
-    private static let keyValueStore = SDSKeyValueStore(collection: "FlipCameraButton")
+    private static let keyValueStore = KeyValueStore(collection: "FlipCameraButton")
     private static let tooltipWasSeenKey = "tooltipWasSeen"
 
     private var flipCameraTooltip: FlipCameraTooltipView?

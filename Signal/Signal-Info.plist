@@ -7,6 +7,7 @@
 		<string>AttachmentValidationBackfillMigrator</string>
 		<string>MessageAttachmentMigrationTask</string>
 		<string>MessageFetchBGRefreshTask</string>
+		<string>LazyDatabaseMigratorTask</string>
 	</array>
 	<key>BuildDetails</key>
 	<dict/>
@@ -29,7 +30,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>7.32</string>
+	<string>7.56</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleURLTypes</key>
@@ -68,20 +69,6 @@
 			<key>amazonaws.com</key>
 			<dict>
 				<key>NSIncludesSubdomains</key>
-				<true/>
-				<key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-				<false/>
-			</dict>
-			<key>api-staging.backup.signal.org</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-				<false/>
-			</dict>
-			<key>api.backup.signal.org</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>
 				<key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
 				<false/>
@@ -143,7 +130,7 @@
 		<string>armv7</string>
 	</array>
 	<key>UIStatusBarStyle</key>
-	<string>UIStatusBarStyleLightContent</string>
+	<string>UIStatusBarStyleDefault</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

@@ -10,15 +10,12 @@ public import SignalRingRTC
 public struct CallLinkRecord: Codable, PersistableRecord, FetchableRecord {
     public static let databaseTableName: String = "CallLink"
 
-    enum Constants {
-        static let storageServiceDeletionDelayMs = 30 * kDayInMs
-    }
-
     public let id: Int64
     public let roomId: Data
     public let rootKey: CallLinkRootKey
     public var adminPasskey: Data?
     private(set) public var adminDeletedAtTimestampMs: UInt64?
+    public var activeCallId: UInt64?
     private(set) public var pendingFetchCounter: Int64
     private(set) public var isUpcoming: Bool?
     private(set) public var name: String?
@@ -32,6 +29,7 @@ public struct CallLinkRecord: Codable, PersistableRecord, FetchableRecord {
         rootKey: CallLinkRootKey,
         adminPasskey: Data?,
         adminDeletedAtTimestampMs: UInt64?,
+        activeCallId: UInt64?,
         pendingFetchCounter: Int64,
         isUpcoming: Bool?,
         name: String?,
@@ -44,6 +42,7 @@ public struct CallLinkRecord: Codable, PersistableRecord, FetchableRecord {
         self.rootKey = rootKey
         self.adminPasskey = adminPasskey
         self.adminDeletedAtTimestampMs = adminDeletedAtTimestampMs
+        self.activeCallId = activeCallId
         self.pendingFetchCounter = pendingFetchCounter
         self.isUpcoming = isUpcoming
         self.name = name
@@ -58,7 +57,8 @@ public struct CallLinkRecord: Codable, PersistableRecord, FetchableRecord {
         case rootKey
         case adminPasskey
         case adminDeletedAtTimestampMs
-        case pendingFetchCounter
+        case activeCallId
+        case pendingFetchCounter = "pendingActionCounter"
         case isUpcoming
         case name
         case restrictions
@@ -73,6 +73,7 @@ public struct CallLinkRecord: Codable, PersistableRecord, FetchableRecord {
         try container.encode(self.rootKey.bytes, forKey: .rootKey)
         try container.encodeIfPresent(self.adminPasskey, forKey: .adminPasskey)
         try container.encodeIfPresent(self.adminDeletedAtTimestampMs.map(Int64.init(bitPattern:)), forKey: .adminDeletedAtTimestampMs)
+        try container.encodeIfPresent(self.activeCallId.map(Int64.init(bitPattern:)), forKey: .activeCallId)
         try container.encode(self.pendingFetchCounter, forKey: .pendingFetchCounter)
         try container.encodeIfPresent(self.isUpcoming, forKey: .isUpcoming)
         try container.encodeIfPresent(self.name, forKey: .name)
@@ -88,6 +89,7 @@ public struct CallLinkRecord: Codable, PersistableRecord, FetchableRecord {
         self.rootKey = try CallLinkRootKey(container.decode(Data.self, forKey: .rootKey))
         self.adminPasskey = try container.decodeIfPresent(Data.self, forKey: .adminPasskey)
         self.adminDeletedAtTimestampMs = try container.decodeIfPresent(Int64.self, forKey: .adminDeletedAtTimestampMs).map(UInt64.init(bitPattern:))
+        self.activeCallId = try container.decodeIfPresent(Int64.self, forKey: .activeCallId).map(UInt64.init(bitPattern:))
         self.pendingFetchCounter = try container.decode(Int64.self, forKey: .pendingFetchCounter)
         self.isUpcoming = try container.decodeIfPresent(Bool.self, forKey: .isUpcoming)
         self.name = try container.decodeIfPresent(String.self, forKey: .name)
@@ -101,14 +103,52 @@ public struct CallLinkRecord: Codable, PersistableRecord, FetchableRecord {
         self.expiration = try container.decodeIfPresent(Int64.self, forKey: .expiration)
     }
 
-    static func insertRecord(rootKey: CallLinkRootKey, db: Database) throws -> CallLinkRecord {
+    static func insertRecord(rootKey: CallLinkRootKey, tx: DBWriteTransaction) throws -> CallLinkRecord {
         do {
             return try CallLinkRecord.fetchOne(
-                db,
+                tx.database,
                 sql: """
                 INSERT INTO "CallLink" ("roomId", "rootKey") VALUES (?, ?) RETURNING *
                 """,
                 arguments: [rootKey.deriveRoomId(), rootKey.bytes]
+            )!
+        } catch {
+            throw error.grdbErrorForLogging
+        }
+    }
+
+    static func insertFromBackup(
+        rootKey: CallLinkRootKey,
+        adminPasskey: Data?,
+        name: String,
+        restrictions: CallLinkRecord.Restrictions,
+        expiration: UInt64,
+        isUpcoming: Bool,
+        tx: DBWriteTransaction
+    ) throws -> CallLinkRecord {
+        do {
+            return try CallLinkRecord.fetchOne(
+                tx.database,
+                sql: """
+                INSERT INTO \(CallLinkRecord.databaseTableName) (
+                    \(CallLinkRecord.CodingKeys.roomId.rawValue),
+                    \(CallLinkRecord.CodingKeys.rootKey.rawValue),
+                    \(CallLinkRecord.CodingKeys.adminPasskey.rawValue),
+                    \(CallLinkRecord.CodingKeys.name.rawValue),
+                    \(CallLinkRecord.CodingKeys.restrictions.rawValue),
+                    \(CallLinkRecord.CodingKeys.expiration.rawValue),
+                    \(CallLinkRecord.CodingKeys.isUpcoming.rawValue)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *
+                """,
+                arguments: [
+                    rootKey.deriveRoomId(),
+                    rootKey.bytes,
+                    adminPasskey,
+                    name,
+                    restrictions.rawValue,
+                    expiration,
+                    isUpcoming
+                ]
             )!
         } catch {
             throw error.grdbErrorForLogging
@@ -123,13 +163,26 @@ public struct CallLinkRecord: Codable, PersistableRecord, FetchableRecord {
         self.pendingFetchCounter += 1
     }
 
-    // This is currently an enum, but depending on what restrictions are added
-    // in the future, it seems like it may need to become an OptionSet. By
-    // using `1` here, this could be trivially switched to being interpreted as
-    // an OptionSet in the future.
     public enum Restrictions: Int {
         case none = 0
         case adminApproval = 1
+        case unknown = -1
+
+        init(_ ringRtcValue: SignalRingRTC.CallLinkState.Restrictions) {
+            switch ringRtcValue {
+            case .none: self = .none
+            case .adminApproval: self = .adminApproval
+            case .unknown: self = .unknown
+            }
+        }
+
+        var asRingRtcValue: SignalRingRTC.CallLinkState.Restrictions {
+            switch self {
+            case .none: .none
+            case .adminApproval: .adminApproval
+            case .unknown: .unknown
+            }
+        }
     }
 
     public mutating func updateState(_ callLinkState: CallLinkState) {
@@ -144,7 +197,7 @@ public struct CallLinkRecord: Codable, PersistableRecord, FetchableRecord {
         if let restrictions, let revoked, let expiration {
             return CallLinkState(
                 name: self.name,
-                requiresAdminApproval: restrictions == .adminApproval,
+                restrictions: restrictions.asRingRtcValue,
                 revoked: revoked,
                 expiration: Date(timeIntervalSince1970: TimeInterval(expiration))
             )
@@ -155,6 +208,10 @@ public struct CallLinkRecord: Codable, PersistableRecord, FetchableRecord {
     private mutating func didUpdateState() {
         // If we haven't used the link & we're an admin, mark it as upcoming.
         self.isUpcoming = self.isUpcoming ?? (self.adminPasskey != nil)
+    }
+
+    mutating func didInsertCallRecord() {
+        self.isUpcoming = false
     }
 
     public var isDeleted: Bool {

@@ -112,6 +112,9 @@ class MainAppContext: NSObject, AppContext {
 
     var isMainAppAndActive: Bool { UIApplication.shared.applicationState == .active }
 
+    @MainActor
+    var isMainAppAndActiveIsolated: Bool { UIApplication.shared.applicationState == .active }
+
     let isRTL: Bool = UIApplication.shared.userInterfaceLayoutDirection == .rightToLeft
 
     func isInBackground() -> Bool { reportedApplicationState == .background }
@@ -124,17 +127,6 @@ class MainAppContext: NSObject, AppContext {
 
     func endBackgroundTask(_ backgroundTaskIdentifier: UIBackgroundTaskIdentifier) {
         UIApplication.shared.endBackgroundTask(backgroundTaskIdentifier)
-    }
-
-    func ensureSleepBlocking(_ shouldBeBlocking: Bool, blockingObjectsDescription: String) {
-        if UIApplication.shared.isIdleTimerDisabled != shouldBeBlocking {
-            if shouldBeBlocking {
-                Logger.info("Blocking sleep because of: \(blockingObjectsDescription)")
-            } else {
-                Logger.info("Unblocking sleep.")
-            }
-        }
-        UIApplication.shared.isIdleTimerDisabled = shouldBeBlocking
     }
 
     func frontmostViewController() -> UIViewController? { UIApplication.shared.frontmostViewControllerIgnoringAlerts }
@@ -194,7 +186,8 @@ class MainAppContext: NSObject, AppContext {
 
     var debugLogsDirPath: String { DebugLogger.mainAppDebugLogsDirPath }
 
+    @MainActor
     func resetAppDataAndExit() -> Never {
-        SignalApp.resetAppDataAndExit()
+        SignalApp.resetAppDataAndExit(keyFetcher: SSKEnvironment.shared.databaseStorageRef.keyFetcher)
     }
 }

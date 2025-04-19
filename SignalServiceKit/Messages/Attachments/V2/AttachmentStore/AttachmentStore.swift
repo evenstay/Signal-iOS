@@ -10,6 +10,10 @@ public enum AttachmentInsertError: Error {
     /// attachment a duplicate. Callers should instead create a new owner reference to
     /// the same existing attachment.
     case duplicatePlaintextHash(existingAttachmentId: Attachment.IDType)
+    /// An existing attachment was found with the same media name, making the new
+    /// attachment a duplicate. Callers should instead create a new owner reference to
+    /// the same existing attachment and possibly update it with any stream info.
+    case duplicateMediaName(existingAttachmentId: Attachment.IDType)
 }
 
 public protocol AttachmentStore {
@@ -18,6 +22,13 @@ public protocol AttachmentStore {
     /// Results are unordered.
     func fetchReferences(
         owners: [AttachmentReference.OwnerId],
+        tx: DBReadTransaction
+    ) -> [AttachmentReference]
+
+    /// Fetch all references for the provider message owner row id.
+    /// Results are unordered.
+    func fetchAllReferences(
+        owningMessageRowId: Int64,
         tx: DBReadTransaction
     ) -> [AttachmentReference]
 
@@ -47,9 +58,9 @@ public protocol AttachmentStore {
         block: (AttachmentReference) -> Void
     ) throws
 
-    /// Enumerate all attachments, calling the block for each one.
+    /// Enumerate all attachments with non-nil media names, calling the block for each one.
     /// Blocks until all attachments have been enumerated.
-    func enumerateAllAttachments(
+    func enumerateAllAttachmentsWithMediaName(
         tx: DBReadTransaction,
         block: (Attachment) throws -> Void
     ) throws
@@ -61,11 +72,25 @@ public protocol AttachmentStore {
         tx: DBReadTransaction
     ) throws -> [Attachment]
 
+    /// For each unique sticker pack id present in message sticker attachments, return
+    /// the oldest message reference (by message insertion order) to that sticker attachment.
+    ///
+    /// Not very efficient; don't put this query on the hot path for anything.
+    func oldestStickerPackReferences(
+        tx: DBReadTransaction
+    ) throws -> [AttachmentReference.Owner.MessageSource.StickerMetadata]
+
+    /// Return all attachment ids that reference the provided sticker.
+    func allAttachmentIdsForSticker(
+        _ stickerInfo: StickerInfo,
+        tx: DBReadTransaction
+    ) throws -> [Attachment.IDType]
+
     // MARK: - Writes
 
     /// Create a new ownership reference, copying properties of an existing reference.
     ///
-    /// Copies the database row directly, only modifying the owner column.
+    /// Copies the database row directly, only modifying the owner and isPastEditRevision columns.
     /// IMPORTANT: also copies the receivedAtTimestamp!
     ///
     /// Fails if the provided new owner isn't of the same type as the original
@@ -77,6 +102,7 @@ public protocol AttachmentStore {
         with reference: AttachmentReference,
         newOwnerMessageRowId: Int64,
         newOwnerThreadRowId: Int64,
+        newOwnerIsPastEditRevision: Bool,
         tx: DBWriteTransaction
     ) throws
 
@@ -114,6 +140,11 @@ public protocol AttachmentStore {
         tx: DBWriteTransaction
     ) throws
 
+    func removeTransitTierInfo(
+        forAttachmentId id: Attachment.IDType,
+        tx: DBWriteTransaction
+    ) throws
+
     /// Update an attachment after revalidating.
     func updateAttachment(
         _ attachment: Attachment,
@@ -123,15 +154,40 @@ public protocol AttachmentStore {
         tx: DBWriteTransaction
     ) throws
 
+    /// Update an attachment when we have a media name collision.
+    /// Call this IFF the existing attachment has a media name but not stream info
+    /// (if it was restored from a backup), but the new copy has stream
+    /// info that we should keep by merging into the existing attachment.
+    func merge(
+        streamInfo: Attachment.StreamInfo,
+        into attachment: Attachment,
+        validatedMimeType: String,
+        tx: DBWriteTransaction
+    ) throws
+
     func addOwner(
         _ reference: AttachmentReference.ConstructionParams,
         for attachmentId: Attachment.IDType,
         tx: DBWriteTransaction
     ) throws
 
-    func removeOwner(
-        _ owner: AttachmentReference.OwnerId,
+    /// Removes all owner edges to the provided attachment that
+    /// have the provided owner type and id.
+    /// Will delete multiple instances if the same owner has multiple
+    /// edges of the given type to the given attachment (e.g. an image
+    /// appears twice as a body attachment on a given message).
+    func removeAllOwners(
+        withId owner: AttachmentReference.OwnerId,
         for attachmentId: Attachment.IDType,
+        tx: DBWriteTransaction
+    ) throws
+
+    /// Removes a single owner edge to the provided attachment that
+    /// have the provided owner metadata.
+    /// Will delete only delete the one given edge even if the same owner
+    /// has multiple edges to the same attachment.
+    func removeOwner(
+        reference: AttachmentReference,
         tx: DBWriteTransaction
     ) throws
 
@@ -147,6 +203,14 @@ public protocol AttachmentStore {
     /// Remove all owners of thread types (wallpaper and global wallpaper owners).
     /// Will also delete any attachments that become unowned, like any other deletion.
     func removeAllThreadOwners(tx: DBWriteTransaction) throws
+
+    // MARK: - Thread Merging
+
+    func updateMessageAttachmentThreadRowIdsForThreadMerge(
+        fromThreadRowId: Int64,
+        intoThreadRowId: Int64,
+        tx: DBWriteTransaction
+    ) throws
 }
 
 // MARK: - Convenience
@@ -279,6 +343,24 @@ extension AttachmentStore {
         return fetchReferencedAttachments(owners: [owner], tx: tx)
     }
 
+    public func fetchAllReferencedAttachments(
+        owningMessageRowId: Int64,
+        tx: DBReadTransaction
+    ) -> [ReferencedAttachment] {
+        let references = self.fetchAllReferences(owningMessageRowId: owningMessageRowId, tx: tx)
+        let attachments = Dictionary(
+            grouping: self.fetch(ids: references.map(\.attachmentRowId), tx: tx),
+            by: \.id
+        )
+        return references.compactMap { reference -> ReferencedAttachment? in
+            guard let attachment = attachments[reference.attachmentRowId]?.first else {
+                owsFailDebug("Missing attachment!")
+                return nil
+            }
+            return ReferencedAttachment(reference: reference, attachment: attachment)
+        }
+    }
+
     public func fetchFirstReferencedAttachment(
         for owner: AttachmentReference.OwnerId,
         tx: DBReadTransaction
@@ -309,5 +391,17 @@ extension AttachmentStore {
             }
             return ReferencedAttachment(reference: reference, attachment: attachment)
         }
+    }
+
+    public func allAttachments(
+        forMessageWithRowId messageRowId: Int64,
+        tx: DBReadTransaction
+    ) -> [AttachmentReference] {
+        return fetchReferences(
+            owners: AttachmentReference.MessageOwnerTypeRaw.allCases.map {
+                $0.with(messageRowId: messageRowId)
+            },
+            tx: tx
+        )
     }
 }

@@ -36,7 +36,7 @@ public struct ReportSpamUIUtils {
                 comment: "Action sheet action to confirm reporting a conversation as spam via a message request."
             ),
             handler: { _ in
-                NSObject.databaseStorage.write { tx in
+                SSKEnvironment.shared.databaseStorageRef.write { tx in
                     Self.reportSpam(in: thread, tx: tx)
                 }
             })
@@ -48,7 +48,7 @@ public struct ReportSpamUIUtils {
                     comment: "Action sheet action to confirm blocking and reporting spam for a thread via a message request."
                 ),
                 handler: { _ in
-                    NSObject.databaseStorage.write { tx in
+                    SSKEnvironment.shared.databaseStorageRef.write { tx in
                         Self.blockAndReport(in: thread, tx: tx)
                     }
                 })
@@ -58,8 +58,8 @@ public struct ReportSpamUIUtils {
         return actionSheet
     }
 
-    public static func blockAndReport(in thread: TSThread, tx: SDSAnyWriteTransaction) {
-        NSObject.blockingManager.addBlockedThread(
+    public static func blockAndReport(in thread: TSThread, tx: DBWriteTransaction) {
+        SSKEnvironment.shared.blockingManagerRef.addBlockedThread(
             thread,
             blockMode: .localShouldNotLeaveGroups,
             transaction: tx
@@ -73,7 +73,7 @@ public struct ReportSpamUIUtils {
         )
     }
 
-    public static func report(in thread: TSThread, tx: SDSAnyWriteTransaction) {
+    public static func report(in thread: TSThread, tx: DBWriteTransaction) {
         Self.reportSpam(in: thread, tx: tx)
 
         SSKEnvironment.shared.syncManagerRef.sendMessageRequestResponseSyncMessage(
@@ -82,7 +82,7 @@ public struct ReportSpamUIUtils {
         )
     }
 
-    private static func reportSpam(in thread: TSThread, tx: SDSAnyWriteTransaction) {
+    private static func reportSpam(in thread: TSThread, tx: DBWriteTransaction) {
         var aci: Aci?
         var isGroup = false
         if let contactThread = thread as? TSContactThread {
@@ -90,7 +90,7 @@ public struct ReportSpamUIUtils {
         } else if let groupThread = thread as? TSGroupThread {
             isGroup = true
             let accountManager = DependenciesBridge.shared.tsAccountManager
-            guard let localIdentifiers = accountManager.localIdentifiers(tx: tx.asV2Read) else {
+            guard let localIdentifiers = accountManager.localIdentifiers(tx: tx) else {
                 return owsFailDebug("Missing local identifiers")
             }
             let groupMembership = groupThread.groupModel.groupMembership
@@ -101,12 +101,12 @@ public struct ReportSpamUIUtils {
             return owsFailDebug("Unexpected thread type for reporting spam \(type(of: thread))")
         }
 
+        let infoMessage = TSInfoMessage(thread: thread, messageType: .reportedSpam)
+        infoMessage.anyInsert(transaction: tx)
+
         guard let aci else {
             return owsFailDebug("Missing ACI for reporting spam")
         }
-
-        let infoMessage = TSInfoMessage(thread: thread, messageType: .reportedSpam)
-        infoMessage.anyInsert(transaction: tx)
 
         // We only report a selection of the N most recent messages
         // in the conversation.
@@ -116,7 +116,7 @@ public struct ReportSpamUIUtils {
         do {
             if isGroup {
                 guard let localIdentifiers: LocalIdentifiers =
-                        DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read) else {
+                        DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx) else {
                     owsFailDebug("Unable to find local identifiers")
                     return
                 }
@@ -169,7 +169,7 @@ public struct ReportSpamUIUtils {
         do {
             reportingToken = try SpamReportingTokenRecord.reportingToken(
                 for: aci,
-                database: tx.unwrapGrdbRead.database
+                database: tx.database
             )
         } catch {
             owsFailBeta("Failed to look up spam reporting token. Continuing on, as the parameter is optional. Error: \(error)")
@@ -184,20 +184,21 @@ public struct ReportSpamUIUtils {
             "Reporting \(guidsToReport.count) message(s) from \(aci) as spam. We \(reportingToken == nil ? "do not have" : "have") a reporting token"
         )
 
-        var promises = [Promise<Void>]()
-        for guid in guidsToReport {
-            let request = OWSRequestFactory.reportSpam(
-                from: aci,
-                withServerGuid: guid,
-                reportingToken: reportingToken
-            )
-            promises.append(NSObject.networkManager.makePromise(request: request).asVoid())
-        }
-
-        Promise.when(fulfilled: promises).done {
-            Logger.info("Successfully reported \(guidsToReport.count) message(s) from \(aci) as spam.")
-        }.catch { error in
-            owsFailDebug("Failed to report message(s) from \(aci) as spam with error: \(error)")
+        Task {
+            do {
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    for guid in guidsToReport {
+                        let request = OWSRequestFactory.reportSpam(from: aci, withServerGuid: guid, reportingToken: reportingToken)
+                        group.addTask {
+                            _ = try await SSKEnvironment.shared.networkManagerRef.asyncRequest(request)
+                        }
+                    }
+                    try await group.waitForAll()
+                }
+                Logger.info("Successfully reported \(guidsToReport.count) message(s) from \(aci) as spam.")
+            } catch {
+                owsFailDebug("Failed to report message(s) from \(aci) as spam with error: \(error)")
+            }
         }
     }
 }

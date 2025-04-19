@@ -66,10 +66,11 @@ extension PaymentsSendRecipientViewController: RecipientPickerDelegate, Username
 
     func recipientPicker(
         _ recipientPickerViewController: RecipientPickerViewController,
-        getRecipientState recipient: PickedRecipient
-    ) -> RecipientPickerRecipientState {
+        selectionStyleForRecipient recipient: PickedRecipient,
+        transaction: DBReadTransaction
+    ) -> UITableViewCell.SelectionStyle {
         // TODO: Nice-to-have: filter out recipients that do not support payments.
-        return .canBeSelected
+        return .default
     }
 
     func recipientPicker(
@@ -87,15 +88,14 @@ extension PaymentsSendRecipientViewController: RecipientPickerDelegate, Username
 
     func recipientPicker(_ recipientPickerViewController: RecipientPickerViewController,
                          attributedSubtitleForRecipient recipient: PickedRecipient,
-                         transaction: SDSAnyReadTransaction) -> NSAttributedString? {
+                         transaction: DBReadTransaction) -> NSAttributedString? {
         // TODO: Nice-to-have: filter out recipients that do not support payments.
         switch recipient.identifier {
         case .address(let address):
             guard !address.isLocalAddress else {
                 return nil
             }
-            if let bioForDisplay = Self.profileManagerImpl.profileBioForDisplay(for: address,
-                                                                                transaction: transaction) {
+            if let bioForDisplay = SSKEnvironment.shared.profileManagerImplRef.userProfile(for: address, tx: transaction)?.bioForDisplay {
                 return NSAttributedString(string: bioForDisplay)
             }
             return nil

@@ -38,7 +38,7 @@ public class SafetyNumberConfirmationSheet: UIViewController {
     ) {
         assert(!addressesToConfirm.isEmpty)
 
-        self.confirmationItems = Self.databaseStorage.read { transaction in
+        self.confirmationItems = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             Self.buildConfirmationItems(
                 addressesToConfirm: addressesToConfirm,
                 transaction: transaction
@@ -64,14 +64,14 @@ public class SafetyNumberConfirmationSheet: UIViewController {
 
     fileprivate static func buildConfirmationItems(
         addressesToConfirm: [SignalServiceAddress],
-        transaction tx: SDSAnyReadTransaction
+        transaction tx: DBReadTransaction
     ) -> [Item] {
         let identityManager = DependenciesBridge.shared.identityManager
         return addressesToConfirm.map { address in
-            let recipientIdentity = identityManager.recipientIdentity(for: address, tx: tx.asV2Read)
+            let recipientIdentity = identityManager.recipientIdentity(for: address, tx: tx)
             return Item(
                 address: address,
-                displayName: contactsManager.displayName(for: address, tx: tx).resolvedValue(),
+                displayName: SSKEnvironment.shared.contactManagerRef.displayName(for: address, tx: tx).resolvedValue(),
                 verificationState: recipientIdentity?.verificationState ?? .default,
                 identityKey: recipientIdentity?.identityKey
             )
@@ -94,7 +94,7 @@ public class SafetyNumberConfirmationSheet: UIViewController {
     /// one of the addresses we presented.
     @objc
     private func identityStateDidChange() {
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             let addressesToConfirm = confirmationItems.map { $0.address }
 
             confirmationItems = Self.buildConfirmationItems(
@@ -187,9 +187,9 @@ public class SafetyNumberConfirmationSheet: UIViewController {
         completion: @escaping (Bool) -> Void
     ) -> Bool {
         let identityManager = DependenciesBridge.shared.identityManager
-        let untrustedAddresses = databaseStorage.read { tx in
+        let untrustedAddresses = SSKEnvironment.shared.databaseStorageRef.read { tx in
             addresses.filter { address in
-                identityManager.untrustedIdentityForSending(to: address, untrustedThreshold: untrustedThreshold, tx: tx.asV2Read) != nil
+                identityManager.untrustedIdentityForSending(to: address, untrustedThreshold: untrustedThreshold, tx: tx) != nil
             }
         }
 
@@ -289,13 +289,13 @@ public class SafetyNumberConfirmationSheet: UIViewController {
         stackView.addHairline(with: theme.hairlineColor)
         confirmAction.button.releaseAction = { [weak self] in
             guard let self = self else { return }
-            self.databaseStorage.asyncWrite(block: { tx in
+            SSKEnvironment.shared.databaseStorageRef.asyncWrite(block: { tx in
                 let identityManager = DependenciesBridge.shared.identityManager
                 for item in self.confirmationItems {
                     guard let identityKey = item.identityKey else {
                         return
                     }
-                    switch identityManager.verificationState(for: item.address, tx: tx.asV2Read) {
+                    switch identityManager.verificationState(for: item.address, tx: tx) {
                     case .verified:
                         // We don't want to overwrite any addresses that have been verified since
                         // we last checked.
@@ -308,7 +308,7 @@ public class SafetyNumberConfirmationSheet: UIViewController {
                         of: identityKey,
                         for: item.address,
                         isUserInitiatedChange: true,
-                        tx: tx.asV2Write
+                        tx: tx
                     )
                 }
             }, completionQueue: .main) {
@@ -333,6 +333,27 @@ public class SafetyNumberConfirmationSheet: UIViewController {
 
         // Setup handle for interactive dismissal / resizing
         setupInteractiveSizing()
+    }
+
+    public override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+
+        let profileFetcher = SSKEnvironment.shared.profileFetcherRef
+
+        // When the view appears, fetch profiles if it's been a while to ensure we
+        // have the latest identity key.
+        for confirmationItem in confirmationItems {
+            guard let serviceId = confirmationItem.address.serviceId else {
+                continue
+            }
+            Task {
+                do {
+                    _ = try await profileFetcher.fetchProfile(for: serviceId, context: .init(isOpportunistic: true))
+                } catch {
+                    Logger.warn("Didn't fetch profile for Safety Number change: \(error)")
+                }
+            }
+        }
     }
 
     @objc
@@ -639,7 +660,7 @@ private class SafetyNumberCell: ContactTableViewCell {
             FingerprintViewController.present(for: item.address.aci, from: viewController)
         }
 
-        Self.databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             let configuration = ContactCellConfiguration(address: item.address, localUserDisplayMode: .asUser)
             configuration.allowUserInteraction = true
 
@@ -676,7 +697,7 @@ private class SafetyNumberCell: ContactTableViewCell {
         }
     }
 
-    override func configure(configuration: ContactCellConfiguration, transaction: SDSAnyReadTransaction) {
+    override func configure(configuration: ContactCellConfiguration, transaction: DBReadTransaction) {
         super.configure(configuration: configuration, transaction: transaction)
         let theme: Theme.ActionSheet = (configuration.forceDarkAppearance) ? .translucentDark : .default
 

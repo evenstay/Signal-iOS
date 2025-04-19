@@ -9,10 +9,11 @@ public final class BulkDeleteInteractionJobQueue {
         JobRecordFinderImpl<BulkDeleteInteractionJobRecord>,
         BulkDeleteInteractionJobRunnerFactory
     >
+    private var jobSerializer = CompletionSerializer()
 
     init(
         addressableMessageFinder: DeleteForMeAddressableMessageFinder,
-        db: DB,
+        db: any DB,
         interactionDeleteManager: InteractionDeleteManager,
         threadSoftDeleteManager: ThreadSoftDeleteManager,
         threadStore: ThreadStore
@@ -40,7 +41,7 @@ public final class BulkDeleteInteractionJobQueue {
         anchorMessageRowId: Int64,
         isFullThreadDelete: Bool,
         threadUniqueId: String,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         let jobRecord = BulkDeleteInteractionJobRecord(
             anchorMessageRowId: anchorMessageRowId,
@@ -57,7 +58,7 @@ public final class BulkDeleteInteractionJobQueue {
 
         jobRecord.anyInsert(transaction: tx)
 
-        tx.addSyncCompletion {
+        jobSerializer.addOrderedSyncCompletion(tx: tx) {
             self.jobQueueRunner.addPersistedJob(jobRecord)
         }
     }
@@ -74,7 +75,7 @@ private class BulkDeleteInteractionJobRunner: JobRunner {
     }
 
     private let addressableMessageFinder: DeleteForMeAddressableMessageFinder
-    private let db: DB
+    private let db: any DB
     private let interactionDeleteManager: InteractionDeleteManager
     private let threadSoftDeleteManager: ThreadSoftDeleteManager
     private let threadStore: ThreadStore
@@ -83,7 +84,7 @@ private class BulkDeleteInteractionJobRunner: JobRunner {
 
     init(
         addressableMessageFinder: DeleteForMeAddressableMessageFinder,
-        db: DB,
+        db: any DB,
         interactionDeleteManager: InteractionDeleteManager,
         threadSoftDeleteManager: ThreadSoftDeleteManager,
         threadStore: ThreadStore
@@ -137,7 +138,7 @@ private class BulkDeleteInteractionJobRunner: JobRunner {
         logger.info("Deleted \(deletedCount) messages for thread \(threadUniqueId), isFullThreadDelete \(fullThreadDeletionAnchorMessageRowId != nil).")
 
         await db.awaitableWrite { tx in
-            let sdsTx: SDSAnyWriteTransaction = SDSDB.shimOnlyBridge(tx)
+            let sdsTx: DBWriteTransaction = SDSDB.shimOnlyBridge(tx)
 
             jobRecord.anyRemove(transaction: sdsTx)
 
@@ -196,7 +197,7 @@ private class BulkDeleteInteractionJobRunner: JobRunner {
         anchorMessageRowId: Int64,
         tx: DBWriteTransaction
     ) -> Int {
-        let sdsTx: SDSAnyWriteTransaction = SDSDB.shimOnlyBridge(tx)
+        let sdsTx: DBWriteTransaction = SDSDB.shimOnlyBridge(tx)
 
         let interactionsToDelete: [TSInteraction]
         do {
@@ -232,17 +233,15 @@ private class BulkDeleteInteractionJobRunner: JobRunner {
         /// know how many interactions will be deleted in a single transaction).
         /// This will ensure that anyone who opens a transaction between our
         /// time-gated batches sees a thread with appropriately-updated values.
-        sdsTx.addTransactionFinalizationBlock(
-            forKey: "BulkDeleteInteractionJobQueue"
-        ) { finalizingTransaction in
+        sdsTx.addFinalizationBlock(key: "BulkDeleteInteractionJobQueue") { finalizingTx in
             if let thread = self.threadStore.fetchThread(
                 uniqueId: threadUniqueId,
-                tx: finalizingTransaction.asV2Write
+                tx: finalizingTx
             ) {
                 thread.updateOnInteractionsRemoved(
                     needsToUpdateLastInteractionRowId: true,
                     needsToUpdateLastVisibleSortId: true,
-                    transaction: finalizingTransaction
+                    transaction: finalizingTx
                 )
             }
         }
@@ -251,23 +250,20 @@ private class BulkDeleteInteractionJobRunner: JobRunner {
     }
 }
 
-private extension InteractionFinder {
-}
-
 // MARK: -
 
 private class BulkDeleteInteractionJobRunnerFactory: JobRunnerFactory {
     typealias JobRunnerType = BulkDeleteInteractionJobRunner
 
     private let addressableMessageFinder: DeleteForMeAddressableMessageFinder
-    private let db: DB
+    private let db: any DB
     private let interactionDeleteManager: InteractionDeleteManager
     private let threadSoftDeleteManager: ThreadSoftDeleteManager
     private let threadStore: ThreadStore
 
     init(
         addressableMessageFinder: DeleteForMeAddressableMessageFinder,
-        db: DB,
+        db: any DB,
         interactionDeleteManager: InteractionDeleteManager,
         threadSoftDeleteManager: ThreadSoftDeleteManager,
         threadStore: ThreadStore

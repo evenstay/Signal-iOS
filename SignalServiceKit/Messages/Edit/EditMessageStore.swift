@@ -64,7 +64,7 @@ public protocol EditMessageStore {
     func insert(
         _ editRecord: EditRecord,
         tx: DBWriteTransaction
-    )
+    ) throws
 
     func update(
         _ editRecord: EditRecord,
@@ -91,14 +91,15 @@ public class EditMessageStoreImpl: EditMessageStore {
         let sql = """
             SELECT *
             FROM \(InteractionRecord.databaseTableName)
+            \(DEBUG_INDEXED_BY("Interaction_timestamp", or: "index_interactions_on_timestamp_sourceDeviceId_and_authorPhoneNumber"))
             WHERE \(interactionColumn: .timestamp) = ?
             AND \(interactionColumn: .authorUUID) IS ?
             LIMIT 1
-        """
+            """
         let interaction = TSInteraction.grdbFetchOne(
             sql: sql,
             arguments: [timestamp, authorAci?.serviceIdUppercaseString],
-            transaction: transaction.unwrapGrdbRead
+            transaction: transaction
         )
         switch (interaction, authorAci) {
         case (let outgoingMessage as TSOutgoingMessage, nil):
@@ -146,7 +147,7 @@ public class EditMessageStoreImpl: EditMessageStore {
         return TSMessage.grdbFetchOne(
             sql: sql,
             arguments: arguments,
-            transaction: transaction.unwrapGrdbRead
+            transaction: transaction
         ) as? TSMessage
     }
 
@@ -154,8 +155,6 @@ public class EditMessageStoreImpl: EditMessageStore {
         for message: TSMessage,
         tx: DBReadTransaction
     ) -> Int {
-        let transaction = SDSDB.shimOnlyBridge(tx)
-
         let sql = """
                 SELECT COUNT(*)
                 FROM \(EditRecord.databaseTableName)
@@ -166,7 +165,7 @@ public class EditMessageStoreImpl: EditMessageStore {
 
         do {
             return try Int.fetchOne(
-                transaction.unwrapGrdbRead.database,
+                tx.database,
                 sql: sql,
                 arguments: arguments
             ) ?? 0
@@ -183,8 +182,6 @@ public class EditMessageStoreImpl: EditMessageStore {
         for message: MessageType,
         tx: DBReadTransaction
     ) throws -> [(record: EditRecord, message: MessageType?)] {
-        let transaction = SDSDB.shimOnlyBridge(tx)
-
         /// By ordering DESC on `pastRevisionId`, we end up ordering edits
         /// newest-to-oldest. That's because the highest `pastRevisionId` refers
         /// to the most-recently-inserted revision, or newest edit.
@@ -197,7 +194,7 @@ public class EditMessageStoreImpl: EditMessageStore {
         let arguments: StatementArguments = [message.grdbId]
 
         let records = try EditRecord.fetchAll(
-            transaction.unwrapGrdbRead.database,
+            tx.database,
             sql: recordSQL,
             arguments: arguments
         )
@@ -205,7 +202,7 @@ public class EditMessageStoreImpl: EditMessageStore {
         return records.map { record -> (EditRecord, MessageType?) in
             let interaction = InteractionFinder.fetch(
                 rowId: record.pastRevisionId,
-                transaction: transaction
+                transaction: SDSDB.shimOnlyBridge(tx)
             )
             guard let message = interaction as? MessageType else {
                 owsFailDebug("Interaction has unexpected type: \(type(of: interaction))")
@@ -222,8 +219,6 @@ public class EditMessageStoreImpl: EditMessageStore {
         for message: MessageType,
         tx: DBReadTransaction
     ) throws -> [(record: EditRecord, message: MessageType?)] {
-        let transaction = SDSDB.shimOnlyBridge(tx)
-
         let recordSQL = """
             SELECT * FROM \(EditRecord.databaseTableName)
             WHERE latestRevisionId = ?
@@ -234,7 +229,7 @@ public class EditMessageStoreImpl: EditMessageStore {
         let arguments: StatementArguments = [message.grdbId, message.grdbId]
 
         let records = try EditRecord.fetchAll(
-            transaction.unwrapGrdbRead.database,
+            tx.database,
             sql: recordSQL,
             arguments: arguments
         )
@@ -242,7 +237,7 @@ public class EditMessageStoreImpl: EditMessageStore {
         return records.map { record -> (EditRecord, MessageType?) in
             let interaction = InteractionFinder.fetch(
                 rowId: record.pastRevisionId,
-                transaction: transaction
+                transaction: SDSDB.shimOnlyBridge(tx)
             )
             guard let message = interaction as? MessageType else {
                 owsFailDebug("Interaction has unexpected type: \(type(of: interaction))")
@@ -255,18 +250,14 @@ public class EditMessageStoreImpl: EditMessageStore {
     public func insert(
         _ editRecord: EditRecord,
         tx: DBWriteTransaction
-    ) {
-        do {
-            try editRecord.insert(SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite.database)
-        } catch {
-            owsFailDebug("Unexpected edit record insertion error \(error)")
-        }
+    ) throws {
+        try editRecord.insert(tx.database)
     }
 
     public func update(
         _ editRecord: EditRecord,
         tx: DBWriteTransaction
     ) throws {
-        try editRecord.update(SDSDB.shimOnlyBridge(tx).unwrapGrdbWrite.database)
+        try editRecord.update(tx.database)
     }
 }

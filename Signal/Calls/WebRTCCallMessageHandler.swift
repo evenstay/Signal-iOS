@@ -16,7 +16,7 @@ class WebRTCCallMessageHandler: CallMessageHandler {
     }
 
     private var callService: CallService { AppEnvironment.shared.callService }
-    private var groupCallManager: GroupCallManager { NSObject.groupCallManager }
+    private var groupCallManager: GroupCallManager { SSKEnvironment.shared.groupCallManagerRef }
     private var tsAccountManager: TSAccountManager { DependenciesBridge.shared.tsAccountManager }
 
     // MARK: - Call Handlers
@@ -24,20 +24,22 @@ class WebRTCCallMessageHandler: CallMessageHandler {
     func receivedEnvelope(
         _ envelope: SSKProtoEnvelope,
         callEnvelope: CallEnvelopeType,
-        from caller: (aci: Aci, deviceId: UInt32),
+        from caller: (aci: Aci, deviceId: DeviceId),
+        toLocalIdentity localIdentity: OWSIdentity,
         plaintextData: Data,
         wasReceivedByUD: Bool,
         sentAtTimestamp: UInt64,
         serverReceivedTimestamp: UInt64,
         serverDeliveryTimestamp: UInt64,
-        tx: SDSAnyWriteTransaction
+        tx: DBWriteTransaction
     ) {
         switch callEnvelope {
         case .offer(let offer):
             self.callService.individualCallService.handleReceivedOffer(
                 caller: caller.aci,
-                callId: offer.id,
                 sourceDevice: caller.deviceId,
+                localIdentity: localIdentity,
+                callId: offer.id,
                 opaque: offer.opaque,
                 sentAtTimestamp: sentAtTimestamp,
                 serverReceivedTimestamp: serverReceivedTimestamp,
@@ -102,13 +104,16 @@ class WebRTCCallMessageHandler: CallMessageHandler {
                 messageAgeSec = (serverDeliveryTimestamp - serverReceivedTimestamp) / 1000
             }
 
-            let localDeviceId = tsAccountManager.storedDeviceId(tx: tx.asV2Read)
+            guard let localDeviceId = tsAccountManager.storedDeviceId(tx: tx).ifValid else {
+                owsFailDebug("Received opaque call message when not registered")
+                return
+            }
 
             DispatchQueue.main.async {
                 self.callService.callManager.receivedCallMessage(
                     senderUuid: caller.aci.rawUUID,
-                    senderDeviceId: caller.deviceId,
-                    localDeviceId: localDeviceId,
+                    senderDeviceId: caller.deviceId.uint32Value,
+                    localDeviceId: localDeviceId.uint32Value,
                     message: message,
                     messageAgeSec: messageAgeSec
                 )
@@ -118,11 +123,11 @@ class WebRTCCallMessageHandler: CallMessageHandler {
 
     func receivedGroupCallUpdateMessage(
         _ updateMessage: SSKProtoDataMessageGroupCallUpdate,
-        for groupThread: TSGroupThread,
+        forGroupId groupId: GroupIdentifier,
         serverReceivedTimestamp: UInt64
     ) async {
         await groupCallManager.peekGroupCallAndUpdateThread(
-            groupThread,
+            forGroupId: groupId,
             peekTrigger: .receivedGroupUpdateMessage(
                 eraId: updateMessage.eraID,
                 messageTimestamp: serverReceivedTimestamp

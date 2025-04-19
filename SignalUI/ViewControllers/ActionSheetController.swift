@@ -406,7 +406,7 @@ public class ActionSheetAction: NSObject {
     }
 
     fileprivate let handler: Handler?
-    public typealias Handler = (ActionSheetAction) -> Void
+    public typealias Handler = @MainActor (ActionSheetAction) -> Void
 
     public var trailingIcon: ThemeIcon? {
         get {
@@ -588,6 +588,14 @@ extension ActionSheetAction {
         ActionSheetAction(
             title: CommonStrings.acknowledgeButton,
             accessibilityIdentifier: UIView.accessibilityIdentifier(containerName: "alert", name: "acknowledge"),
+            style: .default
+        )
+    }
+
+    public static var okay: ActionSheetAction {
+        ActionSheetAction(
+            title: CommonStrings.okayButton,
+            accessibilityIdentifier: UIView.accessibilityIdentifier(containerName: "alert", name: "okay"),
             style: .default
         )
     }

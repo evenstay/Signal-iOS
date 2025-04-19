@@ -4,19 +4,12 @@
 //
 
 #import "TSGroupThread.h"
-#import "TSAttachmentStream.h"
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
 NSString *const TSGroupThreadAvatarChangedNotification = @"TSGroupThreadAvatarChangedNotification";
 NSString *const TSGroupThread_NotificationKey_UniqueId = @"TSGroupThread_NotificationKey_UniqueId";
-
-@interface TSGroupThread ()
-
-@property (nonatomic) TSGroupModel *groupModel;
-
-@end
 
 #pragma mark -
 
@@ -90,9 +83,11 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
 {
     OWSAssertDebug(groupModel);
     OWSAssertDebug(groupModel.groupId.length > 0);
+#ifdef DEBUG
     for (SignalServiceAddress *address in groupModel.groupMembers) {
         OWSAssertDebug(address.isValid);
     }
+#endif
 
     NSString *uniqueIdentifier = [[self class] defaultThreadIdForGroupId:groupModel.groupId];
     self = [super initWithUniqueId:uniqueIdentifier];
@@ -105,15 +100,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
     return self;
 }
 
-+ (nullable instancetype)fetchWithGroupId:(NSData *)groupId transaction:(SDSAnyReadTransaction *)transaction
-{
-    OWSAssertDebug(groupId.length > 0);
-
-    NSString *uniqueId = [self threadIdForGroupId:groupId transaction:transaction];
-    return [TSGroupThread anyFetchGroupThreadWithUniqueId:uniqueId transaction:transaction];
-}
-
-- (NSArray<SignalServiceAddress *> *)recipientAddressesWithTransaction:(SDSAnyReadTransaction *)transaction
+- (NSArray<SignalServiceAddress *> *)recipientAddressesWithTransaction:(DBReadTransaction *)transaction
 {
     NSMutableArray<SignalServiceAddress *> *groupMembers = [self.groupModel.groupMembers mutableCopy];
     if (groupMembers == nil) {
@@ -135,80 +122,15 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
     return OWSLocalizedString(@"NEW_GROUP_DEFAULT_TITLE", @"");
 }
 
-- (void)updateWithGroupModel:(TSGroupModel *)groupModel transaction:(SDSAnyWriteTransaction *)transaction
-{
-    [self updateWithGroupModel:groupModel shouldUpdateChatListUi:YES transaction:transaction];
-}
-
-- (void)updateWithGroupModel:(TSGroupModel *)newGroupModel
-      shouldUpdateChatListUi:(BOOL)shouldUpdateChatListUi
-                 transaction:(SDSAnyWriteTransaction *)transaction
-{
-    OWSAssertDebug(newGroupModel);
-    OWSAssertDebug(transaction);
-
-    switch (newGroupModel.groupsVersion) {
-        case GroupsVersionV1:
-            OWSAssertDebug(newGroupModel.groupsVersion == self.groupModel.groupsVersion);
-            break;
-        case GroupsVersionV2:
-            // Group version may be changing due to migration.
-            break;
-    }
-
-    BOOL didAvatarChange = ![NSObject isNullableObject:newGroupModel.avatarHash equalTo:self.groupModel.avatarHash];
-    BOOL didNameChange = ![newGroupModel.groupNameOrDefault isEqualToString:self.groupModel.groupNameOrDefault];
-
-    [self
-        anyUpdateGroupThreadWithTransaction:transaction
-                                      block:^(TSGroupThread *thread) {
-                                          if ([thread.groupModel isKindOfClass:TSGroupModelV2.class]) {
-                                              if (![newGroupModel isKindOfClass:TSGroupModelV2.class]) {
-                                                  // Can't downgrade a v2 group to a v1 group.
-                                                  OWSFail(@"Invalid group model.");
-                                              } else {
-                                                  // Can't downgrade a v2 group to an earlier revision.
-                                                  TSGroupModelV2 *oldGroupModelV2 = (TSGroupModelV2 *)thread.groupModel;
-                                                  TSGroupModelV2 *newGroupModelV2 = (TSGroupModelV2 *)newGroupModel;
-                                                  OWSPrecondition(oldGroupModelV2.revision <= newGroupModelV2.revision);
-                                              }
-                                          }
-
-                                          thread.groupModel = [newGroupModel copy];
-                                      }];
-    [self updateGroupMemberRecordsWithTransaction:transaction];
-
-    // We only need to re-index the group if the group name changed.
-    [SDSDatabaseStorage.shared touchThread:self
-                             shouldReindex:didNameChange
-                    shouldUpdateChatListUi:shouldUpdateChatListUi
-                               transaction:transaction];
-
-    if (didAvatarChange) {
-        [transaction addAsyncCompletionOnMain:^{ [self fireAvatarChangedNotification]; }];
-    }
-}
-
-- (void)fireAvatarChangedNotification
-{
-    OWSAssertIsOnMainThread();
-
-    NSDictionary *userInfo = @{ TSGroupThread_NotificationKey_UniqueId : self.uniqueId };
-
-    [[NSNotificationCenter defaultCenter] postNotificationName:TSGroupThreadAvatarChangedNotification
-                                                        object:self.uniqueId
-                                                      userInfo:userInfo];
-}
-
 #pragma mark -
 
-- (void)anyWillInsertWithTransaction:(SDSAnyWriteTransaction *)transaction
+- (void)anyWillInsertWithTransaction:(DBWriteTransaction *)transaction
 {
     [super anyWillInsertWithTransaction:transaction];
     [self updateGroupMemberRecordsWithTransaction:transaction];
 }
 
-- (void)anyWillUpdateWithTransaction:(SDSAnyWriteTransaction *)transaction
+- (void)anyWillUpdateWithTransaction:(DBWriteTransaction *)transaction
 {
     [super anyWillUpdateWithTransaction:transaction];
 
@@ -216,7 +138,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
     // Now it's done explicitly where we update the group model, and not for other updates.
 }
 
-- (void)anyDidInsertWithTransaction:(SDSAnyWriteTransaction *)transaction
+- (void)anyDidInsertWithTransaction:(DBWriteTransaction *)transaction
 {
     [super anyDidInsertWithTransaction:transaction];
 

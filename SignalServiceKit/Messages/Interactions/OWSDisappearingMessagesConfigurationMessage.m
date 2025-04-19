@@ -5,7 +5,6 @@
 
 #import "OWSDisappearingMessagesConfigurationMessage.h"
 #import "OWSDisappearingMessagesConfiguration.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -32,7 +31,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithConfiguration:(OWSDisappearingMessagesConfiguration *)configuration
                                thread:(TSThread *)thread
-                          transaction:(SDSAnyReadTransaction *)transaction
+                          transaction:(DBReadTransaction *)transaction
 {
     TSOutgoingMessageBuilder *messageBuilder = [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:thread];
     self = [super initOutgoingMessageWithBuilder:messageBuilder
@@ -51,7 +50,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 
 - (nullable SSKProtoDataMessageBuilder *)dataMessageBuilderWithThread:(TSThread *)thread
-                                                          transaction:(SDSAnyReadTransaction *)transaction
+                                                          transaction:(DBReadTransaction *)transaction
 {
     SSKProtoDataMessageBuilder *_Nullable dataMessageBuilder = [super dataMessageBuilderWithThread:thread
                                                                                        transaction:transaction];

@@ -70,7 +70,7 @@ class GetStartedBannerViewController: UIViewController, UICollectionViewDelegate
         updateContent()
         applyTheme()
 
-        SDSDatabaseStorage.shared.appendDatabaseChangeDelegate(self)
+        DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(applyTheme),
@@ -141,8 +141,12 @@ class GetStartedBannerViewController: UIViewController, UICollectionViewDelegate
     }
 
     func fetchContent() -> [GetStartedBannerEntry] {
-        SDSDatabaseStorage.shared.read { readTx in
-            let activeCards = Self.getActiveCards(readTx: readTx)
+        SSKEnvironment.shared.databaseStorageRef.read { readTx -> [GetStartedBannerEntry] in
+            var activeCards = Self.getActiveCards(readTx: readTx)
+
+            if activeCards.isEmpty {
+                return []
+            }
 
             let visibleThreadCount: UInt
             do {
@@ -155,22 +159,23 @@ class GetStartedBannerViewController: UIViewController, UICollectionViewDelegate
             }
 
             // If we have five or more threads, dismiss all cards
-            if activeCards.count > 0, visibleThreadCount >= 5 {
+            if visibleThreadCount >= 5 {
                 Logger.info("User has more than five threads. Dismissing Get Started banner.")
-                SDSDatabaseStorage.shared.asyncWrite { writeTx in
+                SSKEnvironment.shared.databaseStorageRef.asyncWrite { writeTx in
                     Self.dismissAllCards(writeTx: writeTx)
                 }
                 return []
-            } else {
-                // Once you have an avatar, don't show the avatar builder card.
-                if Self.profileManager.localProfileAvatarData != nil {
-                    Self.databaseStorage.asyncWrite { writeTx in
-                        Self.completeCard(.avatarBuilder, writeTx: writeTx)
-                    }
-                    return activeCards.filter { $0 != .avatarBuilder }
-                }
-                return activeCards
             }
+
+            // Once you have an avatar, don't show the avatar builder card.
+            if activeCards.contains(.avatarBuilder), SSKEnvironment.shared.profileManagerRef.localUserProfile(tx: readTx)?.loadAvatarData() != nil {
+                SSKEnvironment.shared.databaseStorageRef.asyncWrite { writeTx in
+                    Self.completeCard(.avatarBuilder, writeTx: writeTx)
+                }
+                activeCards.removeAll(where: { $0 == .avatarBuilder })
+            }
+
+            return activeCards
         }
     }
 
@@ -243,7 +248,7 @@ extension GetStartedBannerViewController: GetStartedBannerCellDelegate {
     func didTapClose(_ cell: GetStartedBannerCell) {
         guard let model = cell.model else { return }
 
-        SDSDatabaseStorage.shared.asyncWrite { writeTx in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { writeTx in
             Self.completeCard(model, writeTx: writeTx)
         }
     }
@@ -268,10 +273,10 @@ extension GetStartedBannerViewController: GetStartedBannerCellDelegate {
 
 extension GetStartedBannerViewController {
     private static let activeCardsDidChange = NSNotification.Name("ActiveBannerCardsDidChange")
-    private static let keyValueStore = SDSKeyValueStore(collection: "GetStartedBannerViewController")
+    private static let keyValueStore = KeyValueStore(collection: "GetStartedBannerViewController")
     private static let completePrefix = "ActiveCard."
 
-    static func enableAllCards(writeTx: SDSAnyWriteTransaction) {
+    static func enableAllCards(writeTx: DBWriteTransaction) {
         var didChange = false
 
         GetStartedBannerEntry.allCases.forEach { entry in
@@ -292,11 +297,11 @@ extension GetStartedBannerViewController {
         }
 
         writeTx.addSyncCompletion {
-            NotificationCenter.default.postNotificationNameAsync(activeCardsDidChange, object: nil)
+            NotificationCenter.default.postOnMainThread(name: activeCardsDidChange, object: nil)
         }
     }
 
-    static private func getActiveCards(readTx: SDSAnyReadTransaction) -> [GetStartedBannerEntry] {
+    static private func getActiveCards(readTx: DBReadTransaction) -> [GetStartedBannerEntry] {
         GetStartedBannerEntry.allCases.filter { entry in
             let key = completePrefix + entry.identifier
             let isActive = keyValueStore.getBool(key, defaultValue: false, transaction: readTx)
@@ -304,7 +309,7 @@ extension GetStartedBannerViewController {
         }
     }
 
-    static func dismissAllCards(writeTx: SDSAnyWriteTransaction) {
+    static func dismissAllCards(writeTx: DBWriteTransaction) {
         var didChange = false
 
         GetStartedBannerEntry.allCases.forEach { entry in
@@ -325,11 +330,11 @@ extension GetStartedBannerViewController {
         }
 
         writeTx.addSyncCompletion {
-            NotificationCenter.default.postNotificationNameAsync(activeCardsDidChange, object: nil)
+            NotificationCenter.default.postOnMainThread(name: activeCardsDidChange, object: nil)
         }
     }
 
-    static private func completeCard(_ model: GetStartedBannerEntry, writeTx: SDSAnyWriteTransaction) {
+    static private func completeCard(_ model: GetStartedBannerEntry, writeTx: DBWriteTransaction) {
         let key = Self.completePrefix + model.identifier
 
         let isActive = keyValueStore.getBool(key, defaultValue: false, transaction: writeTx)
@@ -341,7 +346,7 @@ extension GetStartedBannerViewController {
         Self.keyValueStore.removeValue(forKey: key, transaction: writeTx)
 
         writeTx.addSyncCompletion {
-            NotificationCenter.default.postNotificationNameAsync(activeCardsDidChange, object: nil)
+            NotificationCenter.default.postOnMainThread(name: activeCardsDidChange, object: nil)
         }
     }
 }
@@ -351,19 +356,16 @@ extension GetStartedBannerViewController {
 extension GetStartedBannerViewController: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
-        AssertIsOnMainThread()
         if databaseChanges.didUpdateThreads {
             updateContent()
         }
     }
 
     public func databaseChangesDidUpdateExternally() {
-        AssertIsOnMainThread()
         updateContent()
     }
 
     public func databaseChangesDidReset() {
-        AssertIsOnMainThread()
         updateContent()
     }
 

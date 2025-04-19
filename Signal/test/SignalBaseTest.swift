@@ -8,22 +8,31 @@ public import XCTest
 @testable import SignalServiceKit
 
 open class SignalBaseTest: XCTestCase {
+    private var oldContext: (any AppContext)!
 
+    @MainActor
     public override func setUp() {
         super.setUp()
-        MockSSKEnvironment.activate()
+        let setupExpectation = expectation(description: "mock ssk environment setup completed")
+        self.oldContext = CurrentAppContext()
+        Task {
+            await MockSSKEnvironment.activate()
+            setupExpectation.fulfill()
+        }
+        waitForExpectations(timeout: 2)
     }
 
+    @MainActor
     open override func tearDown() {
-        MockSSKEnvironment.flushAndWait()
+        MockSSKEnvironment.deactivate(oldContext: self.oldContext)
         super.tearDown()
     }
 
-    func read<T>(block: (SDSAnyReadTransaction) throws -> T) rethrows -> T {
-        return try databaseStorage.read(block: block)
+    func read<T>(block: (DBReadTransaction) throws -> T) rethrows -> T {
+        return try SSKEnvironment.shared.databaseStorageRef.read(block: block)
     }
 
-    func write<T>(block: (SDSAnyWriteTransaction) throws -> T) rethrows -> T {
-        return try databaseStorage.write(block: block)
+    func write<T>(block: (DBWriteTransaction) throws -> T) rethrows -> T {
+        return try SSKEnvironment.shared.databaseStorageRef.write(block: block)
     }
 }

@@ -22,18 +22,11 @@ public class AudioWaveform: Equatable {
     // MARK: - Caching
 
     public init(archivedData: Data) throws {
-        let unarchivedSamples = try NSKeyedUnarchiver.unarchivedObject(ofClass: NSArray.self, from: archivedData)
-        guard let unarchivedSamples = unarchivedSamples as? [Float] else {
+        let unarchivedSamples = try NSKeyedUnarchiver.unarchivedArrayOfObjects(ofClass: NSNumber.self, from: archivedData)
+        guard let unarchivedSamples else {
             throw OWSAssertionError("Failed to unarchive decibel samples")
         }
-        decibelSamples = unarchivedSamples
-    }
-
-    public init(contentsOfFile filePath: String) throws {
-        guard let unarchivedSamples = NSKeyedUnarchiver.unarchiveObject(withFile: filePath) as? [Float] else {
-            throw OWSAssertionError("Failed to unarchive decibel samples")
-        }
-        decibelSamples = unarchivedSamples
+        decibelSamples = unarchivedSamples.map { $0.floatValue }
     }
 
     public func archive() throws -> Data {
@@ -111,7 +104,7 @@ public class AudioWaveform: Equatable {
     /// If rendering waveforms at a higher resolution, this value may
     /// need to be adjusted appropriately.
     ///
-    /// Currently, these samples are cached to disk in `TSAttachmentStream`,
-    /// so we need to make sure that sample count produces a reasonably file size.
+    /// Currently, these samples are cached to disk, so we need to
+    /// make sure that sample count produces a reasonably file size.
     static let sampleCount = 100
 }

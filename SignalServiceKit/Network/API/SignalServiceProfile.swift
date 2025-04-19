@@ -16,8 +16,7 @@ public class SignalServiceProfile {
     }
 
     public struct Capabilities {
-        public let deleteSync: Bool
-        public let versionedExpireTimer: Bool
+        public let storageServiceRecordIkm: Bool
     }
 
     public let serviceId: ServiceId
@@ -135,13 +134,9 @@ public class SignalServiceProfile {
         }
 
         return Capabilities(
-            deleteSync: parseCapabilityFlag(
+            storageServiceRecordIkm: parseCapabilityFlag(
                 capabilitiesParser: capabilitiesParser,
-                capabilityKey: "deleteSync"
-            ),
-            versionedExpireTimer: parseCapabilityFlag(
-                capabilitiesParser: capabilitiesParser,
-                capabilityKey: AccountAttributes.Capabilities.CodingKeys.versionedExpireTimer.rawValue
+                capabilityKey: AccountAttributes.Capabilities.CodingKeys.storageServiceRecordIkm.rawValue
             )
         )
     }

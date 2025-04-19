@@ -9,11 +9,23 @@ import LibSignalClient
 /// Provides parameters required for assembling a Sealed Sender message.
 final class SealedSenderParameters {
     let message: TSOutgoingMessage
-    let udSendingAccess: OWSUDSendingAccess
+    let senderCertificate: SenderCertificate
+    let accessKey: OWSUDAccess?
+    let endorsement: GroupSendFullTokenBuilder?
 
-    init(message: TSOutgoingMessage, udSendingAccess: OWSUDSendingAccess) {
+    init?(
+        message: TSOutgoingMessage,
+        senderCertificate: SenderCertificate,
+        accessKey: OWSUDAccess?,
+        endorsement: GroupSendFullTokenBuilder?
+    ) {
         self.message = message
-        self.udSendingAccess = udSendingAccess
+        self.senderCertificate = senderCertificate
+        guard message.isStorySend || accessKey != nil || endorsement != nil else {
+            return nil
+        }
+        self.accessKey = accessKey
+        self.endorsement = endorsement
     }
 
     /// Indicates desired behavior on the case of decryption error.

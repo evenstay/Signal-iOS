@@ -117,12 +117,12 @@ public class OutgoingCallEventSyncMessage: OWSOutgoingSyncMessage {
     private(set) var callEvent: OutgoingCallEvent!
 
     init(
-        thread: TSThread,
+        localThread: TSContactThread,
         event: OutgoingCallEvent,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) {
         self.callEvent = event
-        super.init(thread: thread, transaction: tx)
+        super.init(localThread: localThread, transaction: tx)
     }
 
     required public init?(coder: NSCoder) {
@@ -135,7 +135,7 @@ public class OutgoingCallEventSyncMessage: OWSOutgoingSyncMessage {
 
     override public var isUrgent: Bool { false }
 
-    override public func syncMessageBuilder(transaction: SDSAnyReadTransaction) -> SSKProtoSyncMessageBuilder? {
+    override public func syncMessageBuilder(transaction: DBReadTransaction) -> SSKProtoSyncMessageBuilder? {
         let callEventBuilder = SSKProtoSyncMessageCallEvent.builder()
         callEventBuilder.setCallID(callEvent.callId)
         callEventBuilder.setType(callEvent.callType.protoValue)

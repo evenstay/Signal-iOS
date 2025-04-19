@@ -6,19 +6,15 @@
 import Foundation
 import GRDB
 
-@objc
-public class PaymentFinder: NSObject {
+public class PaymentFinder {
 
     public class func paymentModels(paymentStates: [TSPaymentState],
-                                    transaction: SDSAnyReadTransaction) -> [TSPaymentModel] {
-        switch transaction.readTransaction {
-        case .grdbRead(let grdbTransaction):
-            return paymentModels(paymentStates: paymentStates, grdbTransaction: grdbTransaction)
-        }
+                                    transaction: DBReadTransaction) -> [TSPaymentModel] {
+        return paymentModels(paymentStates: paymentStates, grdbTransaction: transaction)
     }
 
     private class func paymentModels(paymentStates: [TSPaymentState],
-                                     grdbTransaction transaction: GRDBReadTransaction) -> [TSPaymentModel] {
+                                     grdbTransaction transaction: DBReadTransaction) -> [TSPaymentModel] {
 
         let paymentStatesToLookup = paymentStates.compactMap { $0.rawValue }.map { "\($0)" }.joined(separator: ",")
 
@@ -39,8 +35,7 @@ public class PaymentFinder: NSObject {
         return paymentModels
     }
 
-    @objc
-    public class func firstUnreadPaymentModel(transaction: SDSAnyReadTransaction) -> TSPaymentModel? {
+    public class func firstUnreadPaymentModel(transaction: DBReadTransaction) -> TSPaymentModel? {
         let sql = """
         SELECT * FROM \(PaymentModelRecord.databaseTableName)
         WHERE \(paymentModelColumn: .isUnread) = 1
@@ -48,11 +43,10 @@ public class PaymentFinder: NSObject {
         """
         return TSPaymentModel.grdbFetchOne(sql: sql,
                                            arguments: [],
-                                           transaction: transaction.unwrapGrdbRead)
+                                           transaction: transaction)
     }
 
-    @objc
-    public class func allUnreadPaymentModels(transaction: SDSAnyReadTransaction) -> [TSPaymentModel] {
+    public class func allUnreadPaymentModels(transaction: DBReadTransaction) -> [TSPaymentModel] {
         let sql = """
         SELECT * FROM \(PaymentModelRecord.databaseTableName)
         WHERE \(paymentModelColumn: .isUnread) = 1
@@ -60,16 +54,15 @@ public class PaymentFinder: NSObject {
         do {
             return try TSPaymentModel.grdbFetchCursor(sql: sql,
                                                       arguments: [],
-                                                      transaction: transaction.unwrapGrdbRead).all()
+                                                      transaction: transaction).all()
         } catch {
             owsFail("error: \(error)")
         }
     }
 
-    @objc
-    public class func unreadCount(transaction: SDSAnyReadTransaction) -> UInt {
+    public class func unreadCount(transaction: DBReadTransaction) -> UInt {
         do {
-            guard let count = try UInt.fetchOne(transaction.unwrapGrdbRead.database,
+            guard let count = try UInt.fetchOne(transaction.database,
                                                 sql: """
                 SELECT COUNT(*)
                 FROM \(PaymentModelRecord.databaseTableName)
@@ -86,9 +79,8 @@ public class PaymentFinder: NSObject {
 
     // MARK: -
 
-    @objc
     public class func paymentModels(forMcLedgerBlockIndex mcLedgerBlockIndex: UInt64,
-                                    transaction: SDSAnyReadTransaction) -> [TSPaymentModel] {
+                                    transaction: DBReadTransaction) -> [TSPaymentModel] {
         let sql = """
         SELECT * FROM \(PaymentModelRecord.databaseTableName)
         WHERE \(paymentModelColumn: .mcLedgerBlockIndex) = ?
@@ -96,15 +88,14 @@ public class PaymentFinder: NSObject {
         do {
             return try TSPaymentModel.grdbFetchCursor(sql: sql,
                                                       arguments: [mcLedgerBlockIndex],
-                                                      transaction: transaction.unwrapGrdbRead).all()
+                                                      transaction: transaction).all()
         } catch {
             owsFail("error: \(error)")
         }
     }
 
-    @objc
     public class func paymentModels(forMcReceiptData mcReceiptData: Data,
-                                    transaction: SDSAnyReadTransaction) -> [TSPaymentModel] {
+                                    transaction: DBReadTransaction) -> [TSPaymentModel] {
         let sql = """
         SELECT * FROM \(PaymentModelRecord.databaseTableName)
         WHERE \(paymentModelColumn: .mcReceiptData) = ?
@@ -112,15 +103,14 @@ public class PaymentFinder: NSObject {
         do {
             return try TSPaymentModel.grdbFetchCursor(sql: sql,
                                                       arguments: [mcReceiptData],
-                                                      transaction: transaction.unwrapGrdbRead).all()
+                                                      transaction: transaction).all()
         } catch {
             owsFail("error: \(error)")
         }
     }
 
-    @objc
     public class func paymentModels(forMcTransactionData mcTransactionData: Data,
-                                    transaction: SDSAnyReadTransaction) -> [TSPaymentModel] {
+                                    transaction: DBReadTransaction) -> [TSPaymentModel] {
         let sql = """
         SELECT * FROM \(PaymentModelRecord.databaseTableName)
         WHERE \(paymentModelColumn: .mcTransactionData) = ?
@@ -128,7 +118,7 @@ public class PaymentFinder: NSObject {
         do {
             return try TSPaymentModel.grdbFetchCursor(sql: sql,
                                                       arguments: [mcTransactionData],
-                                                      transaction: transaction.unwrapGrdbRead).all()
+                                                      transaction: transaction).all()
         } catch {
             owsFail("error: \(error)")
         }

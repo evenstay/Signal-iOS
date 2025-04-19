@@ -10,15 +10,15 @@ import Foundation
 public class MockAppExpiry: AppExpiry {
     public var dateProvider: DateProvider = { Date() }
 
-    public var expirationDate = Date().addingTimeInterval(30 * kDayInterval)
+    public var expirationDate = Date().addingTimeInterval(30 * .day)
 
     public var isExpired: Bool { expirationDate < dateProvider() }
 
     public func warmCaches(with: DBReadTransaction) {}
 
-    public func setHasAppExpiredAtCurrentVersion(db: DB) {}
+    public func setHasAppExpiredAtCurrentVersion(db: any DB) {}
 
-    public func setExpirationDateForCurrentVersion(_ newExpirationDate: Date?, db: DB) {}
+    public func setExpirationDateForCurrentVersion(_ newExpirationDate: Date?, db: any DB) {}
 
     public init() {}
 }

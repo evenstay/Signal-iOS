@@ -156,8 +156,8 @@ private class QuotedMessageSnippetView: UIView {
         if quotedMessage.isOriginalMessageAuthorLocalUser {
             quotedAuthor = CommonStrings.you
         } else {
-            let authorName = databaseStorage.read { tx in
-                return contactsManager.displayName(
+            let authorName = SSKEnvironment.shared.databaseStorageRef.read { tx in
+                return SSKEnvironment.shared.contactManagerRef.displayName(
                     for: quotedMessage.originalMessageAuthorAddress,
                     tx: tx
                 ).resolvedValue()
@@ -446,7 +446,7 @@ private class QuotedMessageSnippetView: UIView {
         }
     }
 
-    private func createAttachmentView(_ attachment: TSResource, thumbnailImage: UIImage?) -> UIView {
+    private func createAttachmentView(_ attachment: Attachment, thumbnailImage: UIImage?) -> UIView {
         let quotedAttachmentView: UIView
         if let thumbnailImage {
             let contentImageView = buildImageView(image: thumbnailImage)
@@ -461,7 +461,7 @@ private class QuotedMessageSnippetView: UIView {
             }
 
             quotedAttachmentView = contentImageView
-        } else if attachment.asTransitTierPointer() != nil {
+        } else if attachment.asAnyPointer() != nil {
             let contentImageView = buildImageView(image: UIImage(imageLiteralResourceName: "refresh"))
             contentImageView.contentMode = .scaleAspectFit
             contentImageView.tintColor = .white
@@ -575,7 +575,7 @@ private class QuotedMessageSnippetView: UIView {
         else {
             return nil
         }
-        return Self.databaseStorage.read { tx in
+        return SSKEnvironment.shared.databaseStorageRef.read { tx in
             return DisplayableText.displayableText(
                 withMessageBody: body,
                 transaction: tx

@@ -5,7 +5,7 @@
 
 public import SignalServiceKit
 
-public enum StorySharing: Dependencies {
+public enum StorySharing {
     public static func sendTextStory(
         with messageBody: MessageBody,
         linkPreviewDraft: OWSLinkPreviewDraft?,
@@ -16,7 +16,7 @@ public enum StorySharing: Dependencies {
 
         guard !storyConversations.isEmpty else { return nil }
 
-        return TSResourceMultisend.sendTextAttachment(
+        return AttachmentMultisend.sendTextAttachment(
             buildTextAttachment(with: messageBody, linkPreviewDraft: linkPreviewDraft),
             to: storyConversations
         )
@@ -40,10 +40,10 @@ public enum StorySharing: Dependencies {
 
     internal static func text(for messageBody: MessageBody, with linkPreview: OWSLinkPreviewDraft?) -> StyleOnlyMessageBody? {
         // Hydrate any mentions in the message body but preserve styles.
-        let hydratedBody = databaseStorage.read {
+        let hydratedBody = SSKEnvironment.shared.databaseStorageRef.read {
             return messageBody
                 .hydrating(
-                    mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: $0.asV2Read)
+                    mentionHydrator: ContactsMentionHydrator.mentionHydrator(transaction: $0)
                 )
                 .asStyleOnlyBody()
         }

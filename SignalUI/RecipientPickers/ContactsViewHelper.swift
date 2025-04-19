@@ -14,7 +14,7 @@ public protocol ContactsViewHelperObserver: AnyObject {
     func contactsViewHelperDidUpdateContacts()
 }
 
-public class ContactsViewHelper: Dependencies {
+public class ContactsViewHelper {
 
     public init() {}
 
@@ -126,7 +126,7 @@ public extension ContactsViewHelper {
     ) {
         AssertIsOnMainThread()
 
-        switch contactsManagerImpl.editingAuthorization {
+        switch SSKEnvironment.shared.contactManagerImplRef.editingAuthorization {
         case .notAllowed:
             Self.presentContactAccessNotAllowedAlert(from: viewController)
         case .notAuthorized:
@@ -145,7 +145,7 @@ public extension ContactsViewHelper {
             Self.presentContactAccessDeniedAlert(from: viewController, access: .read(purpose))
         }
 
-        switch contactsManagerImpl.sharingAuthorization {
+        switch SSKEnvironment.shared.contactManagerImplRef.sharingAuthorization {
         case .notDetermined:
             CNContactStore().requestAccess(for: .contacts) { granted, error in
                 DispatchQueue.main.async {

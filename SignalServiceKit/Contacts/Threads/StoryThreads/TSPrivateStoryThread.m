@@ -6,42 +6,29 @@
 #import "TSPrivateStoryThread.h"
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
-@interface TSPrivateStoryThread ()
-
-@property (nonatomic) BOOL allowsReplies;
-@property (nonatomic) NSString *name;
-
-@end
-
 @implementation TSPrivateStoryThread
 
 - (instancetype)initWithUniqueId:(NSString *)uniqueId
                             name:(NSString *)name
                    allowsReplies:(BOOL)allowsReplies
-                       addresses:(NSArray<SignalServiceAddress *> *)addresses
                         viewMode:(TSThreadStoryViewMode)viewMode
 {
     self = [super initWithUniqueId:uniqueId];
     if (self) {
         self.name = name;
         self.allowsReplies = allowsReplies;
-        self.addresses = addresses;
         self.storyViewMode = viewMode;
     }
     return self;
 }
 
-- (instancetype)initWithName:(NSString *)name
-               allowsReplies:(BOOL)allowsReplies
-                   addresses:(NSArray<SignalServiceAddress *> *)addresses
-                    viewMode:(TSThreadStoryViewMode)viewMode
+- (instancetype)initWithName:(NSString *)name allowsReplies:(BOOL)allowsReplies viewMode:(TSThreadStoryViewMode)viewMode
 {
     NSString *uniqueId = [[self class] generateUniqueId];
     self = [super initWithUniqueId:uniqueId];
     if (self) {
         self.name = name;
         self.allowsReplies = allowsReplies;
-        self.addresses = addresses;
         self.storyViewMode = viewMode;
     }
     return self;
@@ -72,7 +59,7 @@ lastVisibleSortIdOnScreenPercentageObsolete:(double)lastVisibleSortIdOnScreenPer
      mutedUntilTimestampObsolete:(uint64_t)mutedUntilTimestampObsolete
            shouldThreadBeVisible:(BOOL)shouldThreadBeVisible
                    storyViewMode:(TSThreadStoryViewMode)storyViewMode
-                       addresses:(NSArray<SignalServiceAddress *> *)addresses
+                       addresses:(nullable NSData *)addresses
                    allowsReplies:(BOOL)allowsReplies
                             name:(NSString *)name
 {
@@ -123,34 +110,6 @@ lastVisibleSortIdOnScreenPercentageObsolete:lastVisibleSortIdOnScreenPercentageO
     }
 
     return _name;
-}
-
-- (void)updateWithAllowsReplies:(BOOL)allowsReplies
-           updateStorageService:(BOOL)updateStorageService
-                    transaction:(SDSAnyWriteTransaction *)transaction
-{
-    [self anyUpdatePrivateStoryThreadWithTransaction:transaction
-                                               block:^(TSPrivateStoryThread *thread) {
-                                                   thread.allowsReplies = allowsReplies;
-                                               }];
-
-    if (updateStorageService) {
-        [SSKEnvironment.storageServiceManagerObjc
-            recordPendingUpdatesWithUpdatedStoryDistributionListIds:@[ self.distributionListIdentifier ]];
-    }
-}
-
-- (void)updateWithName:(NSString *)name
-    updateStorageService:(BOOL)updateStorageService
-             transaction:(SDSAnyWriteTransaction *)transaction
-{
-    [self anyUpdatePrivateStoryThreadWithTransaction:transaction
-                                               block:^(TSPrivateStoryThread *thread) { thread.name = name; }];
-
-    if (updateStorageService) {
-        [SSKEnvironment.storageServiceManagerObjc
-            recordPendingUpdatesWithUpdatedStoryDistributionListIds:@[ self.distributionListIdentifier ]];
-    }
 }
 
 @end

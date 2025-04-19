@@ -6,7 +6,7 @@
 public import SignalServiceKit
 public import SignalUI
 
-public class PaymentsViewUtils: Dependencies {
+public class PaymentsViewUtils {
 
     private init() {}
 
@@ -73,13 +73,13 @@ public class PaymentsViewUtils: Dependencies {
         avatarBadge.autoPinEdge(toSuperviewEdge: .trailing, withInset: -3)
     }
 
-    static func markPaymentAsRead(_ paymentModel: TSPaymentModel, transaction: SDSAnyWriteTransaction) {
+    static func markPaymentAsRead(_ paymentModel: TSPaymentModel, transaction: DBWriteTransaction) {
         owsAssertDebug(paymentModel.isUnread)
         paymentModel.update(withIsUnread: false, transaction: transaction)
     }
 
     static func markAllUnreadPaymentsAsReadWithSneakyTransaction() {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             for paymentModel in PaymentFinder.allUnreadPaymentModels(transaction: transaction) {
                 owsAssertDebug(paymentModel.isUnread)
                 paymentModel.update(withIsUnread: false, transaction: transaction)

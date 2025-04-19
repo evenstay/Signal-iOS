@@ -11,9 +11,9 @@ public struct GroupsV2Request {
     let method: HTTPMethod
     let bodyData: Data?
 
-    let headers = OWSHttpHeaders()
+    var headers = HttpHeaders()
 
-    func addHeader(_ header: String, value: String) {
+    mutating func addHeader(_ header: String, value: String) {
         headers.addHeader(header, value: value, overwriteOnConflict: true)
     }
 }
@@ -22,34 +22,41 @@ public struct GroupsV2Request {
 
 public extension StorageService {
 
-    static func buildNewGroupRequest(groupProto: GroupsProtoGroup,
-                                     groupV2Params: GroupV2Params,
-                                     authCredential: AuthCredentialWithPni) throws -> GroupsV2Request {
-
+    static func buildNewGroupRequest(
+        groupProto: GroupsProtoGroup,
+        groupV2Params: GroupV2Params,
+        authCredential: AuthCredentialWithPni
+    ) throws -> GroupsV2Request {
         let protoData = try groupProto.serializedData()
-        return try buildGroupV2Request(protoData: protoData,
-                                       urlString: "/v1/groups/",
-                                       method: .put,
-                                       groupV2Params: groupV2Params,
-                                       authCredential: authCredential)
+        return try buildGroupV2Request(
+            protoData: protoData,
+            urlString: "v2/groups",
+            method: .put,
+            secretParams: groupV2Params.groupSecretParams,
+            authCredential: authCredential
+        )
     }
 
-    static func buildUpdateGroupRequest(groupChangeProto: GroupsProtoGroupChangeActions,
-                                        groupV2Params: GroupV2Params,
-                                        authCredential: AuthCredentialWithPni,
-                                        groupInviteLinkPassword: Data?) throws -> GroupsV2Request {
+    static func buildUpdateGroupRequest(
+        groupChangeProto: GroupsProtoGroupChangeActions,
+        groupV2Params: GroupV2Params,
+        authCredential: AuthCredentialWithPni,
+        groupInviteLinkPassword: Data?
+    ) throws -> GroupsV2Request {
 
-        var urlString = "/v1/groups/"
-        if let groupInviteLinkPassword = groupInviteLinkPassword {
+        var urlString = "v2/groups"
+        if let groupInviteLinkPassword {
             urlString += "?inviteLinkPassword=\(groupInviteLinkPassword.asBase64Url)"
         }
 
         let protoData = try groupChangeProto.serializedData()
-        return try buildGroupV2Request(protoData: protoData,
-                                       urlString: urlString,
-                                       method: .patch,
-                                       groupV2Params: groupV2Params,
-                                       authCredential: authCredential)
+        return try buildGroupV2Request(
+            protoData: protoData,
+            urlString: urlString,
+            method: .patch,
+            secretParams: groupV2Params.groupSecretParams,
+            authCredential: authCredential
+        )
     }
 
     static func buildFetchCurrentGroupV2SnapshotRequest(
@@ -58,38 +65,54 @@ public extension StorageService {
     ) throws -> GroupsV2Request {
         return try buildGroupV2Request(
             protoData: nil,
-            urlString: "/v1/groups/",
+            urlString: "v2/groups",
             method: .get,
-            groupV2Params: groupV2Params,
+            secretParams: groupV2Params.groupSecretParams,
             authCredential: authCredential
         )
     }
 
     static func buildFetchGroupChangeActionsRequest(
-        groupV2Params: GroupV2Params,
+        secretParams: GroupSecretParams,
         fromRevision: UInt32,
-        requireSnapshotForFirstChange: Bool,
+        limit: UInt32?,
+        includeFirstState: Bool,
+        gseExpiration: UInt64,
         authCredential: AuthCredentialWithPni
     ) throws -> GroupsV2Request {
-        let urlPath = "/v1/groups/logs/\(fromRevision)?includeFirstState=\(requireSnapshotForFirstChange)&maxSupportedChangeEpoch=\(GroupManager.changeProtoEpoch)"
-        return try buildGroupV2Request(
+        var queryItems = [URLQueryItem]()
+        queryItems.append(URLQueryItem(name: "includeFirstState", value: "\(includeFirstState)"))
+        queryItems.append(URLQueryItem(name: "maxSupportedChangeEpoch", value: "\(GroupManager.changeProtoEpoch)"))
+        if let limit {
+            queryItems.append(URLQueryItem(name: "limit", value: "\(limit)"))
+        }
+
+        var urlComponents = URLComponents()
+        urlComponents.path = "v2/groups/logs/\(fromRevision)"
+        urlComponents.queryItems = queryItems
+
+        var request = try buildGroupV2Request(
             protoData: nil,
-            urlString: urlPath,
+            urlString: urlComponents.url!.relativeString,
             method: .get,
-            groupV2Params: groupV2Params,
+            secretParams: secretParams,
             authCredential: authCredential
         )
+
+        request.addHeader("Cached-Send-Endorsements", value: "\(gseExpiration)")
+
+        return request
     }
 
     static func buildGetJoinedAtRevisionRequest(
-        groupV2Params: GroupV2Params,
+        secretParams: GroupSecretParams,
         authCredential: AuthCredentialWithPni
     ) throws -> GroupsV2Request {
         return try buildGroupV2Request(
             protoData: nil,
-            urlString: "/v1/groups/joined_at_version/",
+            urlString: "/v2/groups/joined_at_version/",
             method: .get,
-            groupV2Params: groupV2Params,
+            secretParams: secretParams,
             authCredential: authCredential
         )
     }
@@ -97,11 +120,11 @@ public extension StorageService {
     static func buildGroupAvatarUploadFormRequest(groupV2Params: GroupV2Params,
                                                   authCredential: AuthCredentialWithPni) throws -> GroupsV2Request {
 
-        let urlPath = "/v1/groups/avatar/form"
+        let urlPath = "/v2/groups/avatar/form"
         return try buildGroupV2Request(protoData: nil,
                                        urlString: urlPath,
                                        method: .get,
-                                       groupV2Params: groupV2Params,
+                                       secretParams: groupV2Params.groupSecretParams,
                                        authCredential: authCredential)
     }
 
@@ -110,7 +133,7 @@ public extension StorageService {
                                                         groupV2Params: GroupV2Params,
                                                         authCredential: AuthCredentialWithPni) throws -> GroupsV2Request {
 
-        var urlPath = "/v1/groups/join/"
+        var urlPath = "/v2/groups/join/"
         if let inviteLinkPassword = inviteLinkPassword {
             urlPath += "\(inviteLinkPassword.asBase64Url)"
         }
@@ -118,7 +141,7 @@ public extension StorageService {
         return try buildGroupV2Request(protoData: nil,
                                        urlString: urlPath,
                                        method: .get,
-                                       groupV2Params: groupV2Params,
+                                       secretParams: groupV2Params.groupSecretParams,
                                        authCredential: authCredential)
     }
 
@@ -128,9 +151,9 @@ public extension StorageService {
     ) throws -> GroupsV2Request {
         return try buildGroupV2Request(
             protoData: nil,
-            urlString: "/v1/groups/token",
+            urlString: "/v2/groups/token",
             method: .get,
-            groupV2Params: groupV2Params,
+            secretParams: groupV2Params.groupSecretParams,
             authCredential: authCredential
         )
     }
@@ -139,19 +162,19 @@ public extension StorageService {
         protoData: Data?,
         urlString: String,
         method: HTTPMethod,
-        groupV2Params: GroupV2Params,
+        secretParams: GroupSecretParams,
         authCredential: AuthCredentialWithPni
     ) throws -> GroupsV2Request {
 
-        let request = GroupsV2Request(urlString: urlString, method: method, bodyData: protoData)
+        var request = GroupsV2Request(urlString: urlString, method: method, bodyData: protoData)
 
         // The censorship circumvention reflectors require a Content-Type
         // even if the body is empty.
         request.addHeader("Content-Type", value: MimeType.applicationXProtobuf.rawValue)
 
         try self.addAuthorizationHeader(
-            to: request,
-            groupV2Params: groupV2Params,
+            to: &request,
+            groupSecretParams: secretParams,
             authCredential: authCredential
         )
 
@@ -161,20 +184,20 @@ public extension StorageService {
     // MARK: - Authorization Headers
 
     private static func addAuthorizationHeader(
-        to request: GroupsV2Request,
-        groupV2Params: GroupV2Params,
+        to request: inout GroupsV2Request,
+        groupSecretParams: GroupSecretParams,
         authCredential: AuthCredentialWithPni
     ) throws {
-        let serverPublicParams = try GroupsV2Protos.serverPublicParams()
+        let serverPublicParams = GroupsV2Protos.serverPublicParams()
         let clientZkAuthOperations = ClientZkAuthOperations(serverPublicParams: serverPublicParams)
-        let authCredentialPresentation = try clientZkAuthOperations.createAuthCredentialPresentation(groupSecretParams: groupV2Params.groupSecretParams, authCredential: authCredential)
+        let authCredentialPresentation = try clientZkAuthOperations.createAuthCredentialPresentation(groupSecretParams: groupSecretParams, authCredential: authCredential)
         let authCredentialPresentationData = authCredentialPresentation.serialize().asData
 
-        let username: String = groupV2Params.groupPublicParamsData.hexadecimalString
+        let username: String = try groupSecretParams.getPublicParams().serialize().asData.hexadecimalString
         let password: String = authCredentialPresentationData.hexadecimalString
         request.addHeader(
-            OWSHttpHeaders.authHeaderKey,
-            value: try OWSHttpHeaders.authHeaderValue(username: username, password: password)
+            HttpHeaders.authHeaderKey,
+            value: HttpHeaders.authHeaderValue(username: username, password: password)
         )
     }
 }

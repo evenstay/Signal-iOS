@@ -6,7 +6,7 @@
 import Foundation
 
 public enum NewAccountDiscovery {
-    public static func postNotification(for recipient: SignalRecipient, tx: SDSAnyWriteTransaction) {
+    public static func postNotification(for recipient: SignalRecipient, tx: DBWriteTransaction) {
         if recipient.address.isLocalAddress {
             return
         }
@@ -20,7 +20,7 @@ public enum NewAccountDiscovery {
         message.anyInsert(transaction: tx)
 
         // Keep these notifications less obtrusive by making them silent.
-        NSObject.notificationPresenter.notifyUser(
+        SSKEnvironment.shared.notificationPresenterRef.notifyUser(
             forTSMessage: message,
             thread: thread,
             wantsSound: false,

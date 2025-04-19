@@ -11,8 +11,11 @@ protocol CallViewControllerWindowReference: AnyObject {
     var localVideoViewReference: CallMemberView { get }
     var remoteVideoViewReference: CallMemberView { get }
     var remoteVideoAddress: SignalServiceAddress { get }
+    var isJustMe: Bool { get }
     var view: UIView! { get }
 
+    /// Minimize (or exit, if the call isn't started yet).
+    func minimizeIfNeeded()
     func returnFromPip(pipWindow: UIWindow)
     func willMoveToPip(pipWindow: UIWindow)
 }
@@ -59,18 +62,6 @@ public class ReturnToCallViewController: UIViewController {
         }
         updateLocalVideoFrame()
 
-        let profileImage = databaseStorage.read { transaction -> UIImage? in
-            avatarView.update(transaction) { config in
-                config.dataSource = .address(callViewController.remoteVideoAddress)
-            }
-            return self.profileManagerImpl.profileAvatar(
-                for: callViewController.remoteVideoAddress,
-                transaction: transaction
-            )
-        }
-
-        backgroundAvatarView.image = profileImage
-
         animatePipPresentation(snapshot: callViewSnapshot)
     }
 
@@ -87,13 +78,6 @@ public class ReturnToCallViewController: UIViewController {
     var isCallInPip: Bool {
         return nil != self.callViewController
     }
-
-    private lazy var avatarView = ConversationAvatarView(
-        sizeClass: .customDiameter(60),
-        localUserDisplayMode: .asUser,
-        badged: false)
-    private lazy var backgroundAvatarView = UIImageView()
-    private lazy var blurView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
 
     /// Tracks the frame of the keyboard if it is showing and docked (attached to the bottom of the screen).
     ///
@@ -116,16 +100,6 @@ public class ReturnToCallViewController: UIViewController {
         view.backgroundColor = .black
         view.clipsToBounds = true
         view.layer.cornerRadius = 8
-
-        backgroundAvatarView.contentMode = .scaleAspectFill
-        view.addSubview(backgroundAvatarView)
-        backgroundAvatarView.autoPinEdgesToSuperviewEdges()
-
-        view.addSubview(blurView)
-        blurView.autoPinEdgesToSuperviewEdges()
-
-        view.addSubview(avatarView)
-        avatarView.autoCenterInSuperview()
 
         view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleTap)))
         view.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(handlePan)))
@@ -152,15 +126,22 @@ public class ReturnToCallViewController: UIViewController {
     // MARK: -
 
     private func updateLocalVideoFrame() {
-        let localVideoSize = CGSize.scale(Self.inherentPipSize, factor: 0.3)
-        callViewController?.localVideoViewReference.applyChangesToCallMemberViewAndVideoView { view in
-            view.frame = CGRect(
-                origin: CGPoint(
-                    x: Self.inherentPipSize.width - 6 - localVideoSize.width,
-                    y: Self.inherentPipSize.height - 6 - localVideoSize.height
-                ),
-                size: localVideoSize
-            )
+        guard let callViewController else { return }
+        if !callViewController.isJustMe {
+            let localVideoSize = CGSize.scale(Self.inherentPipSize, factor: 0.3)
+            callViewController.localVideoViewReference.applyChangesToCallMemberViewAndVideoView { view in
+                view.frame = CGRect(
+                    origin: CGPoint(
+                        x: Self.inherentPipSize.width - 6 - localVideoSize.width,
+                        y: Self.inherentPipSize.height - 6 - localVideoSize.height
+                    ),
+                    size: localVideoSize
+                )
+            }
+        } else {
+            callViewController.localVideoViewReference.applyChangesToCallMemberViewAndVideoView { view in
+                view.frame = CGRect(origin: .zero, size: Self.inherentPipSize)
+            }
         }
     }
 
@@ -171,7 +152,7 @@ public class ReturnToCallViewController: UIViewController {
         isAnimating = true
 
         let previousOrigin = window.frame.origin
-        window.frame = WindowManager.shared.rootWindow.bounds
+        window.frame = AppEnvironment.shared.windowManagerRef.rootWindow.bounds
 
         view.addSubview(snapshot)
         snapshot.autoPinEdgesToSuperviewEdges()
@@ -204,7 +185,7 @@ public class ReturnToCallViewController: UIViewController {
         //   would be hard, and
         // - this is just a nicety; nothing bad actually happens if the PiP window overlaps those views.
         let bottomBarEstimatedHeight: CGFloat = 56
-        let safeAreaInsets = WindowManager.shared.rootWindow.safeAreaInsets
+        let safeAreaInsets = AppEnvironment.shared.windowManagerRef.rootWindow.safeAreaInsets
 
         var rect = CurrentAppContext().frame
         rect = rect.inset(by: safeAreaInsets)
@@ -267,7 +248,7 @@ public class ReturnToCallViewController: UIViewController {
 
     @objc
     private func handleTap(sender: UITapGestureRecognizer) {
-        WindowManager.shared.returnToCallView()
+        AppEnvironment.shared.windowManagerRef.returnToCallView()
     }
 
     @objc

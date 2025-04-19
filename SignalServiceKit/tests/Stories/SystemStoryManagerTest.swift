@@ -8,163 +8,165 @@ import XCTest
 
 class SystemStoryManagerTest: SSKBaseTest {
 
-    let timeout: TimeInterval = 5
-
     var mockSignalService: OWSSignalServiceMock {
-        return signalService as! OWSSignalServiceMock
+        return SSKEnvironment.shared.signalServiceRef as! OWSSignalServiceMock
     }
 
-    var scheduler: TestScheduler!
+    private class MockMessageProcessor: SystemStoryManager.Shims.MessageProcessor {
+        func waitForFetchingAndProcessing() -> Guarantee<Void> {
+            return .value(())
+        }
+    }
 
     var manager: SystemStoryManager!
 
     override func setUp() {
         super.setUp()
-        scheduler = TestScheduler()
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             (DependenciesBridge.shared.registrationStateChangeManager as! RegistrationStateChangeManagerImpl).registerForTests(
                 localIdentifiers: .forUnitTests,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
         manager = SystemStoryManager(
             appReadiness: AppReadinessMock(),
             fileSystem: OnboardingStoryManagerFilesystemMock.self,
-            schedulers: TestSchedulers(scheduler: scheduler),
+            messageProcessor: MockMessageProcessor(),
+            schedulers: DispatchQueueSchedulers(),
             storyMessageFactory: OnboardingStoryManagerStoryMessageFactoryMock.self
         )
+    }
 
-        // Make everything sync.
-        scheduler.start()
+    override func tearDown() {
+        let flushExpectation = self.expectation(description: "flush")
+        DispatchQueue.main.async {
+            self.manager.chainedPromise.enqueue { .value(()) }.ensure {
+                self.manager = nil
+                flushExpectation.fulfill()
+            }.cauterize()
+        }
+        self.wait(for: [flushExpectation], timeout: 60)
+        super.tearDown()
     }
 
     // MARK: - Downloading
 
-    func testDownloadStory() throws {
+    @MainActor
+    func testDownloadStory() async throws {
         mockSignalService.mockUrlSessionBuilder = { _, _, _ in
             let mockSession = MockDownloadSession()
             var dataCount = 0
-            mockSession.dataPromiseSource = { url in
+            mockSession.performRequestSource = { url in
                 dataCount += 1
                 guard dataCount <= 1 else {
                     XCTFail("Downloading more than once")
-                    return .init(error: OWSAssertionError(""))
+                    throw OWSAssertionError("")
                 }
-                if
-                    let url = url,
-                    url.path.hasSuffix(SystemStoryManager.Constants.manifestPath)
-                {
-                    return .value(HTTPResponseImpl(
+                if url.path.hasSuffix(SystemStoryManager.Constants.manifestPath) {
+                    return HTTPResponseImpl(
                         requestUrl: url,
                         status: 200,
                         headers: .init(),
                         bodyData: Self.manifestJSON
-                    ))
+                    )
                 } else {
                     XCTFail("Got invalid download task url")
-                    return .init(error: OWSAssertionError(""))
+                    throw OWSAssertionError("")
                 }
             }
             var downloadCount = 0
-            mockSession.downloadPromiseSource = { url in
+            mockSession.performDownloadSource = { url in
                 downloadCount += 1
                 guard downloadCount <= Self.imageNames.count else {
                     XCTFail("Downloading more than once")
-                    return .init(error: OWSAssertionError(""))
+                    throw OWSAssertionError("")
                 }
-                if let url = url {
-                    XCTAssert(Self.imageNames
-                        .map { $0 + SystemStoryManager.Constants.imageExtension }
-                        .contains(url.lastPathComponent)
-                    )
-                    return .value(OWSUrlDownloadResponse(
-                        task: URLSession.shared.dataTask(with: url), // doesn't matter
-                        httpUrlResponse: HTTPURLResponse(
-                            url: url,
-                            statusCode: 200,
-                            httpVersion: nil,
-                            headerFields: nil
-                        )!,
-                        downloadUrl: URL(fileURLWithPath: url.lastPathComponent)
-                    ))
-                } else {
-                    XCTFail("No URL")
-                    fatalError()
-                }
+                XCTAssert(Self.imageNames
+                    .map { $0 + SystemStoryManager.Constants.imageExtension }
+                    .contains(url.lastPathComponent)
+                )
+                return OWSUrlDownloadResponse(
+                    httpUrlResponse: HTTPURLResponse(
+                        url: url,
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: nil
+                    )!,
+                    downloadUrl: URL(fileURLWithPath: url.lastPathComponent)
+                )
             }
             return mockSession
         }
 
-        let downloadPromise = manager.enqueueOnboardingStoryDownload()
-        XCTAssertNotNil(downloadPromise.value)
+        try await manager.enqueueOnboardingStoryDownload().awaitable()
     }
 
-    func testDownloadStory_multipleTimes() throws {
+    @MainActor
+    func testDownloadStory_multipleTimes() async throws {
+        let continueCounter = AtomicUInt(lock: .init())
+        var initialContinuation: CheckedContinuation<Void, Never>?
+        var dataCount = 0
+        var downloadCount = 0
         mockSignalService.mockUrlSessionBuilder = { _, _, _ in
             let mockSession = MockDownloadSession()
-            var dataCount = 0
-            mockSession.dataPromiseSource = { url in
+            mockSession.performRequestSource = { url in
                 dataCount += 1
                 guard dataCount <= 1 else {
                     XCTFail("Downloading more than once")
-                    return .init(error: OWSAssertionError(""))
+                    throw OWSAssertionError("")
                 }
-                if
-                    let url = url,
-                    url.path.hasSuffix(SystemStoryManager.Constants.manifestPath)
-                {
-                    return .value(HTTPResponseImpl(
+                await withCheckedContinuation { continuation in
+                    initialContinuation = continuation
+                    if continueCounter.increment() == 2 {
+                        initialContinuation?.resume()
+                    }
+                }
+                if url.path.hasSuffix(SystemStoryManager.Constants.manifestPath) {
+                    return HTTPResponseImpl(
                         requestUrl: url,
                         status: 200,
                         headers: .init(),
                         bodyData: Self.manifestJSON
-                    ))
+                    )
                 } else {
                     XCTFail("Got invalid download task url")
-                    return .init(error: OWSAssertionError(""))
+                    throw OWSAssertionError("")
                 }
             }
-            var downloadCount = 0
-            mockSession.downloadPromiseSource = { url in
+            mockSession.performDownloadSource = { url in
                 downloadCount += 1
                 guard downloadCount <= Self.imageNames.count else {
                     XCTFail("Downloading more than once")
-                    return .init(error: OWSAssertionError(""))
+                    throw OWSAssertionError("")
                 }
-                if let url = url {
-                    XCTAssert(Self.imageNames
-                        .map { $0 + SystemStoryManager.Constants.imageExtension }
-                        .contains(url.lastPathComponent)
-                    )
-                    return .value(OWSUrlDownloadResponse(
-                        task: URLSession.shared.dataTask(with: url), // doesn't matter
-                        httpUrlResponse: HTTPURLResponse(
-                            url: url,
-                            statusCode: 200,
-                            httpVersion: nil,
-                            headerFields: nil
-                        )!,
-                        downloadUrl: URL(fileURLWithPath: url.lastPathComponent)
-                    ))
-                } else {
-                    XCTFail("No URL")
-                    fatalError()
-                }
+                XCTAssert(Self.imageNames
+                    .map { $0 + SystemStoryManager.Constants.imageExtension }
+                    .contains(url.lastPathComponent)
+                )
+                return OWSUrlDownloadResponse(
+                    httpUrlResponse: HTTPURLResponse(
+                        url: url,
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: nil
+                    )!,
+                    downloadUrl: URL(fileURLWithPath: url.lastPathComponent)
+                )
             }
             return mockSession
         }
 
-        scheduler.stop()
+        // Start both
+        async let firstDownload: Void = manager.enqueueOnboardingStoryDownload().awaitable()
+        async let secondDownload: Void = manager.enqueueOnboardingStoryDownload().awaitable()
 
-        let firstDownloadPromise = manager.enqueueOnboardingStoryDownload()
+        // and then resume the first
+        if continueCounter.increment() == 2 {
+            initialContinuation!.resume()
+        }
 
-        // before the first can fulfill, start a second
-        let secondDownloadPromise = manager.enqueueOnboardingStoryDownload()
-
-        scheduler.start()
-
-        XCTAssertNotNil(firstDownloadPromise.value)
-        XCTAssertNotNil(secondDownloadPromise.value)
+        try await firstDownload
+        try await secondDownload
 
         // After we've fulfilled, try again, which should't redownload.
 
@@ -173,70 +175,59 @@ class SystemStoryManagerTest: SSKBaseTest {
             return .init()
         }
 
-        let thirdDownloadPromise = manager.enqueueOnboardingStoryDownload()
-
-        XCTAssertNotNil(thirdDownloadPromise.value)
+        try await manager.enqueueOnboardingStoryDownload().awaitable()
     }
 
     // MARK: - Viewed state
 
-    func testCleanUpViewedStory() throws {
+    @MainActor
+    func testCleanUpViewedStory() async throws {
         mockSignalService.mockUrlSessionBuilder = { _, _, _ in
             let mockSession = MockDownloadSession()
             var dataCount = 0
-            mockSession.dataPromiseSource = { url in
+            mockSession.performRequestSource = { url in
                 dataCount += 1
                 guard dataCount <= 1 else {
                     XCTFail("Downloading more than once")
-                    return .init(error: OWSAssertionError(""))
+                    throw OWSAssertionError("")
                 }
-                if
-                    let url = url,
-                    url.path.hasSuffix(SystemStoryManager.Constants.manifestPath)
-                {
-                    return .value(HTTPResponseImpl(
+                if url.path.hasSuffix(SystemStoryManager.Constants.manifestPath) {
+                    return HTTPResponseImpl(
                         requestUrl: url,
                         status: 200,
                         headers: .init(),
                         bodyData: Self.manifestJSON
-                    ))
+                    )
                 } else {
                     XCTFail("Got invalid download task url")
-                    return .init(error: OWSAssertionError(""))
+                    throw OWSAssertionError("")
                 }
             }
             var downloadCount = 0
-            mockSession.downloadPromiseSource = { url in
+            mockSession.performDownloadSource = { url in
                 downloadCount += 1
                 guard downloadCount <= Self.imageNames.count else {
                     XCTFail("Downloading more than once")
-                    return .init(error: OWSAssertionError(""))
+                    throw OWSAssertionError("")
                 }
-                if let url = url {
-                    XCTAssert(Self.imageNames
-                        .map { $0 + SystemStoryManager.Constants.imageExtension }
-                        .contains(url.lastPathComponent)
-                    )
-                    return .value(OWSUrlDownloadResponse(
-                        task: URLSession.shared.dataTask(with: url), // doesn't matter
-                        httpUrlResponse: HTTPURLResponse(
-                            url: url,
-                            statusCode: 200,
-                            httpVersion: nil,
-                            headerFields: nil
-                        )!,
-                        downloadUrl: URL(fileURLWithPath: url.lastPathComponent)
-                    ))
-                } else {
-                    XCTFail("No URL")
-                    fatalError()
-                }
+                XCTAssert(Self.imageNames
+                    .map { $0 + SystemStoryManager.Constants.imageExtension }
+                    .contains(url.lastPathComponent)
+                )
+                return OWSUrlDownloadResponse(
+                    httpUrlResponse: HTTPURLResponse(
+                        url: url,
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: nil
+                    )!,
+                    downloadUrl: URL(fileURLWithPath: url.lastPathComponent)
+                )
             }
             return mockSession
         }
 
-        let downloadPromise = manager.enqueueOnboardingStoryDownload()
-        XCTAssertNotNil(downloadPromise.value)
+        try await manager.enqueueOnboardingStoryDownload().awaitable()
 
         // Mark all the stories viewed.
         let viewedDate = Date().addingTimeInterval(-SystemStoryManager.Constants.postViewingTimeout)
@@ -262,8 +253,7 @@ class SystemStoryManagerTest: SSKBaseTest {
             )
         }
 
-        let cleanupPromise = manager.cleanUpOnboardingStoryIfNeeded()
-        XCTAssertNotNil(cleanupPromise.value)
+        try await manager.cleanUpOnboardingStoryIfNeeded().awaitable()
 
         // Check that stories were indeed deleted.
         read { transaction in
@@ -272,7 +262,8 @@ class SystemStoryManagerTest: SSKBaseTest {
         }
     }
 
-    func testLegacyClientDownloadedButUnviewed() throws {
+    @MainActor
+    func testLegacyClientDownloadedButUnviewed() async throws {
         // Legacy clients might have downloaded the onboarding story, but not kept track
         // of its viewed state separate from the viewed timestamp on the story messages themselves.
         // Force getting into this state by setting download state as downloaded but not creating
@@ -286,11 +277,10 @@ class SystemStoryManagerTest: SSKBaseTest {
         }
 
         // Triggering a download should do the cleanup.
-        let cleanupPromise = manager.enqueueOnboardingStoryDownload()
-        XCTAssertNotNil(cleanupPromise.value)
+        try await manager.enqueueOnboardingStoryDownload().awaitable()
 
         read { transaction in
-            if let mockManager = Self.systemStoryManager as? SystemStoryManagerMock {
+            if let mockManager = SSKEnvironment.shared.systemStoryManagerRef as? SystemStoryManagerMock {
                 mockManager.areSystemStoriesHidden = manager.areSystemStoriesHidden(transaction: transaction)
                 mockManager.isOnboardingStoryRead = manager.isOnboardingStoryViewed(transaction: transaction)
             }
@@ -300,63 +290,54 @@ class SystemStoryManagerTest: SSKBaseTest {
         }
     }
 
-    func testCleanUpViewedStory_notTimedOut() throws {
+    @MainActor
+    func testCleanUpViewedStory_notTimedOut() async throws {
         mockSignalService.mockUrlSessionBuilder = { _, _, _ in
             let mockSession = MockDownloadSession()
             var dataCount = 0
-            mockSession.dataPromiseSource = { url in
+            mockSession.performRequestSource = { url in
                 dataCount += 1
                 guard dataCount <= 1 else {
                     XCTFail("Downloading more than once")
-                    return .init(error: OWSAssertionError(""))
+                    throw OWSAssertionError("")
                 }
-                if
-                    let url = url,
-                    url.path.hasSuffix(SystemStoryManager.Constants.manifestPath)
-                {
-                    return .value(HTTPResponseImpl(
+                if url.path.hasSuffix(SystemStoryManager.Constants.manifestPath) {
+                    return HTTPResponseImpl(
                         requestUrl: url,
                         status: 200,
                         headers: .init(),
                         bodyData: Self.manifestJSON
-                    ))
+                    )
                 } else {
                     XCTFail("Got invalid download task url")
-                    return .init(error: OWSAssertionError(""))
+                    throw OWSAssertionError("")
                 }
             }
             var downloadCount = 0
-            mockSession.downloadPromiseSource = { url in
+            mockSession.performDownloadSource = { url in
                 downloadCount += 1
                 guard downloadCount <= Self.imageNames.count else {
                     XCTFail("Downloading more than once")
-                    return .init(error: OWSAssertionError(""))
+                    throw OWSAssertionError("")
                 }
-                if let url = url {
-                    XCTAssert(Self.imageNames
-                        .map { $0 + SystemStoryManager.Constants.imageExtension }
-                        .contains(url.lastPathComponent)
-                    )
-                    return .value(OWSUrlDownloadResponse(
-                        task: URLSession.shared.dataTask(with: url), // doesn't matter
-                        httpUrlResponse: HTTPURLResponse(
-                            url: url,
-                            statusCode: 200,
-                            httpVersion: nil,
-                            headerFields: nil
-                        )!,
-                        downloadUrl: URL(fileURLWithPath: url.lastPathComponent)
-                    ))
-                } else {
-                    XCTFail("No URL")
-                    fatalError()
-                }
+                XCTAssert(Self.imageNames
+                    .map { $0 + SystemStoryManager.Constants.imageExtension }
+                    .contains(url.lastPathComponent)
+                )
+                return OWSUrlDownloadResponse(
+                    httpUrlResponse: HTTPURLResponse(
+                        url: url,
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: nil
+                    )!,
+                    downloadUrl: URL(fileURLWithPath: url.lastPathComponent)
+                )
             }
             return mockSession
         }
 
-        let downloadPromise = manager.enqueueOnboardingStoryDownload()
-        XCTAssertNotNil(downloadPromise.value)
+        try await manager.enqueueOnboardingStoryDownload().awaitable()
 
         // Mark all the stories viewed, but recently so they aren't timed out.
         let viewedDate = Date()
@@ -372,8 +353,7 @@ class SystemStoryManagerTest: SSKBaseTest {
             }
         }
 
-        let cleanupPromise = manager.cleanUpOnboardingStoryIfNeeded()
-        XCTAssertNotNil(cleanupPromise.value)
+        try await manager.cleanUpOnboardingStoryIfNeeded().awaitable()
 
         // Check that stories were not deleted.
         read { transaction in
@@ -405,29 +385,15 @@ class SystemStoryManagerTest: SSKBaseTest {
 
 private class MockDownloadSession: BaseOWSURLSessionMock {
 
-    var dataPromiseSource: ((URL?) -> Promise<HTTPResponse>)?
+    var performRequestSource: ((URL) async throws -> any HTTPResponse)?
 
-    override func dataTaskPromise(
-        request: URLRequest,
-        ignoreAppExpiry: Bool = false
-    ) -> Promise<HTTPResponse> {
-        guard let dataPromiseSource = dataPromiseSource else {
-            fatalError()
-        }
-
-        return dataPromiseSource(request.url)
+    override func performRequest(request: URLRequest, ignoreAppExpiry: Bool) async throws -> any HTTPResponse {
+        return try await performRequestSource!(request.url!)
     }
 
-    var downloadPromiseSource: ((URL?) -> Promise<OWSUrlDownloadResponse>)?
+    var performDownloadSource: ((URL) async throws -> OWSUrlDownloadResponse)?
 
-    override func downloadTaskPromise(
-        request: URLRequest,
-        progress progressBlock: BaseOWSURLSessionMock.ProgressBlock?
-    ) -> Promise<OWSUrlDownloadResponse> {
-        guard let downloadPromiseSource = downloadPromiseSource else {
-            fatalError()
-        }
-
-        return downloadPromiseSource(request.url)
+    override func performDownload(request: URLRequest, progress: OWSProgressSource?) async throws -> OWSUrlDownloadResponse {
+        return try await performDownloadSource!(request.url!)
     }
 }

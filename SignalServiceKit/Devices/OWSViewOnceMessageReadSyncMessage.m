@@ -14,20 +14,20 @@ NS_ASSUME_NONNULL_BEGIN
 
 @implementation OWSViewOnceMessageReadSyncMessage
 
-- (instancetype)initWithThread:(TSThread *)thread
-                 senderAddress:(SignalServiceAddress *)senderAddress
-                       message:(TSMessage *)message
-                 readTimestamp:(uint64_t)readTimestamp
-                   transaction:(SDSAnyReadTransaction *)transaction
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
+                          senderAci:(AciObjC *)senderAci
+                            message:(TSMessage *)message
+                      readTimestamp:(uint64_t)readTimestamp
+                        transaction:(DBReadTransaction *)transaction
 {
-    OWSAssertDebug(senderAddress.isValid && message.timestamp > 0);
+    OWSAssertDebug(message.timestamp > 0);
 
-    self = [super initWithThread:thread transaction:transaction];
+    self = [super initWithLocalThread:localThread transaction:transaction];
     if (!self) {
         return self;
     }
 
-    _senderAddress = senderAddress;
+    _senderAddress = [[SignalServiceAddress alloc] initWithServiceIdObjC:senderAci];
     _messageUniqueId = message.uniqueId;
     _messageIdTimestamp = message.timestamp;
     _readTimestamp = readTimestamp;
@@ -56,7 +56,7 @@ NS_ASSUME_NONNULL_BEGIN
     return NO;
 }
 
-- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(SDSAnyReadTransaction *)transaction
+- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(DBReadTransaction *)transaction
 {
     SSKProtoSyncMessageBuilder *syncMessageBuilder = [SSKProtoSyncMessage builder];
 

@@ -6,7 +6,7 @@
 import SignalServiceKit
 import SignalUI
 
-class ChatColorViewController: OWSTableViewController2, Dependencies {
+class ChatColorViewController: OWSTableViewController2 {
 
     fileprivate let thread: TSThread?
     fileprivate var currentSetting: ChatColorSetting
@@ -15,12 +15,12 @@ class ChatColorViewController: OWSTableViewController2, Dependencies {
     private var chatColorPicker: ChatColorPicker?
     private var mockConversationView: MockConversationView?
 
-    public static func load(thread: TSThread?, tx: SDSAnyReadTransaction) -> ChatColorViewController {
+    public static func load(thread: TSThread?, tx: DBReadTransaction) -> ChatColorViewController {
         let store = DependenciesBridge.shared.chatColorSettingStore
         return ChatColorViewController(
             thread: thread,
-            initialSetting: store.chatColorSetting(for: thread, tx: tx.asV2Read),
-            initialResolvedValue: store.resolvedChatColor(for: thread, tx: tx.asV2Read)
+            initialSetting: store.chatColorSetting(for: thread, tx: tx),
+            initialResolvedValue: store.resolvedChatColor(for: thread, tx: tx)
         )
     }
 
@@ -54,7 +54,7 @@ class ChatColorViewController: OWSTableViewController2, Dependencies {
     private var wallpaperViewBuilder: WallpaperViewBuilder?
 
     private func updateWallpaperViewBuilder() {
-        wallpaperViewBuilder = databaseStorage.read { tx in Wallpaper.viewBuilder(for: thread, tx: tx) }
+        wallpaperViewBuilder = SSKEnvironment.shared.databaseStorageRef.read { tx in Wallpaper.viewBuilder(for: thread, tx: tx) }
     }
 
     @objc
@@ -67,10 +67,10 @@ class ChatColorViewController: OWSTableViewController2, Dependencies {
     @objc
     private func chatColorsDidChange(_ notification: Notification) {
         guard notification.object == nil || (notification.object as? String) == thread?.uniqueId else { return }
-        currentResolvedValue = databaseStorage.read { tx in
+        currentResolvedValue = SSKEnvironment.shared.databaseStorageRef.read { tx in
             return DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(
                 for: thread,
-                tx: tx.asV2Read
+                tx: tx
             )
         }
         updateTableContents()
@@ -175,13 +175,13 @@ class ChatColorViewController: OWSTableViewController2, Dependencies {
         case chatColor(ChatColorSetting)
         case addNewOption
 
-        static func allOptions(transaction tx: SDSAnyReadTransaction) -> [Option] {
+        static func allOptions(transaction tx: DBReadTransaction) -> [Option] {
             var result = [Option]()
             result.append(.chatColor(.auto))
             result.append(contentsOf: PaletteChatColor.allCases.map { .chatColor(.builtIn($0)) })
             result.append(
                 contentsOf: DependenciesBridge.shared.chatColorSettingStore
-                    .fetchCustomValues(tx: tx.asV2Read)
+                    .fetchCustomValues(tx: tx)
                     .map { .chatColor(.custom($0.key, $0.value)) })
             result.append(.addNewOption)
             return result
@@ -201,11 +201,11 @@ class ChatColorViewController: OWSTableViewController2, Dependencies {
                 case .editExisting(let key, value: _):
                     colorKey = key
                 }
-                self.databaseStorage.write { tx in
+                SSKEnvironment.shared.databaseStorageRef.write { tx in
                     DependenciesBridge.shared.chatColorSettingStore.upsertCustomValue(
                         newValue,
                         for: colorKey,
-                        tx: tx.asV2Write
+                        tx: tx
                     )
                 }
                 self.setNewValue(.custom(colorKey, newValue))
@@ -216,18 +216,18 @@ class ChatColorViewController: OWSTableViewController2, Dependencies {
 
     private func deleteCustomColor(key: CustomChatColor.Key) {
         func deleteValue() {
-            Self.databaseStorage.write { tx in
+            SSKEnvironment.shared.databaseStorageRef.write { tx in
                 DependenciesBridge.shared.chatColorSettingStore.deleteCustomValue(
                     for: key,
-                    tx: tx.asV2Write
+                    tx: tx
                 )
             }
         }
 
-        let usageCount = databaseStorage.read { tx in
+        let usageCount = SSKEnvironment.shared.databaseStorageRef.read { tx in
             return DependenciesBridge.shared.chatColorSettingStore.usageCount(
                 of: key,
-                tx: tx.asV2Read
+                tx: tx
             )
         }
         guard usageCount > 0 else {
@@ -267,11 +267,11 @@ class ChatColorViewController: OWSTableViewController2, Dependencies {
             colorSetting: oldValue.colorSetting,
             creationTimestamp: NSDate.ows_millisecondTimeStamp()
         )
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             DependenciesBridge.shared.chatColorSettingStore.upsertCustomValue(
                 newValue,
                 for: .generateRandom(),
-                tx: tx.asV2Write
+                tx: tx
             )
         }
     }
@@ -331,11 +331,11 @@ class ChatColorViewController: OWSTableViewController2, Dependencies {
     }
 
     private func setNewValue(_ newValue: ChatColorSetting) {
-        databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             DependenciesBridge.shared.chatColorSettingStore.setChatColorSetting(
                 newValue,
                 for: thread,
-                tx: tx.asV2Write
+                tx: tx
             )
         }
         currentSetting = newValue
@@ -404,7 +404,7 @@ private class ChatColorPicker: UIView {
         let optionsPerRow = max(1, Int(floor(rowWidth + optionViewMinHSpacing) / (optionViewOuterSize + optionViewMinHSpacing)))
 
         var optionViews = [OptionView]()
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             let options = Option.allOptions(transaction: transaction)
             for option in options {
                 func addOptionView(innerView: UIView, selectionViews: [UIView] = []) {
@@ -424,7 +424,7 @@ private class ChatColorPicker: UIView {
                 case .chatColor(.auto):
                     let value = DependenciesBridge.shared.chatColorSettingStore.autoChatColor(
                         for: chatColorViewController.thread,
-                        tx: transaction.asV2Read
+                        tx: transaction
                     )
                     let view = ColorOrGradientSwatchView(setting: value, shapeMode: .circle)
 
@@ -577,13 +577,13 @@ private class ChatColorPicker: UIView {
 
     // MARK: - Tooltip
 
-    private static let keyValueStore = SDSKeyValueStore(collection: "ChatColorPicker")
+    private static let keyValueStore = KeyValueStore(collection: "ChatColorPicker")
     private static let tooltipWasDismissedKey = "tooltipWasDismissed"
 
     private var chatColorTooltip: ChatColorTooltip?
 
     fileprivate func dismissTooltip() {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             Self.keyValueStore.setBool(true, key: Self.tooltipWasDismissedKey, transaction: transaction)
         }
         hideTooltip()
@@ -595,7 +595,7 @@ private class ChatColorPicker: UIView {
     }
 
     private func ensureTooltip() {
-        let shouldShowTooltip = databaseStorage.read { transaction in
+        let shouldShowTooltip = SSKEnvironment.shared.databaseStorageRef.read { transaction in
             !Self.keyValueStore.getBool(Self.tooltipWasDismissedKey, defaultValue: false, transaction: transaction)
         }
         let isShowingTooltip = chatColorTooltip != nil

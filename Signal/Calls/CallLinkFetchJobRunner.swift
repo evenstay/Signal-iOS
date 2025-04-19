@@ -71,26 +71,30 @@ actor CallLinkFetchJobRunner: DatabaseChangeDelegate {
                 sequentialFailureCount = 0
             } catch {
                 sequentialFailureCount += 1
-                let retryDelay = OWSOperation.retryIntervalForExponentialBackoff(failureCount: UInt(sequentialFailureCount), maxBackoff: 6 * kHourInterval)
-                Logger.warn("Retrying persistent call link fetch after ≈\(Int(retryDelay))s; \(error)")
-                try? await Task.sleep(nanoseconds: UInt64(retryDelay * TimeInterval(NSEC_PER_SEC)))
+                let retryDelayNs = OWSOperation.retryIntervalForExponentialBackoff(failureCount: sequentialFailureCount, maxBackoff: 6 * .hour).clampedNanoseconds
+                Logger.warn("Retrying persistent call link fetch after ≈\(OWSOperation.formattedNs(retryDelayNs))s; \(error)")
+                try? await Task.sleep(nanoseconds: retryDelayNs)
             }
         }
     }
 
     // MARK: - DatabaseChangeDelegate
 
-    nonisolated func observeDatabase(_ databaseStorage: SDSDatabaseStorage) {
-        databaseStorage.appendDatabaseChangeDelegate(self)
+    @MainActor
+    func observeDatabase(_ databaseChangeObserver: DatabaseChangeObserver) {
+        databaseChangeObserver.appendDatabaseChangeDelegate(self)
     }
 
-    nonisolated func databaseChangesDidReset() {}
+    @MainActor
+    func databaseChangesDidReset() {}
 
-    nonisolated func databaseChangesDidUpdateExternally() {
+    @MainActor
+    func databaseChangesDidUpdateExternally() {
         setMightHavePendingFetchAndFetch()
     }
 
-    nonisolated func databaseChangesDidUpdate(databaseChanges: any DatabaseChanges) {
+    @MainActor
+    func databaseChangesDidUpdate(databaseChanges: any DatabaseChanges) {
         guard databaseChanges.didUpdate(tableName: CallLinkRecord.databaseTableName) else {
             return
         }

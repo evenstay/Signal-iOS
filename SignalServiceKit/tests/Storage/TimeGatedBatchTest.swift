@@ -4,21 +4,22 @@
 //
 
 import XCTest
+import GRDB
 
 @testable import SignalServiceKit
 
 class DBTimeBatchingTest: XCTestCase {
-    func testEnumerateAllElements() {
+    func testEnumerateAllElements() async {
         let elements = [1, 2, 3, 4]
         var seenElements = [Int]()
-        TimeGatedBatch.enumerateObjects(elements, db: MockDB()) { item, tx in
+        await TimeGatedBatch.enumerateObjects(elements, db: InMemoryDB()) { item, tx in
             seenElements.append(item)
         }
         XCTAssertEqual(seenElements, elements)
     }
 
-    func testEnumerateSeparateTransactions() {
-        let uniqueTransactions = countUniqueTransactions(
+    func testEnumerateSeparateTransactions() async {
+        let uniqueTransactions = await countUniqueTransactions(
             enumerationCount: 100,
             yieldTxAfter: -1
         )
@@ -26,8 +27,8 @@ class DBTimeBatchingTest: XCTestCase {
         XCTAssertEqual(uniqueTransactions, 100)
     }
 
-    func testEnumerateSingleTransaction() {
-        let uniqueTransactions = countUniqueTransactions(
+    func testEnumerateSingleTransaction() async {
+        let uniqueTransactions = await countUniqueTransactions(
             enumerationCount: 1,
             yieldTxAfter: .infinity
         )
@@ -38,38 +39,40 @@ class DBTimeBatchingTest: XCTestCase {
     private func countUniqueTransactions(
         enumerationCount: Int,
         yieldTxAfter: TimeInterval
-    ) -> Int {
-        var uniqueRetainedTransactions = 0
-        let db = MockDB(
-            retainedTransactionBlock: {
-                // This will be called each time the DB's write block closes,
-                // because we hang onto the transactions we're given.
-                uniqueRetainedTransactions += 1
-            }
-        )
+    ) async -> Int {
+        var uniqueTransactions = 0
+        let db = InMemoryDB()
 
         var currentTransaction: DBWriteTransaction?
-        defer { _ = currentTransaction }
 
-        TimeGatedBatch.enumerateObjects(
+        await TimeGatedBatch.enumerateObjects(
             1...enumerationCount,
             db: db,
             yieldTxAfter: yieldTxAfter
         ) { _, tx in
+            if tx !== currentTransaction {
+                uniqueTransactions += 1
+            }
+
             currentTransaction = tx
         }
 
-        return uniqueRetainedTransactions
+        return uniqueTransactions
     }
 
-    func testEnumerateThrownError() {
+    func testEnumerateThrownError() async {
         var seenElements = [Int]()
-        XCTAssertThrowsError(try TimeGatedBatch.enumerateObjects(1...100, db: MockDB(), block: { item, tx in
-            seenElements.append(item)
-            if item == 5 {
-                throw OWSGenericError("")
-            }
-        }))
+        do {
+            try await TimeGatedBatch.enumerateObjects(1...100, db: InMemoryDB(), block: { item, tx in
+                seenElements.append(item)
+                if item == 5 {
+                    throw OWSGenericError("")
+                }
+            })
+            XCTFail("Must throw error.")
+        } catch {
+            // Ok
+        }
         XCTAssertEqual(seenElements, [1, 2, 3, 4, 5])
     }
 
@@ -77,7 +80,7 @@ class DBTimeBatchingTest: XCTestCase {
         weak var priorTx: DBWriteTransaction?
         var batchCounter = 0
         let expectedResult = 3
-        let actualResult = TimeGatedBatch.processAll(db: MockDB(), yieldTxAfter: -1) { tx in
+        let actualResult = TimeGatedBatch.processAll(db: InMemoryDB(), yieldTxAfter: -1) { tx in
             // Every iteration should use a new transaction, so it should never match.
             // In practice, `priorTx` is always `nil`, but this code is right even in
             // situations where some other component retains the transaction.
@@ -93,7 +96,7 @@ class DBTimeBatchingTest: XCTestCase {
         weak var priorTx: DBWriteTransaction?
         var batchCounter = 0
         let expectedResult = 3
-        let actualResult = TimeGatedBatch.processAll(db: MockDB(), yieldTxAfter: .infinity) { tx in
+        let actualResult = TimeGatedBatch.processAll(db: InMemoryDB(), yieldTxAfter: .infinity) { tx in
             // If we're on the 2nd or later batch, then the tx must match.
             XCTAssert(batchCounter == 0 || priorTx === tx)
             priorTx = tx
@@ -112,7 +115,7 @@ class DBTimeBatchingTest: XCTestCase {
             weak var priorTx: DBWriteTransaction?
             var batchCounter = 0
             var multipleBatchesInOneTx = false
-            let actualResult = TimeGatedBatch.processAll(db: MockDB(), yieldTxAfter: yieldTxAfter) { tx in
+            let actualResult = TimeGatedBatch.processAll(db: InMemoryDB(), yieldTxAfter: yieldTxAfter) { tx in
                 batchCounter += 1
                 // If this is the 2nd batch and we're using same transaction, then we've
                 // satisfied the requirement of multiple batches with one transaction.

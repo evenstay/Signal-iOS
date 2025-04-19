@@ -9,6 +9,10 @@ import Foundation
 /// https://tus.io/protocols/resumable-upload
 struct UploadEndpointCDN3: UploadEndpoint {
 
+    public enum Constants {
+        public static let checksumHeaderKey = "x-signal-checksum-sha256"
+    }
+
     private let uploadForm: Upload.Form
     private let signalService: OWSSignalServiceProtocol
     private let fileSystem: Upload.Shims.FileSystem
@@ -42,11 +46,11 @@ struct UploadEndpointCDN3: UploadEndpoint {
         let response: HTTPResponse
         do {
             let url = attempt.uploadLocation.appendingPathComponent(uploadForm.cdnKey)
-            response = try await urlSession.dataTaskPromise(
+            response = try await urlSession.performRequest(
                 url.absoluteString,
                 method: .head,
                 headers: headers
-            ).awaitable()
+            )
         } catch {
             switch error.httpStatusCode ?? 0 {
             case 404, 410, 403:
@@ -58,17 +62,19 @@ struct UploadEndpointCDN3: UploadEndpoint {
 
         let statusCode = response.responseStatusCode
         guard statusCode == 200 else {
-            owsFailDebug("Invalid status code: \(statusCode).")
+            attempt.logger.error("Invalid status code: \(statusCode).")
             // If a success results in something other than 200,
             // throw a 'Restart' error to try with a different upload form
             return .restart
         }
 
-        guard
-            let bytesAlreadyUploadedString = response.responseHeaders["upload-offset"],
-            let bytesAlreadyUploaded = Int(bytesAlreadyUploadedString)
-        else {
-            owsFailDebug("Missing upload offset data")
+        guard let bytesAlreadyUploadedString = response.headers["upload-offset"] else {
+            attempt.logger.error("Missing upload offset data, restart from 0")
+            return .uploaded(0)
+        }
+
+        guard let bytesAlreadyUploaded = Int(bytesAlreadyUploadedString) else {
+            attempt.logger.error("'upload-offset' contains something unexpected, discard upload form and restart")
             return .restart
         }
 
@@ -78,8 +84,8 @@ struct UploadEndpointCDN3: UploadEndpoint {
     func performUpload<Metadata: UploadMetadata>(
         startPoint: Int,
         attempt: Upload.Attempt<Metadata>,
-        progress progressBlock: @escaping UploadEndpointProgress
-    ) async throws {
+        progress: OWSProgressSource?
+    ) async throws(Upload.Error) {
         let urlSession = signalService.urlSessionForCdn(cdnNumber: uploadForm.cdnNumber, maxResponseSize: nil)
         let totalDataLength = attempt.encryptedDataLength
 
@@ -103,14 +109,23 @@ struct UploadEndpointCDN3: UploadEndpoint {
             headers["Upload-Length"] = "\(totalDataLength)"
 
             // On creation, provide a checksum for the server to validate
-            headers["x-signal-checksum-sha256"] = attempt.localMetadata.digest.base64EncodedString()
+            if let metadata = attempt.localMetadata as? ValidatedUploadMetadata {
+                headers[Constants.checksumHeaderKey] = metadata.digest.base64EncodedString()
+            }
         } else {
             // Resuming, slice attachment data in memory.
             // TODO[CDN3]: Avoid slicing file and instead use a input stream
-            let (dataSliceFileUrl, dataSliceLength) = try fileSystem.createTempFileSlice(
-                url: attempt.fileUrl,
-                start: startPoint
-            )
+            let dataSliceFileUrl: URL
+            let dataSliceLength: Int
+            do {
+                (dataSliceFileUrl, dataSliceLength) = try fileSystem.createTempFileSlice(
+                    url: attempt.fileUrl,
+                    start: startPoint
+                )
+            } catch {
+                attempt.logger.warn("Failed to create temp file slice.")
+                throw Upload.Error.unknown
+            }
 
             uploadURL = attempt.uploadLocation.absoluteString + "/" + uploadForm.cdnKey
 
@@ -132,52 +147,78 @@ struct UploadEndpointCDN3: UploadEndpoint {
         }
 
         do {
-            let response = try await urlSession.uploadTaskPromise(
+            let response = try await urlSession.performUpload(
                 uploadURL,
                 method: method,
                 headers: headers,
                 fileUrl: temporaryFileUrl,
-                progress: progressBlock
-            ).awaitable()
+                progress: progress
+            )
 
             switch response.responseStatusCode {
             case 200...204:
                 return
             default:
-                throw Upload.Error.unknown
+                throw Upload.Error.unexpectedResponseStatusCode(response.responseStatusCode)
             }
-        } catch {
+        } catch let error as Upload.Error {
+            // rethrow the error to be handled by the caller
+            throw error
+        } catch let error as OWSHTTPError {
             let retryMode: Upload.FailureMode.RetryMode = {
-                guard
+                if
+                    // Allow the server to override the default backoff with a specified value
                     let retryHeader = error.httpResponseHeaders?.value(forHeader: "retry-after"),
                     let delay = TimeInterval(retryHeader)
-                else { return .immediately }
-                return .afterDelay(delay)
+                {
+                    return .afterServerRequestedDelay(delay)
+                } else {
+                    return .afterBackoff
+                }
             }()
 
-#if DEBUG
-            let debugInfo = " [ERROR RESPONSE: \(error.httpResponseJson.debugDescription)]"
-#else
-            let debugInfo = ""
-#endif
+            let debugInfo: String
+            if
+                DebugFlags.internalLogging,
+                let responseData = error.httpResponseData?.nilIfEmpty
+            {
+                debugInfo = " [ERROR RESPONSE: \(responseData.base64EncodedString())]"
+            } else {
+                debugInfo = ""
+            }
 
-            switch error.httpStatusCode {
-            case .some(415):
+            switch error {
+            case let error where error.httpStatusCode == 415:
                 // 415 is a checksum error, log the error and retry
                 attempt.logger.warn("Upload checksum validation failed, retry.\(debugInfo)")
                 throw Upload.Error.uploadFailure(recovery: .restart(retryMode))
-            case .some(400...499):
+            case let error where (400...499).contains(error.responseStatusCode):
                 // On 4XX errors, clients should restart the upload
                 attempt.logger.warn("Unexpected upload failure, restart.\(debugInfo)")
                 throw Upload.Error.uploadFailure(recovery: .restart(retryMode))
-            case .some(500...599):
+            case let error where (500...599).contains(error.responseStatusCode):
                 // On 5XX errors, clients should try to resume the upload
                 attempt.logger.warn("Temporary upload failure, retry.\(debugInfo)")
                 throw Upload.Error.uploadFailure(recovery: .resume(retryMode))
+            case .networkFailure(let wrappedError):
+                let debugMessage = DebugFlags.internalLogging ? " Error: \(wrappedError.debugDescription)" : ""
+                if wrappedError.isTimeout {
+                    attempt.logger.warn("Network timeout during upload.\(debugMessage)")
+                    throw Upload.Error.networkTimeout
+                } else {
+                    attempt.logger.warn("Network failure during upload.\(debugMessage)")
+                    throw Upload.Error.networkError
+                }
             default:
-                attempt.logger.warn("Unknown upload failure.\(debugInfo)")
+                attempt.logger.warn("Unknown upload failure. (HTTP status code: \(error.responseStatusCode)) \(debugInfo)")
                 throw Upload.Error.unknown
             }
+        } catch _ as CancellationError {
+            attempt.logger.warn("upload cancelled.")
+            throw Upload.Error.unknown
+        } catch {
+            attempt.logger.warn("Unknown upload failure.")
+            throw Upload.Error.unknown
         }
     }
 }

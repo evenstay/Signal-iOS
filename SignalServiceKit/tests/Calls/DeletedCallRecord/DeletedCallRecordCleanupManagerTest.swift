@@ -10,19 +10,20 @@ import XCTest
 final class DeletedCallRecordCleanupManagerTest: XCTestCase {
     private var timeIntervalProvider: DeletedCallRecordCleanupManagerImpl.TimeIntervalProvider = { owsFail("Not implemented!") }
     private var dateProvider: DateProvider = { owsFail("Not implemented!") }
-    private var db: MockDB!
+    private var db: InMemoryDB!
     private var deletedCallRecordStore: MockDeletedCallRecordStore!
     private var testScheduler: TestScheduler!
 
     private var cleanupManager: DeletedCallRecordCleanupManagerImpl!
 
     override func setUp() {
-        db = MockDB()
+        db = InMemoryDB()
         deletedCallRecordStore = MockDeletedCallRecordStore()
         testScheduler = TestScheduler()
 
         cleanupManager = DeletedCallRecordCleanupManagerImpl(
             minimumSecondsBetweenCleanupPasses: { self.timeIntervalProvider() },
+            callLinkStore: CallLinkRecordStoreImpl(),
             dateProvider: { self.dateProvider() },
             db: db,
             deletedCallRecordStore: deletedCallRecordStore,
@@ -183,7 +184,7 @@ private extension Date {
     /// lifetime constant is copied from the one hardcoded into
     /// ``DeletedCallRecord`` in the cleanup manager.
     static func fixture(seconds: UInt64) -> Date {
-        return Date(millisecondsSince1970: seconds.milliseconds + UInt64(8 * kHourInterval).milliseconds)
+        return Date(millisecondsSince1970: seconds.milliseconds + UInt64(8 * TimeInterval.hour).milliseconds)
     }
 }
 

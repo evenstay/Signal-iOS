@@ -22,30 +22,33 @@ public class MessageBackupReleaseNotesRecipientArchiver: MessageBackupProtoArchi
     // MARK: -
 
     func archiveReleaseNotesRecipient(
-        stream: any MessageBackupProtoOutputStream,
+        stream: MessageBackupProtoOutputStream,
         context: MessageBackup.RecipientArchivingContext
     ) -> ArchiveFrameResult {
-        let releaseNotesAppId: RecipientAppId = .releaseNotesChannel
-        let recipientId = context.assignRecipientId(to: releaseNotesAppId)
+        return context.bencher.processFrame { frameBencher in
+            let releaseNotesAppId: RecipientAppId = .releaseNotesChannel
+            let recipientId = context.assignRecipientId(to: releaseNotesAppId)
 
-        let maybeError = Self.writeFrameToStream(
-            stream,
-            objectId: releaseNotesAppId,
-            frameBuilder: {
-                var recipient = BackupProto_Recipient()
-                recipient.id = recipientId.value
-                recipient.destination = .releaseNotes(BackupProto_ReleaseNotes())
+            let maybeError = Self.writeFrameToStream(
+                stream,
+                objectId: releaseNotesAppId,
+                frameBencher: frameBencher,
+                frameBuilder: {
+                    var recipient = BackupProto_Recipient()
+                    recipient.id = recipientId.value
+                    recipient.destination = .releaseNotes(BackupProto_ReleaseNotes())
 
-                var frame = BackupProto_Frame()
-                frame.item = .recipient(recipient)
-                return frame
+                    var frame = BackupProto_Frame()
+                    frame.item = .recipient(recipient)
+                    return frame
+                }
+            )
+
+            if let maybeError {
+                return .failure(maybeError)
+            } else {
+                return .success(())
             }
-        )
-
-        if let maybeError {
-            return .failure(maybeError)
-        } else {
-            return .success(())
         }
     }
 

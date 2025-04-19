@@ -25,15 +25,15 @@ public extension GroupManager {
             canCancel: false
         ) { modalView in
             firstly(on: DispatchQueue.global()) {
-                databaseStorage.write { transaction in
+                SSKEnvironment.shared.databaseStorageRef.write { transaction in
                     self.localLeaveGroupOrDeclineInvite(
                         groupThread: groupThread,
                         replacementAdminAci: replacementAdminAci,
                         waitForMessageProcessing: true,
                         tx: transaction
-                    ).asVoid()
+                    )
                 }
-            }.done(on: DispatchQueue.main) { _ in
+            }.done(on: DispatchQueue.main) {
                 modalView.dismiss {
                     success?()
                 }
@@ -66,7 +66,7 @@ public extension GroupManager {
                             throw OWSAssertionError("Invalid group model")
                         }
 
-                        _ = try await self.localAcceptInviteToGroupV2(
+                        try await self.localAcceptInviteToGroupV2(
                             groupModel: groupModelV2,
                             waitForMessageProcessing: true
                         )

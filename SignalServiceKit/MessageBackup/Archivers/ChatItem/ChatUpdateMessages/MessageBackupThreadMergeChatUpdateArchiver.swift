@@ -11,9 +11,9 @@ final class MessageBackupThreadMergeChatUpdateArchiver {
     private typealias ArchiveFrameError = MessageBackup.ArchiveFrameError<MessageBackup.InteractionUniqueId>
     private typealias RestoreFrameError = MessageBackup.RestoreFrameError<MessageBackup.ChatItemId>
 
-    private let interactionStore: any InteractionStore
+    private let interactionStore: MessageBackupInteractionStore
 
-    init(interactionStore: any InteractionStore) {
+    init(interactionStore: MessageBackupInteractionStore) {
         self.interactionStore = interactionStore
     }
 
@@ -21,7 +21,7 @@ final class MessageBackupThreadMergeChatUpdateArchiver {
 
     func archiveThreadMergeChatUpdate(
         infoMessage: TSInfoMessage,
-        thread: TSThread,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveChatUpdateMessageResult {
         func messageFailure(
@@ -39,15 +39,16 @@ final class MessageBackupThreadMergeChatUpdateArchiver {
             let threadMergePhoneNumberString = infoMessage.threadMergePhoneNumber,
             let threadMergePhoneNumber = E164(threadMergePhoneNumberString)
         else {
-            return .skippableChatUpdate(.legacyInfoMessage(.threadMergeWithoutPhoneNumber))
+            return .skippableInteraction(.legacyInfoMessage(.threadMergeWithoutPhoneNumber))
         }
 
-        guard let mergedContactAddress = (thread as? TSContactThread)?.contactAddress.asSingleServiceIdBackupAddress() else {
+        let mergedContactAddress: MessageBackup.ContactAddress
+        switch threadInfo {
+        case .contactThread(let contactAddress):
+            guard let contactAddress else { fallthrough }
+            mergedContactAddress = contactAddress
+        case .groupThread:
             return messageFailure(.threadMergeUpdateMissingAuthor)
-        }
-
-        guard let threadRecipientId = context.recipientContext[.contact(mergedContactAddress)] else {
-            return messageFailure(.referencedRecipientIdMissing(.contact(mergedContactAddress)))
         }
 
         var threadMergeChatUpdate = BackupProto_ThreadMergeChatUpdate()
@@ -56,18 +57,19 @@ final class MessageBackupThreadMergeChatUpdateArchiver {
         var chatUpdateMessage = BackupProto_ChatUpdateMessage()
         chatUpdateMessage.update = .threadMerge(threadMergeChatUpdate)
 
-        let interactionArchiveDetails = Details(
-            author: threadRecipientId,
+        return Details.validateAndBuild(
+            interactionUniqueId: infoMessage.uniqueInteractionId,
+            author: .contact(mergedContactAddress),
             directionalDetails: .directionless(BackupProto_ChatItem.DirectionlessMessageDetails()),
             dateCreated: infoMessage.timestamp,
             expireStartDate: nil,
             expiresInMs: nil,
             isSealedSender: false,
             chatItemType: .updateMessage(chatUpdateMessage),
-            isSmsPreviouslyRestoredFromBackup: false
+            isSmsPreviouslyRestoredFromBackup: false,
+            threadInfo: threadInfo,
+            context: context.recipientContext
         )
-
-        return .success(interactionArchiveDetails)
     }
 
     // MARK: -
@@ -76,7 +78,7 @@ final class MessageBackupThreadMergeChatUpdateArchiver {
         _ threadMergeUpdateProto: BackupProto_ThreadMergeChatUpdate,
         chatItem: BackupProto_ChatItem,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreChatUpdateMessageResult {
         func invalidProtoData(
             _ error: RestoreFrameError.ErrorType.InvalidProtoDataError,
@@ -102,7 +104,24 @@ final class MessageBackupThreadMergeChatUpdateArchiver {
             timestamp: chatItem.dateSent,
             previousE164: previousE164.stringValue
         )
-        interactionStore.insertInteraction(threadMergeInfoMessage, tx: context.tx)
+
+        guard let directionalDetails = chatItem.directionalDetails else {
+            return .unrecognizedEnum(MessageBackup.UnrecognizedEnumError(
+                enumType: BackupProto_ChatItem.OneOf_DirectionalDetails.self
+            ))
+        }
+
+        do {
+            try interactionStore.insert(
+                threadMergeInfoMessage,
+                in: chatThread,
+                chatId: chatItem.typedChatId,
+                directionalDetails: directionalDetails,
+                context: context
+            )
+        } catch let error {
+            return .messageFailure([.restoreFrameError(.databaseInsertionFailed(error), chatItem.id)])
+        }
 
         return .success(())
     }

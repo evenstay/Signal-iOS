@@ -48,7 +48,7 @@ public class CVLoader: NSObject {
 
         return firstly(on: CVUtils.workQueue(isInitialLoad: loadRequest.isInitialLoad)) { () -> CVUpdate in
             // To ensure coherency, the entire load should be done with a single transaction.
-            let loadState: LoadState = try Self.databaseStorage.read { transaction in
+            let loadState: LoadState = try SSKEnvironment.shared.databaseStorageRef.read { transaction in
                 let thread = TSThread.anyFetch(uniqueId: threadUniqueId, transaction: transaction)
                 let threadViewModel = { () -> ThreadViewModel in
                     guard let thread else {
@@ -124,38 +124,38 @@ public class CVLoader: NSObject {
                             focusMessageId: focusMessageIdOnOpen,
                             reusableInteractions: [:],
                             deletedInteractionIds: [],
-                            tx: transaction.asV2Read
+                            tx: transaction
                         )
                     case .loadSameLocation:
                         try messageLoader.loadSameLocation(
                             reusableInteractions: reusableInteractions,
                             deletedInteractionIds: deletedInteractionIds,
-                            tx: transaction.asV2Read
+                            tx: transaction
                         )
                     case .loadOlder:
                         try messageLoader.loadOlderMessagePage(
                             reusableInteractions: reusableInteractions,
                             deletedInteractionIds: deletedInteractionIds,
-                            tx: transaction.asV2Read
+                            tx: transaction
                         )
                     case .loadNewer:
                         try messageLoader.loadNewerMessagePage(
                             reusableInteractions: reusableInteractions,
                             deletedInteractionIds: deletedInteractionIds,
-                            tx: transaction.asV2Read
+                            tx: transaction
                         )
                     case .loadNewest:
                         try messageLoader.loadNewestMessagePage(
                             reusableInteractions: reusableInteractions,
                             deletedInteractionIds: deletedInteractionIds,
-                            tx: transaction.asV2Read
+                            tx: transaction
                         )
                     case .loadPageAroundInteraction(let interactionId, _):
                         try messageLoader.loadMessagePage(
                             aroundInteractionId: interactionId,
                             reusableInteractions: reusableInteractions,
                             deletedInteractionIds: deletedInteractionIds,
-                            tx: transaction.asV2Read
+                            tx: transaction
                         )
                     }
                 } catch {
@@ -241,7 +241,7 @@ public class CVLoader: NSObject {
         thread: TSThread,
         threadAssociatedData: ThreadAssociatedData,
         containerView: UIView,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> CVRenderItem? {
         buildStandaloneRenderItem(
             interaction: interaction,
@@ -261,11 +261,11 @@ public class CVLoader: NSObject {
         threadAssociatedData: ThreadAssociatedData,
         containerView: UIView,
         spoilerState: SpoilerRenderState,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> CVRenderItem? {
         let chatColor = DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(
             for: thread,
-            tx: transaction.asV2Read
+            tx: transaction
         )
         let conversationStyle = ConversationStyle(
             type: .`default`,
@@ -293,7 +293,7 @@ public class CVLoader: NSObject {
         threadAssociatedData: ThreadAssociatedData,
         conversationStyle: ConversationStyle,
         spoilerState: SpoilerRenderState,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> CVRenderItem? {
         let coreState = CVCoreState(
             conversationStyle: conversationStyle,
@@ -315,7 +315,7 @@ public class CVLoader: NSObject {
         threadAssociatedData: ThreadAssociatedData,
         coreState: CVCoreState,
         spoilerState: SpoilerRenderState,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> CVRenderItem? {
         AssertIsOnMainThread()
 
@@ -349,7 +349,7 @@ public class CVLoader: NSObject {
     public static func buildStandaloneComponentState(
         interaction: TSInteraction,
         spoilerState: SpoilerRenderState,
-        transaction: SDSAnyReadTransaction
+        transaction: DBReadTransaction
     ) -> CVComponentState? {
         AssertIsOnMainThread()
 
@@ -360,7 +360,7 @@ public class CVLoader: NSObject {
 
         let chatColor = DependenciesBridge.shared.chatColorSettingStore.resolvedChatColor(
             for: thread,
-            tx: transaction.asV2Read
+            tx: transaction
         )
         let mockViewWidth: CGFloat = 800
         let conversationStyle = ConversationStyle(
@@ -433,6 +433,7 @@ public class CVLoader: NSObject {
             rootComponent = CVComponentSystemMessage(itemModel: itemModel,
                                                      systemMessage: defaultDisappearingMessageTimer)
         case .textOnlyMessage, .audio, .genericAttachment, .paymentAttachment, .archivedPaymentAttachment,
+                .undownloadableAttachment,
                 .contactShare, .bodyMedia, .viewOnce, .stickerMessage, .quoteOnlyMessage,
                 .giftBadge:
             rootComponent = CVComponentMessage(itemModel: itemModel)

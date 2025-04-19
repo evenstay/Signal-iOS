@@ -8,33 +8,36 @@ import SignalServiceKit
 import SignalUI
 
 protocol LinkDeviceViewControllerDelegate: AnyObject {
-    func expectMoreDevices()
+    typealias LinkNSyncData = (ephemeralBackupKey: BackupKey, tokenId: DeviceProvisioningTokenId)
+    @MainActor
+    func didFinishLinking(_ linkNSyncData: LinkNSyncData?, from linkDeviceViewController: LinkDeviceViewController)
 }
 
 class LinkDeviceViewController: OWSViewController {
 
     weak var delegate: LinkDeviceViewControllerDelegate?
+    private var context = ViewControllerContext.shared
 
-    private lazy var scanningInstructionsLabel: UILabel = {
-        let label = UILabel()
-        label.text = NSLocalizedString(
-            "LINK_DEVICE_SCANNING_INSTRUCTIONS",
-            comment: "QR Scanning screen instructions, placed alongside a camera view for scanning QR Codes"
-        )
-        label.textColor = Theme.secondaryTextAndIconColor
-        label.font = .dynamicTypeBody2
-        label.numberOfLines = 0
-        label.lineBreakMode = .byWordWrapping
-        label.textAlignment = .center
-        return label
-    }()
+    private var hasShownEducationSheet: Bool
+    private weak var educationSheet: HeroSheetViewController?
 
-    private lazy var qrCodeScanViewController = QRCodeScanViewController(appearance: .framed())
+    private lazy var qrCodeScanViewController = QRCodeScanViewController(appearance: .framed)
+
+    init(skipEducationSheet: Bool) {
+        self.hasShownEducationSheet = skipEducationSheet
+        super.init()
+    }
+
+    // MARK: QRCodeScanOrPickDelegate
+
+    var selectedAttachment: ImagePickerAttachment?
+
+    // MARK: -
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        title = NSLocalizedString("LINK_NEW_DEVICE_TITLE", comment: "Navigation title when scanning QR code to add new device.")
+        title = CommonStrings.scanQRCodeTitle
 
 #if TESTABLE_BUILD
         navigationItem.rightBarButtonItem = .init(
@@ -45,34 +48,13 @@ class LinkDeviceViewController: OWSViewController {
         )
 #endif
 
-        view.backgroundColor = Theme.backgroundColor
-
         qrCodeScanViewController.delegate = self
 
-        view.addSubview(qrCodeScanViewController.view)
-        qrCodeScanViewController.view.autoPinWidthToSuperview()
-        qrCodeScanViewController.view.autoPin(toTopLayoutGuideOf: self, withInset: 0)
-        qrCodeScanViewController.view.autoPinToSquareAspectRatio()
         addChild(qrCodeScanViewController)
+        view.addSubview(qrCodeScanViewController.view)
 
-        let bottomView = UIView()
-        bottomView.preservesSuperviewLayoutMargins = true
-        view.addSubview(bottomView)
-        bottomView.autoPinEdge(.top, to: .bottom, of: qrCodeScanViewController.view)
-        bottomView.autoPinEdgesToSuperviewEdges(with: .zero, excludingEdge: .top)
-
-        let heroImage = UIImage(imageLiteralResourceName: "ic_devices_ios")
-        let imageView = UIImageView(image: heroImage)
-        imageView.autoSetDimensions(to: heroImage.size)
-
-        let bottomStack = UIStackView(arrangedSubviews: [ imageView, scanningInstructionsLabel ])
-        bottomStack.axis = .vertical
-        bottomStack.alignment = .center
-        bottomStack.spacing = 8
-        bottomView.addSubview(bottomStack)
-        bottomStack.autoPinWidthToSuperviewMargins()
-        bottomStack.autoPinHeightToSuperviewMargins(relation: .lessThanOrEqual)
-        bottomStack.autoVCenterInSuperview()
+        qrCodeScanViewController.view.autoPinEdgesToSuperviewEdges()
+        qrCodeScanViewController.didMove(toParent: self)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -81,121 +63,130 @@ class LinkDeviceViewController: OWSViewController {
         if !UIDevice.current.isIPad {
             UIDevice.current.ows_setOrientation(.portrait)
         }
+
+        if !hasShownEducationSheet {
+            let animationName = if traitCollection.userInterfaceStyle == .dark {
+                "linking-device-dark"
+            } else {
+                "linking-device-light"
+            }
+
+            let sheet = HeroSheetViewController(
+                hero: .animation(named: animationName, height: 192),
+                title: OWSLocalizedString(
+                    "LINK_DEVICE_SCANNING_INSTRUCTIONS_SHEET_TITLE",
+                    comment: "Title for QR Scanning screen instructions sheet"
+                ),
+                body: OWSLocalizedString(
+                    "LINK_DEVICE_SCANNING_INSTRUCTIONS_SHEET_BODY",
+                    comment: "Title for QR Scanning screen instructions sheet"
+                ),
+                primaryButton: .dismissing(title: CommonStrings.okayButton)
+            )
+
+            DispatchQueue.main.async {
+                self.present(sheet, animated: true)
+                self.hasShownEducationSheet = true
+                self.educationSheet = sheet
+            }
+        }
     }
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
         UIDevice.current.isIPad ? .all : .portrait
     }
 
-    override func themeDidChange() {
-        super.themeDidChange()
+    private func dismissEducationSheetIfNecessary(completion: @escaping () -> Void) {
+        if let educationSheet {
+            educationSheet.dismiss(animated: true, completion: completion)
+        } else {
+            completion()
+        }
+    }
 
-        view.backgroundColor = Theme.backgroundColor
-        scanningInstructionsLabel.textColor = Theme.secondaryTextAndIconColor
+    private func safePresent(_ viewController: UIViewController) {
+        dismissEducationSheetIfNecessary { [weak self] in
+            self?.present(viewController, animated: true)
+        }
     }
 
     // MARK: -
 
-    func confirmProvisioningWithUrl(_ deviceProvisioningUrl: DeviceProvisioningURL) {
-        let title = NSLocalizedString(
-            "LINK_DEVICE_PERMISSION_ALERT_TITLE",
-            comment: "confirm the users intent to link a new device"
-        )
-        let linkingDescription = NSLocalizedString(
-            "LINK_DEVICE_PERMISSION_ALERT_BODY",
-            comment: "confirm the users intent to link a new device"
-        )
-
-        let actionSheet = ActionSheetController(title: title, message: linkingDescription)
-        actionSheet.addAction(ActionSheetAction(
-            title: CommonStrings.cancelButton,
-            style: .cancel,
-            handler: { _ in
-                DispatchQueue.main.async {
-                    self.popToLinkedDeviceList()
-                }
-            }
-        ))
-        actionSheet.addAction(ActionSheetAction(
-            title: NSLocalizedString("CONFIRM_LINK_NEW_DEVICE_ACTION", comment: "Button text"),
-            style: .default,
-            handler: { _ in
-                self.provisionWithUrl(deviceProvisioningUrl)
-            }
-        ))
-        presentActionSheet(actionSheet)
+    private func confirmProvisioningWithUrl(_ deviceProvisioningUrl: DeviceProvisioningURL) {
+        switch deviceProvisioningUrl.linkType {
+        case .linkDevice:
+            confirmProvisioning(with: deviceProvisioningUrl)
+        case .quickRestore:
+            // Ignore quick restore URLs in the link device controller
+            break
+        }
     }
 
-    private func provisionWithUrl(_ deviceProvisioningUrl: DeviceProvisioningURL) {
-        databaseStorage.write { transaction in
-            // Optimistically set this flag.
-            DependenciesBridge.shared.deviceManager.setMightHaveUnknownLinkedDevice(
-                true,
-                transaction: transaction.asV2Write
+    private func confirmProvisioning(with deviceProvisioningUrl: DeviceProvisioningURL) {
+        if deviceProvisioningUrl.capabilities.contains(.linknsync) {
+            let linkOrSyncSheet = LinkOrSyncPickerSheet {
+                self.popToLinkedDeviceList()
+            } linkAndSync: {
+                self.provisionWithUrl(deviceProvisioningUrl, shouldLinkNSync: true)
+            } linkOnly: {
+                self.provisionWithUrl(deviceProvisioningUrl, shouldLinkNSync: false)
+            }
+
+            self.safePresent(linkOrSyncSheet)
+        } else {
+            let title = NSLocalizedString(
+                "LINK_DEVICE_PERMISSION_ALERT_TITLE",
+                comment: "confirm the users intent to link a new device"
             )
-        }
+            let linkingDescription = NSLocalizedString(
+                "LINK_DEVICE_PERMISSION_ALERT_BODY",
+                comment: "confirm the users intent to link a new device"
+            )
 
-        var localIdentifiers: LocalIdentifiers?
-        var aciIdentityKeyPair: ECKeyPair?
-        var pniIdentityKeyPair: ECKeyPair?
-        var areReadReceiptsEnabled: Bool = true
-        var masterKey: Data?
-        databaseStorage.read { tx in
-            localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx.asV2Read)
-            let identityManager = DependenciesBridge.shared.identityManager
-            aciIdentityKeyPair = identityManager.identityKeyPair(for: .aci, tx: tx.asV2Read)
-            pniIdentityKeyPair = identityManager.identityKeyPair(for: .pni, tx: tx.asV2Read)
-            areReadReceiptsEnabled = OWSReceiptManager.areReadReceiptsEnabled(transaction: tx)
-            masterKey = DependenciesBridge.shared.svr.masterKeyDataForKeysSyncMessage(tx: tx.asV2Read)
+            let actionSheet = ActionSheetController(title: title, message: linkingDescription)
+            actionSheet.addAction(ActionSheetAction(
+                title: CommonStrings.cancelButton,
+                style: .cancel,
+                handler: { _ in
+                    DispatchQueue.main.async {
+                        self.popToLinkedDeviceList()
+                    }
+                }
+            ))
+            actionSheet.addAction(ActionSheetAction(
+                title: NSLocalizedString("CONFIRM_LINK_NEW_DEVICE_ACTION", comment: "Button text"),
+                style: .default,
+                handler: { _ in
+                    self.provisionWithUrl(deviceProvisioningUrl, shouldLinkNSync: false)
+                }
+            ))
+            safePresent(actionSheet)
         }
-        let myProfileKeyData = profileManager.localProfileKey.keyData
+    }
 
-        guard let myAci = localIdentifiers?.aci, let myPhoneNumber = localIdentifiers?.phoneNumber else {
-            owsFail("Can't provision without an aci & phone number.")
-        }
-        guard let aciIdentityKeyPair else {
-            owsFail("Can't provision without an aci identity.")
-        }
-        guard let myPni = localIdentifiers?.pni else {
-            owsFail("Can't provision without a pni.")
-        }
-        guard let pniIdentityKeyPair else {
-            owsFail("Can't provision without an pni identity.")
-        }
-        guard let masterKey else {
-            // This should be impossible; the only times you don't have
-            // a master key are during registration, and on a linked device.
-            owsFail("Can't provision without a master key.")
-        }
+    private func provisionWithUrl(
+        _ deviceProvisioningUrl: DeviceProvisioningURL,
+        shouldLinkNSync: Bool
+    ) {
+        Task {
+            do {
+                let (ephemeralBackupKey, tokenId) = try await context.provisioningManager.provision(
+                    with: deviceProvisioningUrl,
+                    shouldLinkNSync: shouldLinkNSync
+                )
+                Logger.info("Successfully provisioned device.")
 
-        let deviceProvisioner = OWSDeviceProvisioner(
-            myAciIdentityKeyPair: aciIdentityKeyPair.identityKeyPair,
-            myPniIdentityKeyPair: pniIdentityKeyPair.identityKeyPair,
-            theirPublicKey: deviceProvisioningUrl.publicKey,
-            theirEphemeralDeviceId: deviceProvisioningUrl.ephemeralDeviceId,
-            myAci: myAci,
-            myPhoneNumber: myPhoneNumber,
-            myPni: myPni,
-            profileKey: myProfileKeyData,
-            masterKey: masterKey,
-            readReceiptsEnabled: areReadReceiptsEnabled,
-            provisioningService: DeviceProvisioningServiceImpl(
-                networkManager: self.networkManager,
-                schedulers: DependenciesBridge.shared.schedulers
-            ),
-            schedulers: DependenciesBridge.shared.schedulers
-        )
-
-        deviceProvisioner.provision().map(on: DispatchQueue.main) {
-            Logger.info("Successfully provisioned device.")
-
-            self.delegate?.expectMoreDevices()
-            self.popToLinkedDeviceList()
-        }.catch(on: DispatchQueue.main) { error in
-            Logger.error("Failed to provision device with error: \(error)")
-            self.presentActionSheet(self.retryActionSheetController(error: error, retryBlock: { [weak self] in
-                self?.provisionWithUrl(deviceProvisioningUrl)
-            }))
+                self.delegate?.didFinishLinking(
+                    ephemeralBackupKey.map { ($0, tokenId) },
+                    from: self
+                )
+            } catch {
+                Logger.error("Failed to provision device with error: \(error)")
+                let actionSheet = self.retryActionSheetController(error: error, retryBlock: { [weak self] in
+                    self?.provisionWithUrl(deviceProvisioningUrl, shouldLinkNSync: shouldLinkNSync)
+                })
+                self.safePresent(actionSheet)
+            }
         }
     }
 
@@ -235,10 +226,16 @@ class LinkDeviceViewController: OWSViewController {
         }
     }
 
-    private func popToLinkedDeviceList() {
-        navigationController?.popViewController(animated: true, completion: {
-            UIViewController.attemptRotationToDeviceOrientation()
-        })
+    func popToLinkedDeviceList(_ completion: (() -> Void)? = nil) {
+        dismissEducationSheetIfNecessary { [weak navigationController] in
+            navigationController?.popViewController(animated: true)
+            // The method for adding a completion handler to popViewController in
+            // UIViewController+SignalUI doesn't play well with UIHostingController
+            navigationController?.transitionCoordinator?.animate(alongsideTransition: nil) { _ in
+                UIViewController.attemptRotationToDeviceOrientation()
+                completion?()
+            }
+        }
     }
 
     #if TESTABLE_BUILD
@@ -256,7 +253,6 @@ class LinkDeviceViewController: OWSViewController {
             handler: { _ in
                 guard let qrCodeString = alertController.textFields?.first?.text else { return }
                 self.qrCodeScanViewScanned(
-                    self.qrCodeScanViewController,
                     qrCodeData: nil,
                     qrCodeString: qrCodeString
                 )
@@ -266,16 +262,15 @@ class LinkDeviceViewController: OWSViewController {
             title: CommonStrings.cancelButton,
             style: .cancel
         ))
-        present(alertController, animated: true)
+        safePresent(alertController)
     }
     #endif
 }
 
-extension LinkDeviceViewController: QRCodeScanDelegate {
+extension LinkDeviceViewController: QRCodeScanOrPickDelegate {
 
     @discardableResult
     func qrCodeScanViewScanned(
-        _ qrCodeScanViewController: QRCodeScanViewController,
         qrCodeData: Data?,
         qrCodeString: String?
     ) -> QRCodeScanOutcome {
@@ -309,7 +304,7 @@ extension LinkDeviceViewController: QRCodeScanDelegate {
                     self.qrCodeScanViewController.tryToStartScanning()
                 }
             ))
-            presentActionSheet(actionSheet)
+            safePresent(actionSheet)
 
             return .stopScanning
         }

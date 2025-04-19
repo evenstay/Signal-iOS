@@ -8,29 +8,27 @@ import LibSignalClient
 
 /// The primary interface for discovering contacts through the CDS service.
 protocol ContactDiscoveryTaskQueue {
-    func perform(for phoneNumbers: Set<String>, mode: ContactDiscoveryMode) -> Promise<Set<SignalRecipient>>
+    func perform(for phoneNumbers: Set<String>, mode: ContactDiscoveryMode) async throws -> Set<SignalRecipient>
 }
 
 final class ContactDiscoveryTaskQueueImpl: ContactDiscoveryTaskQueue {
-    private let db: DB
+    private let db: any DB
     private let recipientDatabaseTable: RecipientDatabaseTable
     private let recipientFetcher: RecipientFetcher
     private let recipientManager: any SignalRecipientManager
     private let recipientMerger: RecipientMerger
     private let tsAccountManager: TSAccountManager
     private let udManager: OWSUDManager
-    private let websocketFactory: WebSocketFactory
     private let libsignalNet: Net
 
     init(
-        db: DB,
+        db: any DB,
         recipientDatabaseTable: RecipientDatabaseTable,
         recipientFetcher: RecipientFetcher,
         recipientManager: any SignalRecipientManager,
         recipientMerger: RecipientMerger,
         tsAccountManager: TSAccountManager,
         udManager: OWSUDManager,
-        websocketFactory: WebSocketFactory,
         libsignalNet: Net
     ) {
         self.db = db
@@ -40,43 +38,33 @@ final class ContactDiscoveryTaskQueueImpl: ContactDiscoveryTaskQueue {
         self.recipientMerger = recipientMerger
         self.tsAccountManager = tsAccountManager
         self.udManager = udManager
-        self.websocketFactory = websocketFactory
         self.libsignalNet = libsignalNet
     }
 
-    func perform(for phoneNumbers: Set<String>, mode: ContactDiscoveryMode) -> Promise<Set<SignalRecipient>> {
+    func perform(for phoneNumbers: Set<String>, mode: ContactDiscoveryMode) async throws -> Set<SignalRecipient> {
         let e164s = Set(phoneNumbers.compactMap { E164($0) })
-        guard !e164s.isEmpty else {
-            return .value([])
+        if e164s.isEmpty {
+            return []
         }
 
-        let workQueue = DispatchQueue(
-            label: "org.signal.contact-discovery-task",
-            qos: .userInitiated,
-            autoreleaseFrequency: .workItem,
-            target: .sharedUserInitiated
-        )
+        let discoveryResults = try await ContactDiscoveryV2Operation(
+            e164sToLookup: e164s,
+            mode: mode,
+            udManager: ContactDiscoveryV2Operation<LibSignalClient.Net>.Wrappers.UDManager(db: db, udManager: udManager),
+            connectionImpl: libsignalNet,
+            remoteAttestation: ContactDiscoveryV2Operation<LibSignalClient.Net>.Wrappers.RemoteAttestation()
+        ).perform()
 
-        return firstly {
-            ContactDiscoveryV2Operation(
-                e164sToLookup: e164s,
-                mode: mode,
-                udManager: ContactDiscoveryV2Operation.Wrappers.UDManager(db: db, udManager: udManager),
-                websocketFactory: websocketFactory,
-                libsignalNet: libsignalNet
-            ).perform(on: workQueue)
-        }.map(on: workQueue) { (discoveryResults: [ContactDiscoveryV2Operation.DiscoveryResult]) -> Set<SignalRecipient> in
-            try self.processResults(requestedPhoneNumbers: e164s, discoveryResults: discoveryResults)
-        }
+        return try await self.processResults(requestedPhoneNumbers: e164s, discoveryResults: discoveryResults)
     }
 
     private func processResults(
         requestedPhoneNumbers: Set<E164>,
-        discoveryResults: [ContactDiscoveryV2Operation.DiscoveryResult]
-    ) throws -> Set<SignalRecipient> {
+        discoveryResults: [ContactDiscoveryResult]
+    ) async throws -> Set<SignalRecipient> {
         var registeredRecipients = Set<SignalRecipient>()
 
-        try TimeGatedBatch.enumerateObjects(discoveryResults, db: db) { discoveryResult, tx in
+        try await TimeGatedBatch.enumerateObjects(discoveryResults, db: db) { discoveryResult, tx in
             guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) else {
                 throw OWSAssertionError("Not registered.")
             }
@@ -101,7 +89,7 @@ final class ContactDiscoveryTaskQueueImpl: ContactDiscoveryTaskQueue {
         }
 
         let undiscoverablePhoneNumbers = requestedPhoneNumbers.subtracting(discoveryResults.lazy.map { $0.e164 })
-        TimeGatedBatch.enumerateObjects(undiscoverablePhoneNumbers, db: db) { phoneNumber, tx in
+        await TimeGatedBatch.enumerateObjects(undiscoverablePhoneNumbers, db: db) { phoneNumber, tx in
             // It's possible we have an undiscoverable phone number that already has an
             // ACI or PNI in a number of scenarios, such as (but not exclusive to) the
             // following:

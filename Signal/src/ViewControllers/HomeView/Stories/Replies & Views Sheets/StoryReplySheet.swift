@@ -27,7 +27,7 @@ extension StoryReplySheet {
         guard let thread = thread else {
             return owsFailDebug("Unexpectedly missing thread")
         }
-        let isThreadBlocked = databaseStorage.read { blockingManager.isThreadBlocked(thread, transaction: $0) }
+        let isThreadBlocked = SSKEnvironment.shared.databaseStorageRef.read { SSKEnvironment.shared.blockingManagerRef.isThreadBlocked(thread, transaction: $0) }
 
         guard !isThreadBlocked else {
             BlockListUIUtils.showUnblockThreadActionSheet(thread, from: self) { [weak self] isBlocked in
@@ -65,7 +65,7 @@ extension StoryReplySheet {
 
             if shouldUseThreadDMTimer {
                 let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-                let dmConfig = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: transaction.asV2Read)
+                let dmConfig = dmConfigurationStore.fetchOrBuildDefault(for: .thread(thread), tx: transaction)
                 builder.expiresInSeconds = dmConfig.durationSeconds
                 builder.expireTimerVersion = NSNumber(value: dmConfig.timerVersion)
             }
@@ -81,7 +81,11 @@ extension StoryReplySheet {
                 thread.donateSendMessageIntent(for: message, transaction: transaction)
             }
 
-            transaction.addAsyncCompletionOnMain { self?.didSendMessage() }
+            transaction.addSyncCompletion {
+                Task { @MainActor in
+                    self?.didSendMessage()
+                }
+            }
         }
     }
 
@@ -124,7 +128,7 @@ extension StoryReplySheet {
 
         // nil is intentional, the message is for showing other reactions already
         // on the message, which we don't wanna do for stories.
-        let sheet = EmojiPickerSheet(message: nil) { [weak self] selectedEmoji in
+        let sheet = EmojiPickerSheet(message: nil, forceDarkTheme: true) { [weak self] selectedEmoji in
             guard let selectedEmoji = selectedEmoji else { return }
             self?.tryToSendReaction(selectedEmoji.rawValue)
         }

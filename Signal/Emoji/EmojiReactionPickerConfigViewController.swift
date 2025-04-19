@@ -94,11 +94,11 @@ public class EmojiReactionPickerConfigViewController: UIViewController {
 
     private func doneButtonTapped() {
         let currentEmojiSet = reactionPicker.currentEmojiSet()
-        SDSDatabaseStorage.shared.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             ReactionManager.setCustomEmojiSet(currentEmojiSet, transaction: transaction)
         }
         self.reactionPickerConfigurationListener?.didCompleteReactionPickerConfiguration()
-        Self.storageServiceManager.recordPendingLocalAccountUpdates()
+        SSKEnvironment.shared.storageServiceManagerRef.recordPendingLocalAccountUpdates()
         dismiss(animated: true, completion: nil)
     }
 

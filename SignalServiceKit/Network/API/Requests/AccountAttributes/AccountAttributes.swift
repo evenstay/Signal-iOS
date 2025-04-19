@@ -122,18 +122,14 @@ public struct AccountAttributes: Codable {
     public struct Capabilities: Codable {
         public let transfer = true
         public let hasSVRBackups: Bool
-        public let pni = true
-        public let paymentActivation = true
         public let deleteSyncSendSupport = true
-        public let versionedExpireTimer = FeatureFlags.versionedExpireTimer
+        public let storageServiceRecordIkm = true
 
         public enum CodingKeys: String, CodingKey {
             case transfer
             case hasSVRBackups = "storage"
-            case pni
-            case paymentActivation
             case deleteSyncSendSupport = "deleteSync"
-            case versionedExpireTimer = "versionedExpirationTimer"
+            case storageServiceRecordIkm = "ssre2"
         }
 
         public init(hasSVRBackups: Bool) {

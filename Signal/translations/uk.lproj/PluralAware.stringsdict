@@ -2,7 +2,42 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>ACCESSIBILITY_LABEL_VOICE_MEMO_%d</key>
+	<key>ACCESSIBILITY_LABEL_LONG_VOICE_MEMO_%d_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@minutes@ і %2$#@seconds@</string>
+		<key>minutes</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d хвилина</string>
+			<key>few</key>
+			<string>%1$d хвилини</string>
+			<key>many</key>
+			<string>%1$d хвилин</string>
+			<key>other</key>
+			<string>%1$d хвилини</string>
+		</dict>
+		<key>seconds</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%2$d секунда</string>
+			<key>few</key>
+			<string>%2$d секунди</string>
+			<key>many</key>
+			<string>%2$d секунд</string>
+			<key>other</key>
+			<string>%2$d секунди</string>
+		</dict>
+	</dict>
+	<key>ACCESSIBILITY_LABEL_SHORT_VOICE_MEMO_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -73,13 +108,33 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Додати нового учасника</string>
+			<string>Додавання нового учасника</string>
 			<key>few</key>
-			<string>Додати нових учасників</string>
+			<string>Додавання нових учасників</string>
 			<key>many</key>
-			<string>Додати нових учасників</string>
+			<string>Додавання нових учасників</string>
 			<key>other</key>
-			<string>Додати нових учасників</string>
+			<string>Додавання нових учасників</string>
+		</dict>
+	</dict>
+	<key>CALLS_TAB_DELETE_MULTIPLE_TITLE</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Видалити %1$ld виклик?</string>
+			<key>few</key>
+			<string>Видалити %1$ld виклики?</string>
+			<key>many</key>
+			<string>Видалити %1$ld викликів?</string>
+			<key>other</key>
+			<string>Видалити %1$ld виклику?</string>
 		</dict>
 	</dict>
 	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
@@ -91,7 +146,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>one</key>
 			<string>До виклику буде додано %1$ld учасника.</string>
 			<key>few</key>
@@ -111,7 +166,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>one</key>
 			<string>Прийняти %1$ld запит?</string>
 			<key>few</key>
@@ -131,7 +186,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>one</key>
 			<string>До виклику не буде додано %1$ld учасника.</string>
 			<key>few</key>
@@ -151,7 +206,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>one</key>
 			<string>Відхилити %1$ld запит?</string>
 			<key>few</key>
@@ -171,15 +226,35 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>+%1$ld запит</string>
+			<key>few</key>
+			<string>+%1$ld запити</string>
+			<key>many</key>
+			<string>+%1$ld запитів</string>
+			<key>other</key>
+			<string>+%1$ld запиту</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_MULTI_SUCCESS</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>+%1$ld Request</string>
+			<string>Видалено %1$ld запис про виклики.</string>
 			<key>few</key>
-			<string>+%1$ld Requests</string>
+			<string>Видалено %1$ld записи про виклики.</string>
 			<key>many</key>
-			<string>+%1$ld Requests</string>
+			<string>Видалено %1$ld записів про виклики.</string>
 			<key>other</key>
-			<string>+%1$ld Requests</string>
+			<string>Видалено %1$ld запису про виклики.</string>
 		</dict>
 	</dict>
 	<key>CALL_LINK_REQUEST_HEADER_COUNT_%d</key>
@@ -253,13 +328,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d Елемент</string>
+			<string>%1$d фото</string>
 			<key>few</key>
-			<string>%1$d елементи</string>
+			<string>%1$d фото</string>
 			<key>many</key>
-			<string>%1$d елементів</string>
+			<string>%1$d фото</string>
 			<key>other</key>
-			<string>%1$d елементу</string>
+			<string>%1$d фото</string>
 		</dict>
 	</dict>
 	<key>CHAT_COLOR_SETTINGS_DELETE_ALERT_MESSAGE_%d</key>
@@ -448,13 +523,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d хв</string>
+			<string>%1$dхв</string>
 			<key>few</key>
-			<string>%1$d хв</string>
+			<string>%1$dхв</string>
 			<key>many</key>
-			<string>%1$d хв</string>
+			<string>%1$dхв</string>
 			<key>other</key>
-			<string>%1$d хв</string>
+			<string>%1$dхв</string>
 		</dict>
 	</dict>
 	<key>DATE_MINUTES_AGO_LONG_%d</key>
@@ -655,6 +730,26 @@
 			<string>%2$@, %3$@ і ще %1$d у цьому виклику</string>
 			<key>other</key>
 			<string>%2$@, %3$@ і ще %1$d у цьому виклику</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_MEMBER_LIST_UNKNOWN_MEMBERS_ROW_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>Ще %1$ld</string>
+			<key>few</key>
+			<string>Ще %1$ld</string>
+			<key>many</key>
+			<string>Ще %1$ld</string>
+			<key>other</key>
+			<string>Ще %1$ld</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_NOTIFICATION_MANY_JOINED_%d</key>
@@ -1775,6 +1870,46 @@
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; переглядів</string>
 			<key>other</key>
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; перегляду</string>
+		</dict>
+	</dict>
+	<key>THREAD_DETAILS_MORE_MUTUAL_GROUP_%3$ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>Member of %1$@, %2$@, and %3$ld additional group</string>
+			<key>few</key>
+			<string>Member of %1$@, %2$@, and %3$ld additional groups</string>
+			<key>many</key>
+			<string>Member of %1$@, %2$@, and %3$ld additional groups</string>
+			<key>other</key>
+			<string>Member of %1$@, %2$@, and %3$ld additional groups</string>
+		</dict>
+	</dict>
+	<key>THREAD_DETAILS_OTHER_MEMBERS_COUNT_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld other</string>
+			<key>few</key>
+			<string>%1$ld others</string>
+			<key>many</key>
+			<string>%1$ld others</string>
+			<key>other</key>
+			<string>%1$ld others</string>
 		</dict>
 	</dict>
 	<key>USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE_%d</key>

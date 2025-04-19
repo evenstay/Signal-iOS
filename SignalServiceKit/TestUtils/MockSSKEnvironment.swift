@@ -8,16 +8,33 @@ import GRDB
 
 #if TESTABLE_BUILD
 
-@objc
-public class MockSSKEnvironment: NSObject {
+public class MockSSKEnvironment {
     /// Set up a mock SSK environment as well as ``DependenciesBridge``.
-    @objc
-    public static func activate() {
-        let testAppContext = TestAppContext()
-        SetCurrentAppContext(testAppContext)
-        let appReadiness = AppReadinessImpl()
+    @MainActor
+    public static func activate(
+        appReadiness: any AppReadiness = AppReadinessImpl(),
+        callMessageHandler: any CallMessageHandler = NoopCallMessageHandler(),
+        currentCallProvider: any CurrentCallProvider = CurrentCallNoOpProvider(),
+        notificationPresenter: any NotificationPresenter = NoopNotificationPresenterImpl(),
+        incrementalMessageTSAttachmentMigratorFactory: any IncrementalMessageTSAttachmentMigratorFactory = IncrementalMessageTSAttachmentMigratorFactoryMock(),
+        testDependencies: AppSetup.TestDependencies? = nil
+    ) async {
+        owsPrecondition(!(CurrentAppContext() is TestAppContext))
+        owsPrecondition(!SSKEnvironment.hasShared)
+        owsPrecondition(!DependenciesBridge.hasShared)
 
-        let finalContinuation = AppSetup().start(
+        let testAppContext = TestAppContext()
+        SetCurrentAppContext(testAppContext, isRunningTests: true)
+
+        /// Note that ``SDSDatabaseStorage/grdbDatabaseFileUrl``, through a few
+        /// layers of abstraction, uses the "current app context" to decide
+        /// where to put the database,
+        ///
+        /// For a ``TestAppContext`` as configured above, this will be a
+        /// subdirectory of our temp directory unique to the instantiation of
+        /// the app context.
+
+        let finalContinuation = await AppSetup().start(
             appContext: testAppContext,
             appReadiness: appReadiness,
             databaseStorage: try! SDSDatabaseStorage(
@@ -25,23 +42,23 @@ public class MockSSKEnvironment: NSObject {
                 databaseFileUrl: SDSDatabaseStorage.grdbDatabaseFileUrl,
                 keychainStorage: MockKeychainStorage()
             ),
+            deviceSleepManager: nil,
             paymentsEvents: PaymentsEventsNoop(),
             mobileCoinHelper: MobileCoinHelperMock(),
-            callMessageHandler: NoopCallMessageHandler(),
-            currentCallProvider: CurrentCallNoOpProvider(),
-            notificationPresenter: NoopNotificationPresenterImpl(),
-            incrementalTSAttachmentMigrator: IncrementalMessageTSAttachmentMigratorMock(),
-            testDependencies: AppSetup.TestDependencies(
-                accountServiceClient: FakeAccountServiceClient(),
+            callMessageHandler: callMessageHandler,
+            currentCallProvider: currentCallProvider,
+            notificationPresenter: notificationPresenter,
+            incrementalMessageTSAttachmentMigratorFactory: incrementalMessageTSAttachmentMigratorFactory,
+            messageBackupErrorPresenterFactory: NoOpMessageBackupErrorPresenterFactory(),
+            testDependencies: testDependencies ?? AppSetup.TestDependencies(
                 contactManager: FakeContactsManager(),
                 groupV2Updates: MockGroupV2Updates(),
                 groupsV2: MockGroupsV2(),
-                keyValueStoreFactory: InMemoryKeyValueStoreFactory(),
                 messageSender: FakeMessageSender(),
                 modelReadCaches: ModelReadCaches(
                     factory: TestableModelReadCacheFactory(appReadiness: appReadiness)
                 ),
-                networkManager: OWSFakeNetworkManager(libsignalNet: nil),
+                networkManager: OWSFakeNetworkManager(appReadiness: appReadiness, libsignalNet: nil),
                 paymentsCurrencies: MockPaymentsCurrencies(),
                 paymentsHelper: MockPaymentsHelper(),
                 pendingReceiptRecorder: NoopPendingReceiptRecorder(),
@@ -50,30 +67,50 @@ public class MockSSKEnvironment: NSObject {
                 remoteConfigManager: StubbableRemoteConfigManager(),
                 signalService: OWSSignalServiceMock(),
                 storageServiceManager: FakeStorageServiceManager(),
-                subscriptionManager: MockSubscriptionManager(),
                 syncManager: OWSMockSyncManager(),
                 systemStoryManager: SystemStoryManagerMock(),
                 versionedProfiles: MockVersionedProfiles(),
                 webSocketFactory: WebSocketFactoryMock()
             )
-        ).prepareDatabase(
-            backgroundScheduler: SyncScheduler(),
-            mainScheduler: SyncScheduler()
-        )
-        owsPrecondition(finalContinuation.isSealed)
+        ).prepareDatabase()
+        finalContinuation.runLaunchTasksIfNeededAndReloadCaches()
     }
 
-    @objc
-    public static func flushAndWait() {
+    @MainActor
+    private static func flushAndWait() {
         AssertIsOnMainThread()
 
         waitForMainQueue()
 
         // Wait for all pending readers/writers to finish.
-        SSKEnvironment.shared.grdbStorageAdapter.pool.barrierWriteWithoutTransaction { _ in }
+        SSKEnvironment.shared.databaseStorageRef.grdbStorage.pool.barrierWriteWithoutTransaction { _ in }
 
         // Wait for the main queue *again* in case more work was scheduled.
         waitForMainQueue()
+    }
+
+    public static func deactivateAsync(oldContext: any AppContext) async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async {
+                SSKEnvironment.shared.databaseStorageRef.grdbStorage.pool.barrierWriteWithoutTransaction { _ in }
+                DispatchQueue.main.async {
+                    continuation.resume()
+                }
+            }
+        }
+        _deactivate(oldContext: oldContext)
+    }
+
+    @MainActor
+    public static func deactivate(oldContext: any AppContext) {
+        flushAndWait()
+        _deactivate(oldContext: oldContext)
+    }
+
+    private static func _deactivate(oldContext: any AppContext) {
+        SetCurrentAppContext(oldContext, isRunningTests: true)
+        SSKEnvironment.setShared(nil, isRunningTests: true)
+        DependenciesBridge.setShared(nil, isRunningTests: true)
     }
 
     private static func waitForMainQueue() {

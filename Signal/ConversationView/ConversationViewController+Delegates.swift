@@ -63,7 +63,7 @@ extension ConversationViewController: AttachmentApprovalViewControllerDataSource
     public var attachmentApprovalTextInputContextIdentifier: String? { textInputContextIdentifier }
 
     public var attachmentApprovalRecipientNames: [String] {
-        let displayName = databaseStorage.read { tx in contactsManager.displayName(for: thread, transaction: tx) }
+        let displayName = SSKEnvironment.shared.databaseStorageRef.read { tx in SSKEnvironment.shared.contactManagerRef.displayName(for: thread, transaction: tx) }
         return [displayName]
     }
 
@@ -87,18 +87,18 @@ extension ConversationViewController: ContactPickerDelegate {
     public func contactPicker(_ contactPicker: ContactPickerViewController, didSelect systemContact: SystemContact) {
         AssertIsOnMainThread()
 
-        guard let cnContact = contactsManager.cnContact(withId: systemContact.cnContactId) else {
+        guard let cnContact = SSKEnvironment.shared.contactManagerRef.cnContact(withId: systemContact.cnContactId) else {
             owsFailDebug("Could not load system contact.")
             return
         }
 
-        let contactShareDraft = databaseStorage.read { tx in
+        let contactShareDraft = SSKEnvironment.shared.databaseStorageRef.read { tx in
             return ContactShareDraft.load(
                 cnContact: cnContact,
                 signalContact: systemContact,
-                contactManager: Self.contactsManager,
-                phoneNumberUtil: Self.phoneNumberUtil,
-                profileManager: Self.profileManager,
+                contactManager: SSKEnvironment.shared.contactManagerRef,
+                phoneNumberUtil: SSKEnvironment.shared.phoneNumberUtilRef,
+                profileManager: SSKEnvironment.shared.profileManagerRef,
                 recipientManager: DependenciesBridge.shared.recipientManager,
                 tsAccountManager: DependenciesBridge.shared.tsAccountManager,
                 tx: tx
@@ -145,8 +145,8 @@ extension ConversationViewController: ContactShareViewControllerDelegate {
     }
 
     public func recipientsDescriptionForContactShareViewController(_ viewController: ContactShareViewController) -> String? {
-        return databaseStorage.read { transaction in
-            Self.contactsManager.displayName(for: self.thread, transaction: transaction)
+        return SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            SSKEnvironment.shared.contactManagerRef.displayName(for: self.thread, transaction: transaction)
         }
     }
 
@@ -156,18 +156,20 @@ extension ConversationViewController: ContactShareViewControllerDelegate {
 
     private func send(contactShareDraft: ContactShareDraft) {
         let thread = self.thread
-        Self.databaseStorage.asyncWrite { transaction in
+        SSKEnvironment.shared.databaseStorageRef.asyncWrite { transaction in
             let didAddToProfileWhitelist = ThreadUtil.addThreadToProfileWhitelistIfEmptyOrPendingRequest(
                 thread,
                 setDefaultTimerIfNecessary: true,
                 tx: transaction
             )
-            transaction.addAsyncCompletionOnMain {
-                ThreadUtil.enqueueMessage(withContactShare: contactShareDraft, thread: thread)
-                self.messageWasSent()
+            transaction.addSyncCompletion {
+                Task { @MainActor in
+                    ThreadUtil.enqueueMessage(withContactShare: contactShareDraft, thread: thread)
+                    self.messageWasSent()
 
-                if didAddToProfileWhitelist {
-                    self.ensureBannerState()
+                    if didAddToProfileWhitelist {
+                        self.ensureBannerState()
+                    }
                 }
             }
         }
@@ -201,7 +203,20 @@ extension ConversationViewController: ConversationHeaderViewDelegate {
 // MARK: -
 
 extension ConversationViewController: ConversationInputTextViewDelegate {
-    public func didPasteAttachment(_ attachment: SignalAttachment?) {
+    public func didAttemptAttachmentPaste() {
+        ModalActivityIndicatorViewController.present(fromViewController: self) { modal in
+            let attachment: SignalAttachment? = await SignalAttachment.attachmentFromPasteboard()
+
+            await MainActor.run {
+                modal.dismiss {
+                    // Note: attachment might be nil or have an error at this point; that's fine.
+                    self.didPasteAttachment(attachment)
+                }
+            }
+        }
+    }
+
+    func didPasteAttachment(_ attachment: SignalAttachment?) {
         AssertIsOnMainThread()
 
         guard let attachment = attachment else {
@@ -228,7 +243,7 @@ extension ConversationViewController: ConversationInputTextViewDelegate {
         AssertIsOnMainThread()
 
         if textView.text.strippedOrNil != nil {
-            typingIndicatorsImpl.didStartTypingOutgoingInput(inThread: thread)
+            SSKEnvironment.shared.typingIndicatorsRef.didStartTypingOutgoingInput(inThread: thread)
         }
     }
 }
@@ -335,8 +350,7 @@ extension ConversationViewController: InputAccessoryViewPlaceholderDelegate {
                 // how long they will be blocked for.
                 let animationCompletionDate = Date().addingTimeInterval(duration)
                 let lastKeyboardAnimationDate = Date().addingTimeInterval(-1.0)
-                if viewState.lastKeyboardAnimationDate == nil ||
-                    viewState.lastKeyboardAnimationDate?.isBefore(lastKeyboardAnimationDate) == true {
+                if viewState.lastKeyboardAnimationDate == nil || viewState.lastKeyboardAnimationDate! < lastKeyboardAnimationDate {
                     viewState.lastKeyboardAnimationDate = animationCompletionDate
                 }
             }

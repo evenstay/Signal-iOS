@@ -6,7 +6,13 @@
 import Foundation
 import Contacts
 
-public enum ExperienceUpgradeManifest: Dependencies {
+public enum ExperienceUpgradeManifest {
+    /// Informs the user that a new device was linked if they have
+    /// notifications disabled.
+    /// See ``NotificationPresenterImpl/scheduleNotifyForNewLinkedDevice(deviceLinkTimestamp:)``
+    /// for when notifications are enabled.
+    case newLinkedDeviceNotification
+
     /// Prompts the user to create a PIN, if they did not create one during
     /// registration.
     ///
@@ -128,6 +134,7 @@ extension ExperienceUpgradeManifest {
     /// Examples of manifests _not_ listed here include upgrades that were once
     /// well-known, but have since been removed.
     static let wellKnownLocalUpgradeManifests: Set<ExperienceUpgradeManifest> = [
+        .newLinkedDeviceNotification,
         .introducingPins,
         .notificationPermissionReminder,
         .createUsernameReminder,
@@ -143,6 +150,8 @@ extension ExperienceUpgradeManifest {
     /// The "unique ID" of this upgrade. Stable, and may be used for persistence.
     var uniqueId: String {
         switch self {
+        case .newLinkedDeviceNotification:
+            return "newLinkedDeviceNotification"
         case .introducingPins:
             // For historical compatibility, this experience has a unique ID
             // that does not match the enum case.
@@ -209,22 +218,24 @@ extension Sequence where Element: ExperienceUpgradeSortable {
 extension ExperienceUpgradeManifest: ExperienceUpgradeSortable {
     var importanceIndex: (primary: Int, secondary: Int) {
         switch self {
-        case .introducingPins:
+        case .newLinkedDeviceNotification:
             return (0, 0)
-        case .notificationPermissionReminder:
+        case .introducingPins:
             return (1, 0)
-        case .createUsernameReminder:
+        case .notificationPermissionReminder:
             return (2, 0)
+        case .createUsernameReminder:
+            return (3, 0)
         case .remoteMegaphone(let megaphone):
             // Remote megaphone manifests use higher numbers to indicate higher
             // priority, so we should invert their priority here.
-            return (3, -1 * megaphone.manifest.priority)
+            return (4, -1 * megaphone.manifest.priority)
         case .inactiveLinkedDeviceReminder:
-            return (4, 0)
-        case .pinReminder:
             return (5, 0)
-        case .contactPermissionReminder:
+        case .pinReminder:
             return (6, 0)
+        case .contactPermissionReminder:
+            return (7, 0)
         case .unrecognized:
             return (Int.max, Int.max)
         }
@@ -244,6 +255,7 @@ extension ExperienceUpgradeManifest {
     var skipForNewUsers: Bool {
         switch self {
         case
+                .newLinkedDeviceNotification,
                 .introducingPins,
                 .createUsernameReminder,
                 .remoteMegaphone,
@@ -264,6 +276,7 @@ extension ExperienceUpgradeManifest {
     var shouldSave: Bool {
         switch self {
         case
+                .newLinkedDeviceNotification,
                 .introducingPins,
                 .pinReminder,
                 .unrecognized:
@@ -285,6 +298,7 @@ extension ExperienceUpgradeManifest {
     var shouldComplete: Bool {
         switch self {
         case
+                .newLinkedDeviceNotification,
                 .introducingPins,
                 .notificationPermissionReminder,
                 .createUsernameReminder,
@@ -309,12 +323,14 @@ extension ExperienceUpgradeManifest {
         case
                 .introducingPins,
                 .pinReminder:
-            return 2 * kDayInterval
+            return 2 * .day
         case
                 .notificationPermissionReminder,
                 .inactiveLinkedDeviceReminder:
-            return 3 * kDayInterval
-        case .createUsernameReminder:
+            return 3 * .day
+        case
+                .newLinkedDeviceNotification,
+                .createUsernameReminder:
             // On snooze, never show again.
             return .infinity
         case .remoteMegaphone(let megaphone):
@@ -351,9 +367,9 @@ extension ExperienceUpgradeManifest {
                 return 3
             }()
 
-            return Double(daysToSnooze) * kDayInterval
+            return Double(daysToSnooze) * .day
         case .contactPermissionReminder:
-            return 30 * kDayInterval
+            return 30 * .day
         case .unrecognized:
             return .infinity
         }
@@ -364,6 +380,7 @@ extension ExperienceUpgradeManifest {
     var numberOfDaysToShowFor: Int {
         switch self {
         case
+                .newLinkedDeviceNotification,
                 .introducingPins,
                 .notificationPermissionReminder,
                 .createUsernameReminder,
@@ -382,14 +399,16 @@ extension ExperienceUpgradeManifest {
     /// show the upgrade.
     private var delayAfterRegistration: TimeInterval {
         switch self {
+        case .newLinkedDeviceNotification:
+            return 0
         case
                 .notificationPermissionReminder,
                 .createUsernameReminder,
                 .inactiveLinkedDeviceReminder,
                 .contactPermissionReminder:
-            return kDayInterval
+            return .day
         case .introducingPins:
-            return 2 * kHourInterval
+            return 2 * .hour
         case .remoteMegaphone(let megaphone):
             guard let conditionalCheck = megaphone.manifest.conditionalCheck else {
                 return 0
@@ -397,14 +416,14 @@ extension ExperienceUpgradeManifest {
 
             switch conditionalCheck {
             case .standardDonate:
-                return 7 * kDayInterval
+                return 7 * .day
             case .internalUser:
                 return 0
             case .unrecognized:
                 return .infinity
             }
         case .pinReminder:
-            return 8 * kHourInterval
+            return 8 * .hour
         case .unrecognized:
             return .infinity
         }
@@ -414,6 +433,7 @@ extension ExperienceUpgradeManifest {
     private var expirationDate: Date {
         switch self {
         case
+                .newLinkedDeviceNotification,
                 .introducingPins,
                 .notificationPermissionReminder,
                 .createUsernameReminder,
@@ -432,6 +452,7 @@ extension ExperienceUpgradeManifest {
     private var showOnLinkedDevices: Bool {
         switch self {
         case
+                .newLinkedDeviceNotification,
                 .introducingPins,
                 .pinReminder,
                 .inactiveLinkedDeviceReminder,
@@ -453,11 +474,12 @@ extension ExperienceUpgradeManifest {
 // MARK: - Should we show this upgrade
 
 extension ExperienceUpgradeManifest {
-    func shouldBeShown(transaction: SDSAnyReadTransaction) -> Bool {
-        if
-            let registrationDate = DependenciesBridge.shared.tsAccountManager.registrationDate(tx: transaction.asV2Read),
-            Date().timeIntervalSince(registrationDate) < delayAfterRegistration
-        {
+    public func shouldCheckPreconditions(
+        timeIntervalSinceRegistration: TimeInterval,
+        isRegisteredPrimaryDevice: Bool,
+        tx: DBReadTransaction
+    ) -> Bool {
+        if timeIntervalSinceRegistration < delayAfterRegistration {
             // We have not waited long enough after registration to show this
             // upgrade.
             return false
@@ -468,43 +490,17 @@ extension ExperienceUpgradeManifest {
             return false
         }
 
-        guard showOnLinkedDevices || DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegisteredPrimaryDevice else {
-            // We are a linked device, which should not show this upgrade.
-            return false
-        }
-
-        return Self.checkPreconditions(specificTo: self, transaction: transaction)
-    }
-
-    private static func checkPreconditions(specificTo enumCase: ExperienceUpgradeManifest, transaction: SDSAnyReadTransaction) -> Bool {
-        switch enumCase {
-        case .introducingPins:
-            return checkPreconditionsForIntroducingPins(transaction: transaction)
-        case .notificationPermissionReminder:
-            return checkPreconditionsForNotificationsPermissionsReminder()
-        case .createUsernameReminder:
-            return checkPreconditionsForCreateUsernameReminder(transaction: transaction)
-        case .remoteMegaphone(let megaphone):
-            return checkPreconditionsForRemoteMegaphone(megaphone, tx: transaction)
-        case .inactiveLinkedDeviceReminder:
-            return checkPreconditionsForInactiveLinkedDeviceReminder(tx: transaction)
-        case .pinReminder:
-            return checkPreconditionsForPinReminder(transaction: transaction)
-        case .contactPermissionReminder:
-            return checkPreconditionsForContactsPermissionReminder()
-        case .unrecognized:
-            return false
-        }
+        return isRegisteredPrimaryDevice || showOnLinkedDevices
     }
 
     // MARK: Local megaphone preconditions
 
-    private static func checkPreconditionsForIntroducingPins(transaction: SDSAnyReadTransaction) -> Bool {
+    public static func checkPreconditionsForIntroducingPins(transaction: DBReadTransaction) -> Bool {
         // The PIN setup flow requires an internet connection and you to not already have a PIN
         if
-            reachabilityManager.isReachable,
-            DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction.asV2Read).isRegisteredPrimaryDevice,
-            !DependenciesBridge.shared.svr.hasMasterKey(transaction: transaction.asV2Read)
+            SSKEnvironment.shared.reachabilityManagerRef.isReachable,
+            DependenciesBridge.shared.tsAccountManager.registrationState(tx: transaction).isRegisteredPrimaryDevice,
+            !DependenciesBridge.shared.svr.hasMasterKey(transaction: transaction)
         {
             return true
         }
@@ -512,7 +508,7 @@ extension ExperienceUpgradeManifest {
         return false
     }
 
-    private static func checkPreconditionsForNotificationsPermissionsReminder() -> Bool {
+    public static func checkPreconditionsForNotificationsPermissionsReminder() -> Bool {
         let (promise, future) = Promise<Bool>.pending()
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -534,17 +530,44 @@ extension ExperienceUpgradeManifest {
         }
     }
 
-    private static func checkPreconditionsForCreateUsernameReminder(transaction: SDSAnyReadTransaction) -> Bool {
+    public enum NewLinkedDeviceNotificationResult {
+        case display
+        case skip
+        case clearNotification
+    }
+
+    public static func checkPreconditionsForNewLinkedDeviceNotification(
+        tx: DBReadTransaction
+    ) -> NewLinkedDeviceNotificationResult {
+        let deviceStore = DependenciesBridge.shared.deviceStore
+        guard
+            let mostRecentlyLinkedDeviceDetails = try? deviceStore.mostRecentlyLinkedDeviceDetails(tx: tx)
+        else {
+            return .skip
+        }
+
+        // No need to show a megaphone if notifications are on, which we happen
+        // to already check for the notification permission megaphone.
+        return if !checkPreconditionsForNotificationsPermissionsReminder() {
+            .clearNotification
+        } else if Date() > mostRecentlyLinkedDeviceDetails.shouldRemindUserAfter {
+            .display
+        } else {
+            .skip
+        }
+    }
+
+    public static func checkPreconditionsForCreateUsernameReminder(transaction: DBReadTransaction) -> Bool {
         guard
             DependenciesBridge.shared.localUsernameManager.usernameState(
-                tx: transaction.asV2Read
+                tx: transaction
             ).isExplicitlyUnset
         else {
             // If we have a username, do not show the reminder.
             return false
         }
         let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-        if tsAccountManager.phoneNumberDiscoverability(tx: transaction.asV2Read).orDefault.isDiscoverable {
+        if tsAccountManager.phoneNumberDiscoverability(tx: transaction).orDefault.isDiscoverable {
             // If phone number discovery is enabled, do not prompt to create a
             // username.
             return false
@@ -554,30 +577,30 @@ extension ExperienceUpgradeManifest {
         /// discovery. Note that we need to invert the sign as this date will
         /// be in the past.
         let timeIntervalSinceDisabledDiscovery = DependenciesBridge.shared.tsAccountManager
-            .lastSetIsDiscoverableByPhoneNumber(tx: transaction.asV2Read)
+            .lastSetIsDiscoverableByPhoneNumber(tx: transaction)
             .timeIntervalSinceNow * -1
 
-        let requiredDelayAfterDisablingDiscovery: TimeInterval = 3 * kDayInterval
+        let requiredDelayAfterDisablingDiscovery: TimeInterval = 3 * .day
 
         return timeIntervalSinceDisabledDiscovery > requiredDelayAfterDisablingDiscovery
     }
 
-    private static func checkPreconditionsForInactiveLinkedDeviceReminder(tx: SDSAnyReadTransaction) -> Bool {
-        return DependenciesBridge.shared.inactiveLinkedDeviceFinder.hasInactiveLinkedDevice(tx: tx.asV2Read)
+    public static func checkPreconditionsForInactiveLinkedDeviceReminder(tx: DBReadTransaction) -> Bool {
+        return DependenciesBridge.shared.inactiveLinkedDeviceFinder.hasInactiveLinkedDevice(tx: tx)
     }
 
-    private static func checkPreconditionsForPinReminder(transaction: SDSAnyReadTransaction) -> Bool {
-        return OWS2FAManager.shared.isDueForV2Reminder(transaction: transaction)
+    public static func checkPreconditionsForPinReminder(transaction: DBReadTransaction) -> Bool {
+        return SSKEnvironment.shared.ows2FAManagerRef.isDueForV2Reminder(transaction: transaction)
     }
 
-    private static func checkPreconditionsForContactsPermissionReminder() -> Bool {
+    public static func checkPreconditionsForContactsPermissionReminder() -> Bool {
         // FIXME: [Contacts, iOS 18] Do we really want to nag users who've granted limited access?
         return CNContactStore.authorizationStatus(for: .contacts) != .authorized
     }
 
     // MARK: Remote megaphone preconditions
 
-    private static func checkPreconditionsForRemoteMegaphone(_ megaphone: RemoteMegaphoneModel, tx: SDSAnyReadTransaction) -> Bool {
+    public static func checkPreconditionsForRemoteMegaphone(_ megaphone: RemoteMegaphoneModel, tx: DBReadTransaction) -> Bool {
         let minimumVersion = AppVersionNumber(megaphone.manifest.minAppVersion)
         let currentVersion = AppVersionNumber(AppVersionImpl.shared.currentAppVersion)
         guard currentVersion >= minimumVersion else {
@@ -589,7 +612,7 @@ extension ExperienceUpgradeManifest {
         }
 
         let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-        guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx.asV2Read) else {
+        guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) else {
             return false
         }
 
@@ -627,7 +650,7 @@ extension ExperienceUpgradeManifest {
 
     private static func validateRemoteMegaphone(
         conditionalCheck: RemoteMegaphoneModel.Manifest.ConditionalCheck?,
-        tx: SDSAnyReadTransaction
+        tx: DBReadTransaction
     ) -> Bool {
         guard let conditionalCheck else {
             // Having no conditional check is valid.
@@ -636,15 +659,12 @@ extension ExperienceUpgradeManifest {
 
         switch conditionalCheck {
         case .standardDonate:
-            if
-                let localProfileBadgeInfo = profileManager.localProfileBadgeInfo,
-                !localProfileBadgeInfo.isEmpty
-            {
+            if SSKEnvironment.shared.profileManagerRef.localUserProfile(tx: tx)?.hasBadge == true {
                 // Fail the check if we currently have a badge.
                 return false
             } else if
-                DependenciesBridge.shared.receiptCredentialResultStore
-                    .hasAnyPaymentsStillProcessing(tx: tx.asV2Read)
+                DependenciesBridge.shared.donationReceiptCredentialResultStore
+                    .hasAnyPaymentsStillProcessing(tx: tx)
             {
                 // Fail the check if we have any in-progress payments.
                 return false
@@ -696,7 +716,7 @@ private extension RemoteMegaphoneModel.Manifest.Action {
     }
 }
 
-private extension ReceiptCredentialResultStore {
+private extension DonationReceiptCredentialResultStore {
     /// Do we have any payments that have been initiated, but are still
     /// in-progress?
     func hasAnyPaymentsStillProcessing(tx: DBReadTransaction) -> Bool {

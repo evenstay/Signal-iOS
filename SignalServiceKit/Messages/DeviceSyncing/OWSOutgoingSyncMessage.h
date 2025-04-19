@@ -7,9 +7,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class SDSAnyReadTransaction;
+@class DBReadTransaction;
 @class SSKProtoSyncMessage;
 @class SSKProtoSyncMessageBuilder;
+@class TSContactThread;
 
 /**
  * Abstract base class used for the family of sync messages which take care
@@ -26,7 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
                           additionalRecipients:(NSArray<SignalServiceAddress *> *)additionalRecipients
                             explicitRecipients:(NSArray<AciObjC *> *)explicitRecipients
                              skippedRecipients:(NSArray<SignalServiceAddress *> *)skippedRecipients
-                                   transaction:(SDSAnyReadTransaction *)transaction NS_UNAVAILABLE;
+                                   transaction:(DBReadTransaction *)transaction NS_UNAVAILABLE;
 
 - (instancetype)initWithGrdbId:(int64_t)grdbId
                           uniqueId:(NSString *)uniqueId
@@ -34,10 +35,10 @@ NS_ASSUME_NONNULL_BEGIN
                             sortId:(uint64_t)sortId
                          timestamp:(uint64_t)timestamp
                     uniqueThreadId:(NSString *)uniqueThreadId
-                     attachmentIds:(NSArray<NSString *> *)attachmentIds
                               body:(nullable NSString *)body
                         bodyRanges:(nullable MessageBodyRanges *)bodyRanges
                       contactShare:(nullable OWSContact *)contactShare
+          deprecated_attachmentIds:(nullable NSArray<NSString *> *)deprecated_attachmentIds
                          editState:(TSEditState)editState
                    expireStartedAt:(uint64_t)expireStartedAt
                 expireTimerVersion:(nullable NSNumber *)expireTimerVersion
@@ -69,14 +70,14 @@ NS_ASSUME_NONNULL_BEGIN
                 storedMessageState:(TSOutgoingMessageState)storedMessageState
               wasNotCreatedLocally:(BOOL)wasNotCreatedLocally NS_UNAVAILABLE;
 
-- (instancetype)initWithThread:(TSThread *)thread
-                   transaction:(SDSAnyReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithLocalThread:(TSContactThread *)localThread
+                        transaction:(DBReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithTimestamp:(uint64_t)timestamp
-                           thread:(TSThread *)thread
-                      transaction:(SDSAnyReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
+                      localThread:(TSContactThread *)localThread
+                      transaction:(DBReadTransaction *)transaction NS_DESIGNATED_INITIALIZER;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
 
-- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(SDSAnyReadTransaction *)transaction
+- (nullable SSKProtoSyncMessageBuilder *)syncMessageBuilderWithTransaction:(DBReadTransaction *)transaction
     NS_SWIFT_NAME(syncMessageBuilder(transaction:));
 
 + (nullable SSKProtoSyncMessage *)buildSyncMessageProtoForMessageBuilder:

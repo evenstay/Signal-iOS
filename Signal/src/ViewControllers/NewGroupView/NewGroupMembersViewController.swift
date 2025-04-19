@@ -79,14 +79,6 @@ extension NewGroupMembersViewController: GroupMemberViewDelegate {
         updateBarButtons()
     }
 
-    func groupMemberViewCanAddRecipient(_ recipient: PickedRecipient) -> Bool {
-        guard let address = recipient.address else {
-            owsFailDebug("Invalid recipient.")
-            return false
-        }
-        return GroupManager.doesUserSupportGroupsV2(address: address)
-    }
-
     func groupMemberViewShouldShowMemberCount() -> Bool {
         false
     }
@@ -109,7 +101,7 @@ extension NewGroupMembersViewController: GroupMemberViewDelegate {
     }
 
     func groupMemberViewIsPreExistingMember(_ recipient: PickedRecipient,
-                                            transaction: SDSAnyReadTransaction) -> Bool {
+                                            transaction: DBReadTransaction) -> Bool {
         false
     }
 

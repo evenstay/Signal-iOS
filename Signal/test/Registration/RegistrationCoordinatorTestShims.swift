@@ -22,6 +22,7 @@ extension RegistrationCoordinatorImpl {
         public typealias ProfileManager = _RegistrationCoordinator_ProfileManagerMock
         public typealias PushRegistrationManager = _RegistrationCoordinator_PushRegistrationManagerMock
         public typealias ReceiptManager = _RegistrationCoordinator_ReceiptManagerMock
+        public typealias StorageServiceManager = _RegistrationCoordinator_StorageServiceManagerMock
         public typealias UDManager = _RegistrationCoordinator_UDManagerMock
     }
 }
@@ -84,6 +85,8 @@ public class _RegistrationCoordinator_FeatureFlagsMock: _RegistrationCoordinator
 
     public init() {}
 
+    public var enableAccountEntropyPool = false
+
     public var messageBackupFileAlphaRegistrationFlow: Bool { false }
 }
 
@@ -110,10 +113,10 @@ public class _RegistrationCoordinator_MessageProcessorMock: _RegistrationCoordin
 
     public init() {}
 
-    public var waitForProcessingCompleteAndThenSuspendMock: (() -> Guarantee<Void>)?
+    public var waitForFetchingAndProcessingMock: (() -> Guarantee<Void>)?
 
-    public func waitForProcessingCompleteAndThenSuspend(for suspension: MessagePipelineSupervisor.Suspension) -> Guarantee<Void> {
-        return waitForProcessingCompleteAndThenSuspendMock!()
+    public func waitForFetchingAndProcessing() -> Guarantee<Void> {
+        return waitForFetchingAndProcessingMock!()
     }
 }
 
@@ -182,13 +185,11 @@ public class _RegistrationCoordinator_ProfileManagerMock: _RegistrationCoordinat
 
     public init() {}
 
-    public var hasProfileNameMock: () -> Bool = { false }
+    public var localUserProfileMock: (_ tx: DBReadTransaction) -> OWSUserProfile? = { _ in nil }
 
-    public var hasProfileName: Bool { return hasProfileNameMock() }
-
-    public var localProfileKeyMock: () -> Aes256Key = { Aes256Key() }
-
-    public var localProfileKey: Aes256Key { return localProfileKeyMock() }
+    public func localUserProfile(tx: DBReadTransaction) -> OWSUserProfile? {
+        localUserProfileMock(tx)
+    }
 
     public var updateLocalProfileMock: ((
         _ givenName: OWSUserProfile.NameComponent,
@@ -272,6 +273,31 @@ public class _RegistrationCoordinator_ReceiptManagerMock: _RegistrationCoordinat
         didSetAreStoryViewedReceiptsEnabled = true
         setAreStoryViewedReceiptsEnabledMock?(areEnabled)
     }
+}
+
+// MARK: StorageService
+public class _RegistrationCoordinator_StorageServiceManagerMock: _RegistrationCoordinator_StorageServiceManagerShim {
+
+    public var rotateManifestMock: (StorageServiceManagerManifestRotationMode, AuthedDevice) -> Promise<Void> = { _, _ in
+        return .value(())
+    }
+    public func rotateManifest(mode: StorageServiceManagerManifestRotationMode, authedDevice: AuthedDevice) -> Promise<Void> {
+        return rotateManifestMock(mode, authedDevice)
+    }
+
+    public var restoreOrCreateManifestIfNecessaryMock: (AuthedDevice, StorageService.MasterKeySource) -> Promise<Void> = { _, _ in
+        return .value(())
+    }
+    public func restoreOrCreateManifestIfNecessary(authedDevice: AuthedDevice, masterKeySource: StorageService.MasterKeySource) -> Promise<Void> {
+        return restoreOrCreateManifestIfNecessaryMock(authedDevice, masterKeySource)
+    }
+
+    public var backupPendingChangesMock: ((SignalServiceKit.AuthedDevice) -> Void) = { _ in }
+    public func backupPendingChanges(authedDevice: SignalServiceKit.AuthedDevice) {
+        return backupPendingChangesMock(authedDevice)
+    }
+
+    public func recordPendingLocalAccountUpdates() { }
 }
 
 // MARK: UDManager

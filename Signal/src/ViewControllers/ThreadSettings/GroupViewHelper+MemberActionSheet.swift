@@ -37,13 +37,13 @@ extension GroupViewHelper {
                 fromViewController: fromViewController,
                 updateDescription: updateDescription,
                 updateBlock: { try await updateBlock(oldGroupModel, serviceId) },
-                completion: { [weak self] _ in
+                completion: { [weak self] in
                     self?.delegate?.groupViewHelperDidUpdateGroup()
                 }
             )
         }
-        let title = String(format: titleFormat, databaseStorage.read { tx in
-            return contactsManager.displayName(for: address, tx: tx).resolvedValue()
+        let title = String(format: titleFormat, SSKEnvironment.shared.databaseStorageRef.read { tx in
+            return SSKEnvironment.shared.contactManagerRef.displayName(for: address, tx: tx).resolvedValue()
         })
         let actionSheet = ActionSheetController(title: title)
         actionSheet.addAction(ActionSheetAction(title: actionTitle, style: .default, handler: { _ in actionBlock() }))
@@ -80,7 +80,7 @@ extension GroupViewHelper {
             actionTitle: actionTitle,
             updateDescription: "Make group admin",
             updateBlock: { (oldGroupModel, aci: Aci) in
-                _ = try await GroupManager.changeMemberRoleV2(groupModel: oldGroupModel, aci: aci, role: .administrator)
+                try await GroupManager.changeMemberRoleV2(groupModel: oldGroupModel, aci: aci, role: .administrator)
             }
         )
     }
@@ -113,7 +113,7 @@ extension GroupViewHelper {
             actionTitle: actionTitle,
             updateDescription: "Revoke group admin",
             updateBlock: { (oldGroupModel, aci: Aci) in
-                _ = try await GroupManager.changeMemberRoleV2(groupModel: oldGroupModel, aci: aci, role: .normal)
+                try await GroupManager.changeMemberRoleV2(groupModel: oldGroupModel, aci: aci, role: .normal)
             }
         )
     }
@@ -153,7 +153,7 @@ extension GroupViewHelper {
             actionTitle: actionTitle,
             updateDescription: "Remove user from group",
             updateBlock: { (oldGroupModel, serviceId: ServiceId) in
-                _ = try await GroupManager.removeFromGroupOrRevokeInviteV2(groupModel: oldGroupModel, serviceIds: [serviceId])
+                try await GroupManager.removeFromGroupOrRevokeInviteV2(groupModel: oldGroupModel, serviceIds: [serviceId])
             }
         )
     }

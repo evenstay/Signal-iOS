@@ -11,15 +11,15 @@ public import SignalUI
 public class CVAttachmentProgressView: ManualLayoutView {
 
     public enum Direction {
-        case upload(attachmentStream: TSResourceStream)
-        case download(attachmentPointer: TSResourcePointer, transitTierDownloadState: AttachmentDownloadState)
+        case upload(attachmentStream: AttachmentStream)
+        case download(attachmentPointer: AttachmentPointer, downloadState: AttachmentDownloadState)
 
-        var attachmentId: TSResourceId {
+        var attachmentId: Attachment.IDType {
             switch self {
             case .upload(let attachmentStream):
-                return attachmentStream.resourceId
+                return attachmentStream.id
             case .download(let attachmentPointer, _):
-                return attachmentPointer.resourceId
+                return attachmentPointer.id
             }
         }
     }
@@ -30,7 +30,7 @@ public class CVAttachmentProgressView: ManualLayoutView {
 
     private let stateView: StateView
 
-    private var attachmentId: TSResourceId { direction.attachmentId }
+    private var attachmentId: Attachment.IDType { direction.attachmentId }
 
     public init(
         direction: Direction,
@@ -96,15 +96,6 @@ public class CVAttachmentProgressView: ManualLayoutView {
                 if oldValue != state {
                     applyState(oldState: oldValue, newState: state)
                 }
-            }
-        }
-
-        private var isIncoming: Bool {
-            switch direction {
-            case .upload:
-                return false
-            case .download:
-                return true
             }
         }
 
@@ -266,12 +257,12 @@ public class CVAttachmentProgressView: ManualLayoutView {
             NotificationCenter.default.addObserver(
                 self,
                 selector: #selector(processUploadNotification(notification:)),
-                name: Upload.Constants.resourceUploadProgressNotification,
+                name: Upload.Constants.attachmentUploadProgressNotification,
                 object: nil
             )
 
-        case .download(_, let transitTierDownloadState):
-            switch transitTierDownloadState {
+        case .download(_, let downloadState):
+            switch downloadState {
             case .failed:
                 stateView.state = .downloadFailed
             case .none:
@@ -282,7 +273,7 @@ public class CVAttachmentProgressView: ManualLayoutView {
                 NotificationCenter.default.addObserver(
                     self,
                     selector: #selector(processDownloadNotification(notification:)),
-                    name: TSResourceDownloads.attachmentDownloadProgressNotification,
+                    name: AttachmentDownloads.attachmentDownloadProgressNotification,
                     object: nil
                 )
             }
@@ -292,7 +283,7 @@ public class CVAttachmentProgressView: ManualLayoutView {
     @objc
     private func processDownloadNotification(notification: Notification) {
         guard
-            let attachmentId = notification.userInfo?[TSResourceDownloads.attachmentDownloadAttachmentIDKey] as? TSResourceId
+            let attachmentId = notification.userInfo?[AttachmentDownloads.attachmentDownloadAttachmentIDKey] as? Attachment.IDType
         else {
             owsFailDebug("Missing notificationAttachmentId.")
             return
@@ -300,7 +291,7 @@ public class CVAttachmentProgressView: ManualLayoutView {
         guard attachmentId == self.attachmentId else {
             return
         }
-        let progress = notification.userInfo?[TSResourceDownloads.attachmentDownloadProgressKey] as? CGFloat
+        let progress = notification.userInfo?[AttachmentDownloads.attachmentDownloadProgressKey] as? CGFloat
         if progress == nil {
             Logger.warn("No progress for attachment progress notification.")
         }
@@ -335,7 +326,7 @@ public class CVAttachmentProgressView: ManualLayoutView {
 
     @objc
     private func processUploadNotification(notification: Notification) {
-        guard let notificationAttachmentId = notification.userInfo?[Upload.Constants.uploadResourceIDKey] as? TSResourceId else {
+        guard let notificationAttachmentId = notification.userInfo?[Upload.Constants.uploadAttachmentIDKey] as? Attachment.IDType else {
             owsFailDebug("Missing notificationAttachmentId.")
             return
         }
@@ -350,7 +341,7 @@ public class CVAttachmentProgressView: ManualLayoutView {
 
         switch direction {
         case .upload(let attachmentStream):
-            guard !attachmentStream.isUploadedToTransitTier else {
+            guard !attachmentStream.attachment.isUploadedToTransitTier else {
                 stateView.state = .uploadProgress(progress: 1)
                 return
             }
@@ -378,10 +369,10 @@ public class CVAttachmentProgressView: ManualLayoutView {
         }
     }
 
-    private func updateUploadProgress(attachmentStream: TSResourceStream) {
+    private func updateUploadProgress(attachmentStream: AttachmentStream) {
         AssertIsOnMainThread()
 
-        if attachmentStream.isUploadedToTransitTier {
+        if attachmentStream.attachment.isUploadedToTransitTier {
             stateView.state = .uploadProgress(progress: 1)
         } else {
             stateView.state = .uploadUnknownProgress
@@ -390,9 +381,9 @@ public class CVAttachmentProgressView: ManualLayoutView {
 
     public enum ProgressType {
         case none
-        case uploading(attachmentStream: TSResourceStream)
-        case pendingDownload(attachmentPointer: TSResourcePointer)
-        case downloading(attachmentPointer: TSResourcePointer, transitTierDownloadState: AttachmentDownloadState)
+        case uploading(attachmentStream: AttachmentStream)
+        case pendingDownload(attachmentPointer: AttachmentPointer)
+        case downloading(attachmentPointer: AttachmentPointer, downloadState: AttachmentDownloadState)
         case unknown
     }
 
@@ -410,8 +401,8 @@ public class CVAttachmentProgressView: ManualLayoutView {
                 let hasSendFailed = outgoingMessage.messageState == .failed
                 let wasNotCreatedLocally = outgoingMessage.wasNotCreatedLocally
                 guard
-                    !attachmentStream.attachmentStream.isUploadedToTransitTier,
-                    !attachmentStream.attachmentStream.hasMediaTierInfo,
+                    !attachmentStream.attachment.isUploadedToTransitTier,
+                    !attachmentStream.attachment.hasMediaTierInfo,
                     !wasNotCreatedLocally,
                     !hasSendFailed
                 else {
@@ -424,16 +415,18 @@ public class CVAttachmentProgressView: ManualLayoutView {
                 owsFailDebug("Unexpected interaction: \(type(of: interaction))")
                 return .unknown
             }
-        case .pointer(let attachmentPointer, let transitTierDownloadState):
-            switch transitTierDownloadState {
+        case .pointer(let attachmentPointer, let downloadState):
+            switch downloadState {
             case .none:
                 return .pendingDownload(attachmentPointer: attachmentPointer.attachmentPointer)
             case .failed, .enqueuedOrDownloading:
                 return .downloading(
                     attachmentPointer: attachmentPointer.attachmentPointer,
-                    transitTierDownloadState: transitTierDownloadState
+                    downloadState: downloadState
                 )
             }
+        case .undownloadable:
+            return .none
         }
     }
 }

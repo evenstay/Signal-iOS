@@ -70,16 +70,16 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         self.callRecords = callRecords
         groupViewHelper = GroupViewHelper(threadViewModel: threadViewModel)
 
-        disappearingMessagesConfiguration = Self.databaseStorage.read { tx in
+        disappearingMessagesConfiguration = SSKEnvironment.shared.databaseStorageRef.read { tx in
             let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
-            return dmConfigurationStore.fetchOrBuildDefault(for: .thread(threadViewModel.threadRecord), tx: tx.asV2Read)
+            return dmConfigurationStore.fetchOrBuildDefault(for: .thread(threadViewModel.threadRecord), tx: tx)
         }
 
         super.init()
 
         AppEnvironment.shared.callService.callServiceState.addObserver(self, syncStateImmediately: false)
-        databaseStorage.appendDatabaseChangeDelegate(self)
-        contactsViewHelper.addObserver(self)
+        DependenciesBridge.shared.databaseChangeObserver.appendDatabaseChangeDelegate(self)
+        SUIEnvironment.shared.contactsViewHelperRef.addObserver(self)
         groupViewHelper.delegate = self
     }
 
@@ -103,13 +103,13 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(attachmentsAddedOrRemoved(notification:)),
-            name: MediaGalleryResource.newAttachmentsAvailableNotification,
+            name: MediaGalleryChangeInfo.newAttachmentsAvailableNotification,
             object: nil
         )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(attachmentsAddedOrRemoved(notification:)),
-            name: MediaGalleryResource.didRemoveAttachmentsNotification,
+            name: MediaGalleryChangeInfo.didRemoveAttachmentsNotification,
             object: nil
         )
     }
@@ -242,7 +242,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
 
     private(set) var groupMemberStateMap = [SignalServiceAddress: VerificationState]()
     private(set) var sortedGroupMembers = [SignalServiceAddress]()
-    func updateGroupMembers(transaction tx: SDSAnyReadTransaction) {
+    func updateGroupMembers(transaction tx: DBReadTransaction) {
         guard
             let groupModel = currentGroupModel,
             !groupModel.isPlaceholder,
@@ -260,9 +260,9 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
 
         let identityManager = DependenciesBridge.shared.identityManager
         for memberAddress in allMembers {
-            verificationStateMap[memberAddress] = identityManager.verificationState(for: memberAddress, tx: tx.asV2Read)
+            verificationStateMap[memberAddress] = identityManager.verificationState(for: memberAddress, tx: tx)
         }
-        allMembersSorted = self.contactsManagerImpl.sortSignalServiceAddresses(allMembers, transaction: tx)
+        allMembersSorted = SSKEnvironment.shared.contactManagerImplRef.sortSignalServiceAddresses(allMembers, transaction: tx)
 
         var membersToRender = [SignalServiceAddress]()
         if groupMembership.isFullMember(localAddress) {
@@ -281,7 +281,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     }
 
     func reloadThreadAndUpdateContent() {
-        let didUpdate = self.databaseStorage.read { tx -> Bool in
+        let didUpdate = SSKEnvironment.shared.databaseStorageRef.read { tx -> Bool in
             guard let newThread = TSThread.anyFetch(uniqueId: self.thread.uniqueId, transaction: tx) else {
                 return false
             }
@@ -292,7 +292,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
                     return false
                 }
                 let address = contactThread.contactAddress
-                return contactsManager.fetchSignalAccount(for: address, transaction: tx) != nil
+                return SSKEnvironment.shared.contactManagerRef.fetchSignalAccount(for: address, transaction: tx) != nil
             }()
             self.groupViewHelper = GroupViewHelper(threadViewModel: newThreadViewModel)
             self.groupViewHelper.delegate = self
@@ -514,7 +514,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     }
 
     func presentCreateOrEditContactViewController(address: SignalServiceAddress, editImmediately: Bool) {
-        contactsViewHelper.presentSystemContactsFlow(
+        SUIEnvironment.shared.contactsViewHelperRef.presentSystemContactsFlow(
             CreateOrEditContactFlow(address: address, editImmediately: editImmediately),
             from: self,
             completion: {
@@ -525,7 +525,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
 
     func presentAvatarViewController() {
         guard let avatarView = avatarView, avatarView.primaryImage != nil else { return }
-        guard let vc = databaseStorage.read(block: { readTx in
+        guard let vc = SSKEnvironment.shared.databaseStorageRef.read(block: { readTx in
             AvatarViewController(thread: self.thread, renderLocalUserAsNoteToSelf: true, readTx: readTx)
         }) else {
             return
@@ -537,8 +537,8 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     func presentPrimaryBadgeSheet() {
         guard let contactAddress = (thread as? TSContactThread)?.contactAddress else { return }
         guard let primaryBadge = availableBadges.first?.badge else { return }
-        let contactShortName = databaseStorage.read {
-            return contactsManager.displayName(for: contactAddress, tx: $0).resolvedValue(useShortNameIfAvailable: true)
+        let contactShortName = SSKEnvironment.shared.databaseStorageRef.read {
+            return SSKEnvironment.shared.contactManagerRef.displayName(for: contactAddress, tx: $0).resolvedValue(useShortNameIfAvailable: true)
         }
 
         let badgeSheet = BadgeDetailsSheet(focusedBadge: primaryBadge, owner: .remote(shortName: contactShortName))
@@ -546,7 +546,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     }
 
     private func presentAddToExistingContactFlow(address: SignalServiceAddress) {
-        contactsViewHelper.presentSystemContactsFlow(
+        SUIEnvironment.shared.contactsViewHelperRef.presentSystemContactsFlow(
             AddToExistingContactFlow(address: address),
             from: self,
             completion: {
@@ -767,9 +767,10 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
             actionSheet.addAction(action)
         } else {
             #if DEBUG
-            actionSheet.addAction(ActionSheetAction(title: OWSLocalizedString("CONVERSATION_SETTINGS_MUTE_ONE_MINUTE_ACTION",
-                                                                             comment: "Label for button to mute a thread for a minute."),
-                                                    accessibilityIdentifier: UIView.accessibilityIdentifier(in: fromVC, name: "mute_1_minute")) { _ in
+            actionSheet.addAction(ActionSheetAction(
+                title: LocalizationNotNeeded("1 minute"),
+                accessibilityIdentifier: UIView.accessibilityIdentifier(in: fromVC, name: "mute_1_minute")
+            ) { _ in
                 setThreadMuted(threadViewModel: threadViewModel) {
                     var dateComponents = DateComponents()
                     dateComponents.minute = 1
@@ -846,7 +847,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     }
 
     private class func setThreadMutedUntilTimestamp(_ value: UInt64, threadViewModel: ThreadViewModel) {
-        databaseStorage.write { transaction in
+        SSKEnvironment.shared.databaseStorageRef.write { transaction in
             threadViewModel.associatedData.updateWith(mutedUntilTimestamp: value, updateStorageService: true, transaction: transaction)
         }
     }
@@ -862,7 +863,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
         navigationController?.pushViewController(tileVC, animated: true)
     }
 
-    func showMediaPageView(for attachmentStream: ReferencedTSResourceStream) {
+    func showMediaPageView(for attachmentStream: ReferencedAttachmentStream) {
         guard let vc = MediaPageViewController(
             initialMediaAttachment: attachmentStream,
             thread: thread,
@@ -878,20 +879,20 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
 
     let maximumRecentMedia = 4
     private(set) var recentMedia = OrderedDictionary<
-        MediaGalleryResourceId,
-        (attachment: ReferencedTSResourceStream, imageView: UIImageView)
+        AttachmentReferenceId,
+        (attachment: ReferencedAttachmentStream, imageView: UIImageView)
     >() {
         didSet { AssertIsOnMainThread() }
     }
 
-    private lazy var mediaGalleryFinder = MediaGalleryResourceFinder(
-        thread: thread,
+    private lazy var mediaGalleryFinder = MediaGalleryAttachmentFinder(
+        threadId: thread.grdbId!.int64Value,
         filter: .defaultMediaType(for: AllMediaCategory.defaultValue)
     )
 
     func updateRecentAttachments() {
-        let recentAttachments = databaseStorage.read { transaction in
-            mediaGalleryFinder.recentMediaAttachments(limit: maximumRecentMedia, tx: transaction.asV2Read)
+        let recentAttachments = SSKEnvironment.shared.databaseStorageRef.read { transaction in
+            mediaGalleryFinder.recentMediaAttachments(limit: maximumRecentMedia, tx: transaction)
         }
         recentMedia = recentAttachments.reduce(into: OrderedDictionary(), { result, attachment in
             guard let attachmentStream = attachment.asReferencedStream else {
@@ -908,7 +909,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
             }
 
             result.append(
-                key: attachmentStream.reference.mediaGalleryResourceId,
+                key: attachmentStream.reference.referenceId,
                 value: (attachmentStream, imageView)
             )
         })
@@ -923,7 +924,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     }
     func updateMutualGroupThreads() {
         guard let contactThread = thread as? TSContactThread else { return }
-        databaseStorage.read { transaction in
+        SSKEnvironment.shared.databaseStorageRef.read { transaction in
             self.hasGroupThreads = ThreadFinder().existsGroupThread(transaction: transaction)
             self.mutualGroupThreads = TSGroupThread.groupThreads(
                 with: contactThread.contactAddress,
@@ -991,7 +992,7 @@ class ConversationSettingsViewController: OWSTableViewController2, BadgeCollecti
     private func attachmentsAddedOrRemoved(notification: Notification) {
         AssertIsOnMainThread()
 
-        let attachments = notification.object as! [MediaGalleryResource.ChangedResourceInfo]
+        let attachments = notification.object as! [MediaGalleryChangeInfo]
         guard attachments.contains(where: { $0.threadGrdbId == thread.sqliteRowId }) else {
             return
         }
@@ -1082,7 +1083,7 @@ extension ConversationSettingsViewController: MediaPresentationContextProvider {
         let mediaViewShape: MediaViewShape
         switch item {
         case .gallery(let galleryItem):
-            guard let imageView = recentMedia[galleryItem.attachmentStream.reference.mediaGalleryResourceId]?.imageView else { return nil }
+            guard let imageView = recentMedia[galleryItem.attachmentStream.reference.referenceId]?.imageView else { return nil }
             mediaView = imageView
             mediaViewShape = .rectangle(imageView.layer.cornerRadius)
         case .image:
@@ -1125,8 +1126,6 @@ extension ConversationSettingsViewController: GroupPermissionsSettingsDelegate {
 extension ConversationSettingsViewController: DatabaseChangeDelegate {
 
     public func databaseChangesDidUpdate(databaseChanges: DatabaseChanges) {
-        AssertIsOnMainThread()
-
         if databaseChanges.didUpdate(tableName: TSGroupMember.databaseTableName) {
             updateMutualGroupThreads()
             updateTableContents()
@@ -1134,16 +1133,12 @@ extension ConversationSettingsViewController: DatabaseChangeDelegate {
     }
 
     public func databaseChangesDidUpdateExternally() {
-        AssertIsOnMainThread()
-
         updateRecentAttachments()
         updateMutualGroupThreads()
         updateTableContents()
     }
 
     public func databaseChangesDidReset() {
-        AssertIsOnMainThread()
-
         updateRecentAttachments()
         updateMutualGroupThreads()
         updateTableContents()

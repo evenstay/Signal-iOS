@@ -5,12 +5,12 @@
 
 public import Foundation
 import CallKit
-public import SignalServiceKit
+import SignalServiceKit
+import SignalUI
 import WebRTC
 import UIKit
 
 protocol CallUIAdaptee: AnyObject {
-    var notificationPresenterImpl: NotificationPresenterImpl { get }
     var callService: CallService { get }
 
     init(showNamesOnCallScreen: Bool, useSystemCallLog: Bool)
@@ -18,7 +18,7 @@ protocol CallUIAdaptee: AnyObject {
     @MainActor
     func startOutgoingCall(call: SignalCall)
 
-    // [CallLink] TODO: Only allow individual & group calls.
+    // TODO: It might be nice to prevent call links from being passed here at compile time.
     @MainActor
     func reportIncomingCall(_ call: SignalCall, completion: @escaping (Error?) -> Void)
 
@@ -71,10 +71,10 @@ public class CallUIAdapter: NSObject {
 #else
         callUIAdapteeType = CallKitCallUIAdaptee.self
 #endif
-        let (showNames, useSystemCallLog) = databaseStorage.read { tx in
+        let (showNames, useSystemCallLog) = SSKEnvironment.shared.databaseStorageRef.read { tx in
             return (
-                preferences.notificationPreviewType(tx: tx) != .noNameNoPreview,
-                preferences.isSystemCallLogEnabled(tx: tx)
+                SSKEnvironment.shared.preferencesRef.notificationPreviewType(tx: tx) != .noNameNoPreview,
+                SSKEnvironment.shared.preferencesRef.isSystemCallLogEnabled(tx: tx)
             )
         }
         return callUIAdapteeType.init(
@@ -98,7 +98,7 @@ public class CallUIAdapter: NSObject {
         Logger.info("remoteAddress: \(caller)")
 
         // make sure we don't terminate audio session during call
-        _ = audioSession.startAudioActivity(call.commonState.audioActivity)
+        _ = SUIEnvironment.shared.audioSessionRef.startAudioActivity(call.commonState.audioActivity)
 
         adaptee.reportIncomingCall(call) { error in
             AssertIsOnMainThread()
@@ -131,9 +131,9 @@ public class CallUIAdapter: NSObject {
         }
 
         let sentAtTimestamp = Date(millisecondsSince1970: individualCall.sentAtTimestamp)
-        databaseStorage.read { tx in
-            notificationPresenterImpl.presentMissedCall(
-                notificationInfo: NotificationPresenterImpl.CallNotificationInfo(
+        SSKEnvironment.shared.databaseStorageRef.read { tx in
+            SSKEnvironment.shared.notificationPresenterRef.notifyUserOfMissedCall(
+                notificationInfo: CallNotificationInfo(
                     groupingId: individualCall.commonState.localId,
                     thread: individualCall.thread,
                     caller: callerAci
@@ -148,7 +148,7 @@ public class CallUIAdapter: NSObject {
     @MainActor
     internal func startOutgoingCall(call: SignalCall) {
         // make sure we don't terminate audio session during call
-        _ = audioSession.startAudioActivity(call.commonState.audioActivity)
+        _ = SUIEnvironment.shared.audioSessionRef.startAudioActivity(call.commonState.audioActivity)
 
         adaptee.startOutgoingCall(call: call)
     }
@@ -159,9 +159,10 @@ public class CallUIAdapter: NSObject {
     }
 
     @MainActor
-    public func startAndShowOutgoingCall(thread: TSContactThread, hasLocalVideo: Bool) {
+    func startAndShowOutgoingCall(thread: TSContactThread, prepareResult: CallStarter.PrepareToStartCallResult, hasLocalVideo: Bool) {
         guard let (call, individualCall) = self.callService.buildOutgoingIndividualCallIfPossible(
             thread: thread,
+            localDeviceId: prepareResult.localDeviceId,
             hasVideo: hasLocalVideo
         ) else {
             // @integration This is not unexpected, it could happen if Bob tries
@@ -230,11 +231,13 @@ public class CallUIAdapter: NSObject {
         case .individual(let individualCall):
             callViewController = IndividualCallViewController(call: call, individualCall: individualCall)
         case .groupThread(let groupCall as GroupCall), .callLink(let groupCall as GroupCall):
-            callViewController = GroupCallViewController(call: call, groupCall: groupCall)
+            callViewController = SSKEnvironment.shared.databaseStorageRef.read { tx in
+                return GroupCallViewController.load(call: call, groupCall: groupCall, tx: tx)
+            }
         }
 
         callViewController.modalTransitionStyle = .crossDissolve
-        WindowManager.shared.startCall(viewController: callViewController)
+        AppEnvironment.shared.windowManagerRef.startCall(viewController: callViewController)
     }
 
     @MainActor

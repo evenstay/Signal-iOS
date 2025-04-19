@@ -4,7 +4,6 @@
 //
 
 #import "OWSStaticOutgoingMessage.h"
-#import <SignalServiceKit/NSDate+OWS.h>
 #import <SignalServiceKit/SignalServiceKit-Swift.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -20,10 +19,12 @@ NS_ASSUME_NONNULL_BEGIN
 @implementation OWSStaticOutgoingMessage
 
 - (instancetype)initWithThread:(TSThread *)thread
+                     timestamp:(uint64_t)timestamp
                  plaintextData:(NSData *)plaintextData
-                   transaction:(SDSAnyReadTransaction *)transaction
+                   transaction:(DBReadTransaction *)transaction
 {
     TSOutgoingMessageBuilder *messageBuilder = [TSOutgoingMessageBuilder outgoingMessageBuilderWithThread:thread];
+    messageBuilder.timestamp = timestamp;
     self = [super initOutgoingMessageWithBuilder:messageBuilder
                             additionalRecipients:@[]
                               explicitRecipients:@[]
@@ -42,7 +43,12 @@ NS_ASSUME_NONNULL_BEGIN
     return NO;
 }
 
-- (nullable NSData *)buildPlainTextData:(TSThread *)thread transaction:(SDSAnyWriteTransaction *)transaction
+- (BOOL)shouldSyncTranscript
+{
+    return NO;
+}
+
+- (nullable NSData *)buildPlainTextData:(TSThread *)thread transaction:(DBWriteTransaction *)transaction
 {
     return self.plaintextData;
 }

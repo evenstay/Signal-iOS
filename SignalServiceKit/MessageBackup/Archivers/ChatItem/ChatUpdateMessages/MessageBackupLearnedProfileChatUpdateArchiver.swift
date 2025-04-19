@@ -11,9 +11,9 @@ final class MessageBackupLearnedProfileChatUpdateArchiver {
     private typealias ArchiveFrameError = MessageBackup.ArchiveFrameError<MessageBackup.InteractionUniqueId>
     private typealias RestoreFrameError = MessageBackup.RestoreFrameError<MessageBackup.ChatItemId>
 
-    private let interactionStore: any InteractionStore
+    private let interactionStore: MessageBackupInteractionStore
 
-    init(interactionStore: any InteractionStore) {
+    init(interactionStore: MessageBackupInteractionStore) {
         self.interactionStore = interactionStore
     }
 
@@ -21,7 +21,7 @@ final class MessageBackupLearnedProfileChatUpdateArchiver {
 
     func archiveLearnedProfileChatUpdate(
         infoMessage: TSInfoMessage,
-        thread: TSThread,
+        threadInfo: MessageBackup.ChatArchivingContext.CachedThreadInfo,
         context: MessageBackup.ChatArchivingContext
     ) -> ArchiveChatUpdateMessageResult {
         func messageFailure(
@@ -54,18 +54,19 @@ final class MessageBackupLearnedProfileChatUpdateArchiver {
         var chatUpdateMessage = BackupProto_ChatUpdateMessage()
         chatUpdateMessage.update = .learnedProfileChange(learnedProfileChatUpdate)
 
-        let interactionArchiveDetails = Details(
-            author: context.recipientContext.localRecipientId,
+        return Details.validateAndBuild(
+            interactionUniqueId: infoMessage.uniqueInteractionId,
+            author: .localUser,
             directionalDetails: .directionless(BackupProto_ChatItem.DirectionlessMessageDetails()),
             dateCreated: infoMessage.timestamp,
             expireStartDate: nil,
             expiresInMs: nil,
             isSealedSender: false,
             chatItemType: .updateMessage(chatUpdateMessage),
-            isSmsPreviouslyRestoredFromBackup: false
+            isSmsPreviouslyRestoredFromBackup: false,
+            threadInfo: threadInfo,
+            context: context.recipientContext
         )
-
-        return .success(interactionArchiveDetails)
     }
 
     // MARK: -
@@ -74,7 +75,7 @@ final class MessageBackupLearnedProfileChatUpdateArchiver {
         _ learnedProfileUpdateProto: BackupProto_LearnedProfileChatUpdate,
         chatItem: BackupProto_ChatItem,
         chatThread: MessageBackup.ChatThread,
-        context: MessageBackup.ChatRestoringContext
+        context: MessageBackup.ChatItemRestoringContext
     ) -> RestoreChatUpdateMessageResult {
         func invalidProtoData(
             _ error: RestoreFrameError.ErrorType.InvalidProtoDataError,
@@ -87,16 +88,12 @@ final class MessageBackupLearnedProfileChatUpdateArchiver {
             )])
         }
 
-        guard let previousName = learnedProfileUpdateProto.previousName else {
-            return invalidProtoData(.learnedProfileUpdateMissingPreviousName)
-        }
-
         guard case .contact(let contactThread) = chatThread.threadType else {
             return invalidProtoData(.learnedProfileUpdateNotFromContact)
         }
 
         let displayNameBefore: TSInfoMessage.DisplayNameBeforeLearningProfileName
-        switch previousName {
+        switch learnedProfileUpdateProto.previousName {
         case .e164(let uintValue):
             guard let e164 = E164(uintValue) else {
                 return invalidProtoData(.invalidE164(protoClass: BackupProto_LearnedProfileChatUpdate.self))
@@ -105,6 +102,9 @@ final class MessageBackupLearnedProfileChatUpdateArchiver {
             displayNameBefore = .phoneNumber(e164.stringValue)
         case .username(let username):
             displayNameBefore = .username(username)
+        case nil:
+            // This isn't great, but we just use an empty username.
+            displayNameBefore = .username("")
         }
 
         let learnedProfileKeyInfoMessage: TSInfoMessage = .makeForLearnedProfileName(
@@ -112,7 +112,24 @@ final class MessageBackupLearnedProfileChatUpdateArchiver {
             timestamp: chatItem.dateSent,
             displayNameBefore: displayNameBefore
         )
-        interactionStore.insertInteraction(learnedProfileKeyInfoMessage, tx: context.tx)
+
+        guard let directionalDetails = chatItem.directionalDetails else {
+            return .unrecognizedEnum(MessageBackup.UnrecognizedEnumError(
+                enumType: BackupProto_ChatItem.OneOf_DirectionalDetails.self
+            ))
+        }
+
+        do {
+            try interactionStore.insert(
+                learnedProfileKeyInfoMessage,
+                in: chatThread,
+                chatId: chatItem.typedChatId,
+                directionalDetails: directionalDetails,
+                context: context
+            )
+        } catch let error {
+            return .messageFailure([.restoreFrameError(.databaseInsertionFailed(error), chatItem.id)])
+        }
 
         return .success(())
     }

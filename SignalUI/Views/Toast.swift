@@ -65,7 +65,16 @@ public class ToastController: NSObject, ToastViewDelegate {
         } else {
             self.toastBottomConstraint = toastView.autoPinEdge(edge, to: edge, of: view, withOffset: offset)
         }
-        toastView.autoPinWidthToSuperview(withMargin: 8)
+
+        if UIDevice.current.isIPad {
+            // As wide as possible, not exceeding 512 pt, and not exceeding superview width
+            toastView.autoHCenterInSuperview()
+            toastView.autoSetDimension(.width, toSize: 512, relation: .lessThanOrEqual)/*.priority = .defaultLow*/
+            toastView.autoPinWidthToSuperview(withMargin: 8, relation: .lessThanOrEqual)
+            toastView.autoPinWidthToSuperview(withMargin: 8).forEach { $0.priority = .defaultHigh }
+        } else {
+            toastView.autoPinWidthToSuperview(withMargin: 8)
+        }
 
         if let currentToastController = type(of: self).currentToastController {
             currentToastController.dismissToastView()
@@ -199,13 +208,9 @@ class ToastView: UIView {
         self.clipsToBounds = true
         self.layoutMargins = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
 
-        if UIAccessibility.isReduceTransparencyEnabled {
-            backgroundColor = .ows_blackAlpha80
-        } else {
-            let blurEffectView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
-            addSubview(blurEffectView)
-            blurEffectView.autoPinEdgesToSuperviewEdges()
-        }
+        let blurEffectView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
+        addSubview(blurEffectView)
+        blurEffectView.autoPinEdgesToSuperviewEdges()
 
         addSubview(darkThemeBackgroundOverlay)
         darkThemeBackgroundOverlay.autoPinEdgesToSuperviewEdges()

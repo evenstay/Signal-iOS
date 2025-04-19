@@ -6,14 +6,7 @@
 import Foundation
 
 public enum Upload {
-    public typealias ProgressBlock = (Progress) -> Void
-
-    public static let uploadQueue: OperationQueue = {
-        let queue = OperationQueue()
-        queue.name = "OWSUpload"
-        queue.maxConcurrentOperationCount = CurrentAppContext().isNSE ? 2 : 8
-        return queue
-    }()
+    public static let uploadQueue = ConcurrentTaskQueue(concurrentLimit: CurrentAppContext().isNSE ? 2 : 8)
 
     public enum Constants {
         public static let attachmentUploadProgressNotification = NSNotification.Name("AttachmentUploadProgressNotification")
@@ -40,7 +33,7 @@ public enum Upload {
             case cdnNumber = "cdn"
         }
 
-        let headers: [String: String]
+        let headers: HttpHeaders
         let signedUploadLocation: String
         let cdnKey: String
         let cdnNumber: UInt32
@@ -50,8 +43,15 @@ public enum Upload {
 
     public enum FailureMode {
         public enum RetryMode {
+            /// This was a temporary failure, such as a network
+            /// timeout, so an immediate retry should be possible
             case immediately
-            case afterDelay(TimeInterval)
+            /// The remote server sent back a retry-after header that should be honored
+            /// when attempting a backoff before retry
+            case afterServerRequestedDelay(TimeInterval)
+            /// An error was encountered and the server didn't provide a backoff, so
+            /// use the internal exponential backoff
+            case afterBackoff
         }
 
         // The overall upload has hit the max number of retries.
@@ -81,13 +81,16 @@ public enum Upload {
 
     public enum Error: Swift.Error, IsRetryableProvider, LocalizedError {
         case invalidUploadURL
+        case networkError
+        case networkTimeout
         case uploadFailure(recovery: FailureMode)
         case unsupportedEndpoint
+        case unexpectedResponseStatusCode(Int)
         case unknown
 
         public var isRetryableProvider: Bool {
             switch self {
-            case .invalidUploadURL, .uploadFailure, .unsupportedEndpoint, .unknown:
+            case .invalidUploadURL, .uploadFailure, .unsupportedEndpoint, .unexpectedResponseStatusCode, .networkTimeout, .networkError, .unknown:
                 return false
             }
         }
@@ -135,6 +138,13 @@ public enum Upload {
         public let plaintextDataLength: UInt32
 
         public var isReusedTransitTierUpload: Bool { false }
+    }
+
+    public struct LinkNSyncUploadMetadata: UploadMetadata {
+        /// File URL of the link'n'sync transient backup.
+        public let fileUrl: URL
+        /// The length of the file.
+        public let encryptedDataLength: UInt32
     }
 
     public struct ReusedUploadMetadata: AttachmentUploadMetadata {

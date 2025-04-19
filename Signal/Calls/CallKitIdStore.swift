@@ -4,35 +4,36 @@
 //
 
 import Foundation
+import LibSignalClient
 import SignalRingRTC
 import SignalServiceKit
 import SignalUI
 
 class CallKitIdStore {
-    private static let phoneNumberStore = SDSKeyValueStore(collection: "TSStorageManagerCallKitIdToPhoneNumberCollection")
-    private static let serviceIdStore = SDSKeyValueStore(collection: "TSStorageManagerCallKitIdToUUIDCollection")
-    private static let groupIdStore = SDSKeyValueStore(collection: "TSStorageManagerCallKitIdToGroupId")
-    private static let callLinkStore = SDSKeyValueStore(collection: "CallKitIdToCallLink")
+    private static let phoneNumberStore = KeyValueStore(collection: "TSStorageManagerCallKitIdToPhoneNumberCollection")
+    private static let serviceIdStore = KeyValueStore(collection: "TSStorageManagerCallKitIdToUUIDCollection")
+    private static let groupIdStore = KeyValueStore(collection: "TSStorageManagerCallKitIdToGroupId")
+    private static let callLinkStore = KeyValueStore(collection: "CallKitIdToCallLink")
 
-    static func setGroupThread(_ thread: TSGroupThread, forCallKitId callKitId: String) {
-        NSObject.databaseStorage.write { tx in
+    static func setGroupId(_ groupId: GroupIdentifier, forCallKitId callKitId: String) {
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             // Make sure it doesn't exist, but only in DEBUG builds.
-            assert(!phoneNumberStore.hasValue(forKey: callKitId, transaction: tx))
-            assert(!serviceIdStore.hasValue(forKey: callKitId, transaction: tx))
-            assert(!groupIdStore.hasValue(forKey: callKitId, transaction: tx))
-            assert(!callLinkStore.hasValue(forKey: callKitId, transaction: tx))
+            assert(!phoneNumberStore.hasValue(callKitId, transaction: tx))
+            assert(!serviceIdStore.hasValue(callKitId, transaction: tx))
+            assert(!groupIdStore.hasValue(callKitId, transaction: tx))
+            assert(!callLinkStore.hasValue(callKitId, transaction: tx))
 
-            groupIdStore.setData(thread.groupModel.groupId, key: callKitId, transaction: tx)
+            groupIdStore.setData(groupId.serialize().asData, key: callKitId, transaction: tx)
         }
     }
 
     static func setContactThread(_ thread: TSContactThread, forCallKitId callKitId: String) {
-        NSObject.databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             // Make sure it doesn't exist, but only in DEBUG builds.
-            assert(!phoneNumberStore.hasValue(forKey: callKitId, transaction: tx))
-            assert(!serviceIdStore.hasValue(forKey: callKitId, transaction: tx))
-            assert(!groupIdStore.hasValue(forKey: callKitId, transaction: tx))
-            assert(!callLinkStore.hasValue(forKey: callKitId, transaction: tx))
+            assert(!phoneNumberStore.hasValue(callKitId, transaction: tx))
+            assert(!serviceIdStore.hasValue(callKitId, transaction: tx))
+            assert(!groupIdStore.hasValue(callKitId, transaction: tx))
+            assert(!callLinkStore.hasValue(callKitId, transaction: tx))
 
             let address = thread.contactAddress
             if let serviceIdString = address.serviceIdUppercaseString {
@@ -47,11 +48,11 @@ class CallKitIdStore {
     }
 
     static func setCallLink(_ callLink: CallLink, forCallKitId callKitId: String) {
-        NSObject.databaseStorage.write { tx in
+        SSKEnvironment.shared.databaseStorageRef.write { tx in
             // Make sure it doesn't exist, but only in DEBUG builds.
-            assert(!phoneNumberStore.hasValue(forKey: callKitId, transaction: tx))
-            assert(!serviceIdStore.hasValue(forKey: callKitId, transaction: tx))
-            assert(!groupIdStore.hasValue(forKey: callKitId, transaction: tx))
+            assert(!phoneNumberStore.hasValue(callKitId, transaction: tx))
+            assert(!serviceIdStore.hasValue(callKitId, transaction: tx))
+            assert(!groupIdStore.hasValue(callKitId, transaction: tx))
             // Call Links may be stored multiple times...
 
             callLinkStore.setData(callLink.rootKey.bytes, key: callKitId, transaction: tx)
@@ -59,7 +60,7 @@ class CallKitIdStore {
     }
 
     static func callTarget(forCallKitId callKitId: String) -> CallTarget? {
-        return NSObject.databaseStorage.read { tx -> CallTarget? in
+        return SSKEnvironment.shared.databaseStorageRef.read { tx -> CallTarget? in
             // Most likely: modern 1:1 calls
             if let serviceIdString = serviceIdStore.getString(callKitId, transaction: tx) {
                 let address = SignalServiceAddress(serviceIdString: serviceIdString)
@@ -67,8 +68,11 @@ class CallKitIdStore {
             }
 
             // Next try group calls
-            if let groupId = groupIdStore.getData(callKitId, transaction: tx) {
-                return TSGroupThread.fetch(groupId: groupId, transaction: tx).map { .groupThread($0) }
+            if
+                let groupIdData = groupIdStore.getData(callKitId, transaction: tx),
+                let groupId = try? GroupIdentifier(contents: [UInt8](groupIdData))
+            {
+                return .groupThread(groupId)
             }
 
             // Check the phone number store, for very old 1:1 calls.

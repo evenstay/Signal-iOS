@@ -5,11 +5,11 @@
 
 import SignalServiceKit
 import SignalUI
-public import UIKit
+import UIKit
 
-public class ProvisioningTransferChoiceViewController: ProvisioningBaseViewController {
+class ProvisioningTransferChoiceViewController: ProvisioningBaseViewController {
 
-    public override var primaryLayoutMargins: UIEdgeInsets {
+    override var primaryLayoutMargins: UIEdgeInsets {
         var defaultMargins = super.primaryLayoutMargins
 
         switch traitCollection.horizontalSizeClass {
@@ -28,7 +28,7 @@ public class ProvisioningTransferChoiceViewController: ProvisioningBaseViewContr
         return defaultMargins
     }
 
-    override public func loadView() {
+    override func loadView() {
         view = UIView()
         view.addSubview(primaryView)
         primaryView.autoPinEdgesToSuperviewEdges()
@@ -36,10 +36,11 @@ public class ProvisioningTransferChoiceViewController: ProvisioningBaseViewContr
         view.backgroundColor = Theme.backgroundColor
 
         let titleLabel = self.createTitleLabel(
-            text: OWSLocalizedString("DEVICE_TRANSFER_CHOICE_TITLE",
-                                    comment: "The title for the device transfer 'choice' view")
+            text: OWSLocalizedString(
+                "DEVICE_TRANSFER_CHOICE_TITLE",
+                comment: "The title for the device transfer 'choice' view"
+            )
         )
-        titleLabel.accessibilityIdentifier = "onboarding.transferChoice." + "titleLabel"
 
         let explanationText = OWSLocalizedString(
             "DEVICE_TRANSFER_CHOICE_LINKED_EXPLANATION",
@@ -58,18 +59,13 @@ public class ProvisioningTransferChoiceViewController: ProvisioningBaseViewContr
             comment: "The title for the device transfer 'choice' view 'register' option when linking a device"
         )
         let registerBody = OWSLocalizedString(
-            "DEVICE_TRANSFER_CHOICE_REGISTER_LINKED_BODY",
-            comment: "The body for the device transfer 'choice' view 'register' option when linking a device"
+            "DEVICE_TRANSFER_CHOICE_REGISTER_LINKED_BODY_LINK_AND_SYNC",
+            value: "You’ll have the option to transfer messages and recent media from your phone",
+            comment: "The body for the device transfer 'choice' view 'register' option when linking a device when message syncing is available"
         )
 
         let explanationLabel = self.createExplanationLabel(explanationText: explanationText)
-        explanationLabel.accessibilityIdentifier = "onboarding.transferChoice." + "explanationLabel"
-
-        let warningLabel = self.createExplanationLabel(
-            explanationText: OWSLocalizedString("DEVICE_TRANSFER_CHOICE_WARNING",
-                                               comment: "A warning for the device transfer 'choice' view indicating you can only have one device registered with your number")
-        )
-        warningLabel.accessibilityIdentifier = "onboarding.transferChoice." + "warningLabel"
+        explanationLabel.font = .dynamicTypeBody
 
         let transferButton = choiceButton(
             title: transferTitle,
@@ -77,7 +73,6 @@ public class ProvisioningTransferChoiceViewController: ProvisioningBaseViewContr
             iconName: Theme.iconName(.transfer),
             selector: #selector(didSelectTransfer)
         )
-        transferButton.accessibilityIdentifier = "onboarding.transferChoice." + "transferButton"
 
         let registerButton = choiceButton(
             title: registerTitle,
@@ -85,7 +80,6 @@ public class ProvisioningTransferChoiceViewController: ProvisioningBaseViewContr
             iconName: Theme.iconName(.register),
             selector: #selector(didSelectRegister)
         )
-        registerButton.accessibilityIdentifier = "onboarding.transferChoice." + "registerButton"
 
         let topStackView = UIStackView(arrangedSubviews: [
             titleLabel,
@@ -100,13 +94,32 @@ public class ProvisioningTransferChoiceViewController: ProvisioningBaseViewContr
         let topSpacer = UIView.vStretchingSpacer()
         let bottomSpacer = UIView.vStretchingSpacer()
 
+        let footerTextView = LinkingTextView()
+        footerTextView.attributedText = NSAttributedString.composed(of: [
+            SignalSymbol.lock.attributedString(for: .title3),
+            "\n",
+            "\n".styled(with: .maximumLineHeight(6)),
+            OWSLocalizedString(
+                "LINKING_SYNCING_FOOTER",
+                comment: "Footer text when loading messages during linking process."
+            ),
+            " ",
+            CommonStrings.learnMore.styled(with: .link(URL(string: "https://support.signal.org/hc/articles/360007320551")!))
+        ])
+        .styled(
+            with: .font(.dynamicTypeFootnote),
+            .color(Theme.secondaryTextAndIconColor),
+            .alignment(.center)
+        )
+
         let stackView = UIStackView(arrangedSubviews: [
             topStackView,
             topSpacer,
-            transferButton,
-            UIView.spacer(withHeight: 12),
             registerButton,
-            bottomSpacer
+            UIView.spacer(withHeight: 12),
+            transferButton,
+            bottomSpacer,
+            footerTextView,
         ])
         stackView.axis = .vertical
         stackView.alignment = .fill
@@ -119,7 +132,7 @@ public class ProvisioningTransferChoiceViewController: ProvisioningBaseViewContr
     func choiceButton(title: String, body: String, iconName: String, selector: Selector) -> OWSFlatButton {
         let button = OWSFlatButton()
         button.setBackgroundColors(upColor: Theme.isDarkThemeEnabled ? .ows_gray80 : .ows_gray02)
-        button.layer.cornerRadius = 8
+        button.layer.cornerRadius = 10
         button.clipsToBounds = true
 
         // Icon
@@ -210,3 +223,10 @@ public class ProvisioningTransferChoiceViewController: ProvisioningBaseViewContr
         navigationController?.pushViewController(prepViewController, animated: true)
     }
 }
+
+#if DEBUG
+@available(iOS 17, *)
+#Preview {
+    ProvisioningTransferChoiceViewController(provisioningController: .preview())
+}
+#endif

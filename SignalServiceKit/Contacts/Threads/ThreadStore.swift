@@ -53,12 +53,18 @@ public protocol ThreadStore {
     )
 
     func update(
+        groupThread: TSGroupThread,
+        with groupModel: TSGroupModel,
+        tx: DBWriteTransaction
+    )
+
+    func update(
         _ thread: TSThread,
         withShouldThreadBeVisible shouldBeVisible: Bool,
         tx: DBWriteTransaction
     )
 
-    /// Note: does not intert any created default associated data into the db.
+    /// Note: does not insert any created default associated data into the db.
     /// (This method only takes a read transaction, so it could not insert even if it wanted to)
     func fetchOrDefaultAssociatedData(for thread: TSThread, tx: DBReadTransaction) -> ThreadAssociatedData
 
@@ -81,6 +87,10 @@ public protocol ThreadStore {
 }
 
 extension ThreadStore {
+    public func fetchGroupThread(groupId: GroupIdentifier, tx: DBReadTransaction) -> TSGroupThread? {
+        return fetchGroupThread(groupId: groupId.serialize().asData, tx: tx)
+    }
+
     public func fetchGroupThread(uniqueId: String, tx: DBReadTransaction) -> TSGroupThread? {
         guard let thread = fetchThread(uniqueId: uniqueId, tx: tx) else {
             return nil
@@ -113,7 +123,7 @@ extension ThreadStore {
 
     public func fetchThreadForInteraction(
         _ interaction: TSInteraction,
-        tx: any DBReadTransaction
+        tx: DBReadTransaction
     ) -> TSThread? {
         return fetchThread(uniqueId: interaction.uniqueThreadId, tx: tx)
     }
@@ -196,13 +206,8 @@ public class ThreadStoreImpl: ThreadStore {
     public func removeThread(_ thread: TSThread, tx: DBWriteTransaction) {
         let tx = SDSDB.shimOnlyBridge(tx)
 
-        // TODO: If we ever use transaction finalizations for more than
-        // de-bouncing thread touches, we should promote this to TSYapDatabaseObject
-        // (or at least include it in the "will remove" hook for any relevant models.
-        tx.addRemovedFinalizationKey(thread.transactionFinalizationKey)
-
         let sql = "DELETE FROM \(thread.sdsTableName) WHERE uniqueId = ?"
-        tx.unwrapGrdbWrite.executeAndCacheStatement(sql: sql, arguments: [thread.uniqueId])
+        tx.database.executeAndCacheStatementHandlingErrors(sql: sql, arguments: [thread.uniqueId])
     }
 
     public func updateThread(_ thread: TSThread, tx: DBWriteTransaction) {
@@ -220,6 +225,14 @@ public class ThreadStoreImpl: ThreadStore {
             transaction: SDSDB.shimOnlyBridge(tx),
             updateStorageService: updateStorageService
         )
+    }
+
+    public func update(
+        groupThread: TSGroupThread,
+        with groupModel: TSGroupModel,
+        tx: DBWriteTransaction
+    ) {
+        groupThread.update(with: groupModel, transaction: SDSDB.shimOnlyBridge(tx))
     }
 
     public func update(
@@ -284,7 +297,7 @@ public class MockThreadStore: ThreadStore {
         }
     }
 
-    public func enumerateStoryThreads(tx: any DBReadTransaction, block: (TSPrivateStoryThread) throws -> Bool) throws {
+    public func enumerateStoryThreads(tx: DBReadTransaction, block: (TSPrivateStoryThread) throws -> Bool) throws {
         for thread in threads {
             guard let storyThread = thread as? TSPrivateStoryThread else {
                 continue
@@ -387,6 +400,14 @@ public class MockThreadStore: ThreadStore {
         groupThread: TSGroupThread,
         withStorySendEnabled storySendEnabled: Bool,
         updateStorageService: Bool,
+        tx: DBWriteTransaction
+    ) {
+        // Unimplemented
+    }
+
+    public func update(
+        groupThread: TSGroupThread,
+        with groupModel: TSGroupModel,
         tx: DBWriteTransaction
     ) {
         // Unimplemented

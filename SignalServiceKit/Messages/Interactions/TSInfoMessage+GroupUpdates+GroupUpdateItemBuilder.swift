@@ -1030,7 +1030,7 @@ private struct NewGroupUpdateItemBuilder {
                 )
             case .localUser:
                 if newGroupModel.didJustAddSelfViaGroupLink || newGroupMembership.didJoinFromInviteLink(forFullMember: localIdentifiers.aciAddress) {
-                    return .localUserJoined
+                    return .localUserJoinedViaInviteLink
                 } else {
                     // Displaying a message like "You added yourself to the group" isn't useful, so skip it.
                     return nil
@@ -1234,7 +1234,7 @@ private struct DiffingGroupUpdateItemBuilder {
                 oldToken: oldDisappearingMessageToken,
                 newToken: newDisappearingMessageToken
             )
-        } else if wasJustMigrated(newGroupModel: newGroupModel) {
+        } else if newGroupModel.wasJustMigratedToV2 {
             addMigrationUpdates(
                 oldGroupMembership: oldGroupModel.groupMembership,
                 newGroupMembership: newGroupModel.groupMembership,
@@ -1438,7 +1438,9 @@ private struct DiffingGroupUpdateItemBuilder {
             guard !forLocalUserOnly else {
                 return localIdentifiers.localGroupMembersOnly(allUsersUnsorted)
             }
-            var allUsersSorted = Array(allUsersUnsorted).stableSort()
+            var allUsersSorted = allUsersUnsorted.sorted(by: {
+                ($0.serviceId?.serviceIdString ?? $0.phoneNumber ?? "") < ($1.serviceId?.serviceIdString ?? $1.phoneNumber ?? "")
+            })
 
             // If the local user has a membership update, sort it to the front.
             localIdentifiers.moveLocalAddressToFrontOfGroupMembers(&allUsersSorted)
@@ -2442,20 +2444,12 @@ private struct DiffingGroupUpdateItemBuilder {
 
     // MARK: Migration
 
-    private func wasJustMigrated(newGroupModel: TSGroupModel) -> Bool {
-        guard let newGroupModelV2 = newGroupModel as? TSGroupModelV2,
-              newGroupModelV2.wasJustMigrated else {
-            return false
-        }
-        return true
-    }
-
     mutating func addMigrationUpdates(
         oldGroupMembership: GroupMembership,
         newGroupMembership: GroupMembership,
         newGroupModel: TSGroupModel
     ) {
-        owsAssertDebug(wasJustMigrated(newGroupModel: newGroupModel))
+        owsAssertDebug(newGroupModel.wasJustMigratedToV2)
         addItem(.wasMigrated)
     }
 }

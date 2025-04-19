@@ -19,7 +19,6 @@ public extension MessageBackup {
             let mediaId: Data
             let hmacKey: Data
             let aesKey: Data
-            let iv: Data
 
             var asParameters: [String: Any] {
                 [
@@ -30,15 +29,21 @@ public extension MessageBackup {
                     "objectLength": self.objectLength,
                     "mediaId": self.mediaId.asBase64Url,
                     "hmacKey": self.hmacKey.base64EncodedString(),
-                    "encryptionKey": self.aesKey.base64EncodedString(),
-                    "iv": self.iv.base64EncodedString()
+                    "encryptionKey": self.aesKey.base64EncodedString()
                 ]
             }
         }
 
         public struct DeleteMediaTarget: Codable {
             let cdn: UInt32
-            let mediaId: String
+            let mediaId: Data
+
+            var asParameters: [String: Any] {
+                [
+                    "cdn": self.cdn,
+                    "mediaId": self.mediaId.asBase64Url
+                ]
+            }
         }
     }
 
@@ -76,11 +81,18 @@ public extension MessageBackup {
 
 public protocol MessageBackupRequestManager {
 
-    func fetchBackupServiceAuth(localAci: Aci, auth: ChatServiceAuth) async throws -> MessageBackupServiceAuth
+    /// Creates a ``MessageBackupServiceAuth``, which wraps a ``MessageBackupAuthCredential``.
+    /// Created from local ACI and the current valid backup credential. This
+    /// `MessageBackupServiceAuth` is used to authenticate all further `/v1/archive` operations.
+    func fetchBackupServiceAuth(
+        for credentialType: MessageBackupAuthCredentialType,
+        localAci: Aci,
+        auth: ChatServiceAuth
+    ) async throws -> MessageBackupServiceAuth
 
     func reserveBackupId(localAci: Aci, auth: ChatServiceAuth) async throws
 
-    func registerBackupKeys(auth: MessageBackupServiceAuth) async throws
+    func registerBackupKeys(localAci: Aci, auth: ChatServiceAuth) async throws
 
     func fetchBackupUploadForm(auth: MessageBackupServiceAuth) async throws -> Upload.Form
 
@@ -125,17 +137,36 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
     private enum Constants {
         static let keyValueStoreCollectionName = "MessageBackupRequestManager"
 
-        static let cdnNumberOfDaysFetchIntervalInSeconds: TimeInterval = kDayInterval
-        static let keyValueStoreCdn2CredentialKey = "Cdn2Credential"
-        static let keyValueStoreCdn3CredentialKey = "Cdn3Credential"
+        static let cdnNumberOfDaysFetchIntervalInSeconds: TimeInterval = .day
+        private static let keyValueStoreCdn2CredentialKey = "Cdn2Credential:"
+        private static let keyValueStoreCdn3CredentialKey = "Cdn3Credential:"
 
-        static let keyValueStoreBackupInfoKey = "BackupInfo"
-        static let backupInfoNumberOfDaysFetchIntervalInSeconds: TimeInterval = kDayInterval
-        static let keyValueStoreLastBackupInfoFetchTimeKey = "LastBackupInfoFetchTime"
+        static func cdnCredentialCacheKey(for cdn: Int32, auth: MessageBackupServiceAuth) -> String {
+            switch cdn {
+            case 2:
+                return Constants.keyValueStoreCdn2CredentialKey + auth.type.rawValue
+            case 3:
+                return Constants.keyValueStoreCdn3CredentialKey + auth.type.rawValue
+            default:
+                owsFailDebug("Invalid CDN version requested")
+                return Constants.keyValueStoreCdn3CredentialKey + auth.type.rawValue
+            }
+        }
+
+        static let backupInfoNumberOfDaysFetchIntervalInSeconds: TimeInterval = .day
+        private static let keyValueStoreBackupInfoKeyPrefix = "BackupInfo:"
+        private static let keyValueStoreLastBackupInfoFetchTimeKeyPrefix = "LastBackupInfoFetchTime:"
+
+        static func backupInfoCacheInfo(for auth: MessageBackupServiceAuth) -> (infoKey: String, lastfetchTimeKey: String) {
+            (
+                keyValueStoreBackupInfoKeyPrefix + auth.type.rawValue,
+                keyValueStoreLastBackupInfoFetchTimeKeyPrefix + auth.type.rawValue
+            )
+        }
     }
 
     private let dateProvider: DateProvider
-    private let db: DB
+    private let db: any DB
     private let kvStore: KeyValueStore
     private let messageBackupAuthCredentialManager: MessageBackupAuthCredentialManager
     private let messageBackupKeyMaterial: MessageBackupKeyMaterial
@@ -143,15 +174,14 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
 
     init(
         dateProvider: @escaping DateProvider,
-        db: DB,
-        keyValueStoreFactory: KeyValueStoreFactory,
+        db: any DB,
         messageBackupAuthCredentialManager: MessageBackupAuthCredentialManager,
         messageBackupKeyMaterial: MessageBackupKeyMaterial,
         networkManager: NetworkManager
     ) {
         self.dateProvider = dateProvider
         self.db = db
-        self.kvStore = keyValueStoreFactory.keyValueStore(collection: Constants.keyValueStoreCollectionName)
+        self.kvStore = KeyValueStore(collection: Constants.keyValueStoreCollectionName)
         self.messageBackupAuthCredentialManager = messageBackupAuthCredentialManager
         self.messageBackupKeyMaterial = messageBackupKeyMaterial
         self.networkManager = networkManager
@@ -161,40 +191,78 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
 
     /// Onetime request to reserve this backup ID.
     public func reserveBackupId(localAci: Aci, auth: ChatServiceAuth) async throws {
-        let backupRequestContext = try db.read { tx in
-            return try messageBackupKeyMaterial.backupAuthRequestContext(localAci: localAci, tx: tx)
+        let messageBackupRequestContext = try db.read { tx in
+            BackupAuthCredentialRequestContext.create(
+                backupKey: try messageBackupKeyMaterial.backupKey(type: .messages, tx: tx).serialize(),
+                aci: localAci.rawUUID
+            )
         }
-        let base64RequestContext = Data(backupRequestContext.getRequest().serialize()).base64EncodedString()
-        let request = try OWSRequestFactory.reserveBackupId(backupId: base64RequestContext, auth: auth)
-        _ = try await networkManager.makePromise(
-            request: request,
-            canUseWebSocket: false // TODO[websocket]: Switch this back to true when reg supports websockets
-        ).awaitable()
+        let mediaBackupRequestContext = try db.read { tx in
+            return BackupAuthCredentialRequestContext.create(
+                backupKey: try messageBackupKeyMaterial.backupKey(type: .media, tx: tx).serialize(),
+                aci: localAci.rawUUID
+            )
+        }
+        let base64MessageRequestContext = messageBackupRequestContext.getRequest().serialize().asData.base64EncodedString()
+        let base64MediaRequestContext = mediaBackupRequestContext.getRequest().serialize().asData.base64EncodedString()
+        let request = try OWSRequestFactory.reserveBackupId(
+            backupId: base64MessageRequestContext,
+            mediaBackupId: base64MediaRequestContext,
+            auth: auth
+        )
+        // TODO: Switch this back to true when reg supports websockets
+        _ = try await networkManager.asyncRequest(request, canUseWebSocket: false)
     }
 
     // MARK: - Backup Auth
 
-    /// Create a `MessageBackupAuthCredential` from local ACI and the current valid backup credential. This
-    /// `MessageBackupAuthCredential` is used to authenticate all further `/v1/archive` operations.
-    public func fetchBackupServiceAuth(localAci: Aci, auth: ChatServiceAuth) async throws -> MessageBackupServiceAuth {
+    public func fetchBackupServiceAuth(
+        for credentialType: MessageBackupAuthCredentialType,
+        localAci: Aci,
+        auth: ChatServiceAuth
+    ) async throws -> MessageBackupServiceAuth {
         let (backupKey, privateKey) = try db.read { tx in
-            let backupKey = try messageBackupKeyMaterial.backupID(localAci: localAci, tx: tx)
-            let privateKey = try messageBackupKeyMaterial.backupPrivateKey(localAci: localAci, tx: tx)
+            let key = try messageBackupKeyMaterial.backupKey(type: credentialType, tx: tx)
+            let backupKey = key.deriveBackupId(aci: localAci)
+            let privateKey = key.deriveEcKey(aci: localAci)
             return (backupKey, privateKey)
         }
+
         let authCredential = try await messageBackupAuthCredentialManager.fetchBackupCredential(
+            for: credentialType,
             localAci: localAci,
-            auth: auth
+            chatServiceAuth: auth
         )
-        return try MessageBackupServiceAuth(backupKey: backupKey, privateKey: privateKey, authCredential: authCredential)
+
+        return try MessageBackupServiceAuth(
+            backupKey: backupKey.asData,
+            privateKey: privateKey,
+            authCredential: authCredential,
+            type: credentialType
+        )
     }
 
     // MARK: - Register Backup
 
     /// Onetime request to register the backup public key.
-    public func registerBackupKeys(auth: MessageBackupServiceAuth) async throws {
+    public func registerBackupKeys(localAci: Aci, auth: ChatServiceAuth) async throws {
+        let backupAuth = try await fetchBackupServiceAuth(
+            for: .messages,
+            localAci: localAci,
+            auth: auth
+        )
         _ = try await executeBackupServiceRequest(
-            auth: auth,
+            auth: backupAuth,
+            requestFactory: OWSRequestFactory.backupSetPublicKeyRequest(auth:)
+        )
+
+        let mediaBackupAuth = try await fetchBackupServiceAuth(
+            for: .media,
+            localAci: localAci,
+            auth: auth
+        )
+        _ = try await executeBackupServiceRequest(
+            auth: mediaBackupAuth,
             requestFactory: OWSRequestFactory.backupSetPublicKeyRequest(auth:)
         )
     }
@@ -203,6 +271,7 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
 
     /// CDN upload form for uploading a backup
     public func fetchBackupUploadForm(auth: MessageBackupServiceAuth) async throws -> Upload.Form {
+        owsAssertDebug(auth.type == .messages)
         return try await executeBackupService(
             auth: auth,
             requestFactory: OWSRequestFactory.backupUploadFormRequest(auth:)
@@ -211,6 +280,7 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
 
     /// CDN upload form for uploading backup media
     public func fetchBackupMediaAttachmentUploadForm(auth: MessageBackupServiceAuth) async throws -> Upload.Form {
+        owsAssertDebug(auth.type == .media)
         return try await executeBackupService(
             auth: auth,
             requestFactory: OWSRequestFactory.backupMediaUploadFormRequest(auth:)
@@ -221,9 +291,10 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
 
     /// Fetch details about the current backup
     public func fetchBackupInfo(auth: MessageBackupServiceAuth) async throws -> MessageBackupRemoteInfo {
+        let cacheInfo = Constants.backupInfoCacheInfo(for: auth)
         let cachedBackupInfo = db.read { tx -> MessageBackupRemoteInfo? in
             let lastInfoFetchTime = kvStore.getDate(
-                Constants.keyValueStoreLastBackupInfoFetchTimeKey,
+                cacheInfo.lastfetchTimeKey,
                 transaction: tx
             ) ?? .distantPast
 
@@ -231,7 +302,7 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
             if abs(lastInfoFetchTime.timeIntervalSinceNow) < Constants.backupInfoNumberOfDaysFetchIntervalInSeconds {
                 do {
                     if let backupInfo: MessageBackupRemoteInfo = try kvStore.getCodableValue(
-                        forKey: Constants.keyValueStoreBackupInfoKey,
+                        forKey: cacheInfo.infoKey,
                         transaction: tx
                     ) {
                         return backupInfo
@@ -256,8 +327,17 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
         )
 
         try await db.awaitableWrite { tx in
-            try kvStore.setCodable(backupInfo, key: Constants.keyValueStoreBackupInfoKey, transaction: tx)
-            kvStore.setDate(dateProvider(), key: Constants.keyValueStoreLastBackupInfoFetchTimeKey, transaction: tx)
+            try kvStore.setCodable(
+                backupInfo,
+                key: cacheInfo.infoKey,
+                transaction: tx
+            )
+
+            kvStore.setDate(
+                dateProvider(),
+                key: cacheInfo.lastfetchTimeKey,
+                transaction: tx
+            )
         }
 
         return backupInfo
@@ -273,6 +353,7 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
 
     /// Delete the current backup
     public func deleteBackup(auth: MessageBackupServiceAuth) async throws {
+        owsAssertDebug(auth.type == .messages)
         _ = try await executeBackupServiceRequest(
             auth: auth,
             requestFactory: OWSRequestFactory.deleteBackupRequest(auth:)
@@ -286,19 +367,7 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
         cdn: Int32,
         auth: MessageBackupServiceAuth
     ) async throws -> CDNReadCredential {
-
-        let cacheKey = {
-            switch cdn {
-            case 2:
-                return Constants.keyValueStoreCdn2CredentialKey
-            case 3:
-                return Constants.keyValueStoreCdn3CredentialKey
-            default:
-                owsFailDebug("Invalid CDN version requested")
-                return Constants.keyValueStoreCdn3CredentialKey
-            }
-        }()
-
+        let cacheKey = Constants.cdnCredentialCacheKey(for: cdn, auth: auth)
         let result = db.read { tx -> CDNReadCredential? in
             do {
                 if
@@ -342,6 +411,7 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
         cdn: Int32,
         auth: MessageBackupServiceAuth
     ) async throws -> MediaTierReadCredential {
+        owsAssertDebug(auth.type == .media)
         let info = try await fetchBackupInfo(auth: auth)
         let authCredential = try await fetchCDNReadCredentials(cdn: cdn, auth: auth)
         return MediaTierReadCredential(cdn: cdn, credential: authCredential, info: info)
@@ -351,6 +421,7 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
         item: MessageBackup.Request.MediaItem,
         auth: MessageBackupServiceAuth
     ) async throws -> UInt32 {
+        owsAssertDebug(auth.type == .media)
         do {
             let response = try await executeBackupServiceRequest(
                 auth: auth,
@@ -388,6 +459,7 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
         items: [MessageBackup.Request.MediaItem],
         auth: MessageBackupServiceAuth
     ) async throws -> [MessageBackup.Response.BatchedBackupMediaResult] {
+        owsAssertDebug(auth.type == .media)
         return try await executeBackupService(
             auth: auth,
             requestFactory: {
@@ -404,6 +476,7 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
         limit: UInt32?,
         auth: MessageBackupServiceAuth
     ) async throws -> MessageBackup.Response.ListMediaResult {
+        owsAssertDebug(auth.type == .media)
         return try await executeBackupService(
             auth: auth,
             requestFactory: {
@@ -417,6 +490,7 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
     }
 
     public func deleteMediaObjects(objects: [MessageBackup.Request.DeleteMediaTarget], auth: MessageBackupServiceAuth) async throws {
+        owsAssertDebug(auth.type == .media)
         _ = try await executeBackupServiceRequest(
             auth: auth,
             requestFactory: {
@@ -432,6 +506,8 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
 
     public func redeemReceipt(receiptCredentialPresentation: Data) async throws {
         _ = OWSRequestFactory.redeemReceipt(receiptCredentialPresentation: receiptCredentialPresentation)
+        // TODO: Send the request built on the previous line to the server.
+        throw OWSAssertionError("Not implemented.")
     }
 
     // MARK: - Private utility methods
@@ -440,10 +516,8 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
         auth: MessageBackupServiceAuth,
         requestFactory: (MessageBackupServiceAuth) -> TSRequest
     ) async throws -> HTTPResponse {
-        return try await networkManager.makePromise(
-            request: requestFactory(auth),
-            canUseWebSocket: false // TODO[websocket]: Switch this back to true when reg supports websockets
-        ).awaitable()
+        // TODO: Switch this back to true when reg supports websockets
+        return try await networkManager.asyncRequest(requestFactory(auth), canUseWebSocket: false)
     }
 
     private func executeBackupService<T: Decodable>(
@@ -461,15 +535,15 @@ public struct MessageBackupRequestManagerImpl: MessageBackupRequestManager {
     }
 }
 
-private struct CDNReadCredential: Codable, Equatable {
-    private static let cdnCredentialLifetimeInSeconds = kDayInterval
+private struct CDNReadCredential: Codable {
+    private static let cdnCredentialLifetimeInSeconds: TimeInterval = .day
 
     let createDate: Date
-    let headers: [String: String]
+    let headers: HttpHeaders
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.headers = try container.decode([String: String].self, forKey: .headers)
+        self.headers = try container.decode(HttpHeaders.self, forKey: .headers)
 
         // createDate will default to current date, but can be overwritten during decodable initialization
         self.createDate = try container.decodeIfPresent(Date.self, forKey: .createDate) ?? Date()
@@ -480,7 +554,7 @@ private struct CDNReadCredential: Codable, Equatable {
     }
 }
 
-public struct MediaTierReadCredential: Equatable {
+public struct MediaTierReadCredential {
 
     public let cdn: Int32
     private let credential: CDNReadCredential
@@ -500,7 +574,7 @@ public struct MediaTierReadCredential: Equatable {
         return credential.isExpired
     }
 
-    var cdnAuthHeaders: [String: String] {
+    var cdnAuthHeaders: HttpHeaders {
         return credential.headers
     }
 
@@ -509,7 +583,7 @@ public struct MediaTierReadCredential: Equatable {
     }
 }
 
-public struct BackupReadCredential: Equatable {
+public struct BackupReadCredential {
 
     private let credential: CDNReadCredential
     private let info: MessageBackupRemoteInfo
@@ -530,7 +604,7 @@ public struct BackupReadCredential: Equatable {
         return info.cdn
     }
 
-    var cdnAuthHeaders: [String: String] {
+    var cdnAuthHeaders: HttpHeaders {
         return credential.headers
     }
 

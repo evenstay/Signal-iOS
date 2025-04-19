@@ -69,7 +69,7 @@ public class AddGroupMembersViewController: BaseGroupMemberViewController {
             return
         }
 
-        let groupName = databaseStorage.read { tx in contactsManager.displayName(for: groupThread, transaction: tx) }
+        let groupName = SSKEnvironment.shared.databaseStorageRef.read { tx in SSKEnvironment.shared.contactManagerRef.displayName(for: groupThread, transaction: tx) }
         let alertTitle: String
         let alertMessage: String
         let actionTitle: String
@@ -130,14 +130,14 @@ private extension AddGroupMembersViewController {
 
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: self,
-            updateDescription: self.logTag,
+            updateDescription: "[\(type(of: self))]",
             updateBlock: {
-                _ = try await GroupManager.addOrInvite(
+                try await GroupManager.addOrInvite(
                     serviceIds: newServiceIds,
                     toExistingGroup: self.oldGroupModel
                 )
             },
-            completion: { _ in dismissAndUpdateDelegate() }
+            completion: dismissAndUpdateDelegate
         )
     }
 }
@@ -164,14 +164,6 @@ extension AddGroupMembersViewController: GroupMemberViewDelegate {
         updateNavbar()
     }
 
-    func groupMemberViewCanAddRecipient(_ recipient: PickedRecipient) -> Bool {
-        guard let address = recipient.address else {
-            owsFailDebug("Invalid recipient.")
-            return false
-        }
-        return GroupManager.doesUserSupportGroupsV2(address: address)
-    }
-
     func groupMemberViewShouldShowMemberCount() -> Bool {
         true
     }
@@ -190,7 +182,7 @@ extension AddGroupMembersViewController: GroupMemberViewDelegate {
     }
 
     func groupMemberViewIsPreExistingMember(_ recipient: PickedRecipient,
-                                            transaction: SDSAnyReadTransaction) -> Bool {
+                                            transaction: DBReadTransaction) -> Bool {
         guard let address = recipient.address else {
             owsFailDebug("Invalid recipient.")
             return false
@@ -207,7 +199,7 @@ extension AddGroupMembersViewController: GroupMemberViewDelegate {
                 guard GroupManager.doesUserSupportGroupsV2(address: address) else {
                     return false
                 }
-                return self.groupsV2.hasProfileKeyCredential(for: address, transaction: transaction)
+                return SSKEnvironment.shared.groupsV2Ref.hasProfileKeyCredential(for: address, transaction: transaction)
             }()
 
             return !canAddMember

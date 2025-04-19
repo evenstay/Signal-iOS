@@ -2,7 +2,34 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>ACCESSIBILITY_LABEL_VOICE_MEMO_%d</key>
+	<key>ACCESSIBILITY_LABEL_LONG_VOICE_MEMO_%d_%d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@minutes@ und %2$#@seconds@</string>
+		<key>minutes</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d Minute</string>
+			<key>other</key>
+			<string>%1$d Minuten</string>
+		</dict>
+		<key>seconds</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%2$d Sekunde</string>
+			<key>other</key>
+			<string>%2$d Sekunden</string>
+		</dict>
+	</dict>
+	<key>ACCESSIBILITY_LABEL_SHORT_VOICE_MEMO_%d</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -66,7 +93,7 @@
 			<string>Neue Mitglieder hinzufügen</string>
 		</dict>
 	</dict>
-	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<key>CALLS_TAB_DELETE_MULTIPLE_TITLE</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@text@</string>
@@ -76,6 +103,22 @@
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
+			<key>one</key>
+			<string>%1$ld Anruf löschen?</string>
+			<key>other</key>
+			<string>%1$ld Anrufe löschen?</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_APPROVE_ALL_REQUESTS_CONFIRMATION_BODY_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
 			<key>one</key>
 			<string>%1$ld Person wird dem Anruf hinzugefügt.</string>
 			<key>other</key>
@@ -91,7 +134,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>one</key>
 			<string>%1$ld Anfrage bestätigen?</string>
 			<key>other</key>
@@ -107,7 +150,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>one</key>
 			<string>%1$ld Person wird dem Anruf nicht hinzugefügt.</string>
 			<key>other</key>
@@ -123,7 +166,7 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
+			<string>ld</string>
 			<key>one</key>
 			<string>%1$ld Anfrage ablehnen?</string>
 			<key>other</key>
@@ -139,11 +182,27 @@
 			<key>NSStringFormatSpecTypeKey</key>
 			<string>NSStringPluralRuleType</string>
 			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>+%1$ld Anfrage</string>
+			<key>other</key>
+			<string>+%1$ld Anfragen</string>
+		</dict>
+	</dict>
+	<key>CALL_LINK_MULTI_SUCCESS</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>+%1$ld Request</string>
+			<string>%1$ld Anrufprotokoll gelöscht.</string>
 			<key>other</key>
-			<string>+%1$ld Requests</string>
+			<string>%1$ld Anrufprotokolle gelöscht.</string>
 		</dict>
 	</dict>
 	<key>CALL_LINK_REQUEST_HEADER_COUNT_%d</key>
@@ -360,9 +419,9 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$dmin</string>
+			<string>%1$d Min.</string>
 			<key>other</key>
-			<string>%1$dmin</string>
+			<string>%1$d Min.</string>
 		</dict>
 	</dict>
 	<key>DATE_MINUTES_AGO_LONG_%d</key>
@@ -523,6 +582,22 @@
 			<string>%2$@, %3$@ und %1$d weitere Person nehmen an diesem Anruf teil</string>
 			<key>other</key>
 			<string>%2$@, %3$@ und %1$d weitere Personen nehmen an diesem Anruf teil</string>
+		</dict>
+	</dict>
+	<key>GROUP_CALL_MEMBER_LIST_UNKNOWN_MEMBERS_ROW_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>+ %1$ld weiterer Kontakt</string>
+			<key>other</key>
+			<string>+ %1$ld weitere Kontakte</string>
 		</dict>
 	</dict>
 	<key>GROUP_CALL_NOTIFICATION_MANY_JOINED_%d</key>
@@ -808,7 +883,7 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%2$@ hat ihre/seine Beitrittsanfrage über den Gruppenlink gestellt und zurückgezogen.</string>
+			<string>%2$@ hat eine Beitrittsanfrage über den Gruppenlink gestellt und zurückgezogen.</string>
 			<key>other</key>
 			<string>%2$@ hat %1$d Beitrittsanfragen über den Gruppenlink gestellt und zurückgezogen.</string>
 		</dict>
@@ -1192,7 +1267,7 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%2$@ hat 1 Person eingeladen</string>
+			<string>%2$@ hat %1$d Person eingeladen</string>
 			<key>other</key>
 			<string>%2$@ hat %1$d Personen eingeladen</string>
 		</dict>
@@ -1419,6 +1494,38 @@
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; Aufruf</string>
 			<key>other</key>
 			<string>&lt;bold&gt;%1$d&lt;/bold&gt; Aufrufe</string>
+		</dict>
+	</dict>
+	<key>THREAD_DETAILS_MORE_MUTUAL_GROUP_%3$ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>Member of %1$@, %2$@, and %3$ld additional group</string>
+			<key>other</key>
+			<string>Member of %1$@, %2$@, and %3$ld additional groups</string>
+		</dict>
+	</dict>
+	<key>THREAD_DETAILS_OTHER_MEMBERS_COUNT_%ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@text@</string>
+		<key>text</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%1$ld other</string>
+			<key>other</key>
+			<string>%1$ld others</string>
 		</dict>
 	</dict>
 	<key>USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE_%d</key>
