@@ -4,15 +4,20 @@
 //
 
 import Foundation
+import LibSignalClient
 
 /// An outgoing group v2 update.
-public class OutgoingGroupUpdateMessage: TSOutgoingMessage {
-    public init(
+class OutgoingGroupUpdateMessage: TSOutgoingMessage {
+    @objc
+    private var isUpdateUrgent: Bool = false
+
+    init(
         in thread: TSGroupThread,
         groupMetaMessage: TSGroupMetaMessage,
         expiresInSeconds: UInt32 = 0,
         groupChangeProtoData: Data? = nil,
-        additionalRecipients: some Sequence<SignalServiceAddress>,
+        additionalRecipients: some Sequence<ServiceId>,
+        isUrgent: Bool = false,
         transaction: DBReadTransaction
     ) {
         let builder: TSOutgoingMessageBuilder = .withDefaultValues(
@@ -22,9 +27,10 @@ public class OutgoingGroupUpdateMessage: TSOutgoingMessage {
             groupChangeProtoData: groupChangeProtoData
         )
 
+        self.isUpdateUrgent = isUrgent
         super.init(
             outgoingMessageWith: builder,
-            additionalRecipients: Array(additionalRecipients),
+            additionalRecipients: additionalRecipients.map { ServiceIdObjC.wrapValue($0) },
             explicitRecipients: [],
             skippedRecipients: [],
             transaction: transaction
@@ -39,7 +45,7 @@ public class OutgoingGroupUpdateMessage: TSOutgoingMessage {
         try super.init(dictionary: dictionary)
     }
 
-    public override var isUrgent: Bool { false }
+    override var isUrgent: Bool { self.isUpdateUrgent }
 
-    public override var shouldBeSaved: Bool { false }
+    override var shouldBeSaved: Bool { false }
 }

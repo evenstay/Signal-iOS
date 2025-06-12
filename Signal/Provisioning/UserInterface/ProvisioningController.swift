@@ -119,8 +119,9 @@ class ProvisioningController: NSObject {
     }
 
     @objc
+    @MainActor
     private func submitLogs() {
-        DebugLogs.submitLogsWithSupportTag("Onboarding")
+        DebugLogs.submitLogs(supportTag: "Onboarding", dumper: .fromGlobals())
     }
 
     // MARK: - Transitions
@@ -325,6 +326,12 @@ class ProvisioningController: NSObject {
     }
 
     func provisioningDidComplete(from viewController: UIViewController) {
+        if viewController.presentedViewController != nil {
+            viewController.dismiss(animated: true) {
+                self.provisioningDidComplete(from: viewController)
+            }
+            return
+        }
         SignalApp.shared.showConversationSplitView(appReadiness: appReadiness)
     }
 
@@ -345,6 +352,12 @@ class ProvisioningController: NSObject {
                 })
                 return
             }
+            if viewController.presentedViewController != nil {
+                viewController.dismiss(animated: true, completion: {
+                    popAndThenAwaitProvisioning()
+                })
+                return
+            }
             navigationController.popToViewController(viewController, animated: true)
             Task {
                 await awaitProvisioning(
@@ -356,6 +369,7 @@ class ProvisioningController: NSObject {
         popAndThenAwaitProvisioning()
     }
 
+    @MainActor
     private func performCoordinatorTaskWithModal(
         task: Task<Void, Error>,
         viewController: ProvisioningQRCodeViewController,
@@ -431,7 +445,9 @@ class ProvisioningController: NSObject {
                         navigationController: navigationController,
                         progressViewModel: progressViewModel
                     )
-                    progressViewController.presentActionSheet(errorActionSheet)
+                    if progressViewController.presentedViewController == nil {
+                        progressViewController.presentActionSheet(errorActionSheet)
+                    }
                 }
             }
         } else {
@@ -658,6 +674,7 @@ class ProvisioningController: NSObject {
                     // view controller.
                     ContactSupportActionSheet.present(
                         emailFilter: .backupImportFailed,
+                        logDumper: .fromGlobals(),
                         fromViewController: viewController
                     )
                 }

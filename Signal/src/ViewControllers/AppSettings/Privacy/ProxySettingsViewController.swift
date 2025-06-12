@@ -103,7 +103,7 @@ class ProxySettingsViewController: OWSTableViewController2 {
         useProxySection.footerAttributedTitle = .composed(of: [
             OWSLocalizedString("USE_PROXY_EXPLANATION", comment: "Explanation of when you should use a signal proxy"),
             " ",
-            CommonStrings.learnMore.styled(with: .link(URL(string: "https://support.signal.org/hc/en-us/articles/360056052052-Proxy-Support")!))
+            CommonStrings.learnMore.styled(with: .link(URL(string: "https://support.signal.org/hc/articles/360056052052-Proxy-Support")!))
         ]).styled(
             with: .font(.dynamicTypeCaption1Clamped),
             .color(Theme.secondaryTextAndIconColor)
@@ -206,43 +206,27 @@ class ProxySettingsViewController: OWSTableViewController2 {
             return
         }
 
-        ModalActivityIndicatorViewController.present(fromViewController: self, canCancel: true) { modal in
-            _ = Task(priority: .userInitiated) {
-                await withTaskGroup(of: Bool.self) { group in
-                    group.addTask {
-                        return await self.checkConnection()
-                    }
-                    group.addTask {
-                        // If this completes successfully or erroneously, treat that as a cancellation.
-                        _ = try? await modal.wasCancelledPromise.awaitable()
-                        return false
-                    }
-                    let connected = await group.next()!
-                    group.cancelAll()
+        ModalActivityIndicatorViewController.present(fromViewController: self, canCancel: true, asyncBlock: { modal in
+            let connected = await self.checkConnection()
 
-                    // We have to do this inside the TaskGroup because the modal's wasCancelledPromise is,
-                    // ironically, not cancellable itself in the Swift concurrency sense. Dismissing the
-                    // modal is thus required to let the task group exit.
-                    modal.dismiss {
-                        if connected {
-                            if self.navigationController?.viewControllers.count == 1 {
-                                self.presentingViewController?.presentToast(text: OWSLocalizedString("PROXY_CONNECTED_SUCCESSFULLY", comment: "The provided proxy connected successfully"))
-                                self.dismiss(animated: true)
-                            } else {
-                                self.presentToast(text: OWSLocalizedString("PROXY_CONNECTED_SUCCESSFULLY", comment: "The provided proxy connected successfully"))
-                                self.updateNavigationBar()
-                            }
-                        } else {
-                            self.presentToast(text: OWSLocalizedString("PROXY_FAILED_TO_CONNECT", comment: "The provided proxy couldn't connect"))
-                            SSKEnvironment.shared.databaseStorageRef.write { transaction in
-                                SignalProxy.setProxyHost(host: self.host, useProxy: false, transaction: transaction)
-                            }
-                            self.updateTableContents()
-                        }
+            modal.dismiss {
+                if connected {
+                    if self.navigationController?.viewControllers.count == 1 {
+                        self.presentingViewController?.presentToast(text: OWSLocalizedString("PROXY_CONNECTED_SUCCESSFULLY", comment: "The provided proxy connected successfully"))
+                        self.dismiss(animated: true)
+                    } else {
+                        self.presentToast(text: OWSLocalizedString("PROXY_CONNECTED_SUCCESSFULLY", comment: "The provided proxy connected successfully"))
+                        self.updateNavigationBar()
                     }
+                } else {
+                    self.presentToast(text: OWSLocalizedString("PROXY_FAILED_TO_CONNECT", comment: "The provided proxy couldn't connect"))
+                    SSKEnvironment.shared.databaseStorageRef.write { transaction in
+                        SignalProxy.setProxyHost(host: self.host, useProxy: false, transaction: transaction)
+                    }
+                    self.updateTableContents()
                 }
             }
-        }
+        })
     }
 
     private func checkConnection() async -> Bool {

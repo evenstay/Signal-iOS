@@ -21,7 +21,7 @@ public class ProvisioningManagerTests {
     private var mockReceiptManager: ProvisioningManager.Mocks.ReceiptManager!
     private var mockTsAccountManager: MockTSAccountManager!
 
-    let recipientDatabaseTable = MockRecipientDatabaseTable()
+    let recipientDatabaseTable = RecipientDatabaseTable()
     let recipientFetcher: RecipientFetcher
     let recipientIdFinder: RecipientIdFinder
 
@@ -35,7 +35,10 @@ public class ProvisioningManagerTests {
         self.mockReceiptManager = ProvisioningManager.Mocks.ReceiptManager()
         self.mockTsAccountManager = MockTSAccountManager()
 
-        recipientFetcher = RecipientFetcherImpl(recipientDatabaseTable: recipientDatabaseTable)
+        recipientFetcher = RecipientFetcherImpl(
+            recipientDatabaseTable: recipientDatabaseTable,
+            searchableNameIndexer: MockSearchableNameIndexer(),
+        )
         recipientIdFinder = RecipientIdFinder(recipientDatabaseTable: recipientDatabaseTable, recipientFetcher: recipientFetcher)
         mockIdentityManager = MockIdentityManager(recipientIdFinder: recipientIdFinder)
     }
@@ -179,8 +182,4 @@ private class MockDeviceManager: OWSDeviceManager {
     func setHasReceivedSyncMessage(lastReceivedAt: Date, transaction: DBWriteTransaction) { }
 
     func hasReceivedSyncMessage(inLastSeconds seconds: UInt, transaction: DBReadTransaction) -> Bool { return true }
-
-    func setMightHaveUnknownLinkedDevice(_ mightHaveUnknownLinkedDevice: Bool, transaction: DBWriteTransaction) { }
-
-    func mightHaveUnknownLinkedDevice(transaction: DBReadTransaction) -> Bool { return true }
 }

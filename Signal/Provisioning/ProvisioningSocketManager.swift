@@ -181,8 +181,8 @@ public class ProvisioningSocketManager: ProvisioningSocketDelegate {
             return
         }
 
-        awaitProvisionEnvelopeContinuation.update { continuation in
-            guard let continuation else {
+        awaitProvisionEnvelopeContinuation.update { existingContinuation in
+            guard let continuation = existingContinuation else {
                 owsFailDebug("Got provision envelope, but missing continuation or cipher!")
                 return
             }
@@ -190,6 +190,8 @@ public class ProvisioningSocketManager: ProvisioningSocketDelegate {
             stop()
             let envelope = DecryptableProvisionEnvelope(cipher: cipherForSocket, data: data)
             continuation.resume(returning: envelope)
+
+            existingContinuation = nil
         }
     }
 
@@ -232,11 +234,13 @@ public class ProvisioningSocketManager: ProvisioningSocketDelegate {
             case .delinked, .relinking:
                 // We don't allow relinking secondaries to link'n'sync.
                 return false
+            case .transferred:
+                // Transferring back to a transfered device will result in hitting this.
+                return false
             case
                 .registered,
                 .provisioned,
                 .reregistering,
-                .transferred,
                 .transferringIncoming,
                 .transferringLinkedOutgoing,
                 .transferringPrimaryOutgoing,

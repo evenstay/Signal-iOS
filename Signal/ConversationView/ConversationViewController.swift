@@ -385,7 +385,7 @@ public final class ConversationViewController: OWSViewController {
         self.markVisibleMessagesAsRead()
         self.startReadTimer()
         self.updateNavigationBarSubtitleLabel()
-        _ = self.autoLoadMoreIfNecessary()
+        self.autoLoadMoreIfNecessary()
 
         let serviceIds = thread.recipientAddressesWithSneakyTransaction.compactMap(\.serviceId)
 
@@ -494,6 +494,11 @@ public final class ConversationViewController: OWSViewController {
 
     public override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+
+        // Title view sometimes disappears when orientation changes.
+        // Reset it here as a workaround.
+        navigationItem.titleView = nil
+        navigationItem.titleView = headerView
 
         guard hasViewWillAppearEverBegun else {
             return

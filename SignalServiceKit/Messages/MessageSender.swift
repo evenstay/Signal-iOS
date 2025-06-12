@@ -192,59 +192,35 @@ public class MessageSender {
             throw OWSAssertionError("Server didn't provide a bundle for the requested device.")
         }
 
-        Logger.info("Creating session for \(serviceId), deviceId: \(deviceId); signed \(deviceBundle.signedPreKey.keyId), one-time \(deviceBundle.preKey?.keyId as Optional), kyber \(deviceBundle.pqPreKey?.keyId as Optional)")
+        Logger.info("Creating session for \(serviceId), deviceId: \(deviceId); signed \(deviceBundle.signedPreKey.keyId), one-time \(deviceBundle.preKey?.keyId as Optional), kyber \(deviceBundle.pqPreKey.keyId as Optional)")
 
         let bundle: LibSignalClient.PreKeyBundle
         if let preKey = deviceBundle.preKey {
-            if let pqPreKey = deviceBundle.pqPreKey {
-                bundle = try LibSignalClient.PreKeyBundle(
-                    registrationId: deviceBundle.registrationId,
-                    deviceId: deviceId.uint32Value,
-                    prekeyId: preKey.keyId,
-                    prekey: preKey.publicKey,
-                    signedPrekeyId: deviceBundle.signedPreKey.keyId,
-                    signedPrekey: deviceBundle.signedPreKey.publicKey,
-                    signedPrekeySignature: deviceBundle.signedPreKey.signature,
-                    identity: preKeyBundle.identityKey,
-                    kyberPrekeyId: pqPreKey.keyId,
-                    kyberPrekey: pqPreKey.publicKey,
-                    kyberPrekeySignature: pqPreKey.signature
-                )
-            } else {
-                bundle = try LibSignalClient.PreKeyBundle(
-                    registrationId: deviceBundle.registrationId,
-                    deviceId: deviceId.uint32Value,
-                    prekeyId: preKey.keyId,
-                    prekey: preKey.publicKey,
-                    signedPrekeyId: deviceBundle.signedPreKey.keyId,
-                    signedPrekey: deviceBundle.signedPreKey.publicKey,
-                    signedPrekeySignature: deviceBundle.signedPreKey.signature,
-                    identity: preKeyBundle.identityKey
-                )
-            }
+            bundle = try LibSignalClient.PreKeyBundle(
+                registrationId: deviceBundle.registrationId,
+                deviceId: deviceId.uint32Value,
+                prekeyId: preKey.keyId,
+                prekey: preKey.publicKey,
+                signedPrekeyId: deviceBundle.signedPreKey.keyId,
+                signedPrekey: deviceBundle.signedPreKey.publicKey,
+                signedPrekeySignature: deviceBundle.signedPreKey.signature,
+                identity: preKeyBundle.identityKey,
+                kyberPrekeyId: deviceBundle.pqPreKey.keyId,
+                kyberPrekey: deviceBundle.pqPreKey.publicKey,
+                kyberPrekeySignature: deviceBundle.pqPreKey.signature
+            )
         } else {
-            if let pqPreKey = deviceBundle.pqPreKey {
-                bundle = try LibSignalClient.PreKeyBundle(
-                    registrationId: deviceBundle.registrationId,
-                    deviceId: deviceId.uint32Value,
-                    signedPrekeyId: deviceBundle.signedPreKey.keyId,
-                    signedPrekey: deviceBundle.signedPreKey.publicKey,
-                    signedPrekeySignature: deviceBundle.signedPreKey.signature,
-                    identity: preKeyBundle.identityKey,
-                    kyberPrekeyId: pqPreKey.keyId,
-                    kyberPrekey: pqPreKey.publicKey,
-                    kyberPrekeySignature: pqPreKey.signature
-                )
-            } else {
-                bundle = try LibSignalClient.PreKeyBundle(
-                    registrationId: deviceBundle.registrationId,
-                    deviceId: deviceId.uint32Value,
-                    signedPrekeyId: deviceBundle.signedPreKey.keyId,
-                    signedPrekey: deviceBundle.signedPreKey.publicKey,
-                    signedPrekeySignature: deviceBundle.signedPreKey.signature,
-                    identity: preKeyBundle.identityKey
-                )
-            }
+            bundle = try LibSignalClient.PreKeyBundle(
+                registrationId: deviceBundle.registrationId,
+                deviceId: deviceId.uint32Value,
+                signedPrekeyId: deviceBundle.signedPreKey.keyId,
+                signedPrekey: deviceBundle.signedPreKey.publicKey,
+                signedPrekeySignature: deviceBundle.signedPreKey.signature,
+                identity: preKeyBundle.identityKey,
+                kyberPrekeyId: deviceBundle.pqPreKey.keyId,
+                kyberPrekey: deviceBundle.pqPreKey.publicKey,
+                kyberPrekeySignature: deviceBundle.pqPreKey.signature
+            )
         }
 
         do {
@@ -255,7 +231,8 @@ public class MessageSender {
                 for: protocolAddress,
                 sessionStore: DependenciesBridge.shared.signalProtocolStoreManager.signalProtocolStore(for: .aci).sessionStore,
                 identityStore: identityManager.libSignalStore(for: .aci, tx: transaction),
-                context: transaction
+                context: transaction,
+                usePqRatchet: false
             )
         } catch SignalError.untrustedIdentity(_), IdentityManagerError.identityKeyMismatchForOutgoingMessage {
             Logger.warn("Found untrusted identity for \(serviceId)")
@@ -405,11 +382,19 @@ public class MessageSender {
     // MARK: - Constructing Message Sends
 
     public func sendMessage(_ preparedOutgoingMessage: PreparedOutgoingMessage) async throws {
+        do {
+            Logger.info("Sending \(preparedOutgoingMessage)")
+            try await _sendMessage(preparedOutgoingMessage)
+        } catch {
+            Logger.warn("Couldn't send \(preparedOutgoingMessage); there may also be individual send failures, but the overall failure is: \(error)")
+            throw error
+        }
+    }
+
+    private func _sendMessage(_ preparedOutgoingMessage: PreparedOutgoingMessage) async throws {
         await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
             preparedOutgoingMessage.updateAllUnsentRecipientsAsSending(tx: tx)
         }
-
-        Logger.info("Sending \(preparedOutgoingMessage)")
 
         // We create a PendingTask so we can block on flushing all current message sends.
         let pendingTask = pendingTasks.buildPendingTask()
@@ -454,8 +439,11 @@ public class MessageSender {
                 // Only try to update the signed prekey; updating it is sufficient to
                 // re-enable message sending.
                 return Task {
+                    defer {
+                        // If this succeeds, or if we hit an error, allow another attempt.
+                        self.pendingPreKeyRotation.set(nil)
+                    }
                     try await self.preKeyManager.rotateSignedPreKeysIfNeeded().value
-                    self.pendingPreKeyRotation.set(nil)
                 }
             }
             return nil
@@ -613,7 +601,7 @@ public class MessageSender {
         if !areAttachmentsUploadedWithSneakyTransaction(for: message) {
             throw OWSUnretryableMessageSenderError()
         }
-        if DependenciesBridge.shared.appExpiry.isExpired {
+        if DependenciesBridge.shared.appExpiry.isExpired(now: Date()) {
             throw AppExpiredError()
         }
         if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered.negated {
@@ -1243,7 +1231,11 @@ public class MessageSender {
                 sealedSenderParameters: sealedSenderParameters
             )
 
-            if shouldSkipMessageSend(messageSend, deviceMessages: deviceMessages) {
+            if messageSend.isSelfSend {
+                owsAssertDebug(messageSend.message.canSendToLocalAddress)
+            }
+
+            if messageSend.isSelfSend, deviceMessages.isEmpty {
                 // This emulates the completion logic of an actual successful send (see below).
                 await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
                     message.updateWithSkippedRecipient(messageSend.localIdentifiers.aciAddress, transaction: tx)
@@ -1295,47 +1287,6 @@ public class MessageSender {
         )
     }
 
-    /// We can skip sending sync messages if we know that we have no linked
-    /// devices. However, we need to be sure to handle the case where the linked
-    /// device list has just changed.
-    ///
-    /// The linked device list is reflected in two separate pieces of state:
-    ///
-    /// * OWSDevice's state is updated when you link or unlink a device.
-    /// * SignalRecipient's state is updated by 409 "Mismatched devices"
-    /// responses from the service.
-    ///
-    /// If _both_ of these pieces of state agree that there are no linked
-    /// devices, then can safely skip sending sync message.
-    private func shouldSkipMessageSend(_ messageSend: OWSMessageSend, deviceMessages: [DeviceMessage]) -> Bool {
-        guard messageSend.localIdentifiers.contains(serviceId: messageSend.serviceId) else {
-            return false
-        }
-        owsAssertDebug(messageSend.message.canSendToLocalAddress)
-
-        let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-        let hasMessageForLinkedDevice = deviceMessages.contains(where: {
-            return !tsAccountManager.storedDeviceIdWithMaybeTransaction.equals($0.destinationDeviceId)
-        })
-
-        if hasMessageForLinkedDevice {
-            return false
-        }
-
-        let mightHaveUnknownLinkedDevice = SSKEnvironment.shared.databaseStorageRef.read { tx in
-            DependenciesBridge.shared.deviceManager.mightHaveUnknownLinkedDevice(transaction: tx)
-        }
-
-        if mightHaveUnknownLinkedDevice {
-            // We may have just linked a new secondary device which is not yet
-            // reflected in the SignalRecipient that corresponds to ourself. Continue
-            // sending, where we expect to learn about new devices via a 409 response.
-            return false
-        }
-
-        return true
-    }
-
     private func buildDeviceMessages(
         messageSend: OWSMessageSend,
         sealedSenderParameters: SealedSenderParameters?
@@ -1354,7 +1305,7 @@ public class MessageSender {
 
         var recipientDeviceIds = recipient.deviceIds
 
-        if messageSend.localIdentifiers.contains(serviceId: messageSend.serviceId) {
+        if messageSend.isSelfSend {
             let localDeviceId = DependenciesBridge.shared.tsAccountManager.storedDeviceIdWithMaybeTransaction
             recipientDeviceIds.removeAll(where: { localDeviceId.equals($0) })
         }
@@ -1557,19 +1508,6 @@ public class MessageSender {
         }
 
         await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
-            if deviceMessages.isEmpty, messageSend.localIdentifiers.contains(serviceId: messageSend.serviceId) {
-                // Since we know we have no linked devices, we can record that
-                // fact to later avoid unnecessary sync message sends unless we
-                // later learn of a new linked device.
-
-                Logger.info("Sent a message with no device messages. Recording no linked devices.")
-
-                DependenciesBridge.shared.deviceManager.setMightHaveUnknownLinkedDevice(
-                    false,
-                    transaction: transaction
-                )
-            }
-
             deviceMessages.forEach { deviceMessage in
                 if let payloadId = messageSend.plaintextPayloadId, let recipientAci = messageSend.serviceId as? Aci {
                     let messageSendLog = SSKEnvironment.shared.messageSendLogRef
@@ -1587,23 +1525,6 @@ public class MessageSender {
 
             if let resendResponse = message as? OWSOutgoingResendResponse {
                 resendResponse.didPerformMessageSend(sentDeviceMessages, to: messageSend.serviceId, tx: transaction)
-            }
-
-            // If we've just delivered a message to a user, we know they have a valid
-            // Signal account. However, if we're sending a story, the server will
-            // always tell us the recipient is registered, so we can't use this as an
-            // affirmate indication for the existence of an account.
-            //
-            // This is low trust because we don't actually know for sure the fully
-            // qualified address is valid.
-            if !message.isStorySend {
-                let recipientFetcher = DependenciesBridge.shared.recipientFetcher
-                let recipient = recipientFetcher.fetchOrCreate(
-                    serviceId: messageSend.serviceId,
-                    tx: transaction
-                )
-                let recipientManager = DependenciesBridge.shared.recipientManager
-                recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: true, tx: transaction)
             }
 
             SSKEnvironment.shared.profileManagerRef.didSendOrReceiveMessage(

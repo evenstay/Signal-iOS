@@ -483,13 +483,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d członek</string>
+			<string>%1$d osoba</string>
 			<key>few</key>
-			<string>%1$d członków</string>
+			<string>%1$d osoby</string>
 			<key>many</key>
-			<string>%1$d członków</string>
+			<string>%1$d osób</string>
 			<key>other</key>
-			<string>%1$d członka</string>
+			<string>%1$d osoby</string>
 		</dict>
 	</dict>
 	<key>CONVERSATION_SETTINGS_MUTUAL_GROUPS_SECTION_TITLE_%d</key>
@@ -843,13 +843,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%2$@, %3$@ i jeszcze %1$d osoba otrzymają połączenie Signal</string>
+			<string>Signal zadzowni do tych osób: %2$@, %3$@ i jeszcze do %1$d osoby</string>
 			<key>few</key>
-			<string>%2$@, %3$@ i jeszcze %1$d osoby otrzymają połączenie Signal</string>
+			<string>Signal zadzowni do tych osób: %2$@, %3$@ i jeszcze do %1$d osób</string>
 			<key>many</key>
-			<string>%2$@, %3$@ i jeszcze %1$d osób otrzymają połączenie Signal</string>
+			<string>Signal zadzowni do tych osób: %2$@, %3$@ i jeszcze do %1$d osób</string>
 			<key>other</key>
-			<string>%2$@, %3$@ i jeszcze %1$d osoby otrzymają połączenie Signal</string>
+			<string>Signal zadzowni do tych osób: %2$@, %3$@ i jeszcze do %1$d osoby</string>
 		</dict>
 	</dict>
 	<key>GROUP_INVITES_SENT_ALERT_TITLE_%d</key>
@@ -923,13 +923,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d członek</string>
+			<string>%1$d osoba</string>
 			<key>few</key>
-			<string>%1$d członków</string>
+			<string>%1$d osoby</string>
 			<key>many</key>
-			<string>%1$d członków</string>
+			<string>%1$d osób</string>
 			<key>other</key>
-			<string>%1$d członka</string>
+			<string>%1$d osoby</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_MULTIPLE_COLLISION_HEADER_%d</key>
@@ -943,13 +943,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>W tej grupie jest %1$d konflikt imion i nazwisk. Przejrzyj osoby poniżej i zdecyduj, co chcesz zrobić.</string>
+			<string>W tej grupie jest %1$d konflikt imion i nazwisk. Sprawdź poniżej, o kim mowa, i zdecyduj, co chcesz zrobić.</string>
 			<key>few</key>
-			<string>W tej grupie są %1$d konflikty imion i nazwisk. Przejrzyj osoby poniżej i zdecyduj, co chcesz zrobić.</string>
+			<string>W tej grupie są %1$d konflikty imion i nazwisk. Sprawdź poniżej, o kim mowa, i zdecyduj, co chcesz zrobić.</string>
 			<key>many</key>
-			<string>W tej grupie jest %1$d konfliktów imion i nazwisk. Przejrzyj osoby poniżej i zdecyduj, co chcesz zrobić.</string>
+			<string>W tej grupie jest %1$d konfliktów imion i nazwisk. Sprawdź poniżej, o kim mowa, i zdecyduj, co chcesz zrobić.</string>
 			<key>other</key>
-			<string>W tej grupie jest %1$d konfliktu imion i nazwisk. Przejrzyj osoby poniżej i zdecyduj, co chcesz zrobić.</string>
+			<string>W tej grupie jest %1$d konfliktu imion i nazwisk. Sprawdź poniżej, o kim mowa, i zdecyduj, co chcesz zrobić.</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBERSHIP_NAME_SINGLE_COLLISION_HEADER_%d</key>
@@ -983,13 +983,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d członek</string>
+			<string>%1$d osoba</string>
 			<key>few</key>
-			<string>%1$d członków</string>
+			<string>%1$d osoby</string>
 			<key>many</key>
-			<string>%1$d członków</string>
+			<string>%1$d osób</string>
 			<key>other</key>
-			<string>%1$d członka</string>
+			<string>%1$d osoby</string>
 		</dict>
 	</dict>
 	<key>GROUP_MEMBER_COUNT_WITHOUT_LIMIT_%d</key>
@@ -1003,13 +1003,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d członek</string>
+			<string>%1$d osoba</string>
 			<key>few</key>
-			<string>%1$d członków</string>
+			<string>%1$d osoby</string>
 			<key>many</key>
-			<string>%1$d członków</string>
+			<string>%1$d osób</string>
 			<key>other</key>
-			<string>%1$d członka</string>
+			<string>%1$d osoby</string>
 		</dict>
 	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_%d</key>
@@ -1023,13 +1023,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d osoba została zaproszona do grupy.</string>
+			<string>%1$d osoba zostaje zaproszona do grupy.</string>
 			<key>few</key>
-			<string>%1$d osoby zostały zaproszone do grupy.</string>
+			<string>%1$d osoby zostają zaproszone do grupy.</string>
 			<key>many</key>
-			<string>%1$d osób zostało zaproszonych do grupy.</string>
+			<string>%1$d osób zostaje zaproszonych do grupy.</string>
 			<key>other</key>
-			<string>%1$d osób zostało zaproszonych do grupy.</string>
+			<string>%1$d osoby zostaje zaproszone do grupy.</string>
 		</dict>
 	</dict>
 	<key>GROUP_REMOTE_USER_INVITED_BY_REMOTE_USER_%d</key>
@@ -1063,13 +1063,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Zaproszenie do grupy dla %1$d osoby zostało wycofane.</string>
+			<string>Zaproszenie do grupy dla %1$d osoby zostaje wycofane.</string>
 			<key>few</key>
-			<string>Zaproszenia do grupy dla %1$d osób zostały wycofane.</string>
+			<string>Zaproszenia do grupy dla %1$d osób zostają wycofane.</string>
 			<key>many</key>
-			<string>Zaproszenia do grupy dla %1$d osób zostały wycofane.</string>
+			<string>Zaproszenia do grupy dla %1$d osób zostają wycofane.</string>
 			<key>other</key>
-			<string>Zaproszenia do grupy dla %1$d osoby zostały wycofane.</string>
+			<string>Zaproszenia do grupy dla %1$d osoby zostają wycofane.</string>
 		</dict>
 	</dict>
 	<key>GROUP_REMOTE_USER_INVITE_REVOKED_BY_REMOTE_USER_%d</key>
@@ -1523,13 +1523,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d członek</string>
+			<string>%1$d osoba</string>
 			<key>few</key>
-			<string>%1$d członków</string>
+			<string>%1$d osoby</string>
 			<key>many</key>
-			<string>%1$d członków</string>
+			<string>%1$d osób</string>
 			<key>other</key>
-			<string>%1$d członka</string>
+			<string>%1$d osoby</string>
 		</dict>
 	</dict>
 	<key>NEW_PRIVATE_STORY_VIEW_TITLE_%d</key>
@@ -1663,13 +1663,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>Cofnąć %1$d zaproszenie do grupy, którego nadawca to %2$@?</string>
+			<string>Cofnąć %1$d zaproszenie do grupy, którego nadawcą jest %2$@?</string>
 			<key>few</key>
-			<string>Cofnąć %1$d zaproszenia do grupy, których nadawca to %2$@?</string>
+			<string>Cofnąć %1$d zaproszenia do grupy, których nadawcą jest %2$@?</string>
 			<key>many</key>
-			<string>Cofnąć %1$d zaproszeń do grupy, których nadawca to %2$@?</string>
+			<string>Cofnąć %1$d zaproszeń do grupy, których nadawcą jest %2$@?</string>
 			<key>other</key>
-			<string>Cofnąć %1$d zaproszenia do grupy, którego nadawca to %2$@?</string>
+			<string>Cofnąć %1$d zaproszenia do grupy, którego nadawcą jest %2$@?</string>
 		</dict>
 	</dict>
 	<key>PRIVATE_STORY_VIEWERS_%d</key>
@@ -1883,13 +1883,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>ld</string>
 			<key>one</key>
-			<string>Member of %1$@, %2$@, and %3$ld additional group</string>
+			<string>Należy do grup %1$@, %2$@ i jeszcze %3$ld innej</string>
 			<key>few</key>
-			<string>Member of %1$@, %2$@, and %3$ld additional groups</string>
+			<string>Należy do grup %1$@, %2$@ i jeszcze %3$ld innych</string>
 			<key>many</key>
-			<string>Member of %1$@, %2$@, and %3$ld additional groups</string>
+			<string>Należy do grup %1$@, %2$@ i jeszcze %3$ld innych</string>
 			<key>other</key>
-			<string>Member of %1$@, %2$@, and %3$ld additional groups</string>
+			<string>Należy do grup %1$@, %2$@ i jeszcze %3$ld innej</string>
 		</dict>
 	</dict>
 	<key>THREAD_DETAILS_OTHER_MEMBERS_COUNT_%ld</key>
@@ -1903,13 +1903,13 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>ld</string>
 			<key>one</key>
-			<string>%1$ld other</string>
+			<string>jeszcze %1$ld osoba</string>
 			<key>few</key>
-			<string>%1$ld others</string>
+			<string>jeszcze %1$ld osoby</string>
 			<key>many</key>
-			<string>%1$ld others</string>
+			<string>jeszcze %1$ld osób</string>
 			<key>other</key>
-			<string>%1$ld others</string>
+			<string>jeszcze %1$ld osoby</string>
 		</dict>
 	</dict>
 	<key>USERNAME_SELECTION_TOO_SHORT_ERROR_MESSAGE_%d</key>

@@ -10,30 +10,23 @@ public import SignalUI
 
 extension ConversationViewController: AttachmentApprovalViewControllerDelegate {
 
-    public func attachmentApproval(_ attachmentApproval: AttachmentApprovalViewController,
-                                   didApproveAttachments attachments: [SignalAttachment],
-                                   messageBody: MessageBody?) {
-        AssertIsOnMainThread()
-
-        guard hasViewWillAppearEverBegun else {
-            owsFailDebug("InputToolbar not yet ready.")
-            return
+    public func attachmentApproval(
+        _ attachmentApproval: AttachmentApprovalViewController,
+        didApproveAttachments attachments: [SignalAttachment],
+        messageBody: MessageBody?
+    ) {
+        Task { @MainActor in
+            await self.sendAttachments(
+                attachments,
+                from: attachmentApproval,
+                messageBody: messageBody
+            )
         }
-        guard let inputToolbar = inputToolbar else {
-            owsFailDebug("Missing inputToolbar.")
-            return
-        }
-
-        tryToSendAttachments(attachments, messageBody: messageBody)
-        inputToolbar.clearTextMessage(animated: false)
-        dismiss(animated: true, completion: nil)
-        // We always want to scroll to the bottom of the conversation after the local user
-        // sends a message.
-        scrollToBottomOfConversation(animated: false)
     }
 
-    public func attachmentApprovalDidCancel(_ attachmentApproval: AttachmentApprovalViewController) {
+    public func attachmentApprovalDidCancel() {
         dismiss(animated: true, completion: nil)
+        self.popKeyBoard()
     }
 
     public func attachmentApproval(_ attachmentApproval: AttachmentApprovalViewController,
@@ -76,12 +69,31 @@ extension ConversationViewController: AttachmentApprovalViewControllerDataSource
     }
 }
 
+extension ConversationViewController: UIAdaptivePresentationControllerDelegate {
+    public func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        switch presentationController.presentedViewController {
+        case is GifPickerNavigationViewController, is UIDocumentPickerViewController:
+            self.openAttachmentKeyboard()
+        case let navigationController as OWSNavigationController:
+            switch navigationController.viewControllers.first {
+            case is ContactPickerViewController, is LocationPicker:
+                self.openAttachmentKeyboard()
+            default:
+                break
+            }
+        default:
+            break
+        }
+    }
+}
+
 // MARK: -
 
 extension ConversationViewController: ContactPickerDelegate {
 
     public func contactPickerDidCancel(_: ContactPickerViewController) {
         dismiss(animated: true, completion: nil)
+        self.openAttachmentKeyboard()
     }
 
     public func contactPicker(_ contactPicker: ContactPickerViewController, didSelect systemContact: SystemContact) {
@@ -227,8 +239,11 @@ extension ConversationViewController: ConversationInputTextViewDelegate {
         // If the thing we pasted is sticker-like, send it immediately
         // and render it borderless.
         if attachment.isBorderless {
-            tryToSendAttachments([ attachment ], messageBody: nil)
+            Task {
+                await self.sendAttachments([attachment], from: self, messageBody: nil)
+            }
         } else {
+            dismissKeyBoard()
             showApprovalDialog(forAttachment: attachment)
         }
     }
@@ -438,8 +453,10 @@ extension ConversationViewController {
         scrollingAnimationCompletionTimer?.invalidate()
         scrollingAnimationCompletionTimer = nil
 
-        _ = autoLoadMoreIfNecessary()
-    }
+        autoLoadMoreIfNecessary()
+
+        performMessageHighlightAnimationIfNeeded()
+   }
 
     func resetForSizeOrOrientationChange() {
         AssertIsOnMainThread()

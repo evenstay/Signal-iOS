@@ -29,7 +29,7 @@
 "ACCESSIBILITY_LABEL_STICKER_FORMAT" = "%1$@ જેવું સ્ટીકર";
 
 /* Accessibility label for a voice memo. */
-"ACCESSIBILITY_LABEL_VOICE_MEMO" = "વૉઈસ મેસેજ";
+"ACCESSIBILITY_LABEL_VOICE_MEMO" = "વોઇસ મેસેજ";
 
 /* Users can request a report of their account data. Before they get their account export, they are warned to only share account data with trustworthy sources. This is the button on that warning, and tapping it lets users continue. */
 "ACCOUNT_DATA_REPORT_CONFIRM_EXPORT_CONFIRM_BUTTON" = "રિપોર્ટ એક્સપોર્ટ કરો";
@@ -77,7 +77,7 @@
 "ACTION_TAP_TO_DOWNLOAD" = "ડાઉનલોડ કરવા માટે ટેપ કરો";
 
 /* Label for 'video call' button in contact view. */
-"ACTION_VIDEO_CALL" = "વિડિયો કૉલ";
+"ACTION_VIDEO_CALL" = "વીડિયો કૉલ";
 
 /* Label for 'voice call' button in contact view. */
 "ACTION_VOICE_CALL" = "Signal કૉલ";
@@ -86,16 +86,16 @@
 "ADD_GROUP_MEMBERS_VIEW_TITLE" = "સભ્યો ઉમેરો";
 
 /* Message shown in conversation view that offers to share your profile with a group. */
-"ADD_GROUP_TO_PROFILE_WHITELIST_OFFER" = "શું તમે આ ગ્રુપ સાથે તમારી પ્રોફાઇલ શેર કરવા માંગો છો?";
+"ADD_GROUP_TO_PROFILE_WHITELIST_OFFER" = "શું તમે આ ગ્રૂપ સાથે તમારી પ્રોફાઇલ શેર કરવા માંગો છો?";
 
 /* Message shown in conversation view that offers to add an unknown user to your phone's contacts. */
 "ADD_TO_CONTACTS_OFFER" = "શું તમે આ વપરાશકર્તાને તમારા સંપર્કોમાં ઉમેરવા માંગો છો?";
 
 /* Label for button or row which allows users to add to another group. */
-"ADD_TO_GROUP" = "અન્ય ગ્રુપમાં ઉમેરો";
+"ADD_TO_GROUP" = "અન્ય ગ્રૂપમાં ઉમેરો";
 
 /* The button on the 'add to group' confirmation to add the user to the group. */
-"ADD_TO_GROUP_ACTION_PROCEED_BUTTON" = "ગ્રુપમાં ઉમેરો";
+"ADD_TO_GROUP_ACTION_PROCEED_BUTTON" = "ગ્રૂપમાં ઉમેરો";
 
 /* The title on the 'add to group' confirmation action sheet. Embeds {contact name, group name} */
 "ADD_TO_GROUP_ACTION_SHEET_MESSAGE_FORMAT" = "શું \"%1$@\"ને \"%2$@\"માં ઉમેરવા છે?";
@@ -104,16 +104,13 @@
 "ADD_TO_GROUP_ACTION_SHEET_TITLE" = "નવું સભ્ય ઉમેરો";
 
 /* Text indicating your contact is already a member of the group on the 'add to group' view. */
-"ADD_TO_GROUP_ALREADY_A_MEMBER" = "પહેલેથી જ મેમ્બર છે";
-
-/* A toast on the 'add to group' view indicating the user is already a member. Embeds {contact name} and {group name} */
-"ADD_TO_GROUP_ALREADY_MEMBER_TOAST_FORMAT" = "%1$@ પહેલાંથી જ %2$@ ના મેમ્બર છે";
+"ADD_TO_GROUP_ALREADY_A_MEMBER" = "પહેલેથી જ સભ્ય છે";
 
 /* A toast on the 'add to group' view indicating the user was added. Embeds {contact name} and {group name} */
 "ADD_TO_GROUP_SUCCESS_TOAST_FORMAT" = "%1$@ને %2$@ માં ઉમેર્યા";
 
 /* Title of the 'add to group' view. */
-"ADD_TO_GROUP_TITLE" = "એક ગ્રુપમાં ઉમેરો";
+"ADD_TO_GROUP_TITLE" = "એક ગ્રૂપમાં ઉમેરો";
 
 /* Message shown in conversation view that offers to share your profile with a user. */
 "ADD_USER_TO_PROFILE_WHITELIST_OFFER" = "શું તમે આ વપરાશકર્તા સાથે તમારી પ્રોફાઇલ શેર કરવા માંગો છો?";
@@ -122,19 +119,19 @@
 "ALERT_ACTION_ACKNOWLEDGE" = "સમજાઈ ગયું";
 
 /* Format string for delivery issue sheet message. Embeds {{ sender name }}. */
-"ALERT_DELIVERY_ISSUE_MESSAGE_FORMAT" = "આ ચેટમાં %1$@ તરફથી તમને મેસેજ, સ્ટિકર, પ્રતિક્રિયા, વાંચી લીધાનું નિશાન અથવા મીડિયા ડિલિવર થઈ શક્યું નહીં.";
+"ALERT_DELIVERY_ISSUE_MESSAGE_FORMAT" = "આ ચેટમાં %1$@ તરફથી તમને મેસેજ, સ્ટીકર, પ્રતિક્રિયા, વંચાયાની ખાતરી અથવા મીડિયા ડિલિવર થઈ શક્યું નહીં.";
 
 /* Title for delivery issue sheet */
-"ALERT_DELIVERY_ISSUE_TITLE" = "ડિલિવરી મુદ્દો";
+"ALERT_DELIVERY_ISSUE_TITLE" = "ડિલિવરી સમસ્યા";
 
 /* Format string for delivery issue sheet message where the original thread is unknown. Embeds {{ sender name }}. */
-"ALERT_DELIVERY_ISSUE_UNKNOWN_THREAD_MESSAGE_FORMAT" = "આ ચેટમાં %1$@ તરફથી તમને મેસેજ, સ્ટિકર, પ્રતિક્રિયા, વાંચી લીધાનું નિશાન અથવા મીડિયા મોકલી શકાયું નહીં. તેઓએ તમને સીધા જ, અથવા ગ્રૂપમાં મોકલવાનો પ્રયાસ કર્યો હોઈ શકે છે.";
+"ALERT_DELIVERY_ISSUE_UNKNOWN_THREAD_MESSAGE_FORMAT" = "આ ચેટમાં %1$@ તરફથી તમને મેસેજ, સ્ટીકર, પ્રતિક્રિયા, વંચાયાની ખાતરી અથવા મીડિયા મોકલી શકાયું નહીં. તેઓએ તમને સીધા જ અથવા ગ્રૂપમાં મોકલવાનો પ્રયાસ કર્યો હોઈ શકે છે.";
 
 /* The label for the 'discard' button in alerts and action sheets. */
 "ALERT_DISCARD_BUTTON" = "કાઢી નાખો";
 
 /* The label for the 'don't save' button in action sheets. */
-"ALERT_DONT_SAVE" = "સેવ કરશો નહી";
+"ALERT_DONT_SAVE" = "સેવ કરશો નહીં";
 
 /* Generic error indicator. */
 "ALERT_ERROR_TITLE" = "ભૂલ";
@@ -143,10 +140,10 @@
 "ALERT_SAVE" = "સેવ કરો";
 
 /* Message for UI warning about an unknown contact thread. */
-"ALERT_UNKNOWN_THREAD_WARNING_CONTACT_MESSAGE" = "તમારી પાસે આ વ્યક્તિ સાથે કોમનમાં કોઈ ગ્રુપ નથી. અનિચ્છનીય મેસેજ  ટાળવા માટે સ્વીકારતા પહેલા વિનંતીઓની કાળજીપૂર્વક સમીક્ષા કરો.";
+"ALERT_UNKNOWN_THREAD_WARNING_CONTACT_MESSAGE" = "તમારી પાસે આ વ્યક્તિ સાથે કોમનમાં કોઈ ગ્રૂપ નથી. અનિચ્છનીય મેસેજ ટાળવા માટે સ્વીકારતા પહેલા વિનંતીઓની કાળજીપૂર્વક રિવ્યૂ કરો.";
 
 /* Message for UI warning about an unknown group thread. */
-"ALERT_UNKNOWN_THREAD_WARNING_GROUP_MESSAGE" = "આ ગ્રુપ સાથે કોમનમાં કોઈ સભ્યો નથી. અનિચ્છનીય મેસેજથી બચવા માટે સ્વીકારતા કરતા પહેલાં વિનંતીઓની કાળજીપૂર્વક સમીક્ષા કરો.";
+"ALERT_UNKNOWN_THREAD_WARNING_GROUP_MESSAGE" = "આ ગ્રૂપ સાથે કોમનમાં કોઈ સભ્યો નથી. અનિચ્છનીય મેસેજથી બચવા માટે સ્વીકારતા કરતા પહેલાં વિનંતીઓની કાળજીપૂર્વક સમીક્ષા કરો.";
 
 /* Label for button to learn more about message requests. */
 "ALERT_UNKNOWN_THREAD_WARNING_LEARN_MORE" = "મેસેજ વિનંતીઓ વિશે";
@@ -164,7 +161,7 @@
 "ALL_MEDIA_FILE_TYPE_AUDIO" = "ઓડિયો";
 
 /* Generic All Media file type for non-audiovisual files used in file type picker */
-"ALL_MEDIA_FILE_TYPE_FILES" = "ફાઈલો";
+"ALL_MEDIA_FILE_TYPE_FILES" = "ફાઇલો";
 
 /* Media (i.e., graphical) file type in All Meda file type picker. */
 "ALL_MEDIA_FILE_TYPE_MEDIA" = "મીડિયા";
@@ -215,22 +212,22 @@
 "APP_LAUNCH_FAILURE_CORRUPT_REGISTRATION_TITLE" = "Signal ખોલી ન શક્યા";
 
 /* Error indicating that the app could not launch because the database could not be loaded. */
-"APP_LAUNCH_FAILURE_COULD_NOT_LOAD_DATABASE" = "ડેટાબેસ લોડ કરી શકાયું નથી";
+"APP_LAUNCH_FAILURE_COULD_NOT_LOAD_DATABASE" = "ડેટાબેઝ લોડ કરી શકાયું નથી";
 
 /* Error indicating that the app could not launch without reverting unknown database migrations. */
-"APP_LAUNCH_FAILURE_INVALID_DATABASE_VERSION_MESSAGE" = "કૃપા કરીને Signal ના નવીનતમ વર્ઝન પર અપગ્રેડ કરો.";
+"APP_LAUNCH_FAILURE_INVALID_DATABASE_VERSION_MESSAGE" = "કૃપા કરીને Signalના લેટેસ્ટ વર્ઝન પર અપગ્રેડ કરો.";
 
 /* Error indicating that the app could not launch without reverting unknown database migrations. */
 "APP_LAUNCH_FAILURE_INVALID_DATABASE_VERSION_TITLE" = "અજાણ ડેટાબેઝ વર્ઝન.";
 
 /* Error indicating that the app crashed during the previous launch. */
-"APP_LAUNCH_FAILURE_LAST_LAUNCH_CRASHED_MESSAGE" = "Signal ઓપન કરવાનો પ્રયાસ કરતી વખતે એક સમસ્યા આવી હતી. આ સમસ્યાનું નિવારણ કરવામાં સહાયતા માટે કૃપા કરીને support@signal.orgને એક ડીબગ લૉગ મોકલો.";
+"APP_LAUNCH_FAILURE_LAST_LAUNCH_CRASHED_MESSAGE" = "Signal ખોલવાનો પ્રયાસ કરતી વખતે એક સમસ્યા આવી હતી. આ સમસ્યાનું નિવારણ કરવામાં સહાયતા માટે કૃપા કરીને support@signal.orgને એક ડીબગ લૉગ મોકલો.";
 
 /* Error indicating that the app crashed during the previous launch. */
-"APP_LAUNCH_FAILURE_LAST_LAUNCH_CRASHED_TITLE" = "Signal ઓપન ન કરી શક્યા";
+"APP_LAUNCH_FAILURE_LAST_LAUNCH_CRASHED_TITLE" = "Signal ખોલી શક્યા નથી";
 
 /* Error description indicating that the app crashed because there was low storage space available on the device. */
-"APP_LAUNCH_FAILURE_LOW_STORAGE_SPACE_AVAILABLE_MESSAGE" = "Signal ઓપન ન થઈ શકી કારણ કે તમારા ડિવાઇસ પર સ્ટોરેજ ઓછું છે. Signalનો ઉપયોગ કરવા માટે, સેટિંગ્સમાં તમારા સ્ટોરેજને મેનેજ કરીને સ્પેસ ખાલી કરો.";
+"APP_LAUNCH_FAILURE_LOW_STORAGE_SPACE_AVAILABLE_MESSAGE" = "Signal ખોલી શકાયું નથી કારણ કે તમારા ડિવાઇસ પર સ્ટોરેજ ઓછું છે. Signalનો ઉપયોગ કરવા માટે, સેટિંગ્સમાં તમારા સ્ટોરેજને મેનેજ કરીને સ્પેસ ખાલી કરો.";
 
 /* Error title indicating that the app crashed because there was low storage space available on the device. */
 "APP_LAUNCH_FAILURE_LOW_STORAGE_SPACE_AVAILABLE_TITLE" = "સ્ટોરેજ સ્પેસ ઓછી છે";
@@ -251,7 +248,7 @@
 "APP_UPDATE_NAG_ALERT_MESSAGE_FORMAT" = "વર્ઝન %1$@ હવે App Store પર ઉપલબ્ધ છે.";
 
 /* Title for the 'new app version available' alert. */
-"APP_UPDATE_NAG_ALERT_TITLE" = "Signal નું નવું વર્ઝન ઉપલબ્ધ છે";
+"APP_UPDATE_NAG_ALERT_TITLE" = "Signalનું નવું વર્ઝન ઉપલબ્ધ છે";
 
 /* Label for the 'update' button in the 'new app version available' alert. */
 "APP_UPDATE_NAG_ALERT_UPDATE_BUTTON" = "અપડેટ";
@@ -517,6 +514,51 @@
 /* Text used as placeholder in backup key text view. */
 "BACKUP_KEY_PLACEHOLDER" = "બેકઅપ કી";
 
+/* Body for a sheet warning users to their 'Backup Key' safe. */
+"BACKUP_ONBOARDING_CONFIRM_KEY_KEEP_KEY_SAFE_SHEET_BODY" = "Signal will not be able to help you restore your backup if you lose your key. Store it somewhere safe and secure, and do not share it with others.";
+
+/* Title for a sheet warning users to their 'Backup Key' safe. */
+"BACKUP_ONBOARDING_CONFIRM_KEY_KEEP_KEY_SAFE_SHEET_TITLE" = "Keep Your Key Safe";
+
+/* Title for a button offering to let users see their 'Backup Key'. */
+"BACKUP_ONBOARDING_CONFIRM_KEY_SEE_KEY_AGAIN_BUTTON_TITLE" = "See Key Again";
+
+/* Subtitle for a view asking users to confirm their 'Backup Key'. */
+"BACKUP_ONBOARDING_CONFIRM_KEY_SUBTITLE" = "Enter the backup key you just recorded";
+
+/* Title for a view asking users to confirm their 'Backup Key'. */
+"BACKUP_ONBOARDING_CONFIRM_KEY_TITLE" = "Confirm Your Backup Key";
+
+/* Bullet point on a view introducing Backups during an onboarding flow. */
+"BACKUP_ONBOARDING_INTRO_BULLET_1" = "End-to-end encrypted";
+
+/* Bullet point on a view introducing Backups during an onboarding flow. */
+"BACKUP_ONBOARDING_INTRO_BULLET_2" = "Optional, always";
+
+/* Bullet point on a view introducing Backups during an onboarding flow. */
+"BACKUP_ONBOARDING_INTRO_BULLET_3" = "Delete your backup anytime";
+
+/* Subtitle for a view introducing Backups during an onboarding flow. */
+"BACKUP_ONBOARDING_INTRO_SUBTITLE" = "Back up your messages and media using Signal's secure, end-to-end encrypted storage service. Never lose a message when you get a new phone or reinstall Signal.";
+
+/* Title for a view introducing Backups during an onboarding flow. */
+"BACKUP_ONBOARDING_INTRO_TITLE" = "Signal Backups";
+
+/* Subtitle for a view introducing the 'Backup Key' during an onboarding flow. */
+"BACKUP_ONBOARDING_KEY_INTRO_SUBTITLE" = "Your backup key is a 64-digit code that lets you restore your backup when you re-install Signal.\n\nIf you forget your key, you will not be able to restore your backup. Signal cannot help you recover your backup.";
+
+/* Title for a view introducing the 'Backup Key' during an onboarding flow. */
+"BACKUP_ONBOARDING_KEY_INTRO_TITLE" = "Your Backup Key";
+
+/* Title for a button allowing users to copy their 'Backup Key' to the clipboard. */
+"BACKUP_RECORD_KEY_COPY_TO_CLIPBOARD_BUTTON_TITLE" = "Copy to Clipboard";
+
+/* Subtitle for a view allowing users to record their 'Backup Key'. */
+"BACKUP_RECORD_KEY_SUBTITLE" = "This key is required to recover your account and data. Store this key somewhere safe. If you lose it, you won’t be able to recover your account.";
+
+/* Title for a view allowing users to record their 'Backup Key'. */
+"BACKUP_RECORD_KEY_TITLE" = "Record Your Backup Key";
+
 /* Title for a button allowing users to upgrade from a free to paid backup plan. */
 "BACKUP_SETTINGS_BACKUP_PLAN_FREE_ACTION_BUTTON_TITLE" = "અપગ્રેડ કરો";
 
@@ -526,11 +568,17 @@
 /* Header describing what the free backup plan includes. */
 "BACKUP_SETTINGS_BACKUP_PLAN_FREE_HEADER" = "ટેક્સ્ટ + 45 દિવસના મીડિયાનું બેકઅપ";
 
-/* Text shown when we fail to load someone's backup plan due to a generic error. */
-"BACKUP_SETTINGS_BACKUP_PLAN_GENERIC_ERROR" = "તમારો બેકઅપ પ્લાન મેળવવામાં નિષ્ફળ. કૃપા કરીને સપોર્ટનો સંપર્ક કરો.";
+/* Message for a view indicating we failed to fetch someone's Backup plan due to an unexpected error. */
+"BACKUP_SETTINGS_BACKUP_PLAN_GENERIC_ERROR_MESSAGE" = "એક ભૂલ આવી. કૃપા કરીને સપોર્ટનો સંપર્ક કરો.";
 
-/* Text shown when we fail to load someone's backup plan due to a network error. */
-"BACKUP_SETTINGS_BACKUP_PLAN_NETWORK_ERROR" = "તમારો બેકઅપ પ્લાન મેળવવામાં નિષ્ફળ. તમારું ઇન્ટરનેટ તપાસો અને ફરી પ્રયાસ કરો.";
+/* Title for a view indicating we failed to fetch someone's Backup plan due to an unexpected error. */
+"BACKUP_SETTINGS_BACKUP_PLAN_GENERIC_ERROR_TITLE" = "બેકઅપ પ્લાન મેળવવામાં નિષ્ફળ";
+
+/* Message for a view indicating we failed to fetch someone's Backup plan due to a network error. */
+"BACKUP_SETTINGS_BACKUP_PLAN_NETWORK_ERROR_MESSAGE" = "તમારું કનેક્શન તપાસો અને ફરીથી પ્રયત્ન કરો.";
+
+/* Title for a view indicating we failed to fetch someone's Backup plan due to a network error. */
+"BACKUP_SETTINGS_BACKUP_PLAN_NETWORK_ERROR_TITLE" = "નેટવર્ક એરર";
 
 /* Title for a button allowing users to manage or cancel their paid backup plan. */
 "BACKUP_SETTINGS_BACKUP_PLAN_PAID_ACTION_BUTTON_TITLE" = "મેનેજ કરો અથવા રદ કરો";
@@ -544,9 +592,6 @@
 /* Text explaining that a user's paid plan, which has been canceled, will expire on a future date. Embeds {{ the formatted expiration date }}. */
 "BACKUP_SETTINGS_BACKUP_PLAN_PAID_BUT_CANCELED_FUTURE_EXPIRATION_FORMAT" = "%1$@ના રોજ સમાપ્ત થશે";
 
-/* Text explaining that a user's paid plan, which has been canceled, has expired. Embeds {{ the formatted expiration date }}. */
-"BACKUP_SETTINGS_BACKUP_PLAN_PAID_BUT_CANCELED_PAST_EXPIRATION_FORMAT" = "%1$@ના રોજ સમાપ્ત થયો";
-
 /* Header describing what the paid backup plan includes. */
 "BACKUP_SETTINGS_BACKUP_PLAN_PAID_HEADER" = "ટેક્સ્ટ + બધા મીડિયાનું બેકઅપ";
 
@@ -559,6 +604,21 @@
 /* Footer for a menu section related to settings for when Backups are disabled. */
 "BACKUP_SETTINGS_BACKUPS_DISABLED_SECTION_FOOTER" = "બેકઅપ બંધ કરવામાં આવ્યા છે અને તમારો ડેટા Signalની સુરક્ષિત સ્ટોરેજ સેવામાંથી ડિલીટ કરવામાં આવ્યો છે.";
 
+/* Message for a view indicating we failed to delete the user's Backup due to an unexpected error. */
+"BACKUP_SETTINGS_BACKUPS_DISABLING_GENERIC_ERROR_MESSAGE" = "એક ભૂલ આવી. કૃપા કરીને સપોર્ટનો સંપર્ક કરો.";
+
+/* Header for a menu section related to settings for when disabling Backups encountered an unexpected error. */
+"BACKUP_SETTINGS_BACKUPS_DISABLING_GENERIC_ERROR_SECTION_HEADER" = "Signalની સુરક્ષિત સ્ટોરેજ સેવામાંથી તમારો ડેટા ડિલીટ કરતી વખતે એક ભૂલ આવી.";
+
+/* Title for a view indicating we failed to delete the user's Backup due to an unexpected error. */
+"BACKUP_SETTINGS_BACKUPS_DISABLING_GENERIC_ERROR_TITLE" = "બેકઅપ ડિલીટ કરવાનું નિષ્ફળ થયું";
+
+/* Description for a progress view tracking Backups being disabled. */
+"BACKUP_SETTINGS_BACKUPS_DISABLING_PROGRESS_VIEW_DESCRIPTION" = "બેકઅપ ડિલીટ કરી રહ્યા છીએ...";
+
+/* Header for a menu section related to disabling Backups. */
+"BACKUP_SETTINGS_BACKUPS_DISABLING_SECTION_HEADER" = "બેકઅપ બંધ કરવામાં આવ્યા છે અને તમારો ડેટા Signalની સુરક્ષિત સ્ટોરેજ સેવામાંથી ડિલીટ કરવામાં આવશે.";
+
 /* Header for a menu section related to settings for when Backups are enabled. */
 "BACKUP_SETTINGS_BACKUPS_ENABLED_SECTION_HEADER" = "બેકઅપની વિગતો";
 
@@ -567,6 +627,15 @@
 
 /* Title for a button allowing users to turn off Backups. */
 "BACKUP_SETTINGS_DISABLE_BACKUPS_BUTTON_TITLE" = "બંધ કરો અને બેકઅપ ડિલીટ કરો";
+
+/* Message shown in an action sheet indicating we failed to delete the user's Backup due to an unexpected error. */
+"BACKUP_SETTINGS_DISABLING_ERROR_GENERIC_ERROR_ACTION_SHEET_MESSAGE" = "Signalની સુરક્ષિત સ્ટોરેજ સેવામાંથી તમારો ડેટા ડિલીટ કરતી વખતે એક ભૂલ આવી.";
+
+/* Title shown in an action sheet indicating we failed to delete the user's Backup due to an unexpected error. */
+"BACKUP_SETTINGS_DISABLING_ERROR_GENERIC_ERROR_ACTION_SHEET_TITLE" = "બેકઅપ ડિલીટ કરવાનું નિષ્ફળ થયું";
+
+/* Message shown in an action sheet when the user tries to disable Backups, but is not registered. */
+"BACKUP_SETTINGS_DISABLING_ERROR_NOT_REGISTERED" = "બેકઅપને અક્ષમ કરવા માટે તમે રજીસ્ટર કરાવેલું હોવું આવશ્યક છે.";
 
 /* Text describing that a user's backup will be automatically performed daily. */
 "BACKUP_SETTINGS_ENABLED_BACKUP_FREQUENCY_DAILY" = "દૈનિક";
@@ -609,6 +678,18 @@
 
 /* Title for a button allowing users to re-enable Backups, after it had been previously disabled. */
 "BACKUP_SETTINGS_REENABLE_BACKUPS_BUTTON_TITLE" = "બેકઅપ ફરીથી સક્ષમ કરો";
+
+/* Message for a sheet shown after the user enables backups. */
+"BACKUP_SETTINGS_WELCOME_TO_BACKUPS_SHEET_MESSAGE" = "તમારા બેકઅપની સાઇઝના આધારે, આમાં વધુ સમય લાગી શકે છે. જ્યારે બેકઅપ લેવામાં આવે ત્યારે તમે સામાન્ય રીતે કરતાં હોવ તેમ તમે તમારા ફોનનો ઉપયોગ કરી શકો છો.";
+
+/* Title for the primary button for a sheet shown after the user enables backups. */
+"BACKUP_SETTINGS_WELCOME_TO_BACKUPS_SHEET_PRIMARY_BUTTON" = "હમણાં બેકઅપ લો";
+
+/* Title for the secondary button for a sheet shown after the user enables backups. */
+"BACKUP_SETTINGS_WELCOME_TO_BACKUPS_SHEET_SECONDARY_BUTTON" = "પછી બેકઅપ લો";
+
+/* Title for a sheet shown after the user enables backups. */
+"BACKUP_SETTINGS_WELCOME_TO_BACKUPS_SHEET_TITLE" = "Signal બેકઅપ પર સ્વાગત છે. હવે તમારું બેકઅપ શરૂ કરો.";
 
 /* Title for the 'Backup' settings menu. */
 "BACKUPS_SETTINGS_TITLE" = "Signal બેકઅપ";
@@ -1287,6 +1368,57 @@
 
 /* Message displayed on chat list when Filter by Unread is enabled but no unread chats are available */
 "CHAT_LIST_UNREAD_FILTER_NO_CHATS" = "કોઈ વાંચ્યા વગરની ચેટ નથી";
+
+/* Text for a bullet point in a list of Backup features, describing that all media is included. */
+"CHOOSE_BACKUP_PLAN_BULLET_FULL_MEDIA_BACKUP" = "સંપૂર્ણ મીડિયા બેકઅપ";
+
+/* Text for a bullet point in a list of Backup features, describing that all text messages are included. */
+"CHOOSE_BACKUP_PLAN_BULLET_FULL_TEXT_BACKUP" = "સંપૂર્ણ ટેક્સ્ટ મેસેજ બેકઅપ";
+
+/* Text for a bullet point in a list of Backup features, describing that recent media is included. */
+"CHOOSE_BACKUP_PLAN_BULLET_RECENT_MEDIA_BACKUP" = "મીડિયાના છેલ્લા 45 દિવસ";
+
+/* Text for a bullet point in a list of Backup features, describing the amount of included storage. */
+"CHOOSE_BACKUP_PLAN_BULLET_STORAGE_AMOUNT" = "1TB સ્ટોરેજ (~250k ફોટા)";
+
+/* Message shown in an action sheet when the user tries to confirm a plan selection, but encountered a generic error. */
+"CHOOSE_BACKUP_PLAN_CONFIRMATION_ERROR_GENERIC_ERROR" = "કંઈક ખોટું થયું. કૃપા કરીને સપોર્ટનો સંપર્ક કરો.";
+
+/* Message shown in an action sheet when the user tries to confirm a plan selection, but encountered a network error. */
+"CHOOSE_BACKUP_PLAN_CONFIRMATION_ERROR_NETWORK_ERROR" = "કંઈક ખોટું થયું. તમારું કનેક્શન તપાસો અને ફરીથી પ્રયત્ન કરો.";
+
+/* Message shown in an action sheet when the user tries to confirm a plan selection, but is not registered. */
+"CHOOSE_BACKUP_PLAN_CONFIRMATION_ERROR_NOT_REGISTERED" = "બેકઅપને સક્ષમ કરવા માટે તમે રજીસ્ટર કરાવેલું હોવું આવશ્યક છે.";
+
+/* Message shown in an action sheet when the user tries to confirm selecting the paid plan, but encountered an error from Apple while purchasing. */
+"CHOOSE_BACKUP_PLAN_CONFIRMATION_ERROR_PURCHASE" = "કંઈક ખોટું થયું. કૃપા કરીને ફરીથી પ્રયાસ કરો.";
+
+/* Message shown in an action sheet when the user tries to confirm selecting the paid plan, but encountered an error while redeeming their completed purchase. */
+"CHOOSE_BACKUP_PLAN_CONFIRMATION_ERROR_PURCHASE_REDEMPTION" = "કંઈક ખોટું થયું. કૃપા કરીને સપોર્ટનો સંપર્ક કરો.";
+
+/* A label indicating that a given Backup plan option is what the user has already enabled. */
+"CHOOSE_BACKUP_PLAN_CURRENT_PLAN_LABEL" = "વર્તમાન પ્લાન";
+
+/* Subtitle for the free plan option, when choosing a Backup plan. */
+"CHOOSE_BACKUP_PLAN_FREE_PLAN_SUBTITLE" = "ટેક્સ્ટ + 45 દિવસના મીડિયા";
+
+/* Title for the free plan option, when choosing a Backup plan. */
+"CHOOSE_BACKUP_PLAN_FREE_PLAN_TITLE" = "મફત";
+
+/* Subtitle for the paid plan option, when choosing a Backup plan. */
+"CHOOSE_BACKUP_PLAN_PAID_PLAN_SUBTITLE" = "ટેક્સ્ટ + તમારા બધા મીડિયા";
+
+/* Title for the paid plan option, when choosing a Backup plan. Embeds {{ the formatted monthly cost, as currency, of the paid plan }}. */
+"CHOOSE_BACKUP_PLAN_PAID_PLAN_TITLE" = "%1$@/મહિને";
+
+/* Text for a button that will subscribe the user to the paid Backup plan. Embeds {{ the formatted monthly cost, as currency, of the paid plan }}. */
+"CHOOSE_BACKUP_PLAN_SUBSCRIBE_PAID_BUTTON_TEXT" = "%1$@/મહિને સબ્સ્ક્રાઇબ કરો";
+
+/* Subtitle for a view allowing users to choose a Backup plan. */
+"CHOOSE_BACKUP_PLAN_SUBTITLE" = "બધા બેકઅપ એન્ડ-ટૂ-એન્ડ એન્ક્રિપ્ટેડ છે. Signal એક બિન-લાભકારી છે—બેકઅપ માટે ચૂકવણી કરવાથી અમારા મિશનને સપોર્ટ કરવામાં મદદ મળે છે.";
+
+/* Title for a view allowing users to choose a Backup plan. */
+"CHOOSE_BACKUP_PLAN_TITLE" = "તમારો બેકઅપ પ્લાન પસંદ કરો";
 
 /* Title for the color & wallpaper settings view. */
 "COLOR_AND_WALLPAPER_SETTINGS_TITLE" = "ચેટ કલર અને વૉલપેપર";
@@ -2248,6 +2380,12 @@
 /* Disappearing message option to define a custom time */
 "DISAPPEARING_MESSAGES_CUSTOM_TIME" = "કસ્ટમ સમય";
 
+/* Title for a picker for the unit of time to use for disappearing messages. */
+"DISAPPEARING_MESSAGES_CUSTOM_TIME_UNIT_PICKER" = "એકમ";
+
+/* Title for a picker for the amount of time, in a given unit, to use for disappearing messages. */
+"DISAPPEARING_MESSAGES_CUSTOM_TIME_VALUE_PICKER" = "મૂલ્ય";
+
 /* The unit for a number of days */
 "DISAPPEARING_MESSAGES_DAYS" = "દિવસો";
 
@@ -2776,6 +2914,12 @@
 /* Call setup status label */
 "END_CALL_UNCATEGORIZED_FAILURE" = "કૉલ નિષ્ફળ ગયો";
 
+/* Label explaining that an entered 'Backup Key' is incorrect. */
+"ENTER_ACCOUNT_ENTROPY_POOL_VIEW_INCORRECT_AEP_LABEL" = "Incorrect backup key";
+
+/* Label explaining that an entered 'Backup Key' is malformed. */
+"ENTER_ACCOUNT_ENTROPY_POOL_VIEW_MALFORMED_AEP_LABEL" = "Invalid backup key";
+
 /* Error indicating that a message could not be forwarded. */
 "ERROR_COULD_NOT_FORWARD_MESSAGES_1" = "મેસેજ ફોરવર્ડ ન કરી શક્યા.";
 
@@ -2787,9 +2931,6 @@
 
 /* Error indicating that messages could not be forwarded. */
 "ERROR_COULD_NOT_FORWARD_MESSAGES_N" = "મેસેજ ફોરવર્ડ ન કરી શક્યા";
-
-/* Error indicating that 'save video' failed. */
-"ERROR_COULD_NOT_SAVE_VIDEO" = "વિડિયો સેવ કરી શક્યા નથી";
 
 /* Generic notice when message failed to send. */
 "ERROR_DESCRIPTION_CLIENT_SENDING_FAILURE" = "મેસેજ મોકલવામાં નિષ્ફળ.";
@@ -3356,7 +3497,7 @@
 "GROUP_IS_ANNOUNCEMENT_ONLY_ENABLED_BY_REMOTE_USER_FORMAT" = "%1$@એ ફક્ત એડમિનને મેસેજ મોકલવાની મંજૂરી આપવા માટે ગ્રુપ સેટિંગ્સ બદલ્યા.";
 
 /* Subtitle indicating that the local user has been blocked from joining the group */
-"GROUP_LINK_ACTION_SHEET_VIEW_BLOCKED_FROM_JOINING_SUBTITLE" = "તમે ગ્રુપ લિંક દ્વારા આ ગ્રુપમાં જોડાઈ શકતા નથી કારણ કે એક એડમિને તમને દૂર કર્યા.";
+"GROUP_LINK_ACTION_SHEET_VIEW_BLOCKED_FROM_JOINING_SUBTITLE" = "તમે ગ્રૂપ લિંક દ્વારા આ ગ્રૂપમાં જોડાઈ શકતા નથી કારણ કે એક એડમિને તમને દૂર કર્યા. ગ્રૂપમાં પાછા ઉમેરાવા માટે એડમિનનો સંપર્ક કરો.";
 
 /* Title indicating that you cannot join a group in the 'group invite link' action sheet. */
 "GROUP_LINK_ACTION_SHEET_VIEW_CANNOT_JOIN_GROUP_TITLE" = "ગ્રુપમાં જોડાઈ શકતા નથી";
@@ -3889,17 +4030,11 @@
 /* Title 'Read All' button in the toolbar of the ChatList if multi-section is active. */
 "HOME_VIEW_TOOLBAR_READ_ALL" = "તમામ વાંચો";
 
-/* Label for both bank chooser header and the bank form field on the iDEAL payment detail page. */
-"IDEAL_DONATION_CHOOSE_YOUR_BANK_LABEL" = "તમારી બેંક પસંદ કરો";
-
 /* Fallback title confirming recurring donation with bank. */
 "IDEAL_DONATION_CONFIRM_DONATION_TITLE" = "તમારા દાનની પુષ્ટિ કરો";
 
 /* Message confirming recurring donation with bank. This message confirms with the user that they will see a small confirmation charge with their bank before the donation. Embeds 1:{{ 0.01 euro, as a localized string }}, 2:{{ the amount of their donation, as a localized string }}. */
 "IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_MESSAGE" = "તમારા પુનરાવર્તિત દાનને સેટ કરવા માટે, તમારી બેંક સાથે %1$@ ચાર્જની ખાતરી કરવા માટે ચાલુ રાખો પર ટેપ કરો. આ આપમેળે રિફંડ કરવામાં આવશે અને તમારા એકાઉન્ટમાંથી તમારા %2$@/મહિનાના દાનને ડેબિટ કરવાની મંજૂરી આપે છે.";
-
-/* Title confirming recurring donation with bank. */
-"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_TITLE" = "%1$@ સાથે તમારા દાનની પુષ્ટિ કરો";
 
 /* The image editor hint that you can draw blur */
 "IMAGE_EDITOR_BLUR_HINT" = "ઝાંખા કરવા માટે ગમે તે જગ્યાએ દોરો";
@@ -4431,6 +4566,9 @@
 
 /* Context menu item in media viewer. Refers to deleting currently displayed photo/video. */
 "MEDIA_VIEWER_DELETE_MEDIA_ACTION" = "ડિલીટ કરો";
+
+/* Context menu item in media viewer. Refers to scrolling the conversation to the currently displayed photo/video. */
+"MEDIA_VIEWER_GO_TO_MESSAGE_ACTION" = "મેસેજ પર જાઓ";
 
 /* Context menu item in media viewer. Refers to saving currently displayed photo/video to the Photos app. */
 "MEDIA_VIEWER_SAVE_MEDIA_ACTION" = "સેવ કરો";
@@ -5131,29 +5269,53 @@
 /* Title for the skip pin entry action sheet during onboarding. */
 "ONBOARDING_2FA_SKIP_PIN_ENTRY_TITLE" = "PIN એન્ટ્રી સ્કિપ કરો?";
 
+/* The body for the device transfer 'choice' view 'transfer' option */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_BACKUPS_BODY" = "તમારા સશુલ્ક Signal બેકઅપ પ્લાનમાંથી તમારા ટેક્સ્ટ મેસેજ અને મીડિયાને રિસ્ટોર કરો";
+
+/* The title for the device transfer 'choice' view 'transfer' option */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_BACKUPS_TITLE" = "Signal બેકઅપ રિસ્ટોર કરો";
+
+/* If a user is installing Signal on a new phone, they may be asked whether they want to restore their device from a backup. This is a description of that question. */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_DESCRIPTION" = "તમે તમારી મેસેજ હિસ્ટ્રી અને એકાઉન્ટ ડેટાને કેવી રીતે રિસ્ટોર કરવા માંગો છો તે પસંદ કરો.";
+
+/* The body for the skip restore 'choice' option */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_SKIP_RESTORE_BODY" = "તમારા મેસેજ અને મીડિયાને ટ્રાન્સફર કર્યા વિના ચાલુ રાખો";
+
+/* The title for the skip restore 'choice' option */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_SKIP_RESTORE_TITLE" = "ટ્રાન્સફર કર્યા વગર રજીસ્ટર કરો";
+
+/* If a user is installing Signal on a new phone, they may be asked whether they want to restore their device from a backup. */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_TITLE" = "એકાઉન્ટ રિસ્ટોર અથવા ટ્રાન્સફર કરો";
+
+/* The body for the device transfer 'choice' view 'transfer' option */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_TRANSFER_BODY" = "તમારા જૂના iOS ડિવાઇસ પરથી તમારા એકાઉન્ટ અને મેસેજને ટ્રાન્સફર કરો";
+
+/* The title for the device transfer 'choice' view 'transfer' option */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_TRANSFER_TITLE" = "ડિવાઇસ પરથી ટ્રાન્સફર કરો";
+
 /* Header text describing what the backup includes. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_1" = "Your backup includes:";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_1" = "તમારા બેકઅપમાં શામેલ છે:";
 
 /* Backup content list item describing all messages. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_2" = "All of your messages";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_2" = "તમારા બધા મેસેજ";
 
 /* Backup content list item describing paid media. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_3_FREE" = "The last 45 days of your media";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_3_FREE" = "મીડિયાના તમારા છેલ્લા 45 દિવસ";
 
 /* Backup content list item describing free media. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_3_PAID" = "All of your media";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_3_PAID" = "તમારા બધા મીડિયા";
 
 /* Text for action button confirming the restore. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_CONFIRM_ACTION" = "Restore Backup";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_CONFIRM_ACTION" = "બેકઅપ રિસ્ટોર કરો";
 
 /* Description for form confirming restore from backup. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_DESCRIPTION" = "Your last backup was made on %1$@ at %2$@. You can create a newer backup if you still have your old device. [See How](https://signal.org)";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_DESCRIPTION" = "Your last backup was made on %1$@ at %2$@. Your backup size is %3$@";
 
 /* Text for action button to explore other options. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_MORE_OPTIONS_ACTION" = "More Options";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_MORE_OPTIONS_ACTION" = "વધુ વિકલ્પો";
 
 /* Title for form confirming restore from backup. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_TITLE" = "Restore from Backup";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_TITLE" = "બેકઅપમાંથી રિસ્ટોર કરો";
 
 /* button indicating that the user will register their ipad */
 "ONBOARDING_MODE_SWITCH_BUTTON_PROVISIONING" = "રજીસ્ટર iPad";
@@ -5316,6 +5478,18 @@
 
 /* Label warning the user that they should update Signal to continue using payments. */
 "OUTDATED_PAYMENT_CLIENT_REMINDER_TEXT" = "ચુકવણીઓનો ઉપયોગ કરતાં રહેવા માટે Signalને અપડેટ કરો. તમારું બેલેન્સ અપ-ટૂ-ડેટ ન પણ હોઈ શકે.";
+
+/* Body text describing the outgoing transfer. */
+"OUTGOING_DEVICE_RESTORE_INITIAL_VIEW_BODY" = "તમારું એકાઉન્ટ એક નવા ડિવાઇસ પર ટ્રાન્સફર થશે. આ ડિવાઇસ તમારા ગ્રૂપ અને સંપર્કો જોઈ શકશે, તમારી ચેટને ઍક્સેસ કરી શકશે અને તમારા નામે મેસેજ મોકલી શકશે.";
+
+/* Action button to begin account transfer. */
+"OUTGOING_DEVICE_RESTORE_INITIAL_VIEW_CONFIRM_ACTION" = "ટ્રાન્સફર એકાઉન્ટ";
+
+/* Body text describing the outgoing transfer. */
+"OUTGOING_DEVICE_RESTORE_INITIAL_VIEW_FOOTER" = "મેસેજ અને ચેટ માહિતી બધા ડિવાઇસ પર એન્ડ-ટૂ-એન્ડ એન્ક્રિપ્શન દ્વારા સુરક્ષિત છે";
+
+/* Title text describing the outgoing transfer. */
+"OUTGOING_DEVICE_RESTORE_INITIAL_VIEW_TITLE" = "ટ્રાન્સફર એકાઉન્ટ";
 
 /* info message text in conversation view */
 "OUTGOING_MISSED_VIDEO_CALL" = "ન ઉપાડેલો વિડિયો કૉલ";
@@ -5802,9 +5976,6 @@
 
 /* alert title, generic error preventing user from capturing a video that is too long */
 "PHOTO_CAPTURE_VIDEO_SIZE_ERROR" = "વીડિયો બહુ લાંબો છે.";
-
-/* label for system photo collections which have no name. */
-"PHOTO_PICKER_UNNAMED_COLLECTION" = "અનામી આલ્બમ";
 
 /* Pressing this button pins a thread */
 "PIN_ACTION" = "પિન";
@@ -6531,6 +6702,48 @@
 
 /* Configure reactions reset button text */
 "RESET" = "ફરીથી સેટ કરો";
+
+/* Button title shown on chat list banner for restoring media from a backup when paused because the device has insufficient disk space, to see a bottom sheet with more details about next steps. */
+"RESTORING_MEDIA_BANNER_DISK_SPACE_BUTTON" = "વિગતો";
+
+/* Title shown on chat list banner for restoring media from a backup when paused because the device has insufficient disk space. Embeds {{ %@ formatted number of bytes downloaded, e.g. '100 MB' }} */
+"RESTORING_MEDIA_BANNER_DISK_SPACE_TITLE_FORMAT" = "તમારા મીડિયાને રિસ્ટોર કરવા માટે આ ડિવાઇસ પર %1$@ જેટલી જગ્યા ખાલી કરો.";
+
+/* Title shown on chat list banner for restoring media from a backupis finished */
+"RESTORING_MEDIA_BANNER_FINISHED_TITLE" = "રિસ્ટોર પૂર્ણ થયું";
+
+/* Subtitle shown on chat list banner for restoring media from a backup when paused because the device has low battery */
+"RESTORING_MEDIA_BANNER_PAUSED_BATTERY_SUBTITLE" = "ડિવાઇસની બેટરી ઓછી છે";
+
+/* Title shown on chat list banner for restoring media from a backup when paused for some reason */
+"RESTORING_MEDIA_BANNER_PAUSED_TITLE" = "રિસ્ટોર થોભાવ્યું";
+
+/* Subtitle shown on chat list banner for restoring media from a backup when paused because the device has no wifi connection */
+"RESTORING_MEDIA_BANNER_PAUSED_WIFI_SUBTITLE" = "વાઇ-ફાઇની રાહ જોઈ રહ્યાં છીએ…";
+
+/* Download progress for media from a backup. Embeds {{ %1$@ formatted number of bytes downloaded, e.g. '100 MB', %2$@ formatted total number of bytes to download, e.g. '3 GB' }} */
+"RESTORING_MEDIA_BANNER_PROGRESS_FORMAT" = "%2$@માંથી %1$@";
+
+/* Title shown on chat list banner for restoring media from a backup */
+"RESTORING_MEDIA_BANNER_TITLE" = "મીડિયા રિસ્ટોર થાય છે";
+
+/* Button to skip restoring media, shown on a bottom sheet for restoring media from a backup when paused because the device has insufficient disk space. */
+"RESTORING_MEDIA_DISK_SPACE_SHEET_SKIP_BUTTON" = "રિસ્ટોર કરવાનું સ્કિપ કરો";
+
+/* Subtitle shown on a bottom sheet for restoring media from a backup when paused because the device has insufficient disk space. Embeds {{ %@ formatted number of bytes downloaded, e.g. '100 MB' }} */
+"RESTORING_MEDIA_DISK_SPACE_SHEET_SUBTITLE_FORMAT" = "તમારા મીડિયાને રિસ્ટોર કરવાનું પૂર્ણ કરવા માટે તમારા ડિવાઇસને %1$@ સ્ટોરેજ સ્પેસની જરૂર છે.\n\nજગ્યા ખાલી કરવા માટે સેટિંગ્સ > સામાન્ય > iPhone સ્ટોરેજ પર જાઓ. તમે ન વપરાયેલી ઍપ અથવા કન્ટેન્ટને ઓફલોડ કરવાનું અથવા ડિલીટ કરવાનું પસંદ કરી શકો છો.";
+
+/* Title shown on a bottom sheet for restoring media from a backup when paused because the device has insufficient disk space. Embeds {{ %@ formatted number of bytes downloaded, e.g. '100 MB' }} */
+"RESTORING_MEDIA_DISK_SPACE_SHEET_TITLE_FORMAT" = "આ ડિવાઇસ પર %1$@ ખાલી કરો";
+
+/* Message shown on a bottom sheet to skip restoring media from a backup when paused because the device has insufficient disk space. */
+"RESTORING_MEDIA_DISK_SPACE_SKIP_SHEET_MESSAGE" = "જો તમે રિસ્ટોર કરવાનું છોડી દો છો તો તમારા બેકઅપમાંના બાકીના મીડિયા અને અટેચમેન્ટ જ્યારે સ્ટોરેજ સ્પેસ ઉપલબ્ધ થાય ત્યારે પછીના સમયે ડાઉનલોડ કરી શકાય છે.";
+
+/* Button shown on a bottom sheet to skip restoring media from a backup when paused because the device has insufficient disk space. */
+"RESTORING_MEDIA_DISK_SPACE_SKIP_SHEET_SKIP_BUTTON" = "રિસ્ટોર કરવાનું સ્કિપ કરો";
+
+/* Title shown on a bottom sheet to skip restoring media from a backup when paused because the device has insufficient disk space. */
+"RESTORING_MEDIA_DISK_SPACE_SKIP_SHEET_TITLE" = "રિસ્ટોર કરવાનું સ્કિપ કરવું છે?";
 
 /* Generic text for button that retries whatever the last action was. */
 "RETRY_BUTTON_TEXT" = "ફરી પ્રયાસ કરો";
@@ -8372,7 +8585,7 @@
 "THIS_MESSAGE_WAS_DELETED" = "આ મેસેજ ડિલીટ કર્યો હતો.";
 
 /* Label for a group you are not in which has four members, listing their names */
-"THREAD_DETAILS_FOUR_MEMBERS" = "%1$@, %2$@, %3$@, and %4$@";
+"THREAD_DETAILS_FOUR_MEMBERS" = "%1$@, %2$@, %3$@ અને %4$@";
 
 /* Label displayed below group info. This is the predicate part of the sentence 'Group names are not verified'. Embeds {{ THREAD_DETAILS_GROUP_NAMES_ARE_NOT_VERIFIED_SUBJECT }} */
 "THREAD_DETAILS_GROUP_NAMES_ARE_NOT_VERIFIED_PREDICATE" = "%1$@ ચકાસાયેલ નથી";
@@ -8381,10 +8594,10 @@
 "THREAD_DETAILS_GROUP_NAMES_ARE_NOT_VERIFIED_SUBJECT" = "ગ્રૂપના નામ";
 
 /* Label for a group with more than four members, listing the first three members' names and embedding THREAD_DETAILS_OTHER_MEMBERS_COUNT_%ld as a count of other members */
-"THREAD_DETAILS_MANY_MEMBERS" = "%1$@, %2$@, %3$@, and %4$@";
+"THREAD_DETAILS_MANY_MEMBERS" = "%1$@, %2$@, %3$@ અને %4$@";
 
 /* Label for a group with no members or no members but yourself */
-"THREAD_DETAILS_NO_MEMBERS" = "No other group members yet";
+"THREAD_DETAILS_NO_MEMBERS" = "હજી સુધી કોઈ અન્ય ગ્રૂપના સભ્યો નથી";
 
 /* Subtitle appearing at the top of the users 'note to self' conversation */
 "THREAD_DETAILS_NOTE_TO_SELF_EXPLANATION" = "આ ચેટમાં તમે તમારા માટે નોંધ ઉમેરી શકો છો. જો તમારા એકાઉન્ટ સાથે કોઈ લિંક કરેલા ડિવાઇસ હશે તો નવી નોંધને સિંક કરવામાં આવશે.";
@@ -8393,7 +8606,7 @@
 "THREAD_DETAILS_ONE_MEMBER" = "%1$@";
 
 /* Label for a group you are in with one other member, listing their name and yourself */
-"THREAD_DETAILS_ONE_MEMBER_AND_YOURSELF" = "%1$@ and you";
+"THREAD_DETAILS_ONE_MEMBER_AND_YOURSELF" = "%1$@ અને તમે";
 
 /* A string indicating a mutual group the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_ONE_MUTUAL_GROUP" = "%1$@ ના સભ્ય";
@@ -8408,19 +8621,19 @@
 "THREAD_DETAILS_TAP_TO_UNBLUR_AVATAR" = "વ્યૂ";
 
 /* Label for a group you are not in which has three members, listing their names */
-"THREAD_DETAILS_THREE_MEMBERS" = "%1$@, %2$@, and %3$@";
+"THREAD_DETAILS_THREE_MEMBERS" = "%1$@, %2$@ અને %3$@";
 
 /* Label for a group you are in which has three other members, listing their names and yourself */
-"THREAD_DETAILS_THREE_MEMBERS_AND_YOURSELF" = "%1$@, %2$@, %3$@, and you";
+"THREAD_DETAILS_THREE_MEMBERS_AND_YOURSELF" = "%1$@, %2$@, %3$@ અને તમે";
 
 /* A string indicating three mutual groups the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_THREE_MUTUAL_GROUP" = "%1$@, %2$@, અને %3$@ ના સભ્ય";
 
 /* Label for a group you are not in which has two members, listing their names */
-"THREAD_DETAILS_TWO_MEMBERS" = "%1$@ and %2$@";
+"THREAD_DETAILS_TWO_MEMBERS" = "%1$@ અને %2$@";
 
 /* Label for a group you are in which has two other members, listing their names and yourself */
-"THREAD_DETAILS_TWO_MEMBERS_AND_YOURSELF" = "%1$@, %2$@, and you";
+"THREAD_DETAILS_TWO_MEMBERS_AND_YOURSELF" = "%1$@, %2$@ અને તમે";
 
 /* A string indicating two mutual groups the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_TWO_MUTUAL_GROUP" = "%1$@ અને %2$@ ના સભ્ય";
@@ -8795,7 +9008,7 @@
 "VOICE_MESSAGE_CANCEL_INSTRUCTIONS" = "રદ કરવા માટે સ્લાઇડ કરો";
 
 /* Filename for voice messages. */
-"VOICE_MESSAGE_FILE_NAME" = "વૉઈસ મેસેજ";
+"VOICE_MESSAGE_FILE_NAME" = "Signal";
 
 /* Message for the tooltip indicating the 'voice message' needs to be held to be held down to record. */
 "VOICE_MESSAGE_TOO_SHORT_TOOLTIP" = "રેકોર્ડ કરવા માટે દબાવો અને હોલ્ડ કરો.";

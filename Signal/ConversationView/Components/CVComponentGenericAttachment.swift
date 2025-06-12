@@ -5,12 +5,14 @@
 
 public import PassKit
 public import QuickLook
-import SignalServiceKit
+public import SignalServiceKit
 public import SignalUI
 
 public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
 
     public var componentKey: CVComponentKey { .genericAttachment }
+
+    public var attachmentId: Attachment.IDType { genericAttachment.attachment.attachment.attachment.id }
 
     private let genericAttachment: CVComponentState.GenericAttachment
     private var attachment: ReferencedAttachment { genericAttachment.attachment.attachment }
@@ -179,7 +181,7 @@ public class CVComponentGenericAttachment: CVComponentBase, CVComponent {
             let fileSize = attachmentStream.unencryptedByteCount
             text = OWSFormat.localizedFileSizeString(from: Int64(fileSize))
         } else if let _ = genericAttachment.attachmentBackupThumbnail {
-            // TODO[Backups]: Handle similar to attachment pointers above
+            // TODO:[Backups]: Handle similar to attachment pointers above
             owsFailDebug("Not implemented yet")
         } else {
             let attributedString = NSAttributedString.composed(of: [

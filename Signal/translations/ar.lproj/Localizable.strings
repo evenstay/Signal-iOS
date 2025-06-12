@@ -89,7 +89,7 @@
 "ADD_GROUP_TO_PROFILE_WHITELIST_OFFER" = "هل لديك الرغبة في مشاركة حسابك الشخصي مع هذه المجموعة؟";
 
 /* Message shown in conversation view that offers to add an unknown user to your phone's contacts. */
-"ADD_TO_CONTACTS_OFFER" = "هل ترغبُ في إضافة هذا المستخدم إلى جهات اتصالك؟";
+"ADD_TO_CONTACTS_OFFER" = "هل ترغبُ في إضافة هذا المُستخدِم إلى جهات اتصالك؟";
 
 /* Label for button or row which allows users to add to another group. */
 "ADD_TO_GROUP" = "إضافة إلى مجموعة أُخرى";
@@ -106,9 +106,6 @@
 /* Text indicating your contact is already a member of the group on the 'add to group' view. */
 "ADD_TO_GROUP_ALREADY_A_MEMBER" = "بالفعل عضو";
 
-/* A toast on the 'add to group' view indicating the user is already a member. Embeds {contact name} and {group name} */
-"ADD_TO_GROUP_ALREADY_MEMBER_TOAST_FORMAT" = "%1$@ بالفعل عضو في %2$@";
-
 /* A toast on the 'add to group' view indicating the user was added. Embeds {contact name} and {group name} */
 "ADD_TO_GROUP_SUCCESS_TOAST_FORMAT" = "تمَّت إضافة %1$@ إلى %2$@";
 
@@ -116,7 +113,7 @@
 "ADD_TO_GROUP_TITLE" = "إضافة إلى مجموعة";
 
 /* Message shown in conversation view that offers to share your profile with a user. */
-"ADD_USER_TO_PROFILE_WHITELIST_OFFER" = "هل لديك الرغبة في مشاركة حسابك الشخصي مع هذا المستخدم ؟";
+"ADD_USER_TO_PROFILE_WHITELIST_OFFER" = "هل لديك الرغبة في مشاركة حسابك الشخصي مع هذا المُستخدِم؟";
 
 /* generic button text to acknowledge that the corresponding text was read. */
 "ALERT_ACTION_ACKNOWLEDGE" = "تم";
@@ -491,7 +488,7 @@
 "AUDIO_UNAVAILABLE_SHEET_TITLE" = "الرسالة الصوتية غير مُتوفِّرة";
 
 /* Text prompting the user to choose a color when editing their avatar */
-"AVATAR_EDIT_VIEW_CHOOSE_A_COLOR" = "اختر لونا";
+"AVATAR_EDIT_VIEW_CHOOSE_A_COLOR" = "اختر لونًا";
 
 /* Segment indicating the user can edit the color of the avatar */
 "AVATAR_EDIT_VIEW_COLOR_SEGMENT" = "اللون";
@@ -517,6 +514,51 @@
 /* Text used as placeholder in backup key text view. */
 "BACKUP_KEY_PLACEHOLDER" = "مفتاح النسخة الاحتياطية";
 
+/* Body for a sheet warning users to their 'Backup Key' safe. */
+"BACKUP_ONBOARDING_CONFIRM_KEY_KEEP_KEY_SAFE_SHEET_BODY" = "Signal will not be able to help you restore your backup if you lose your key. Store it somewhere safe and secure, and do not share it with others.";
+
+/* Title for a sheet warning users to their 'Backup Key' safe. */
+"BACKUP_ONBOARDING_CONFIRM_KEY_KEEP_KEY_SAFE_SHEET_TITLE" = "Keep Your Key Safe";
+
+/* Title for a button offering to let users see their 'Backup Key'. */
+"BACKUP_ONBOARDING_CONFIRM_KEY_SEE_KEY_AGAIN_BUTTON_TITLE" = "See Key Again";
+
+/* Subtitle for a view asking users to confirm their 'Backup Key'. */
+"BACKUP_ONBOARDING_CONFIRM_KEY_SUBTITLE" = "Enter the backup key you just recorded";
+
+/* Title for a view asking users to confirm their 'Backup Key'. */
+"BACKUP_ONBOARDING_CONFIRM_KEY_TITLE" = "Confirm Your Backup Key";
+
+/* Bullet point on a view introducing Backups during an onboarding flow. */
+"BACKUP_ONBOARDING_INTRO_BULLET_1" = "End-to-end encrypted";
+
+/* Bullet point on a view introducing Backups during an onboarding flow. */
+"BACKUP_ONBOARDING_INTRO_BULLET_2" = "Optional, always";
+
+/* Bullet point on a view introducing Backups during an onboarding flow. */
+"BACKUP_ONBOARDING_INTRO_BULLET_3" = "Delete your backup anytime";
+
+/* Subtitle for a view introducing Backups during an onboarding flow. */
+"BACKUP_ONBOARDING_INTRO_SUBTITLE" = "Back up your messages and media using Signal's secure, end-to-end encrypted storage service. Never lose a message when you get a new phone or reinstall Signal.";
+
+/* Title for a view introducing Backups during an onboarding flow. */
+"BACKUP_ONBOARDING_INTRO_TITLE" = "Signal Backups";
+
+/* Subtitle for a view introducing the 'Backup Key' during an onboarding flow. */
+"BACKUP_ONBOARDING_KEY_INTRO_SUBTITLE" = "Your backup key is a 64-digit code that lets you restore your backup when you re-install Signal.\n\nIf you forget your key, you will not be able to restore your backup. Signal cannot help you recover your backup.";
+
+/* Title for a view introducing the 'Backup Key' during an onboarding flow. */
+"BACKUP_ONBOARDING_KEY_INTRO_TITLE" = "Your Backup Key";
+
+/* Title for a button allowing users to copy their 'Backup Key' to the clipboard. */
+"BACKUP_RECORD_KEY_COPY_TO_CLIPBOARD_BUTTON_TITLE" = "Copy to Clipboard";
+
+/* Subtitle for a view allowing users to record their 'Backup Key'. */
+"BACKUP_RECORD_KEY_SUBTITLE" = "This key is required to recover your account and data. Store this key somewhere safe. If you lose it, you won’t be able to recover your account.";
+
+/* Title for a view allowing users to record their 'Backup Key'. */
+"BACKUP_RECORD_KEY_TITLE" = "Record Your Backup Key";
+
 /* Title for a button allowing users to upgrade from a free to paid backup plan. */
 "BACKUP_SETTINGS_BACKUP_PLAN_FREE_ACTION_BUTTON_TITLE" = "ترقية";
 
@@ -526,11 +568,17 @@
 /* Header describing what the free backup plan includes. */
 "BACKUP_SETTINGS_BACKUP_PLAN_FREE_HEADER" = "النسخ الاحتياطي للنص و45 يوم من الوسائط";
 
-/* Text shown when we fail to load someone's backup plan due to a generic error. */
-"BACKUP_SETTINGS_BACKUP_PLAN_GENERIC_ERROR" = "تعذَّر تحميل خطة النسخ الاحتياطي الخاصة بك. يُرجى التواصل مع فريق الدعم.";
+/* Message for a view indicating we failed to fetch someone's Backup plan due to an unexpected error. */
+"BACKUP_SETTINGS_BACKUP_PLAN_GENERIC_ERROR_MESSAGE" = "حدث خطأ ما. يُرجى التواصل مع فريق الدعم.";
 
-/* Text shown when we fail to load someone's backup plan due to a network error. */
-"BACKUP_SETTINGS_BACKUP_PLAN_NETWORK_ERROR" = "تعذَّر تحميل خطة النسخ الاحتياطي الخاصة بك. تحقَّق من اتصالك بالإنترنت وحاوِل مُجدَّدًا.";
+/* Title for a view indicating we failed to fetch someone's Backup plan due to an unexpected error. */
+"BACKUP_SETTINGS_BACKUP_PLAN_GENERIC_ERROR_TITLE" = "تعذّر تحميل خطة النسخ الاحتياطي";
+
+/* Message for a view indicating we failed to fetch someone's Backup plan due to a network error. */
+"BACKUP_SETTINGS_BACKUP_PLAN_NETWORK_ERROR_MESSAGE" = "تحقَّق من اتصالك بالشبكة ثم حاوِل مرّة أخرى.";
+
+/* Title for a view indicating we failed to fetch someone's Backup plan due to a network error. */
+"BACKUP_SETTINGS_BACKUP_PLAN_NETWORK_ERROR_TITLE" = "خطأ في الشبكة";
 
 /* Title for a button allowing users to manage or cancel their paid backup plan. */
 "BACKUP_SETTINGS_BACKUP_PLAN_PAID_ACTION_BUTTON_TITLE" = "إدارة أو إلغاء";
@@ -544,9 +592,6 @@
 /* Text explaining that a user's paid plan, which has been canceled, will expire on a future date. Embeds {{ the formatted expiration date }}. */
 "BACKUP_SETTINGS_BACKUP_PLAN_PAID_BUT_CANCELED_FUTURE_EXPIRATION_FORMAT" = "ستنتهي الصلاحية في %1$@";
 
-/* Text explaining that a user's paid plan, which has been canceled, has expired. Embeds {{ the formatted expiration date }}. */
-"BACKUP_SETTINGS_BACKUP_PLAN_PAID_BUT_CANCELED_PAST_EXPIRATION_FORMAT" = "انتهت الصلاحية في %1$@";
-
 /* Header describing what the paid backup plan includes. */
 "BACKUP_SETTINGS_BACKUP_PLAN_PAID_HEADER" = "النسخ الاحتياطي للنص وكل الوسائط";
 
@@ -559,6 +604,21 @@
 /* Footer for a menu section related to settings for when Backups are disabled. */
 "BACKUP_SETTINGS_BACKUPS_DISABLED_SECTION_FOOTER" = "تمَّ إيقاف النُسخ الاحتياطية، وتمَّ حذف بياناتك من خدمة التخزين الآمنة الخاصة بسيجنال.";
 
+/* Message for a view indicating we failed to delete the user's Backup due to an unexpected error. */
+"BACKUP_SETTINGS_BACKUPS_DISABLING_GENERIC_ERROR_MESSAGE" = "حدث خطأ ما. يُرجى التواصل مع فريق الدعم.";
+
+/* Header for a menu section related to settings for when disabling Backups encountered an unexpected error. */
+"BACKUP_SETTINGS_BACKUPS_DISABLING_GENERIC_ERROR_SECTION_HEADER" = "حدث خطأ ما عند حذف بياناتك من خدمة التخزين الآمنة لسيجنال.";
+
+/* Title for a view indicating we failed to delete the user's Backup due to an unexpected error. */
+"BACKUP_SETTINGS_BACKUPS_DISABLING_GENERIC_ERROR_TITLE" = "تعذَّر حذف النسخة الاحتياطية.";
+
+/* Description for a progress view tracking Backups being disabled. */
+"BACKUP_SETTINGS_BACKUPS_DISABLING_PROGRESS_VIEW_DESCRIPTION" = "جارٍ حذف النسخة الاحتياطية...";
+
+/* Header for a menu section related to disabling Backups. */
+"BACKUP_SETTINGS_BACKUPS_DISABLING_SECTION_HEADER" = "تمَّ إيقاف النُسخ الاحتياطية، وسيتمَّ حذف بياناتك من خدمة التخزين الآمنة لسيجنال.";
+
 /* Header for a menu section related to settings for when Backups are enabled. */
 "BACKUP_SETTINGS_BACKUPS_ENABLED_SECTION_HEADER" = "تفاصيل النسخ الاحتياطي";
 
@@ -567,6 +627,15 @@
 
 /* Title for a button allowing users to turn off Backups. */
 "BACKUP_SETTINGS_DISABLE_BACKUPS_BUTTON_TITLE" = "إيقاف وحذف النسخ الاحتياطية";
+
+/* Message shown in an action sheet indicating we failed to delete the user's Backup due to an unexpected error. */
+"BACKUP_SETTINGS_DISABLING_ERROR_GENERIC_ERROR_ACTION_SHEET_MESSAGE" = "حدث خطأ ما عند حذف بياناتك من خدمة التخزين الآمنة لسيجنال.";
+
+/* Title shown in an action sheet indicating we failed to delete the user's Backup due to an unexpected error. */
+"BACKUP_SETTINGS_DISABLING_ERROR_GENERIC_ERROR_ACTION_SHEET_TITLE" = "تعذَّر حذف النسخة الاحتياطية.";
+
+/* Message shown in an action sheet when the user tries to disable Backups, but is not registered. */
+"BACKUP_SETTINGS_DISABLING_ERROR_NOT_REGISTERED" = "يجب أن تكون مُسجلًا لتمكين النسخ الاحتياطية.";
 
 /* Text describing that a user's backup will be automatically performed daily. */
 "BACKUP_SETTINGS_ENABLED_BACKUP_FREQUENCY_DAILY" = "يوميًا";
@@ -609,6 +678,18 @@
 
 /* Title for a button allowing users to re-enable Backups, after it had been previously disabled. */
 "BACKUP_SETTINGS_REENABLE_BACKUPS_BUTTON_TITLE" = "إعادة تفعيل النسخ الاحتياطية";
+
+/* Message for a sheet shown after the user enables backups. */
+"BACKUP_SETTINGS_WELCOME_TO_BACKUPS_SHEET_MESSAGE" = "قد يستغرق هذا وقتًا طويلًا حسب حجم النسخة الاحتياطية الخاصة بك. يُمكنك استخدام هاتفك بشكل اعتيادي أثناء إجراء عملية النسخ الاحتياطي.";
+
+/* Title for the primary button for a sheet shown after the user enables backups. */
+"BACKUP_SETTINGS_WELCOME_TO_BACKUPS_SHEET_PRIMARY_BUTTON" = "إنشاء نسخة احتياطية الآن";
+
+/* Title for the secondary button for a sheet shown after the user enables backups. */
+"BACKUP_SETTINGS_WELCOME_TO_BACKUPS_SHEET_SECONDARY_BUTTON" = "إجراء النسخ الاحتياطي لاحقًا";
+
+/* Title for a sheet shown after the user enables backups. */
+"BACKUP_SETTINGS_WELCOME_TO_BACKUPS_SHEET_TITLE" = "مرحبًا بك في النسخ الاحتياطية على سيجنال. ابدأ النسخ الاحتياطي لديك الآن.";
 
 /* Title for the 'Backup' settings menu. */
 "BACKUPS_SETTINGS_TITLE" = "النسخ الاحتياطية على سيجنال";
@@ -737,7 +818,7 @@
 "BLOCK_LIST_VIEW_BLOCKED_ALERT_MESSAGE_FORMAT" = "تمَّ حظر %1$@.";
 
 /* The title of the 'user blocked' alert. */
-"BLOCK_LIST_VIEW_BLOCKED_ALERT_TITLE" = "المستخدم محظور";
+"BLOCK_LIST_VIEW_BLOCKED_ALERT_TITLE" = "المُستخدِم محظور";
 
 /* The title of the 'group blocked' alert. */
 "BLOCK_LIST_VIEW_BLOCKED_GROUP_ALERT_TITLE" = "المجموعة محظورة";
@@ -755,7 +836,7 @@
 "BLOCK_LIST_VIEW_UNBLOCKED_GROUP_ALERT_BODY" = "يمكن للأعضاء الموجودين إضافتك للمجموعة مرّة أُخرى.";
 
 /* An explanation of the consequences of blocking another user. */
-"BLOCK_USER_BEHAVIOR_EXPLANATION" = "لن يتمكن المستخدمون المحظورون من مكالمتك أو إرسال الرسائل إليك.";
+"BLOCK_USER_BEHAVIOR_EXPLANATION" = "لن يتمكن المُستخدِمون المحظورون من مكالمتك أو إرسال الرسائل إليك.";
 
 /* Tooltip highlighting the blur image editing tool. */
 "BLUR_TOOLTIP" = "جديد : قُم بتمويه الوجوه أو ارسم في أي مكان للتمويه.";
@@ -1058,7 +1139,7 @@
 "CALLS_TAB_DELETE_ALL_CALLS_PROMPT_MESSAGE" = "سَيؤدي هذا إلى حذف جميع سجِلات المكالمات بشكلٍ دائم.";
 
 /* Title for a prompt confirming that the user wants to delete all the calls from the Calls Tab. */
-"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_TITLE" = "هل ترغبُ بإزالة سجِل المكالمات؟";
+"CALLS_TAB_DELETE_ALL_CALLS_PROMPT_TITLE" = "هل ترغبُ بمسح سجِل المكالمات؟";
 
 /* Title for a long-press context menu action to delete a call, triggered from a call in the Calls Tab. */
 "CALLS_TAB_DELETE_CALL_ACTION_TITLE" = "حذف";
@@ -1287,6 +1368,57 @@
 
 /* Message displayed on chat list when Filter by Unread is enabled but no unread chats are available */
 "CHAT_LIST_UNREAD_FILTER_NO_CHATS" = "لا توجد دردشات غير مقروءة.";
+
+/* Text for a bullet point in a list of Backup features, describing that all media is included. */
+"CHOOSE_BACKUP_PLAN_BULLET_FULL_MEDIA_BACKUP" = "النسخ الاحتياطي الكامل للوسائط";
+
+/* Text for a bullet point in a list of Backup features, describing that all text messages are included. */
+"CHOOSE_BACKUP_PLAN_BULLET_FULL_TEXT_BACKUP" = "النسخ الاحتياطي الكامل للرسائل النصية";
+
+/* Text for a bullet point in a list of Backup features, describing that recent media is included. */
+"CHOOSE_BACKUP_PLAN_BULLET_RECENT_MEDIA_BACKUP" = "الأيام 45 الأخيرة من الوسائط";
+
+/* Text for a bullet point in a list of Backup features, describing the amount of included storage. */
+"CHOOSE_BACKUP_PLAN_BULLET_STORAGE_AMOUNT" = "مساحة تخزين 1 تيرابايت (~250 ألف صورة)";
+
+/* Message shown in an action sheet when the user tries to confirm a plan selection, but encountered a generic error. */
+"CHOOSE_BACKUP_PLAN_CONFIRMATION_ERROR_GENERIC_ERROR" = "حدث خطأ ما. يُرجى التواصل مع فريق الدعم.";
+
+/* Message shown in an action sheet when the user tries to confirm a plan selection, but encountered a network error. */
+"CHOOSE_BACKUP_PLAN_CONFIRMATION_ERROR_NETWORK_ERROR" = "حدث خطأ ما. تحقَّق من اتصالك بالشبكة ثم حاوِل مرّة أخرى.";
+
+/* Message shown in an action sheet when the user tries to confirm a plan selection, but is not registered. */
+"CHOOSE_BACKUP_PLAN_CONFIRMATION_ERROR_NOT_REGISTERED" = "يجب أن تكون مُسجلًا لتمكين النسخ الاحتياطية.";
+
+/* Message shown in an action sheet when the user tries to confirm selecting the paid plan, but encountered an error from Apple while purchasing. */
+"CHOOSE_BACKUP_PLAN_CONFIRMATION_ERROR_PURCHASE" = "حدث خطأ ما. يُرجى المُحاولة مرّة أخرى.";
+
+/* Message shown in an action sheet when the user tries to confirm selecting the paid plan, but encountered an error while redeeming their completed purchase. */
+"CHOOSE_BACKUP_PLAN_CONFIRMATION_ERROR_PURCHASE_REDEMPTION" = "حدث خطأ ما. يُرجى التواصل مع فريق الدعم.";
+
+/* A label indicating that a given Backup plan option is what the user has already enabled. */
+"CHOOSE_BACKUP_PLAN_CURRENT_PLAN_LABEL" = "الخطة الحالية";
+
+/* Subtitle for the free plan option, when choosing a Backup plan. */
+"CHOOSE_BACKUP_PLAN_FREE_PLAN_SUBTITLE" = "الرسائل النصية + 45 يومًا من الوسائط";
+
+/* Title for the free plan option, when choosing a Backup plan. */
+"CHOOSE_BACKUP_PLAN_FREE_PLAN_TITLE" = "مجانًا";
+
+/* Subtitle for the paid plan option, when choosing a Backup plan. */
+"CHOOSE_BACKUP_PLAN_PAID_PLAN_SUBTITLE" = "الرسائل النصية + كل وسائطك";
+
+/* Title for the paid plan option, when choosing a Backup plan. Embeds {{ the formatted monthly cost, as currency, of the paid plan }}. */
+"CHOOSE_BACKUP_PLAN_PAID_PLAN_TITLE" = "%1$@/شهريًا";
+
+/* Text for a button that will subscribe the user to the paid Backup plan. Embeds {{ the formatted monthly cost, as currency, of the paid plan }}. */
+"CHOOSE_BACKUP_PLAN_SUBSCRIBE_PAID_BUTTON_TEXT" = "اشترِك مقابل %1$@/شهريًا";
+
+/* Subtitle for a view allowing users to choose a Backup plan. */
+"CHOOSE_BACKUP_PLAN_SUBTITLE" = "كل النُسخ الاحتياطية مُشفَّرة من طرف لطرف. سيجنال شركة غير ربحية—الدفع مقابل النسخ الاحتياطية يُساعد في دعم مهمتنا.";
+
+/* Title for a view allowing users to choose a Backup plan. */
+"CHOOSE_BACKUP_PLAN_TITLE" = "اختر خطة النسخ الاحتياطية التي تناسبك";
 
 /* Title for the color & wallpaper settings view. */
 "COLOR_AND_WALLPAPER_SETTINGS_TITLE" = "الخلفية ولون الدردشة";
@@ -1619,7 +1751,7 @@
 "CONVERSATION_MUTE_CONFIRMATION_OPTION_ALWAYS" = "دائمًا";
 
 /* Message indicating that only administrators can send message to an announcement-only group. */
-"CONVERSATION_PICKER_BLOCKED_BY_ANNOUNCEMENT_ONLY" = "يمكن فقط للمشرفين إرسال الرسائل إلى هذه المجموعة.";
+"CONVERSATION_PICKER_BLOCKED_BY_ANNOUNCEMENT_ONLY" = "يمكن فقط للمُشرِفين إرسال الرسائل إلى هذه المجموعة.";
 
 /* table section header for section containing groups */
 "CONVERSATION_PICKER_SECTION_GROUPS" = "المجموعات";
@@ -1787,7 +1919,7 @@
 "CONVERSATION_SETTINGS_REMOVE_FROM_GROUP_TITLE_FORMAT" = "هل ترغب بإزالة %1$@ من المجموعة؟";
 
 /* Label for 'report spam' action in conversation settings view. */
-"CONVERSATION_SETTINGS_REPORT_SPAM" = "الإبلاغ عن رسائل غير مرغوب فيها";
+"CONVERSATION_SETTINGS_REPORT_SPAM" = "الإبلاغ";
 
 /* Label for 'revoke group admin' button in conversation settings view. */
 "CONVERSATION_SETTINGS_REVOKE_GROUP_ADMIN_BUTTON" = "إزالة ميزة الإشراف";
@@ -1862,7 +1994,7 @@
 "CREATE_CALL_LINK_LABEL" = "إنشاء رابط المكالمة";
 
 /* Body text for an interactive in-app prompt to set up a Signal username. */
-"CREATE_USERNAME_MEGAPHONE_BODY" = "نُقدم لكم خصوصية رقم الهاتف وأسماء المُستخدمين الاختيارية والروابط.";
+"CREATE_USERNAME_MEGAPHONE_BODY" = "نُقدم لكم خصوصية رقم الهاتف وأسماء المُستخدِمين الاختيارية والروابط.";
 
 /* Title for an interactive in-app prompt to set up a Signal username. */
 "CREATE_USERNAME_MEGAPHONE_TITLE" = "طرق جديدة للاتصال";
@@ -2248,6 +2380,12 @@
 /* Disappearing message option to define a custom time */
 "DISAPPEARING_MESSAGES_CUSTOM_TIME" = "وقت مُخصَّص";
 
+/* Title for a picker for the unit of time to use for disappearing messages. */
+"DISAPPEARING_MESSAGES_CUSTOM_TIME_UNIT_PICKER" = "الوحدة";
+
+/* Title for a picker for the amount of time, in a given unit, to use for disappearing messages. */
+"DISAPPEARING_MESSAGES_CUSTOM_TIME_VALUE_PICKER" = "القيمة";
+
 /* The unit for a number of days */
 "DISAPPEARING_MESSAGES_DAYS" = "أيام";
 
@@ -2435,7 +2573,7 @@
 "DONATION_ON_BEHALF_OF_A_FRIEND_BADGE_REDEEMED" = "مُستخدَم";
 
 /* Users can donate on behalf of a friend, and the friend will receive a badge. This is a short paragraph on the screen where users choose the badge their friend will receive. */
-"DONATION_ON_BEHALF_OF_A_FRIEND_CHOOSE_BADGE_DESCRIPTION" = "ادعم سيجنال عن طريق تقديم تبرُّع إلى صديق أو فرد من العائلة يستخدم سيجنال. سَيتمُّ منحهُم خيار إظهار دعمهم على حسابهم الشخصي.";
+"DONATION_ON_BEHALF_OF_A_FRIEND_CHOOSE_BADGE_DESCRIPTION" = "ادعم سيجنال عن طريق تقديم تبرُّع نيابةً عن صديق أو فرد من العائلة يستخدم سيجنال. سَيتمُّ منحهُم خيار إظهار دعمهم على حسابهم الشخصي.";
 
 /* Users can donate on behalf of a friend, and the friend will receive a badge. This is the title on the screen where users choose the badge their friend will receive. */
 "DONATION_ON_BEHALF_OF_A_FRIEND_CHOOSE_BADGE_TITLE" = "تبرَّع نيابةً عن صديق";
@@ -2696,7 +2834,7 @@
 "EDIT_GROUP_DEFAULT_TITLE" = "تعديل المجموعة";
 
 /* Error message indicating the a user can't be added to a group. */
-"EDIT_GROUP_ERROR_CANNOT_ADD_MEMBER" = "لا يُمكن إضافة هذا المستخدم إلى المجموعة حتى يُحدِّث سيجنال.";
+"EDIT_GROUP_ERROR_CANNOT_ADD_MEMBER" = "لا يُمكن إضافة هذا المُستخدِم إلى المجموعة حتى يُحدِّث سيجنال.";
 
 /* Error message indicating that an avatar image is invalid and cannot be used. */
 "EDIT_GROUP_ERROR_INVALID_AVATAR" = "صورة غير صالحة";
@@ -2776,6 +2914,12 @@
 /* Call setup status label */
 "END_CALL_UNCATEGORIZED_FAILURE" = "فشل الاتصال";
 
+/* Label explaining that an entered 'Backup Key' is incorrect. */
+"ENTER_ACCOUNT_ENTROPY_POOL_VIEW_INCORRECT_AEP_LABEL" = "Incorrect backup key";
+
+/* Label explaining that an entered 'Backup Key' is malformed. */
+"ENTER_ACCOUNT_ENTROPY_POOL_VIEW_MALFORMED_AEP_LABEL" = "Invalid backup key";
+
 /* Error indicating that a message could not be forwarded. */
 "ERROR_COULD_NOT_FORWARD_MESSAGES_1" = "تعذَّرت إعادة توجيه الرسالة.";
 
@@ -2787,9 +2931,6 @@
 
 /* Error indicating that messages could not be forwarded. */
 "ERROR_COULD_NOT_FORWARD_MESSAGES_N" = "تعذَّرت إعادة توجيه الرسائل";
-
-/* Error indicating that 'save video' failed. */
-"ERROR_COULD_NOT_SAVE_VIDEO" = "تعذَّر حفظ الفيديو.";
 
 /* Generic notice when message failed to send. */
 "ERROR_DESCRIPTION_CLIENT_SENDING_FAILURE" = "فشل إرسال الرسالة.";
@@ -2804,7 +2945,7 @@
 "ERROR_DESCRIPTION_LOG_UPLOAD_FAILED" = "فشل تحميل السجلات.";
 
 /* Error message indicating that message send failed due to block list */
-"ERROR_DESCRIPTION_MESSAGE_SEND_FAILED_DUE_TO_BLOCK_LIST" = "فشل التراسل لأنك حظرت المستخدم.";
+"ERROR_DESCRIPTION_MESSAGE_SEND_FAILED_DUE_TO_BLOCK_LIST" = "فشل التراسُل لأنك حظرت المُستخدِم.";
 
 /* Error indicating that an outgoing message had no valid recipients. */
 "ERROR_DESCRIPTION_NO_VALID_RECIPIENTS" = "فشل إرسال الرسالة لعدم وجود مستلمين صالحين.";
@@ -2822,7 +2963,7 @@
 "ERROR_DESCRIPTION_SERVER_FAILURE" = "خطأ في الخادم. يُرجى المحاولة مُجدَّدًا لاحقًا.";
 
 /* Description for errors returned from the server due to suspected spam. */
-"ERROR_DESCRIPTION_SUSPECTED_SPAM" = "يحتاج الخادم إلى التحقُّق من المستخدم قبل إرسال الرسالة.";
+"ERROR_DESCRIPTION_SUSPECTED_SPAM" = "يحتاج الخادم إلى التحقُّق من المُستخدِم قبل إرسال الرسالة.";
 
 /* Worst case generic error message */
 "ERROR_DESCRIPTION_UNKNOWN_ERROR" = "حدث خطأ مجهول.";
@@ -3086,7 +3227,7 @@
 "GROUP_CALL_BLOCKED_ALERT_TITLE_FORMAT" = "تمَّ حَظر %1$@";
 
 /* Message for error alert indicating that only group administrators can start calls in announcement-only groups. */
-"GROUP_CALL_BLOCKED_BY_ANNOUNCEMENT_ONLY_MESSAGE" = "يمكنك للمشرفين على المجموعة فقط بدء المكالمات.";
+"GROUP_CALL_BLOCKED_BY_ANNOUNCEMENT_ONLY_MESSAGE" = "يمكنك للمُشرِفين على المجموعة فقط بدء المكالمات.";
 
 /* Title for error alert indicating that only group administrators can start calls in announcement-only groups. */
 "GROUP_CALL_BLOCKED_BY_ANNOUNCEMENT_ONLY_TITLE" = "تعذَّر بدء المكالمة الجماعية";
@@ -3251,7 +3392,7 @@
 "GROUP_CALL_YOU_ON_ANOTHER_DEVICE" = "أنت (متَّصِل من جهازٍ آخر)";
 
 /* Message indicating that group was created by the local user. */
-"GROUP_CREATED_BY_LOCAL_USER" = "أنت أنشأتَ المجموعة.";
+"GROUP_CREATED_BY_LOCAL_USER" = "قُمتَ بإنشاء المجموعة.";
 
 /* Message indicating that group was created by another user. Embeds {{remote user name}}. */
 "GROUP_CREATED_BY_REMOTE_USER_FORMAT" = "قام %1$@ بإنشاء المجموعة.";
@@ -3335,7 +3476,7 @@
 "GROUP_INVITES_SENT_ALERT_MESSAGE_1_FORMAT" = "لا يُمكن إضافة %1$@ تلقائيًا للمجموعة بواسطتك. تمَّت دعوته للانضمام، لكنه لن يرى أي رسالة من رسائل المجموعة حتى يقبل الدعوة.";
 
 /* Message for an alert indicating that some members were invited to a group. */
-"GROUP_INVITES_SENT_ALERT_TITLE_N_MESSAGE" = "لا يُمكن إضافة هؤلاء المُستخدمين تلقائيًا للمجموعة بواسطتك. تمَّت دعوتهم للانضمام، لكنهم لن يروا أي رسالة في المجموعة حتى يقبلوا الدعوة.";
+"GROUP_INVITES_SENT_ALERT_TITLE_N_MESSAGE" = "لا يُمكن إضافة هؤلاء المُستخدِمين تلقائيًا للمجموعة بواسطتك. تمَّت دعوتهم للانضمام، لكنهم لن يروا أي رسالة في المجموعة حتى يقبلوا الدعوة.";
 
 /* Message indicating that 'announcement-only' mode was disabled. */
 "GROUP_IS_ANNOUNCEMENT_ONLY_DISABLED" = "تغيَّرت إعدادات المجموعة للسماح لجميع الأعضاء بإرسال الرسائل.";
@@ -3356,7 +3497,7 @@
 "GROUP_IS_ANNOUNCEMENT_ONLY_ENABLED_BY_REMOTE_USER_FORMAT" = "غيَّر العضو %1$@ إعدادات المجموعة للسماح للمُشرِفين فقط بإرسال الرسائل.";
 
 /* Subtitle indicating that the local user has been blocked from joining the group */
-"GROUP_LINK_ACTION_SHEET_VIEW_BLOCKED_FROM_JOINING_SUBTITLE" = "لا يُمكنك الانضمام لهذه المجموعة من خلال الرابط لأن أحد المُشرفِين قام بإزالتك.";
+"GROUP_LINK_ACTION_SHEET_VIEW_BLOCKED_FROM_JOINING_SUBTITLE" = "لا يُمكنك الانضمام لهذه المجموعة من خلال رابط المجموعة لأن أحد المُشرفِين قام بإزالتك. تواصَل مع أحد المُشرِفين ليُضيفك إلى المجموعة من جديد.";
 
 /* Title indicating that you cannot join a group in the 'group invite link' action sheet. */
 "GROUP_LINK_ACTION_SHEET_VIEW_CANNOT_JOIN_GROUP_TITLE" = "يتعذَّر الانضمام للمجموعة";
@@ -3434,7 +3575,7 @@
 "GROUP_LINK_VIEW_ENABLE_GROUP_LINK_SWITCH" = "رابط المجموعة";
 
 /* Footer for the 'member requests' section of the 'group link' view. */
-"GROUP_LINK_VIEW_MEMBER_REQUESTS_SECTION_FOOTER" = "موافقة المُشرِف مِن المتطلبات لقبول انضمام أعضاء جُدُد عبر رابط المجموعة.";
+"GROUP_LINK_VIEW_MEMBER_REQUESTS_SECTION_FOOTER" = "تتطلب موافقة المُشرِف لقبول انضمام أعضاء جُدُد عبر رابط المجموعة.";
 
 /* Label for the 'reset link' button in the 'group link' view. */
 "GROUP_LINK_VIEW_RESET_LINK" = "إعادة تعيين الرابط";
@@ -3467,7 +3608,7 @@
 "GROUP_LOCAL_USER_GRANTED_ADMINISTRATOR" = "أنتَ الآن مُشرِف.";
 
 /* Message indicating that the local user was granted administrator role by another user. Embeds {{remote user name}}. */
-"GROUP_LOCAL_USER_GRANTED_ADMINISTRATOR_BY_REMOTE_USER_FORMAT" = "اختاركَ %1$@ مُشرِفًا.";
+"GROUP_LOCAL_USER_GRANTED_ADMINISTRATOR_BY_REMOTE_USER_FORMAT" = "قام %1$@ بتعيينك مُشرِفًا.";
 
 /* Message indicating that the local user accepted an invite to the group. */
 "GROUP_LOCAL_USER_INVITE_ACCEPTED" = "قبلتَ الدعوة إلى المجموعة.";
@@ -3755,7 +3896,7 @@
 "GROUPS_ANNOUNCEMENT_ONLY_BLOCKING_SEND_OR_CALL_FORMAT" = "يمكن فقط لـ %1$@ إرسال الرسائل.";
 
 /* Label indicating the user can contact a group administrators of an 'announcement-only' group. */
-"GROUPS_ANNOUNCEMENT_ONLY_CONTACT_ADMIN" = "مراسلة مُشرِف على المجموعة";
+"GROUPS_ANNOUNCEMENT_ONLY_CONTACT_ADMIN" = "مراسلة أحد المُشرِفين";
 
 /* Label for button that lets the user block a request to join the group. */
 "GROUPS_BLOCK_REQUEST_BUTTON" = "حظر الطلب";
@@ -3889,17 +4030,11 @@
 /* Title 'Read All' button in the toolbar of the ChatList if multi-section is active. */
 "HOME_VIEW_TOOLBAR_READ_ALL" = "قراءة الكل";
 
-/* Label for both bank chooser header and the bank form field on the iDEAL payment detail page. */
-"IDEAL_DONATION_CHOOSE_YOUR_BANK_LABEL" = "اختر مصرفك";
-
 /* Fallback title confirming recurring donation with bank. */
 "IDEAL_DONATION_CONFIRM_DONATION_TITLE" = "أكِّد تبرُّعك";
 
 /* Message confirming recurring donation with bank. This message confirms with the user that they will see a small confirmation charge with their bank before the donation. Embeds 1:{{ 0.01 euro, as a localized string }}, 2:{{ the amount of their donation, as a localized string }}. */
 "IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_MESSAGE" = "لإعداد تبرُّعك المُتكرِّر، انقر على \"متابعة\" لتأكيد خصم %1$@ مع مصرِفك. سَيتمُّ استرداد هذه القيمة تلقائيًا وسيسمَح هذا بخصم تبرُّعك بقيمة %2$@/شهريًا من حسابك.";
-
-/* Title confirming recurring donation with bank. */
-"IDEAL_DONATION_CONFIRM_DONATION_WITH_BANK_TITLE" = "أكِّد تبرُّعك عبر %1$@";
 
 /* The image editor hint that you can draw blur */
 "IMAGE_EDITOR_BLUR_HINT" = "ارسم في أي مكان للتمويه";
@@ -4432,6 +4567,9 @@
 /* Context menu item in media viewer. Refers to deleting currently displayed photo/video. */
 "MEDIA_VIEWER_DELETE_MEDIA_ACTION" = "حذف";
 
+/* Context menu item in media viewer. Refers to scrolling the conversation to the currently displayed photo/video. */
+"MEDIA_VIEWER_GO_TO_MESSAGE_ACTION" = "انتقل إلى الرسالة";
+
 /* Context menu item in media viewer. Refers to saving currently displayed photo/video to the Photos app. */
 "MEDIA_VIEWER_SAVE_MEDIA_ACTION" = "حفظ";
 
@@ -4673,7 +4811,7 @@
 "MESSAGE_REQUEST_REPORT_CONVERSATION_TITLE" = "هل ترغبُ بالإبلاغ؟";
 
 /* Action sheet action to confirm reporting a conversation as spam via a message request. */
-"MESSAGE_REQUEST_REPORT_SPAM_ACTION" = "الإبلاغ عن رسائل غير مرغوب فيها";
+"MESSAGE_REQUEST_REPORT_SPAM_ACTION" = "الإبلاغ";
 
 /* String indicating that spam has been reported. */
 "MESSAGE_REQUEST_SPAM_REPORTED" = "تمَّ الإبلاغ عنها كرسالة غير مرغوب فيها.";
@@ -4733,7 +4871,7 @@
 "MESSAGE_REQUESTS_CANCEL_REQUEST_CONFIRM_TITLE" = "هل ترغبُ بإلغاء طلبك في الانضمام لهذه المجموعة؟";
 
 /* Indicator that you have requested to join this group. */
-"MESSAGE_REQUESTS_CONVERSATION_REQUEST_INDICATOR" = "تمَّ إرسال طلبك للانضمام إلى مُشرِف المجموعة. سيتمُّ إخطارك عند اتخاذه للإجراء.";
+"MESSAGE_REQUESTS_CONVERSATION_REQUEST_INDICATOR" = "تمَّ إرسال طلبك للانضمام إلى مُشرِف المجموعة. سيتمُّ إشعارك عند اتخاذه للإجراء.";
 
 /* message status for message delivered to their recipient. */
 "MESSAGE_STATUS_DELIVERED" = "استُلِمَت";
@@ -4943,7 +5081,7 @@
 "NEW_GROUP_NAME_GROUP_VIEW_TITLE" = "أضِف اسمًا للمجموعة";
 
 /* a title for the selected section of the 'recipient picker' view. */
-"NEW_GROUP_NON_CONTACTS_SECTION_TITLE" = "مستخدمون آخرون";
+"NEW_GROUP_NON_CONTACTS_SECTION_TITLE" = "مُستخدِمون آخرون";
 
 /* The title for the 'select members for new group' view. */
 "NEW_GROUP_SELECT_MEMBERS_VIEW_TITLE" = "حدِّد أعضاء";
@@ -4994,7 +5132,7 @@
 "NEW_STORY_SHEET_CUSTOM_STORY_TITLE" = "قصة مُخصَّصة جديدة";
 
 /* Subtitle for create group story row on the 'new story sheet' */
-"NEW_STORY_SHEET_GROUP_STORY_SUBTITLE" = "مشاركة مع مجموعة موجودة";
+"NEW_STORY_SHEET_GROUP_STORY_SUBTITLE" = "المشاركة مع مجموعة موجودة";
 
 /* Title for create group story row on the 'new story sheet' */
 "NEW_STORY_SHEET_GROUP_STORY_TITLE" = "قصة جديدة للمجموعة";
@@ -5131,29 +5269,53 @@
 /* Title for the skip pin entry action sheet during onboarding. */
 "ONBOARDING_2FA_SKIP_PIN_ENTRY_TITLE" = "هل ترغبُ بتخطّي إدخال رقم التعريف الشخصي (PIN)؟";
 
+/* The body for the device transfer 'choice' view 'transfer' option */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_BACKUPS_BODY" = "استعِد رسائلك النصية والوسائط من خطة النسخ الاحتياطي المدفوعة لسيجنال الخاصة بك";
+
+/* The title for the device transfer 'choice' view 'transfer' option */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_BACKUPS_TITLE" = "استعادة النسخة الاحتياطية على سيجنال";
+
+/* If a user is installing Signal on a new phone, they may be asked whether they want to restore their device from a backup. This is a description of that question. */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_DESCRIPTION" = "اختر الطريقة التي تودّ أن تستعيد بها سِجل رسائلك وبيانات حسابك.";
+
+/* The body for the skip restore 'choice' option */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_SKIP_RESTORE_BODY" = "متابعة دون نقل رسائلك والوسائط";
+
+/* The title for the skip restore 'choice' option */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_SKIP_RESTORE_TITLE" = "تسجيل بدون نقل";
+
+/* If a user is installing Signal on a new phone, they may be asked whether they want to restore their device from a backup. */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_TITLE" = "استعادة أو نقل الحساب";
+
+/* The body for the device transfer 'choice' view 'transfer' option */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_TRANSFER_BODY" = "انقل حسابك ورسائلك من جهاز iOS القديم الخاص بك";
+
+/* The title for the device transfer 'choice' view 'transfer' option */
+"ONBOARDING_CHOOSE_RESTORE_METHOD_TRANSFER_TITLE" = "انقل من الجهاز";
+
 /* Header text describing what the backup includes. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_1" = "Your backup includes:";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_1" = "تتضمن النسخة الاحتياطية:";
 
 /* Backup content list item describing all messages. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_2" = "All of your messages";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_2" = "جميع الرسائل الخاصة بك";
 
 /* Backup content list item describing paid media. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_3_FREE" = "The last 45 days of your media";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_3_FREE" = "آخر 45 يوم من الوسائط لديك";
 
 /* Backup content list item describing free media. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_3_PAID" = "All of your media";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_BODY_3_PAID" = "جميع وسائطك";
 
 /* Text for action button confirming the restore. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_CONFIRM_ACTION" = "Restore Backup";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_CONFIRM_ACTION" = "استعادة النسخة الاحتياطية";
 
 /* Description for form confirming restore from backup. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_DESCRIPTION" = "Your last backup was made on %1$@ at %2$@. You can create a newer backup if you still have your old device. [See How](https://signal.org)";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_DESCRIPTION" = "Your last backup was made on %1$@ at %2$@. Your backup size is %3$@";
 
 /* Text for action button to explore other options. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_MORE_OPTIONS_ACTION" = "More Options";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_MORE_OPTIONS_ACTION" = "خيارات أكثر";
 
 /* Title for form confirming restore from backup. */
-"ONBOARDING_CONFIRM_BACKUP_RESTORE_TITLE" = "Restore from Backup";
+"ONBOARDING_CONFIRM_BACKUP_RESTORE_TITLE" = "استعادة مِن نسخة احتياطية";
 
 /* button indicating that the user will register their ipad */
 "ONBOARDING_MODE_SWITCH_BUTTON_PROVISIONING" = "تسجيل الآيباد";
@@ -5316,6 +5478,18 @@
 
 /* Label warning the user that they should update Signal to continue using payments. */
 "OUTDATED_PAYMENT_CLIENT_REMINDER_TEXT" = "قُم بتحديث سيجنال للاستمرار في استخدام عمليات الدفع. قد لا يكون رصيدك مُحدَّثًا.";
+
+/* Body text describing the outgoing transfer. */
+"OUTGOING_DEVICE_RESTORE_INITIAL_VIEW_BODY" = "سيتمُّ نقل حسابك إلى جهاز جديد. سَيتمكن هذا الجهاز من رؤية مجموعاتك وجهات اتصالك، والوصول إلى دردشاتك، وإرسال رسائل باسمك.";
+
+/* Action button to begin account transfer. */
+"OUTGOING_DEVICE_RESTORE_INITIAL_VIEW_CONFIRM_ACTION" = "نقل الحساب";
+
+/* Body text describing the outgoing transfer. */
+"OUTGOING_DEVICE_RESTORE_INITIAL_VIEW_FOOTER" = "معلومات الرسائل والدردشات محمية من خلال التشفير من طرف لِطرف على جميع الأجهزة.";
+
+/* Title text describing the outgoing transfer. */
+"OUTGOING_DEVICE_RESTORE_INITIAL_VIEW_TITLE" = "نقل الحساب";
 
 /* info message text in conversation view */
 "OUTGOING_MISSED_VIDEO_CALL" = "مكالمة فيديو لم يتم الرد عليها";
@@ -5690,10 +5864,10 @@
 "PENDING_GROUP_MEMBERS_SECTION_TITLE_INVALID_INVITES" = "دعوات غير صالحة";
 
 /* Title for the 'invites by other group members' section of the 'member requests and invites' view. */
-"PENDING_GROUP_MEMBERS_SECTION_TITLE_INVITES_FROM_OTHER_MEMBERS" = "المدعوون من قبل الآخرين";
+"PENDING_GROUP_MEMBERS_SECTION_TITLE_INVITES_FROM_OTHER_MEMBERS" = "الذين دعاهم الآخرون";
 
 /* Title for the 'people you invited' section of the 'member requests and invites' view. */
-"PENDING_GROUP_MEMBERS_SECTION_TITLE_PEOPLE_YOU_INVITED" = "المدعوون من قبلك";
+"PENDING_GROUP_MEMBERS_SECTION_TITLE_PEOPLE_YOU_INVITED" = "الذين دعوتهم";
 
 /* Label for view-once messages indicating that the message's contents are expired and unavailable to download. */
 "PER_MESSAGE_EXPIRATION_EXPIRED" = "منتهية الصلاحية";
@@ -5802,9 +5976,6 @@
 
 /* alert title, generic error preventing user from capturing a video that is too long */
 "PHOTO_CAPTURE_VIDEO_SIZE_ERROR" = "الفيديو طويل جدًا.";
-
-/* label for system photo collections which have no name. */
-"PHOTO_PICKER_UNNAMED_COLLECTION" = "ألبوم بدون اسم";
 
 /* Pressing this button pins a thread */
 "PIN_ACTION" = "تثبيت";
@@ -6005,7 +6176,7 @@
 "PRIVACY_VERIFICATION_FAILED_NO_SAFETY_NUMBERS_IN_CLIPBOARD" = "لم يجد سيجنال أي رقم أمان في حافظتك. هل نسخته بشكلٍ صحيح؟";
 
 /* Alert body when verifying with {{contact name}} */
-"PRIVACY_VERIFICATION_FAILED_THEY_HAVE_WRONG_KEY_FOR_ME" = "كل زوج من مستخدمي سيجنال يتشاركان رقم أمان فريد. يُرجى التأكُّد أن %1$@ يعرض رقم الأمان الفريد الخاص بك.";
+"PRIVACY_VERIFICATION_FAILED_THEY_HAVE_WRONG_KEY_FOR_ME" = "كل زوج من مُستخدِمي سيجنال يتشاركان رقم أمان فريد. يُرجى التأكُّد أن %1$@ يعرض رقم الأمان الفريد الخاص بك.";
 
 /* alert body */
 "PRIVACY_VERIFICATION_FAILED_WITH_OLD_LOCAL_VERSION" = "أنت تستخدم إصدارًا قديمًا من سيجنال. تحتاج للتحديث لتتمكَّن من التحقُّق.";
@@ -6023,7 +6194,7 @@
 "PRIVACY_VERIFY_BUTTON" = "تحديد كتمَّ التحقُّق منه";
 
 /* Button to add a new viewer on the 'private story settings' view */
-"PRIVATE_STORY_SETTINGS_ADD_VIEWER_BUTTON" = "إضافة مشاهدين";
+"PRIVATE_STORY_SETTINGS_ADD_VIEWER_BUTTON" = "إضافة مُشاهِدين";
 
 /* Button to delete the story on the 'private story settings' view */
 "PRIVATE_STORY_SETTINGS_DELETE_BUTTON" = "إزالة قصة مُخصَّصة";
@@ -6062,7 +6233,7 @@
 "PROFILE_BIO_VIEW_DEFAULT_BIO_SPEAK_FREELY" = "تحدَّث بحرية";
 
 /* The 'Taking a break' default bio in the profile bio view. */
-"PROFILE_BIO_VIEW_DEFAULT_BIO_TAKING_A_BREAK" = "في حالة استراحة";
+"PROFILE_BIO_VIEW_DEFAULT_BIO_TAKING_A_BREAK" = "أنا في استراحة";
 
 /* The 'Working on something new' default bio in the profile bio view. */
 "PROFILE_BIO_VIEW_DEFAULT_BIO_WORKING_ON_SOMETHING_NEW" = "أَعمَلُ على شيءٍ جَدِيد";
@@ -6092,7 +6263,7 @@
 "PROFILE_NAME_EDUCATION_SHEET_HEADER_FORMAT" = "<bold>أسماء الحسابات الشخصية</bold> في سيجنال يقوم أصحاب الحسابات باختيارها.";
 
 /* Title for the profile name view. */
-"PROFILE_NAME_VIEW_TITLE" = "اِسمُك";
+"PROFILE_NAME_VIEW_TITLE" = "اسمُك";
 
 /* Placeholder when the user doesn't have an 'about' for profile settings screen. */
 "PROFILE_SETTINGS_BIO_PLACEHOLDER" = "حول";
@@ -6532,6 +6703,48 @@
 /* Configure reactions reset button text */
 "RESET" = "إعادة التعيين";
 
+/* Button title shown on chat list banner for restoring media from a backup when paused because the device has insufficient disk space, to see a bottom sheet with more details about next steps. */
+"RESTORING_MEDIA_BANNER_DISK_SPACE_BUTTON" = "التفاصيل";
+
+/* Title shown on chat list banner for restoring media from a backup when paused because the device has insufficient disk space. Embeds {{ %@ formatted number of bytes downloaded, e.g. '100 MB' }} */
+"RESTORING_MEDIA_BANNER_DISK_SPACE_TITLE_FORMAT" = "حرِّر ما يصل إلى %1$@ من المساحة على هذا الجهاز لاستعادة وسائطك.";
+
+/* Title shown on chat list banner for restoring media from a backupis finished */
+"RESTORING_MEDIA_BANNER_FINISHED_TITLE" = "اكتملَتْ عملية الاستعادة.";
+
+/* Subtitle shown on chat list banner for restoring media from a backup when paused because the device has low battery */
+"RESTORING_MEDIA_BANNER_PAUSED_BATTERY_SUBTITLE" = "بطارية الجهاز منخفضة";
+
+/* Title shown on chat list banner for restoring media from a backup when paused for some reason */
+"RESTORING_MEDIA_BANNER_PAUSED_TITLE" = "تمَّ إيقاف الاستعادة مؤقَّتًا";
+
+/* Subtitle shown on chat list banner for restoring media from a backup when paused because the device has no wifi connection */
+"RESTORING_MEDIA_BANNER_PAUSED_WIFI_SUBTITLE" = "في انتظار شبكة الواي فاي…";
+
+/* Download progress for media from a backup. Embeds {{ %1$@ formatted number of bytes downloaded, e.g. '100 MB', %2$@ formatted total number of bytes to download, e.g. '3 GB' }} */
+"RESTORING_MEDIA_BANNER_PROGRESS_FORMAT" = "%1$@ من %2$@";
+
+/* Title shown on chat list banner for restoring media from a backup */
+"RESTORING_MEDIA_BANNER_TITLE" = "جارٍ استرجاع ملفات الوسائط";
+
+/* Button to skip restoring media, shown on a bottom sheet for restoring media from a backup when paused because the device has insufficient disk space. */
+"RESTORING_MEDIA_DISK_SPACE_SHEET_SKIP_BUTTON" = "تخطِّي الاستعادة";
+
+/* Subtitle shown on a bottom sheet for restoring media from a backup when paused because the device has insufficient disk space. Embeds {{ %@ formatted number of bytes downloaded, e.g. '100 MB' }} */
+"RESTORING_MEDIA_DISK_SPACE_SHEET_SUBTITLE_FORMAT" = "لإنهاء استعادة وسائطك، يحتاج جهازك إلى %1$@ من مساحة التخزين.\n\nلتحرير المساحة انتقل إلى \"الإعدادات\" > \"عام\" > \"مساحة تخزين الآيفون\". يُمكنك الاختيار بين تفريغ أو حذف المحتوى أو التطبيقات غير المُستخدمة.";
+
+/* Title shown on a bottom sheet for restoring media from a backup when paused because the device has insufficient disk space. Embeds {{ %@ formatted number of bytes downloaded, e.g. '100 MB' }} */
+"RESTORING_MEDIA_DISK_SPACE_SHEET_TITLE_FORMAT" = "وفِّر مساحة %1$@ على هذا الجهاز";
+
+/* Message shown on a bottom sheet to skip restoring media from a backup when paused because the device has insufficient disk space. */
+"RESTORING_MEDIA_DISK_SPACE_SKIP_SHEET_MESSAGE" = "إذا تخطّيت الاستعادة، يُمكن تنزيل الوسائط والمرفقات المتبقية في نسختك الاحتياطية في وقتٍ لاحق عند توفُّر مساحة التخزين.";
+
+/* Button shown on a bottom sheet to skip restoring media from a backup when paused because the device has insufficient disk space. */
+"RESTORING_MEDIA_DISK_SPACE_SKIP_SHEET_SKIP_BUTTON" = "تخطِّي الاستعادة";
+
+/* Title shown on a bottom sheet to skip restoring media from a backup when paused because the device has insufficient disk space. */
+"RESTORING_MEDIA_DISK_SPACE_SKIP_SHEET_TITLE" = "هل ترغبُ بتخطِّي الاستعادة؟";
+
 /* Generic text for button that retries whatever the last action was. */
 "RETRY_BUTTON_TEXT" = "إعادة المُحاولة";
 
@@ -6590,7 +6803,7 @@
 "SAFETY_TIPS_FAKE_BUSINESS_TITLE" = "الشركات والمُؤسَّسات الوهمية";
 
 /* Message contents for the fake names safety tip. */
-"SAFETY_TIPS_FAKE_NAMES_BODY" = "لن يَطلب سيجنال منك أبدًا كود التسجيل أو رقم التعريف الشخصي (PIN). كُن حذِرًا من الطلبات التي تنتحل شخصية الآخرين. يقوم أصحاب الحسابات بتحديد أسماء حساباتهم الشخصية، وهي غير خاضعة لعملية التحقُّق.";
+"SAFETY_TIPS_FAKE_NAMES_BODY" = "لن يَطلب سيجنال منك أبدًا كود التسجيل أو رقم التعريف الشخصي (PIN). كُن حذِرًا من الطلبات التي تنتحل شخصية الآخرين. يتم تعيين أسماء الحسابات الشخصية من قبل أصحابها، وهي غير خاضعة لعملية التحقُّق.";
 
 /* Message title describing the fake names safety tip. */
 "SAFETY_TIPS_FAKE_NAMES_TITLE" = "الأسماء والحسابات المُزَيَّفة";
@@ -7748,7 +7961,7 @@
 "SETTINGS_SECURITY_TITLE" = "أمان التطبيق";
 
 /* The footer for the photos and videos section in the sent media quality settings. */
-"SETTINGS_SENT_MEDIA_QUALITY_SECTION_FOOTER" = "إن إرسال وسائط بجودة عالية سوف يستخدم كمية أكبر من البيانات.";
+"SETTINGS_SENT_MEDIA_QUALITY_SECTION_FOOTER" = "لاحظ أنَّ إرسال وسائط بجودة عالية سوف يستخدم كمية أكبر من البيانات.";
 
 /* The title for the photos and videos section in the sent media quality settings. */
 "SETTINGS_SENT_MEDIA_QUALITY_SECTION_TITLE" = "الصور والفيديوهات";
@@ -7844,7 +8057,7 @@
 "SOUNDS_NONE" = "لا شيء";
 
 /* Text for toast presented after spam verification has been completed */
-"SPAM_CAPTCHA_COMPLETED_TOAST" = "اكتملَ التحقُّق";
+"SPAM_CAPTCHA_COMPLETED_TOAST" = "اكتملَ التحقُّق.";
 
 /* Message for confirmation dialog confirming to ignore verification. */
 "SPAM_CAPTCHA_DISMISS_CONFIRMATION_MESSAGE" = "إذا اخترتَ تخطِّي التحقُّق، فقد تفوتك رسائل من أشخاص آخرين وقد يفشل إرسال رسائلك.";
@@ -7856,7 +8069,7 @@
 "SPAM_CAPTCHA_SHEET_BODY" = "للمساعدة على الوقاية من البريد العشوائي في سيجنال، يُرجى إتمام عملية التحقُّق.\n\nبعد التأكُّد من ذلك، يمكنك الاستمرار في التراسُل. أي رسالة متوقِّفة مؤقَّتًا سوف تُرسَل تلقائيًا.";
 
 /* Title for action sheet explaining captcha requirement. */
-"SPAM_CAPTCHA_SHEET_TITLE" = "تَحقَّق لِلاِستِمرار فِي المُراسَلَة";
+"SPAM_CAPTCHA_SHEET_TITLE" = "قُم بالتحقُّق لمواصلة المراسلة";
 
 /* Action to skip verification */
 "SPAM_CAPTCHA_SKIP_VERIFICATION_ACTION" = "تخطِّي التَحَقُّق";
@@ -7982,7 +8195,7 @@
 "STORIES_NO_REPLIES_YET" = "لا ردود حاليًا";
 
 /* Indicates that this story has no views yet */
-"STORIES_NO_VIEWS_YET" = "لا يوجد مشاهدات حاليًا";
+"STORIES_NO_VIEWS_YET" = "لا مشاهدات حاليًا";
 
 /* Section footer for the 'replies & reactions' section in stories settings */
 "STORIES_REPLIES_AND_REACTIONS_FOOTER" = "السماح للأفراد الذين يُمكنهم مشاهدة قصتك من التفاعل معها والرد عليها.";
@@ -8024,7 +8237,7 @@
 "STORIES_SETTINGS_TURN_ON_STORIES_BUTTON" = "تشغيل القِصص";
 
 /* Title for the 'view receipts' setting in stories settings */
-"STORIES_SETTINGS_VIEW_RECEIPTS" = "عرض الإيصالات";
+"STORIES_SETTINGS_VIEW_RECEIPTS" = "عرض إيصالات القراءة";
 
 /* Footer for the 'view receipts' section of the stories settings */
 "STORIES_SETTINGS_VIEW_RECEIPTS_FOOTER" = "مشاهدة ومشاركة متى يمكن مشاهدة القصِص. إذا كانت هذه الخاصية مُعطَّلة، لن ترى من شاهَد قِصصك.";
@@ -8060,7 +8273,7 @@
 "STORIES_UNHIDE_STORY_CONFIRMATION_TOAST" = "تمَّ إظهار القصة";
 
 /* Text explaining that you will not see any views for your story because you have view receipts turned off */
-"STORIES_VIEWS_OFF_DESCRIPTION" = "فعِّل إيصالات القراءة لرؤية من شاهد قِصصك.";
+"STORIES_VIEWS_OFF_DESCRIPTION" = "فعِّل \"عرض إيصالات القراءة\" لرؤية من شاهد قِصصك.";
 
 /* Title text for the 'views' tab on the stories views & replies sheet */
 "STORIES_VIEWS_TAB" = "المشاهدات";
@@ -8156,7 +8369,7 @@
 "STORY_SEND_PARTIALLY_FAILED" = "تمَّ الإرسال جزئيًا.";
 
 /* Text indicating that the story send has partially failed */
-"STORY_SEND_PARTIALLY_FAILED_TAP_FOR_DETAILS" = "تمَّ الإرسال جزئيًا. انقر للتفاصيل";
+"STORY_SEND_PARTIALLY_FAILED_TAP_FOR_DETAILS" = "تمَّ الإرسال جزئيًا. انقر للمزيد من التفاصيل";
 
 /* Text indicating that the story is currently sending */
 "STORY_SENDING" = "جارٍ الإرسال…";
@@ -8165,7 +8378,7 @@
 "STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_1" = "البدء بمحادثة معهم";
 
 /* Second bullet point for the explainer sheet for signal connections */
-"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_2" = "قبول طلب التراسل معهم";
+"STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_2" = "قبول طلب للتراسُل";
 
 /* Third bullet point for the explainer sheet for signal connections */
 "STORY_SETTINGS_LEARN_MORE_SHEET_BULLET_3" = "وجودهم في جهات اتصال هاتفك";
@@ -8330,13 +8543,13 @@
 "SYSTEM_MESSAGE_DEFAULT_DISAPPEARING_MESSAGE_TIMER_FORMAT" = "سيتمُّ ضبط وقت اختفاء الرسائل على %1$@ عندما تقوم بمراسلتهم.";
 
 /* Indicator warning about an unknown contact thread */
-"SYSTEM_MESSAGE_UNKNOWN_THREAD_REVIEW_CAREFULLY_WARNING" = "Review Carefully";
+"SYSTEM_MESSAGE_UNKNOWN_THREAD_REVIEW_CAREFULLY_WARNING" = "مراجعة بحذر";
 
 /* Tap to Replace Emoji string for reaction configuration */
 "TAP_REPLACE_EMOJI" = "انقر لاستبدال الرمز التعبيري (الإيموجي)";
 
 /* Option in selected text edit menu to make text bold */
-"TEXT_MENU_BOLD" = "عريض";
+"TEXT_MENU_BOLD" = "خط عريض";
 
 /* Option in selected text edit menu to clear all text formatting in the selected text range */
 "TEXT_MENU_CLEAR_FORMATTING" = "إزالة التنسيق";
@@ -8372,7 +8585,7 @@
 "THIS_MESSAGE_WAS_DELETED" = "تمَّ حذف هذه الرسالة.";
 
 /* Label for a group you are not in which has four members, listing their names */
-"THREAD_DETAILS_FOUR_MEMBERS" = "%1$@, %2$@, %3$@, and %4$@";
+"THREAD_DETAILS_FOUR_MEMBERS" = "%1$@، و%2$@، و%3$@، و%4$@";
 
 /* Label displayed below group info. This is the predicate part of the sentence 'Group names are not verified'. Embeds {{ THREAD_DETAILS_GROUP_NAMES_ARE_NOT_VERIFIED_SUBJECT }} */
 "THREAD_DETAILS_GROUP_NAMES_ARE_NOT_VERIFIED_PREDICATE" = "%1$@ لم يتم التحقُّق منها";
@@ -8381,10 +8594,10 @@
 "THREAD_DETAILS_GROUP_NAMES_ARE_NOT_VERIFIED_SUBJECT" = "أسماء المجموعات";
 
 /* Label for a group with more than four members, listing the first three members' names and embedding THREAD_DETAILS_OTHER_MEMBERS_COUNT_%ld as a count of other members */
-"THREAD_DETAILS_MANY_MEMBERS" = "%1$@, %2$@, %3$@, and %4$@";
+"THREAD_DETAILS_MANY_MEMBERS" = "%1$@، و%2$@، و%3$@، و%4$@";
 
 /* Label for a group with no members or no members but yourself */
-"THREAD_DETAILS_NO_MEMBERS" = "No other group members yet";
+"THREAD_DETAILS_NO_MEMBERS" = "لا يوجد أعضاء آخرون في المجموعة حتى الآن";
 
 /* Subtitle appearing at the top of the users 'note to self' conversation */
 "THREAD_DETAILS_NOTE_TO_SELF_EXPLANATION" = "يُمكِنُك إضافة مُلاحظات لنفسك في هذه الدردشة. إذا كان حسابك يحتوي على أي أجهزة مُرتبطة، ستتمُّ مُزامنة المُلاحظات.";
@@ -8393,7 +8606,7 @@
 "THREAD_DETAILS_ONE_MEMBER" = "%1$@";
 
 /* Label for a group you are in with one other member, listing their name and yourself */
-"THREAD_DETAILS_ONE_MEMBER_AND_YOURSELF" = "%1$@ and you";
+"THREAD_DETAILS_ONE_MEMBER_AND_YOURSELF" = "%1$@ وأنت";
 
 /* A string indicating a mutual group the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_ONE_MUTUAL_GROUP" = "عضو في %1$@";
@@ -8408,19 +8621,19 @@
 "THREAD_DETAILS_TAP_TO_UNBLUR_AVATAR" = "عرض";
 
 /* Label for a group you are not in which has three members, listing their names */
-"THREAD_DETAILS_THREE_MEMBERS" = "%1$@, %2$@, and %3$@";
+"THREAD_DETAILS_THREE_MEMBERS" = "%1$@، و%2$@ و%3$@";
 
 /* Label for a group you are in which has three other members, listing their names and yourself */
-"THREAD_DETAILS_THREE_MEMBERS_AND_YOURSELF" = "%1$@, %2$@, %3$@, and you";
+"THREAD_DETAILS_THREE_MEMBERS_AND_YOURSELF" = "%1$@ و%2$@ و%3$@ وأنت";
 
 /* A string indicating three mutual groups the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_THREE_MUTUAL_GROUP" = "عضو في %1$@، و%2$@، و%3$@";
 
 /* Label for a group you are not in which has two members, listing their names */
-"THREAD_DETAILS_TWO_MEMBERS" = "%1$@ and %2$@";
+"THREAD_DETAILS_TWO_MEMBERS" = "%1$@ و%2$@";
 
 /* Label for a group you are in which has two other members, listing their names and yourself */
-"THREAD_DETAILS_TWO_MEMBERS_AND_YOURSELF" = "%1$@, %2$@, and you";
+"THREAD_DETAILS_TWO_MEMBERS_AND_YOURSELF" = "%1$@، و%2$@ وأنت";
 
 /* A string indicating two mutual groups the user shares with this contact. Embeds {{mutual group name}} */
 "THREAD_DETAILS_TWO_MUTUAL_GROUP" = "عضو في %1$@ و%2$@";
@@ -8597,7 +8810,7 @@
 "USE_PROXY_EXPLANATION" = "استخدِم البروكسي فقط إذا تعذَّر عليك الاتصال بسيجنال عبر بيانات الجوّال أو عبر شبكة الواي فاي.";
 
 /* Description of username links and QR codes on the username education sheet */
-"USERNAME_EDUCATION_LINK_DESCRIPTION" = "أسماء المُستخدمين لها كودات QR فريدة يُمكنك مُشاركتُهما مع أصدقائك لكي يبدؤوا الدردشة معك.";
+"USERNAME_EDUCATION_LINK_DESCRIPTION" = "أسماء المُستخدِمين لها كودات QR فريدة يُمكنك مُشاركتُهما مع أصدقائك لكي يبدؤوا الدردشة معك.";
 
 /* Title for the username links and QR codes section on the username education sheet */
 "USERNAME_EDUCATION_LINK_TITLE" = "روابط وكودات الـ QR";
@@ -8615,10 +8828,10 @@
 "USERNAME_EDUCATION_TITLE" = "طرق جديدة للاتصال";
 
 /* Description of usernames on the username education sheet */
-"USERNAME_EDUCATION_USERNAME_DESCRIPTION" = "يُمكن للناس مراسلتك الآن باستخدام اسم المُستخدم الاختياري الخاص بك حتى لا تضطر إلى إعطاء رقم هاتفك. أسماء المُستخدمين ليست مرئية على حسابك الشخصي.";
+"USERNAME_EDUCATION_USERNAME_DESCRIPTION" = "يُمكن للناس مراسلتك الآن باستخدام اسم المُستخدِم الاختياري الخاص بك حتى لا تضطر إلى إعطاء رقم هاتفك. أسماء المُستخدِمين ليست مرئية على حسابك الشخصي.";
 
 /* Title for usernames section on the username education sheet */
-"USERNAME_EDUCATION_USERNAME_TITLE" = "أسماء المُستخدمين";
+"USERNAME_EDUCATION_USERNAME_TITLE" = "أسماء المُستخدِمين";
 
 /* A title for a view that allows you to pick a color for a QR code for your username link. */
 "USERNAME_LINK_QR_CODE_COLOR_PICKER_VIEW_TITLE_COLOR" = "اللون";
@@ -8708,10 +8921,10 @@
 "USERNAME_SELECTION_EXPLANATION_FOOTER_FORMAT" = "يتمُّ دائمًا إقران أسماء المُستخدِمين بمجموعة من الأرقام.%1$@";
 
 /* When the user has entered text into a text field for setting their username, a header displays the username text. This string is shown in the header when the text field is empty. */
-"USERNAME_SELECTION_HEADER_TEXT_FOR_PLACEHOLDER" = "اختر اسم مُستخدم خاص بك";
+"USERNAME_SELECTION_HEADER_TEXT_FOR_PLACEHOLDER" = "اختر اسم مُستخدِم خاص بك";
 
 /* An error message shown when the user has typed a username that has invalid characters. The character ranges \"a-z\", \"0-9\", \"_\" should not be translated, as they are literal. */
-"USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "يُمكن أن تحتوي أسماء المُستخدمين على حروف a-z، وأرقام 0-9 وشرطة سُفلية _ فقط.";
+"USERNAME_SELECTION_INVALID_CHARACTERS_ERROR_MESSAGE" = "يُمكن أن تحتوي أسماء المُستخدِمين على حروف a-z، وأرقام 0-9 وشرطة سُفلية _ فقط.";
 
 /* An error message shown when the user has typed an invalid discriminator for their username. */
 "USERNAME_SELECTION_INVALID_DISCRIMINATOR_ERROR_MESSAGE" = "اسم مُستخدِم غير صحيح. أدخِل رقمين على الأقل.";
@@ -8795,7 +9008,7 @@
 "VOICE_MESSAGE_CANCEL_INSTRUCTIONS" = "اسحب للإلغاء";
 
 /* Filename for voice messages. */
-"VOICE_MESSAGE_FILE_NAME" = "رِسالة صوتيَّة";
+"VOICE_MESSAGE_FILE_NAME" = "سيجنال";
 
 /* Message for the tooltip indicating the 'voice message' needs to be held to be held down to record. */
 "VOICE_MESSAGE_TOO_SHORT_TOOLTIP" = "اضغط مُطوَّلًا للتسجيل";

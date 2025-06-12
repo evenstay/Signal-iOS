@@ -37,8 +37,11 @@ public class ProvisioningCoordinatorTest: XCTestCase {
 
         let mockDb = InMemoryDB()
 
-        let recipientDbTable = MockRecipientDatabaseTable()
-        let recipientFetcher = RecipientFetcherImpl(recipientDatabaseTable: recipientDbTable)
+        let recipientDbTable = RecipientDatabaseTable()
+        let recipientFetcher = RecipientFetcherImpl(
+            recipientDatabaseTable: recipientDbTable,
+            searchableNameIndexer: MockSearchableNameIndexer(),
+        )
         let recipientIdFinder = RecipientIdFinder(
             recipientDatabaseTable: recipientDbTable,
             recipientFetcher: recipientFetcher
@@ -243,11 +246,16 @@ private class MockOWSDeviceService: OWSDeviceService {
 }
 
 private class MockSignalProtocolStoreManager: SignalProtocolStoreManager {
+    private let aciProtocolStore = MockSignalProtocolStore(identity: .aci)
+    private let pniProtocolStore = MockSignalProtocolStore(identity: .pni)
 
     init() {}
 
     func signalProtocolStore(for identity: SignalServiceKit.OWSIdentity) -> any SignalServiceKit.SignalProtocolStore {
-        return MockSignalProtocolStore()
+        switch identity {
+        case .aci: aciProtocolStore
+        case .pni: pniProtocolStore
+        }
     }
 
     func removeAllKeys(tx: DBWriteTransaction) {}

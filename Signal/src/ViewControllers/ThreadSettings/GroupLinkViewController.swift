@@ -242,16 +242,15 @@ public class GroupLinkViewController: OWSTableViewController2 {
 
 public class GroupLinkViewUtils {
 
+    @MainActor
     static func updateLinkMode(
         groupModelV2: TSGroupModelV2,
         linkMode: GroupsV2LinkMode,
-        description: String,
         fromViewController: UIViewController,
         completion: @escaping () -> Void
     ) {
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: fromViewController,
-            updateDescription: description,
             updateBlock: {
                 try await GroupManager.updateLinkModeV2(groupModel: groupModelV2, linkMode: linkMode)
             },
@@ -369,7 +368,6 @@ private extension GroupLinkViewController {
         GroupLinkViewUtils.updateLinkMode(
             groupModelV2: groupModelV2,
             linkMode: linkMode,
-            description: "[\(type(of: self))]",
             fromViewController: self,
             completion: { [weak self] in self?.updateView() }
         )
@@ -378,7 +376,6 @@ private extension GroupLinkViewController {
     func resetLink() {
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: self,
-            updateDescription: "[\(type(of: self))]",
             updateBlock: {
                 try await GroupManager.resetLinkV2(groupModel: self.groupModelV2)
             },

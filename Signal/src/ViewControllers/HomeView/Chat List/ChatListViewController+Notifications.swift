@@ -51,7 +51,11 @@ extension ChatListViewController {
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(appExpiryDidChange),
-                                               name: AppExpiryImpl.AppExpiryDidChange,
+                                               name: AppExpiry.AppExpiryDidChange,
+                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(significantTimeChangeNotification),
+                                               name: UIApplication.significantTimeChangeNotification,
                                                object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(preferContactAvatarsPreferenceDidChange),
@@ -75,6 +79,32 @@ extension ChatListViewController {
             name: Usernames.localUsernameStateChangedNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(backupAttachmentDownloadQueueStatusDidChange(_:)),
+            name: BackupAttachmentQueueStatus.didChangeNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(backupPlanDidChange(_:)),
+            name: BackupSettingsStore.Notifications.backupPlanChanged,
+            object: nil
+        )
+
+        viewState.backupProgressViewState.downloadQueueStatus =
+            DependenciesBridge.shared.backupAttachmentQueueStatusManager.currentStatus(type: .download)
+        Task { @MainActor in
+            self.viewState.backupProgressViewState.downloadProgressObserver = await DependenciesBridge.shared
+                .backupAttachmentDownloadProgress
+                .addObserver { [weak self] progress in
+                    DispatchQueue.main.asyncIfNecessary {
+                        guard let self else { return }
+                        self.viewState.backupProgressViewState.downloadProgress = progress
+                        self.viewState.backupProgressView.update(viewState: self.viewState.backupProgressViewState)
+                    }
+                }
+        }
 
         NotificationCenter.default.addObserver(
             self,
@@ -136,6 +166,14 @@ extension ChatListViewController {
 
     @objc
     private func appExpiryDidChange(_ notification: NSNotification) {
+        AssertIsOnMainThread()
+
+        updateExpirationReminderView()
+        loadCoordinator.loadIfNecessary()
+    }
+
+    @objc
+    private func significantTimeChangeNotification(_ notification: NSNotification) {
         AssertIsOnMainThread()
 
         updateExpirationReminderView()
@@ -232,6 +270,22 @@ extension ChatListViewController {
     private func localUsernameStateDidChange() {
         updateUsernameReminderView()
         loadCoordinator.loadIfNecessary()
+    }
+
+    @objc
+    private func backupAttachmentDownloadQueueStatusDidChange(_ notification: Notification) {
+        let type = notification.userInfo?[BackupAttachmentQueueStatus.notificationQueueTypeKey]
+        guard type as? BackupAttachmentQueueType == .download else { return }
+        self.viewState.backupProgressViewState.downloadQueueStatus =
+            DependenciesBridge.shared.backupAttachmentQueueStatusManager.currentStatus(type: .download)
+        self.viewState.backupProgressView.update(viewState: self.viewState.backupProgressViewState)
+    }
+
+    @objc
+    private func backupPlanDidChange(_ notification: Notification) {
+        let db = DependenciesBridge.shared.db
+        db.read { viewState.backupProgressViewState.refetchDBState(tx: $0) }
+        viewState.backupProgressView.update(viewState: viewState.backupProgressViewState)
     }
 }
 

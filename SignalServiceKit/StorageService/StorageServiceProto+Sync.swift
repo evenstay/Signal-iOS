@@ -133,11 +133,7 @@ struct StorageServiceContact {
         )
     }
 
-    static func fetch(for recipientUniqueId: RecipientUniqueId, tx: DBReadTransaction) -> Self? {
-        SignalRecipient.anyFetch(uniqueId: recipientUniqueId, transaction: tx).flatMap { Self($0) }
-    }
-
-    fileprivate init?(_ signalRecipient: SignalRecipient) {
+    init?(_ signalRecipient: SignalRecipient) {
         let unregisteredAtTimestamp: UInt64?
         if signalRecipient.isRegistered {
             unregisteredAtTimestamp = nil
@@ -183,6 +179,7 @@ class StorageServiceContactRecordUpdater: StorageServiceRecordUpdater {
     private let nicknameManager: NicknameManager
     private let profileFetcher: any ProfileFetcher
     private let profileManager: OWSProfileManager
+    private let recipientDatabaseTable: RecipientDatabaseTable
     private let recipientManager: any SignalRecipientManager
     private let recipientMerger: RecipientMerger
     private let recipientHidingManager: RecipientHidingManager
@@ -202,6 +199,7 @@ class StorageServiceContactRecordUpdater: StorageServiceRecordUpdater {
         nicknameManager: NicknameManager,
         profileFetcher: ProfileFetcher,
         profileManager: OWSProfileManager,
+        recipientDatabaseTable: RecipientDatabaseTable,
         recipientManager: any SignalRecipientManager,
         recipientMerger: RecipientMerger,
         recipientHidingManager: RecipientHidingManager,
@@ -221,6 +219,7 @@ class StorageServiceContactRecordUpdater: StorageServiceRecordUpdater {
         self.nicknameManager = nicknameManager
         self.profileFetcher = profileFetcher
         self.profileManager = profileManager
+        self.recipientDatabaseTable = recipientDatabaseTable
         self.recipientManager = recipientManager
         self.recipientMerger = recipientMerger
         self.recipientHidingManager = recipientHidingManager
@@ -237,7 +236,7 @@ class StorageServiceContactRecordUpdater: StorageServiceRecordUpdater {
         unknownFields: UnknownStorage?,
         transaction tx: DBReadTransaction
     ) -> StorageServiceProtoContactRecord? {
-        guard let recipient = SignalRecipient.anyFetch(uniqueId: recipientUniqueId, transaction: tx) else {
+        guard let recipient = recipientDatabaseTable.fetchRecipient(uniqueId: recipientUniqueId, tx: tx) else {
             return nil
         }
 
@@ -512,7 +511,7 @@ class StorageServiceContactRecordUpdater: StorageServiceRecordUpdater {
                 profileKey,
                 for: serviceIds.aciOrElsePni,
                 onlyFillInIfMissing: false,
-                shouldFetchProfile: true,
+                shouldFetchProfile: false,
                 userProfileWriter: .storageService,
                 localIdentifiers: localIdentifiers,
                 authedAccount: authedAccount,
@@ -527,30 +526,21 @@ class StorageServiceContactRecordUpdater: StorageServiceRecordUpdater {
         // Given name can never be cleared, so ignore all info about the profile if
         // there's no given name.
         if record.hasGivenName && (localUserProfile?.givenName != record.givenName || localUserProfile?.familyName != record.familyName) {
-            // If we already have a profile for this user, ignore any content received
-            // via Storage Service. Instead, we'll just kick off a fetch of that user's
-            // profile to make sure everything is up-to-date.
-            if localUserProfile?.givenName != nil {
-                Task { [profileFetcher] in
-                    _ = try? await profileFetcher.fetchProfile(for: serviceIds.aciOrElsePni, context: .init(isOpportunistic: true))
-                }
-            } else {
-                let profileAddress = OWSUserProfile.insertableAddress(
-                    serviceId: serviceIds.aciOrElsePni,
-                    localIdentifiers: localIdentifiers
-                )
-                let localUserProfile = OWSUserProfile.getOrBuildUserProfile(
-                    for: profileAddress,
-                    userProfileWriter: .storageService,
-                    tx: SDSDB.shimOnlyBridge(tx)
-                )
-                localUserProfile.update(
-                    givenName: .setTo(record.givenName),
-                    familyName: .setTo(record.familyName),
-                    userProfileWriter: .storageService,
-                    transaction: SDSDB.shimOnlyBridge(tx)
-                )
-            }
+            let profileAddress = OWSUserProfile.insertableAddress(
+                serviceId: serviceIds.aciOrElsePni,
+                localIdentifiers: localIdentifiers
+            )
+            let localUserProfile = OWSUserProfile.getOrBuildUserProfile(
+                for: profileAddress,
+                userProfileWriter: .storageService,
+                tx: tx
+            )
+            localUserProfile.update(
+                givenName: .setTo(record.givenName),
+                familyName: .setTo(record.familyName),
+                userProfileWriter: .storageService,
+                transaction: tx
+            )
         } else if localUserProfile?.givenName != nil && !record.hasGivenName || localUserProfile?.familyName != nil && !record.hasFamilyName {
             needsUpdate = true
         }
@@ -985,7 +975,7 @@ class StorageServiceGroupV2RecordUpdater: StorageServiceRecordUpdater {
             return nil
         }
 
-        let groupId = groupContextInfo.groupId
+        let groupId = groupContextInfo.groupId.serialize().asData
 
         var builder = StorageServiceProtoGroupV2Record.builder(masterKey: masterKeyData)
 
@@ -1056,7 +1046,7 @@ class StorageServiceGroupV2RecordUpdater: StorageServiceRecordUpdater {
             owsFailDebug("Invalid master key.")
             return .invalid
         }
-        let groupId = groupContextInfo.groupId
+        let groupId = groupContextInfo.groupId.serialize().asData
 
         if let localThread = TSGroupThread.fetch(groupId: groupId, transaction: transaction) {
             let localStorySendMode = localThread.storyViewMode.storageServiceMode
@@ -1834,8 +1824,7 @@ extension StorageServiceAccountRecordUpdater {
                 pinnedThreadIds.append(thread.uniqueId)
             case .groupMasterKey(let masterKey)?:
                 let contextInfo = try GroupV2ContextInfo.deriveFrom(masterKeyData: masterKey)
-                let threadUniqueId = TSGroupThread.threadId(forGroupId: contextInfo.groupId,
-                                                            transaction: transaction)
+                let threadUniqueId = TSGroupThread.threadId(forGroupId: contextInfo.groupId.serialize().asData, transaction: transaction)
                 pinnedThreadIds.append(threadUniqueId)
             case .legacyGroupID(let groupId)?:
                 let threadUniqueId = TSGroupThread.threadId(forGroupId: groupId,
@@ -1898,7 +1887,7 @@ class StorageServiceStoryDistributionListRecordUpdater: StorageServiceRecordUpda
     typealias RecordType = StorageServiceProtoStoryDistributionListRecord
 
     private let privateStoryThreadDeletionManager: any PrivateStoryThreadDeletionManager
-    private let recipientDatabaseTable: any RecipientDatabaseTable
+    private let recipientDatabaseTable: RecipientDatabaseTable
     private let recipientFetcher: any RecipientFetcher
     private let storyRecipientManager: StoryRecipientManager
     private let storyRecipientStore: StoryRecipientStore
@@ -1906,7 +1895,7 @@ class StorageServiceStoryDistributionListRecordUpdater: StorageServiceRecordUpda
 
     init(
         privateStoryThreadDeletionManager: any PrivateStoryThreadDeletionManager,
-        recipientDatabaseTable: any RecipientDatabaseTable,
+        recipientDatabaseTable: RecipientDatabaseTable,
         recipientFetcher: any RecipientFetcher,
         storyRecipientManager: StoryRecipientManager,
         storyRecipientStore: StoryRecipientStore,

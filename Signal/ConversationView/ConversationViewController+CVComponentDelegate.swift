@@ -151,9 +151,17 @@ extension ConversationViewController: CVComponentDelegate {
                 let referencedAttachments = attachmentStore
                     .fetchAllReferencedAttachments(owningMessageRowId: messageRowId, tx: tx)
 
-                return try referencedAttachments.map { $0.attachment.id }.contains { attachmentRowId in
-                    try backupAttachmentDownloadStore.hasEnqueuedDownload(
-                        attachmentRowId: attachmentRowId,
+                return try referencedAttachments.contains { referencedAttachment in
+                    // We only auto-download on appear if we've got a cdn number to try.
+                    // The user can still manual download if there isn't one (using fallback cdn).
+                    guard referencedAttachment.attachment.mediaTierInfo?.cdnNumber != nil else {
+                        return false
+                    }
+                    // Otherwise use presence in the backup download queue to indicate
+                    // downloadability; this just functionally bumps the priority so the
+                    // download happens immediately and unconditionally.
+                    return try backupAttachmentDownloadStore.hasEnqueuedDownload(
+                        attachmentRowId: referencedAttachment.attachment.id,
                         tx: tx
                     )
                 }
@@ -401,6 +409,21 @@ extension ConversationViewController: CVComponentDelegate {
 
     public func didTapGenericAttachment(_ attachment: CVComponentGenericAttachment) -> CVAttachmentTapAction {
         AssertIsOnMainThread()
+
+        let timestamp = Date().ows_millisecondsSince1970
+        let attachmentId = attachment.attachmentId
+        Task {
+            try await DependenciesBridge.shared.db.awaitableWrite { tx in
+                guard let attachment = DependenciesBridge.shared.attachmentStore.fetch(id: attachmentId, tx: tx) else {
+                    return
+                }
+                try DependenciesBridge.shared.attachmentStore.markViewedFullscreen(
+                    attachment: attachment,
+                    timestamp: timestamp,
+                    tx: tx
+                )
+            }
+        }
 
         if
             PKAddPassesViewController.canAddPasses(),
@@ -796,6 +819,7 @@ extension ConversationViewController: CVComponentDelegate {
         sessionRefreshedActionSheet.addAction(ActionSheetAction(title: CommonStrings.contactSupport) { _ in
             ContactSupportActionSheet.present(
                 emailFilter: .custom("Signal iOS Session Refresh"),
+                logDumper: .fromGlobals(),
                 fromViewController: self
             )
         })
@@ -1026,7 +1050,6 @@ extension ConversationViewController: CVComponentDelegate {
             handler: { _ in
                 GroupViewUtils.updateGroupWithActivityIndicator(
                     fromViewController: self,
-                    updateDescription: "Blocking join request",
                     updateBlock: {
                         // If the user in question has canceled their request,
                         // this call will still block them.

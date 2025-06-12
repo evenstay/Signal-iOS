@@ -13,39 +13,26 @@ public class ModalActivityIndicatorViewController: OWSViewController {
         public static let defaultPresentationDelay: TimeInterval = 0.05
     }
 
-    let canCancel: Bool
+    public var wasCancelled: Bool = false
 
+    private let canCancel: Bool
     private let isInvisible: Bool
-
-    private let _wasCancelled = AtomicBool(false, lock: .sharedGlobal)
-    public var wasCancelled: Bool {
-        _wasCancelled.get()
-    }
-    public let wasCancelledPromise: Promise<Void>
-    private let wasCancelledFuture: Future<Void>
-
-    var activityIndicator: UIActivityIndicatorView?
-
-    var presentTimer: Timer?
-
-    var wasDimissed: Bool = false
-
+    private var wasDimissed: Bool = false
+    private var activityIndicator: UIActivityIndicatorView?
+    private var presentTimer: Timer?
     private let presentationDelay: TimeInterval
-
-    // MARK: Initializers
+    private var asyncTask: Task<Void, Never>?
 
     public init(canCancel: Bool, presentationDelay: TimeInterval, isInvisible: Bool = false) {
         self.canCancel = canCancel
         self.presentationDelay = presentationDelay
         self.isInvisible = isInvisible
-
-        let (promise, future) = Promise<Void>.pending()
-        self.wasCancelledPromise = promise
-        self.wasCancelledFuture = future
-
         super.init()
     }
 
+    // MARK: -
+
+    @MainActor
     public class func present(
         fromViewController: UIViewController,
         canCancel: Bool,
@@ -63,6 +50,7 @@ public class ModalActivityIndicatorViewController: OWSViewController {
         )
     }
 
+    @MainActor
     public class func presentAsInvisible(
         fromViewController: UIViewController,
         backgroundBlock: @escaping (ModalActivityIndicatorViewController) -> Void
@@ -77,6 +65,7 @@ public class ModalActivityIndicatorViewController: OWSViewController {
         )
     }
 
+    @MainActor
     private class func present(
         fromViewController: UIViewController,
         canCancel: Bool,
@@ -87,20 +76,31 @@ public class ModalActivityIndicatorViewController: OWSViewController {
     ) {
         AssertIsOnMainThread()
 
-        let viewController = ModalActivityIndicatorViewController(
+        ModalActivityIndicatorViewController(
             canCancel: canCancel,
             presentationDelay: presentationDelay,
             isInvisible: isInvisible
-        )
-        // Present this modal _over_ the current view contents.
-        viewController.modalPresentationStyle = .overFullScreen
-        fromViewController.present(viewController, animated: false) {
-            DispatchQueue.global(qos: backgroundBlockQueueQos.qosClass).async {
-                backgroundBlock(viewController)
+        ).present(
+            from: fromViewController,
+            asyncBlock: { viewController in
+                DispatchQueue.global(qos: backgroundBlockQueueQos.qosClass).async {
+                    backgroundBlock(viewController)
+                }
             }
-        }
+        )
     }
 
+    // MARK: -
+
+    /// Presents a `ModalActivityIndicatorViewController`, behind which the
+    /// given async block runs. Callers are expected to dismiss the modal at the
+    /// completion of the async block.
+    ///
+    /// Use this API if you need fine-grained control over the modal dismissal
+    /// behavior, or if you want a cancellable modal.
+    ///
+    /// - SeeAlso ``presentAndPropagateResult(from:presentationDelay:wrappedAsyncBlock:)``
+    @MainActor
     public class func present(
         fromViewController: UIViewController,
         canCancel: Bool = false,
@@ -110,27 +110,60 @@ public class ModalActivityIndicatorViewController: OWSViewController {
     ) {
         AssertIsOnMainThread()
 
-        let viewController = ModalActivityIndicatorViewController(
+        ModalActivityIndicatorViewController(
             canCancel: canCancel,
             presentationDelay: presentationDelay,
             isInvisible: isInvisible
+        ).present(
+            from: fromViewController,
+            asyncBlock: asyncBlock
         )
+    }
+
+    /// Presents a `ModalActivityIndicatorViewController` for the duration of
+    /// the given async block, automatically dismissing the modal when the block
+    /// exits and propagating the block's result.
+    ///
+    /// Use this API if you want to simply show a modal during a non-cancellable
+    /// async block.
+    ///
+    /// - SeeAlso ``present(fromViewController:canCancel:presentationDelay:isInvisible:asyncBlock:)``.
+    @MainActor
+    public class func presentAndPropagateResult<T>(
+        from viewController: UIViewController,
+        presentationDelay: TimeInterval = Constants.defaultPresentationDelay,
+        wrappedAsyncBlock: @escaping () async throws -> T
+    ) async throws -> T {
+        return try await withCheckedThrowingContinuation { continuation in
+            present(
+                fromViewController: viewController,
+                presentationDelay: presentationDelay,
+                asyncBlock: { modal in
+                    let result = await Result(catching: wrappedAsyncBlock)
+                    modal.dismiss {
+                        continuation.resume(with: result)
+                    }
+                }
+            )
+        }
+    }
+
+    @MainActor
+    private func present(from viewController: UIViewController, asyncBlock: @escaping @MainActor (ModalActivityIndicatorViewController) async -> Void) {
         // Present this modal _over_ the current view contents.
-        viewController.modalPresentationStyle = .overFullScreen
-        fromViewController.present(viewController, animated: false) {
-            Task {
-                await asyncBlock(viewController)
+        self.modalPresentationStyle = .overFullScreen
+        viewController.present(self, animated: false) {
+            self.asyncTask = Task { await asyncBlock(self) }
+            if self.wasCancelled {
+                self.asyncTask?.cancel()
             }
         }
     }
 
-    public func dismiss(completion completionParam: (() -> Void)? = nil) {
-        AssertIsOnMainThread()
+    // MARK: -
 
-        let completion = {
-            completionParam?()
-            self.wasCancelledFuture.reject(OWSGenericError("ModalActivityIndicatorViewController was not cancelled."))
-        }
+    public func dismiss(completion: (() -> Void)? = nil) {
+        AssertIsOnMainThread()
 
         if !wasDimissed {
             // Only dismiss once.
@@ -139,7 +172,7 @@ public class ModalActivityIndicatorViewController: OWSViewController {
         } else {
             // If already dismissed, wait a beat then call completion.
             DispatchQueue.main.async {
-                completion()
+                completion?()
             }
         }
     }
@@ -153,13 +186,15 @@ public class ModalActivityIndicatorViewController: OWSViewController {
     ///     If the modal hasn't been canceled, dismiss it and then call this
     ///     block. Note: If the modal was canceled, the block isn't invoked.
     public func dismissIfNotCanceled(completionIfNotCanceled: @escaping () -> Void = {}) {
-        if wasCancelled {
-            return
-        }
         DispatchQueue.main.async {
+            if self.wasCancelled {
+                return
+            }
             self.dismiss(completion: completionIfNotCanceled)
         }
     }
+
+    // MARK: -
 
     public override func loadView() {
         super.loadView()
@@ -240,6 +275,8 @@ public class ModalActivityIndicatorViewController: OWSViewController {
         clearTimer()
     }
 
+    // MARK: -
+
     private func clearTimer() {
         self.presentTimer?.invalidate()
         self.presentTimer = nil
@@ -260,10 +297,12 @@ public class ModalActivityIndicatorViewController: OWSViewController {
     private func cancelPressed() {
         AssertIsOnMainThread()
 
-        _wasCancelled.set(true)
+        if self.wasDimissed {
+            return
+        }
 
-        self.wasCancelledFuture.resolve()
-
-        dismiss()
+        self.dismiss()
+        self.wasCancelled = true
+        self.asyncTask?.cancel()
     }
 }

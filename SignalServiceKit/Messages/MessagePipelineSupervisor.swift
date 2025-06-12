@@ -40,7 +40,7 @@ public class MessagePipelineSupervisor: NSObject {
     public enum Suspension: Hashable {
         case nseWakingUpApp(suspensionId: UUID, payloadString: String)
         case pendingChangeNumber
-        case messageBackup
+        case backup
         case linkNsync
 
         fileprivate var reasonString: String {
@@ -49,8 +49,8 @@ public class MessagePipelineSupervisor: NSObject {
                 return "Waking main app for \(payloadString)"
             case .pendingChangeNumber:
                 return "Pending change number"
-            case .messageBackup:
-                return "Message Backup"
+            case .backup:
+                return "Backup"
             case .linkNsync:
                 return "Link'N'Sync"
             }
@@ -176,6 +176,41 @@ public class MessagePipelineSuspensionHandle: NSObject {
         lock.withLock {
             invalidationClosure?()
             invalidationClosure = nil
+        }
+    }
+}
+
+/// Waits until isMessageProcessingPermitted is true.
+struct ProcessingPermittedPrecondition: Precondition {
+    private let messagePipelineSupervisor: MessagePipelineSupervisor
+
+    init(messagePipelineSupervisor: MessagePipelineSupervisor) {
+        self.messagePipelineSupervisor = messagePipelineSupervisor
+    }
+
+    private class PipelineStageObserver: MessageProcessingPipelineStage {
+        let result = CancellableContinuation<Void>()
+        func supervisorDidResumeMessageProcessing(_ supervisor: MessagePipelineSupervisor) {
+            result.resume(with: .success(()))
+        }
+    }
+
+    func waitUntilSatisfied() async -> WaitResult {
+        let observer = PipelineStageObserver()
+        // Register before checking to ensure we don't miss the resumption
+        // notification when races occur.
+        messagePipelineSupervisor.register(pipelineStage: observer)
+        defer {
+            messagePipelineSupervisor.unregister(pipelineStage: observer)
+        }
+        if messagePipelineSupervisor.isMessageProcessingPermitted {
+            return .satisfiedImmediately
+        }
+        do {
+            try await observer.result.wait()
+            return .wasNotSatisfiedButIsNow
+        } catch {
+            return .canceled
         }
     }
 }

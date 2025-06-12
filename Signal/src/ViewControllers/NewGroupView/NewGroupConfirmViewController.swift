@@ -33,9 +33,8 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
     init(newGroupState: NewGroupState) {
         self.newGroupState = newGroupState
 
-        let groupId = newGroupState.groupSeed.groupIdV2
         self.helper = GroupAttributesEditorHelper(
-            groupId: groupId,
+            groupId: try! newGroupState.groupSeed.groupSecretParams.getPublicParams().getGroupIdentifier().serialize().asData,
             groupNameOriginal: newGroupState.groupName,
             groupDescriptionOriginal: nil,
             avatarOriginalData: newGroupState.avatarData,
@@ -158,7 +157,10 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
                 return cell
             }, actionBlock: { [weak self] in
                 guard let self = self else { return }
-                let vc = DisappearingMessagesTimerSettingsViewController(configuration: self.disappearingMessagesConfiguration) { configuration in
+                let vc = DisappearingMessagesTimerSettingsViewController(
+                    initialConfiguration: self.disappearingMessagesConfiguration,
+                    settingsMode: .newGroup,
+                ) { configuration in
                     self.disappearingMessagesConfiguration = configuration
                     self.updateTableContents()
                 }
@@ -205,7 +207,7 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
             owsFailDebug("missing local address")
             return
         }
-        guard let groupName = newGroupState.groupName, !groupName.isEmpty else {
+        guard let groupName = newGroupState.groupName.flatMap({ StrippedNonEmptyString(rawValue: $0) }) else {
             Self.showMissingGroupNameAlert()
             return
         }
@@ -225,13 +227,11 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
             Task {
                 do {
                     let groupThread = try await GroupManager.localCreateNewGroup(
+                        seed: newGroupSeed,
                         members: members,
-                        groupId: nil,
                         name: groupName,
                         avatarData: avatarData,
                         disappearingMessageToken: disappearingMessageToken,
-                        newGroupSeed: newGroupSeed,
-                        shouldSendMessage: true
                     )
                     self.groupWasCreated(
                         groupThread: groupThread,
@@ -240,9 +240,8 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
                     owsFailDebug("Could not create group: \(error)")
 
                     modalActivityIndicator.dismiss {
-                        // Partial success could create the group on the service.
-                        // This would cause retries to fail with 409.  Therefore
-                        // we must rotate the seed after every failure.
+                        // Partial success could create the group on the service. This would cause
+                        // retries to fail with 409. Therefore we rotate the seed after failures.
                         self.newGroupState.deriveNewGroupSeedForRetry()
 
                         NewGroupConfirmViewController.showCreateErrorUI(error: error)
@@ -303,7 +302,7 @@ public class NewGroupConfirmViewController: OWSTableViewController2 {
         let alertMessage: String
         let alertTitleFormat = OWSLocalizedString("GROUP_INVITES_SENT_ALERT_TITLE_%d", tableName: "PluralAware",
                                        comment: "Format for the title for an alert indicating that some members were invited to a group. Embeds: {{ the number of invites sent. }}")
-        if pendingMembers.count > 0 {
+        if pendingMembers.count > 1 {
             alertTitle = String.localizedStringWithFormat(alertTitleFormat, pendingMembers.count)
             alertMessage = OWSLocalizedString("GROUP_INVITES_SENT_ALERT_TITLE_N_MESSAGE",
                                              comment: "Message for an alert indicating that some members were invited to a group.")

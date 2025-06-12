@@ -34,6 +34,7 @@ private let globalEnvironment = NSEEnvironment()
 class NotificationService: UNNotificationServiceExtension {
     private typealias ContentHandler = (UNNotificationContent) -> Void
     private let contentHandler = AtomicOptional<ContentHandler>(nil, lock: .init())
+    private let fetchQueue = SerialTaskQueue()
 
     // MARK: -
 
@@ -87,8 +88,8 @@ class NotificationService: UNNotificationServiceExtension {
         let logger = NSELogger()
         _ = Self.nseDidStart()
         self.contentHandler.set(contentHandler)
-        Task {
-            let content = await _didReceive(request, logger: logger)
+        self.fetchQueue.enqueueCancellingPrevious {
+            let content = await self._didReceive(request, logger: logger)
             self.completeSilently(content: content, logger: logger)
         }
     }
@@ -125,7 +126,10 @@ class NotificationService: UNNotificationServiceExtension {
         // Re-warm the caches each time to pick up changes made by the main app.
         finalContinuation.runLaunchTasksIfNeededAndReloadCaches()
         // Re-set up the local identifiers to ensure they're propagated throughout the system.
-        switch finalContinuation.setUpLocalIdentifiers(willResumeInProgressRegistration: false) {
+        switch finalContinuation.setUpLocalIdentifiers(
+            willResumeInProgressRegistration: false,
+            canInitiateRegistration: false
+        ) {
         case .corruptRegistrationState:
             Logger.warn("Ignoring request to process notifications when the user isn't registered.")
             return UNNotificationContent()
@@ -140,21 +144,28 @@ class NotificationService: UNNotificationServiceExtension {
             APNSRotationStore.didReceiveAPNSPush(transaction: transaction)
         }
 
+        let useWebSocket: Bool = OWSChatConnection.canAppUseSocketsToMakeRequests
+
+        // Do this unconditionally to ensure the flag gets reset when useWebSocket's value changes.
         SSKEnvironment.shared.messageFetcherJobRef.prepareToFetchViaREST()
 
-        if await globalEnvironment.askMainAppToHandleReceipt(logger: logger) {
-            logger.info("Received notification handled by main application, memoryUsage: \(LocalDevice.memoryUsageString).")
-            return UNMutableNotificationContent()
+        if !useWebSocket {
+            if await globalEnvironment.askMainAppToHandleReceipt(logger: logger) {
+                logger.info("Received notification handled by main application, memoryUsage: \(LocalDevice.memoryUsageString).")
+                return UNMutableNotificationContent()
+            }
         }
 
-        let result = await self.fetchAndProcessMessages(logger: logger)
+        let result = await self.fetchAndProcessMessages(useWebSocket: useWebSocket, logger: logger)
         await didMarkApnsReceived
         return result
     }
 
     // Called just before the extension will be terminated by the system.
     override func serviceExtensionTimeWillExpire() {
-        owsFailDebug("NSE expired before messages could be processed")
+        Logger.warn("Canceling fetchingQueue tasks because we ran out of time.")
+
+        self.fetchQueue.cancelAll()
 
         // We complete silently here so that nothing is presented to the user.
         // By default the OS will present whatever the raw content of the original
@@ -162,57 +173,61 @@ class NotificationService: UNNotificationServiceExtension {
         completeSilently(content: UNMutableNotificationContent(), logger: .uncorrelated)
     }
 
-    @MainActor
-    private func startProxyIfEnabled() async {
-        // Runs on the main thread so that, if isEnabledAndReady is false, the
-        // observe(...) is guaranteed to happen before the notification is posted.
-        while SignalProxy.isEnabled, !SignalProxy.isEnabledAndReady {
-            await withCheckedContinuation { continuation in
-                Logger.info("Waiting for signal proxy to become ready for message fetch.")
-                NotificationCenter.default.observe(once: .isSignalProxyReadyDidChange)
-                    .done { _ in continuation.resume() }
-                SignalProxy.startRelayServer()
-            }
+    private func startProxyIfEnabled() async throws(CancellationError) {
+        if SignalProxy.isEnabled {
+            Logger.info("Waiting for signal proxy to become ready for message fetch.")
+            SignalProxy.startRelayServer()
+            try await Preconditions([
+                NotificationPrecondition(
+                    notificationName: .isSignalProxyReadyDidChange,
+                    isSatisfied: { SignalProxy.isEnabledAndReady }
+                )
+            ]).waitUntilSatisfied()
         }
     }
 
     @MainActor
-    private func fetchAndProcessMessages(logger: NSELogger) async -> UNNotificationContent {
-        if DependenciesBridge.shared.appExpiry.isExpired {
+    private func fetchAndProcessMessages(useWebSocket: Bool, logger: NSELogger) async -> UNNotificationContent {
+        if DependenciesBridge.shared.appExpiry.isExpired(now: Date()) {
             Logger.warn("Not processing notifications for expired application.")
             return UNMutableNotificationContent()
         }
 
-        await startProxyIfEnabled()
-        defer { SignalProxy.stopRelayServer() }
-
-        globalEnvironment.processingMessageCounter.increment()
-        defer { globalEnvironment.processingMessageCounter.decrement() }
-
         do {
-            try await SSKEnvironment.shared.messageFetcherJobRef.run().awaitable()
+            try await startProxyIfEnabled()
+            defer { SignalProxy.stopRelayServer() }
 
-            await SSKEnvironment.shared.messageProcessorRef.waitForProcessingComplete().awaitable()
-
-            // Wait for these in parallel.
-            do {
-                // Wait until all ACKs are complete.
-                async let pendingAcks: Void = SSKEnvironment.shared.messageFetcherJobRef.waitForPendingAcks()
-                // Wait until all outgoing receipt sends are complete.
-                async let pendingReceipts: Void = SSKEnvironment.shared.receiptSenderRef.waitForPendingReceipts()
-                // Wait until all outgoing messages are sent.
-                async let pendingMessages: Void = SSKEnvironment.shared.messageSenderRef.waitForPendingMessages()
-                // Wait until all sync requests are fulfilled.
-                async let pendingOps: Void = MessageReceiver.waitForPendingTasks()
-
-                try await pendingAcks
-                try await pendingReceipts
-                try await pendingMessages
-                try await pendingOps
+            if !useWebSocket {
+                globalEnvironment.processingMessageCounter.increment()
+            }
+            defer {
+                if !useWebSocket {
+                    globalEnvironment.processingMessageCounter.decrement()
+                }
             }
 
-            // Finally, wait for any notifications to finish posting
-            try await NotificationPresenterImpl.waitForPendingNotifications()
+            let backgroundMessageFetcher = DependenciesBridge.shared.backgroundMessageFetcherFactory.buildFetcher(useWebSocket: useWebSocket)
+
+            let fetchResult = await Result(catching: {
+                if useWebSocket {
+                    await backgroundMessageFetcher.start()
+                } else {
+                    try await SSKEnvironment.shared.messageFetcherJobRef.fetchViaRest()
+                }
+
+                try await backgroundMessageFetcher.waitForFetchingProcessingAndSideEffects()
+            })
+            if useWebSocket {
+                // Wrap the cleanup of message processing in a new Task, so if we're
+                // canceled, that method doesn't inherit our cancellation.
+                await Task {
+                    await backgroundMessageFetcher.stopAndWaitBeforeSuspending()
+                }.value
+            }
+            try fetchResult.get()
+        } catch is CancellationError {
+            Logger.warn("Message fetching & processing canceled.")
+            return UNMutableNotificationContent()
         } catch {
             Logger.warn("\(error)")
         }

@@ -15,6 +15,7 @@ extension GroupViewHelper {
     // * Present a modal activity indicator.
     // * Perform the action using a promise.
     // * Reload the group model and update the table content.
+    @MainActor
     private func showMemberActionConfirmationActionSheet<T: ServiceId>(
         address: SignalServiceAddress,
         titleFormat: String,
@@ -32,10 +33,9 @@ extension GroupViewHelper {
             return
         }
 
-        let actionBlock = {
+        let actionBlock = { @MainActor in
             GroupViewUtils.updateGroupWithActivityIndicator(
                 fromViewController: fromViewController,
-                updateDescription: updateDescription,
                 updateBlock: { try await updateBlock(oldGroupModel, serviceId) },
                 completion: { [weak self] in
                     self?.delegate?.groupViewHelperDidUpdateGroup()
@@ -69,6 +69,7 @@ extension GroupViewHelper {
         return (canEditConversationMembership && isLocalUserAdmin && canBecomeAdmin)
     }
 
+    @MainActor
     func memberActionSheetMakeGroupAdminWasSelected(address: SignalServiceAddress) {
         let titleFormat = OWSLocalizedString("CONVERSATION_SETTINGS_MAKE_GROUP_ADMIN_TITLE_FORMAT",
                                             comment: "Format for title for 'make group admin' confirmation alert. Embeds {user to make an admin}.")
@@ -102,6 +103,7 @@ extension GroupViewHelper {
         return (canEditConversationMembership && isLocalUserAdmin && canRevokeAdmin)
     }
 
+    @MainActor
     func memberActionSheetRevokeGroupAdminWasSelected(address: SignalServiceAddress) {
         let titleFormat = OWSLocalizedString("CONVERSATION_SETTINGS_REVOKE_GROUP_ADMIN_TITLE_FORMAT",
                                             comment: "Format for title for 'revoke group admin' confirmation alert. Embeds {user to revoke admin status from}.")
@@ -138,6 +140,7 @@ extension GroupViewHelper {
         return canEditConversationMembership && isLocalUserAdmin && isAddressInGroup && !isRemovalTargetLocalAdress
     }
 
+    @MainActor
     func presentRemoveFromGroupActionSheet(address: SignalServiceAddress) {
         let titleFormat = OWSLocalizedString(
             "CONVERSATION_SETTINGS_REMOVE_FROM_GROUP_TITLE_FORMAT",

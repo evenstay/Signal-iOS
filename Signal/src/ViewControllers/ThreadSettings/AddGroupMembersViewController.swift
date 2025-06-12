@@ -130,7 +130,6 @@ private extension AddGroupMembersViewController {
 
         GroupViewUtils.updateGroupWithActivityIndicator(
             fromViewController: self,
-            updateDescription: "[\(type(of: self))]",
             updateBlock: {
                 try await GroupManager.addOrInvite(
                     serviceIds: newServiceIds,
@@ -169,42 +168,33 @@ extension AddGroupMembersViewController: GroupMemberViewDelegate {
     }
 
     func groupMemberViewGroupMemberCountForDisplay() -> Int {
-        (oldGroupModel.groupMembership.allMembersOfAnyKind.count +
-                newRecipientSet.count)
+        return oldGroupModel.groupMembership.fullOrInvitedMembers.count + newRecipientSet.count
     }
 
     func groupMemberViewIsGroupFull_HardLimit() -> Bool {
-        groupMemberViewGroupMemberCountForDisplay() >= GroupManager.groupsV2MaxGroupSizeHardLimit
+        groupMemberViewGroupMemberCountForDisplay() >= RemoteConfig.current.maxGroupSizeHardLimit
     }
 
     func groupMemberViewIsGroupFull_RecommendedLimit() -> Bool {
-        groupMemberViewGroupMemberCountForDisplay() >= GroupManager.groupsV2MaxGroupSizeRecommended
+        groupMemberViewGroupMemberCountForDisplay() >= RemoteConfig.current.maxGroupSizeRecommended
     }
 
     func groupMemberViewIsPreExistingMember(_ recipient: PickedRecipient,
                                             transaction: DBReadTransaction) -> Bool {
-        guard let address = recipient.address else {
+        guard let serviceId = recipient.address?.serviceId else {
             owsFailDebug("Invalid recipient.")
             return false
         }
         let groupMembership = oldGroupModel.groupMembership
-        if groupMembership.isFullMember(address) {
+        switch groupMembership.canTryToAddToGroup(serviceId: serviceId) {
+        case .alreadyInGroup:
             return true
-        }
-        if groupMembership.isInvitedMember(address) ||
-            groupMembership.isRequestingMember(address) {
-            // We can "add" pending or requesting members if they support gv2
-            // and we know their profile key credential.
-            let canAddMember: Bool = {
-                guard GroupManager.doesUserSupportGroupsV2(address: address) else {
-                    return false
-                }
-                return SSKEnvironment.shared.groupsV2Ref.hasProfileKeyCredential(for: address, transaction: transaction)
-            }()
-
+        case .addableWithProfileKeyCredential:
+            let canAddMember = GroupMembership.canTryToAddWithProfileKeyCredential(serviceId: serviceId, tx: transaction)
             return !canAddMember
+        case .addableOrInvitable:
+            return false
         }
-        return false
     }
 
     func groupMemberViewDismiss() {

@@ -14,7 +14,7 @@ class SupportConstants: NSObject {
     static let subscriptionFAQURL = URL(string: "https://support.signal.org/hc/articles/4408365318426")!
     static let donorFAQURL = URL(string: "https://support.signal.org/hc/articles/360031949872")!
     static let badgeExpirationLearnMoreURL = URL(string: "https://support.signal.org/hc/articles/360031949872#fix")!
-    static let donationPendingLearnMoreURL = URL(string: "https://support.signal.org/hc/en-us/articles/360031949872#pending")!
+    static let donationPendingLearnMoreURL = URL(string: "https://support.signal.org/hc/articles/360031949872#pending")!
 }
 
 private extension ContactSupportViewController.Filter {
@@ -254,7 +254,7 @@ final class ContactSupportViewController: OWSTableViewController2 {
         var emailRequest = SupportEmailModel()
         emailRequest.userDescription = descriptionField.text
         emailRequest.emojiMood = emojiPicker.selectedMood
-        emailRequest.debugLogPolicy = debugSwitch.isOn ? .attemptUpload : .none
+        emailRequest.debugLogPolicy = debugSwitch.isOn ? .attemptUpload(.fromGlobals()) : .none
         if let selectedFilter = selectedFilter {
             emailRequest.supportFilter = "iOS \(selectedFilter.emailFilterString)"
         }

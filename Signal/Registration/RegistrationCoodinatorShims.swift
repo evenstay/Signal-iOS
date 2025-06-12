@@ -13,32 +13,40 @@ extension RegistrationCoordinatorImpl {
     public enum Shims {
         public typealias ContactsManager = _RegistrationCoordinator_ContactsManagerShim
         public typealias ContactsStore = _RegistrationCoordinator_CNContactsStoreShim
+        typealias DeviceTransferService = _RegistrationCoordinator_DeviceTransferServiceShim
         public typealias ExperienceManager = _RegistrationCoordinator_ExperienceManagerShim
         public typealias FeatureFlags = _RegistrationCoordinator_FeatureFlagsShim
+        public typealias IdentityManager = _RegistrationCoordinator_IdentityManagerShim
         public typealias MessagePipelineSupervisor = _RegistrationCoordinator_MessagePipelineSupervisorShim
         public typealias MessageProcessor = _RegistrationCoordinator_MessageProcessorShim
         public typealias OWS2FAManager = _RegistrationCoordinator_OWS2FAManagerShim
         public typealias PreKeyManager = _RegistrationCoordinator_PreKeyManagerShim
         public typealias ProfileManager = _RegistrationCoordinator_ProfileManagerShim
         public typealias PushRegistrationManager = _RegistrationCoordinator_PushRegistrationManagerShim
+        typealias QuickRestoreManager = _RegistrationCoordinator_QuickRestoreManagerShim
         public typealias ReceiptManager = _RegistrationCoordinator_ReceiptManagerShim
         public typealias StorageServiceManager = _RegistrationCoordinator_StorageServiceManagerShim
         public typealias UDManager = _RegistrationCoordinator_UDManagerShim
+        public typealias UsernameApiClient = _RegistrationCoordinator_UsernameApiClientShim
     }
     public enum Wrappers {
         public typealias ContactsManager = _RegistrationCoordinator_ContactsManagerWrapper
         public typealias ContactsStore = _RegistrationCoordinator_CNContactsStoreWrapper
+        typealias DeviceTransferService = _RegistrationCoordinator_DeviceTransferServiceWrapper
         public typealias ExperienceManager = _RegistrationCoordinator_ExperienceManagerWrapper
         public typealias FeatureFlags = _RegistrationCoordinator_FeatureFlagsWrapper
+        public typealias IdentityManager = _RegistrationCoordinator_IdentityManagerWrapper
         public typealias MessagePipelineSupervisor = _RegistrationCoordinator_MessagePipelineSupervisorWrapper
         public typealias MessageProcessor = _RegistrationCoordinator_MessageProcessorWrapper
         public typealias OWS2FAManager = _RegistrationCoordinator_OWS2FAManagerWrapper
         public typealias PreKeyManager = _RegistrationCoordinator_PreKeyManagerWrapper
         public typealias ProfileManager = _RegistrationCoordinator_ProfileManagerWrapper
         public typealias PushRegistrationManager = _RegistrationCoordinator_PushRegistrationManagerWrapper
+        typealias QuickRestoreManager = _RegistrationCoordinator_QuickRestoreManagerWrapper
         public typealias ReceiptManager = _RegistrationCoordinator_ReceiptManagerWrapper
         public typealias StorageServiceManager = _RegistrationCoordinator_StorageServiceManagerWrapper
         public typealias UDManager = _RegistrationCoordinator_UDManagerWrapper
+        public typealias UsernameApiClient = _RegistrationCoordinator_UsernameApiClientWrapper
     }
 }
 
@@ -92,6 +100,38 @@ public class _RegistrationCoordinator_CNContactsStoreWrapper: _RegistrationCoord
     }
 }
 
+// MARK: - DeviceTransferService
+
+protocol _RegistrationCoordinator_DeviceTransferServiceShim {
+    func startAcceptingTransfersFromOldDevices(mode: DeviceTransferService.TransferMode) throws -> URL
+    func addObserver(_ observer: DeviceTransferServiceObserver)
+    func removeObserver(_ observer: DeviceTransferServiceObserver)
+    func stopAcceptingTransfersFromOldDevices()
+}
+
+class _RegistrationCoordinator_DeviceTransferServiceWrapper: _RegistrationCoordinator_DeviceTransferServiceShim {
+
+    private let deviceTransferService: DeviceTransferService
+    public init(_ deviceTransferService: DeviceTransferService) {
+        self.deviceTransferService = deviceTransferService
+    }
+
+    func startAcceptingTransfersFromOldDevices(mode: DeviceTransferService.TransferMode) throws -> URL {
+        return try deviceTransferService.startAcceptingTransfersFromOldDevices(mode: mode)
+    }
+
+    func addObserver(_ observer: DeviceTransferServiceObserver) {
+        deviceTransferService.addObserver(observer)
+    }
+    func removeObserver(_ observer: DeviceTransferServiceObserver) {
+        deviceTransferService.removeObserver(observer)
+    }
+
+    func stopAcceptingTransfersFromOldDevices() {
+        deviceTransferService.stopAcceptingTransfersFromOldDevices()
+    }
+}
+
 // MARK: - ExperienceManager
 
 public protocol _RegistrationCoordinator_ExperienceManagerShim {
@@ -118,18 +158,29 @@ public class _RegistrationCoordinator_ExperienceManagerWrapper: _RegistrationCoo
 
 public protocol _RegistrationCoordinator_FeatureFlagsShim {
 
-    var enableAccountEntropyPool: Bool { get }
-
-    var messageBackupFileAlphaRegistrationFlow: Bool { get }
+    var backupFileAlphaRegistrationFlow: Bool { get }
 }
 
 public class _RegistrationCoordinator_FeatureFlagsWrapper: _RegistrationCoordinator_FeatureFlagsShim {
 
     public init() {}
 
-    public var enableAccountEntropyPool: Bool { FeatureFlags.enableAccountEntropyPool }
+    public var backupFileAlphaRegistrationFlow: Bool { FeatureFlags.Backups.fileAlphaRegistrationFlow }
+}
 
-    public var messageBackupFileAlphaRegistrationFlow: Bool { FeatureFlags.MessageBackup.fileAlphaRegistrationFlow }
+public protocol _RegistrationCoordinator_IdentityManagerShim {
+    func setIdentityKeyPair(_ keyPair: ECKeyPair?, for identity: OWSIdentity, tx: DBWriteTransaction)
+}
+
+public class _RegistrationCoordinator_IdentityManagerWrapper: _RegistrationCoordinator_IdentityManagerShim {
+    private let identityManager: OWSIdentityManager
+    public init(_ identityManager: OWSIdentityManager) {
+        self.identityManager = identityManager
+    }
+
+    public func setIdentityKeyPair(_ keyPair: ECKeyPair?, for identity: OWSIdentity, tx: DBWriteTransaction) {
+        identityManager.setIdentityKeyPair(keyPair, for: identity, tx: tx)
+    }
 }
 
 // MARK: - MessagePipelineSupervisor
@@ -173,7 +224,13 @@ public class _RegistrationCoordinator_MessageProcessorWrapper: _RegistrationCoor
     }
 
     public func waitForFetchingAndProcessing() -> Guarantee<Void> {
-        return processor.waitForFetchingAndProcessing()
+        return Guarantee.wrapAsync { [processor] in
+            do throws(CancellationError) {
+                try await processor.waitForFetchingAndProcessing()
+            } catch {
+                owsFail("Guarantees can't be canceled.")
+            }
+        }
     }
 }
 
@@ -428,6 +485,29 @@ public class _RegistrationCoordinator_ReceiptManagerWrapper: _RegistrationCoordi
     }
 }
 
+// MARK: - QuickRestoreManager
+
+protocol _RegistrationCoordinator_QuickRestoreManagerShim {
+    func reportRestoreMethodChoice(
+        method: QuickRestoreManager.RestoreMethodType,
+        restoreMethodToken: QuickRestoreManager.RestoreMethodToken
+    ) async throws
+}
+
+class _RegistrationCoordinator_QuickRestoreManagerWrapper: _RegistrationCoordinator_QuickRestoreManagerShim {
+    private let quickRestoreManager: QuickRestoreManager
+    public init(_ quickRestoreManager: QuickRestoreManager) {
+        self.quickRestoreManager = quickRestoreManager
+    }
+
+    func reportRestoreMethodChoice(
+        method: QuickRestoreManager.RestoreMethodType,
+        restoreMethodToken: QuickRestoreManager.RestoreMethodToken
+    ) async throws {
+        try await quickRestoreManager.reportRestoreMethodChoice(method: method, restoreMethodToken: restoreMethodToken)
+    }
+}
+
 // MARK: - StorageService
 public protocol _RegistrationCoordinator_StorageServiceManagerShim {
     func rotateManifest(mode: StorageServiceManagerManifestRotationMode, authedDevice: AuthedDevice) -> Promise<Void>
@@ -479,5 +559,23 @@ public class _RegistrationCoordinator_UDManagerWrapper: _RegistrationCoordinator
 
     public func shouldAllowUnrestrictedAccessLocal(transaction: DBReadTransaction) -> Bool {
         return manager.shouldAllowUnrestrictedAccessLocal(transaction: SDSDB.shimOnlyBridge(transaction))
+    }
+}
+
+// MARK: - UsernameApiClient
+
+public protocol _RegistrationCoordinator_UsernameApiClientShim {
+    func confirmReservedUsername(reservedUsername: Usernames.HashedUsername, encryptedUsernameForLink: Data, chatServiceAuth: ChatServiceAuth) -> Promise<Usernames.ApiClientConfirmationResult>
+}
+
+public class _RegistrationCoordinator_UsernameApiClientWrapper: _RegistrationCoordinator_UsernameApiClientShim {
+
+    private let usernameApiClient: any UsernameApiClient
+    public init(_ usernameApiClient: any UsernameApiClient) { self.usernameApiClient = usernameApiClient }
+
+    public func confirmReservedUsername(reservedUsername: Usernames.HashedUsername, encryptedUsernameForLink: Data, chatServiceAuth: ChatServiceAuth) -> Promise<Usernames.ApiClientConfirmationResult> {
+        return Promise.wrapAsync {
+            return try await self.usernameApiClient.confirmReservedUsername(reservedUsername: reservedUsername, encryptedUsernameForLink: encryptedUsernameForLink, chatServiceAuth: chatServiceAuth)
+        }
     }
 }

@@ -185,7 +185,7 @@ class GroupsV2ProfileKeyUpdater {
                 return
             } catch {
                 failureCount += 1
-                try? await Task.sleep(nanoseconds: OWSOperation.retryIntervalForExponentialBackoff(failureCount: failureCount, maxBackoff: 6 * .hour).clampedNanoseconds)
+                try? await Task.sleep(nanoseconds: OWSOperation.retryIntervalForExponentialBackoff(failureCount: failureCount, maxAverageBackoff: 6 * .hour).clampedNanoseconds)
             }
         }
     }
@@ -242,7 +242,7 @@ class GroupsV2ProfileKeyUpdater {
             throw GroupsV2Error.shouldDiscard
         }
 
-        await SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing().awaitable()
+        try await SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing()
 
         let groupModel = SSKEnvironment.shared.databaseStorageRef.read { tx in
             return TSGroupThread.fetch(groupId: groupId, transaction: tx)?.groupModel as? TSGroupModelV2

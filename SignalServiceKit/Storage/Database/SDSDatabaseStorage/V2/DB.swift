@@ -38,12 +38,12 @@ public protocol DB {
 
     // MARK: - Awaitable Methods
 
-    func awaitableWrite<T>(
+    func awaitableWrite<T, E>(
         file: String,
         function: String,
         line: Int,
-        block: (DBWriteTransaction) throws -> T
-    ) async rethrows -> T
+        block: (DBWriteTransaction) throws(E) -> T
+    ) async throws(E) -> T
 
     func awaitableWriteWithTxCompletion<T>(
         file: String,
@@ -54,19 +54,19 @@ public protocol DB {
 
     // MARK: - Value Methods
 
-    func read<T>(
+    func read<T, E: Error>(
         file: String,
         function: String,
         line: Int,
-        block: (DBReadTransaction) throws -> T
-    ) rethrows -> T
+        block: (DBReadTransaction) throws(E) -> T
+    ) throws(E) -> T
 
-    func write<T>(
+    func write<T, E>(
         file: String,
         function: String,
         line: Int,
-        block: (DBWriteTransaction) throws -> T
-    ) rethrows -> T
+        block: (DBWriteTransaction) throws(E) -> T
+    ) throws(E) -> T
 
     func writeWithTxCompletion<T>(
         file: String,
@@ -133,12 +133,12 @@ extension DB {
 
     // MARK: - Awaitable Methods
 
-    public func awaitableWrite<T>(
+    public func awaitableWrite<T, E>(
         file: String = #file,
         function: String = #function,
         line: Int = #line,
-        block: (DBWriteTransaction) throws -> T
-    ) async rethrows -> T {
+        block: (DBWriteTransaction) throws(E) -> T
+    ) async throws(E) -> T {
         return try await awaitableWrite(file: file, function: function, line: line, block: block)
     }
 
@@ -153,21 +153,21 @@ extension DB {
 
     // MARK: - Value Methods
 
-    public func read<T>(
+    public func read<T, E: Error>(
         file: String = #file,
         function: String = #function,
         line: Int = #line,
-        block: (DBReadTransaction) throws -> T
-    ) rethrows -> T {
+        block: (DBReadTransaction) throws(E) -> T
+    ) throws(E) -> T {
         return try read(file: file, function: function, line: line, block: block)
     }
 
-    public func write<T>(
+    public func write<T, E: Error>(
         file: String = #file,
         function: String = #function,
         line: Int = #line,
-        block: (DBWriteTransaction) throws -> T
-    ) rethrows -> T {
+        block: (DBWriteTransaction) throws(E) -> T
+    ) throws(E) -> T {
         return try write(file: file, function: function, line: line, block: block)
     }
 

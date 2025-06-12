@@ -113,11 +113,6 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
             interactiveDismiss.addGestureRecognizer(to: view)
             self.interactiveDismiss = interactiveDismiss
         }
-
-        bottomBar.photoLibraryButton.configure()
-        if let sideBar = sideBar {
-            sideBar.photoLibraryButton.configure()
-        }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -309,17 +304,13 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
         case single
         case multi
     }
-    private(set) var captureMode: CaptureMode = .single {
+    var captureMode: CaptureMode = .single {
         didSet {
             topBar.batchModeButton.setCaptureMode(captureMode, animated: true)
             if let sideBar = sideBar {
                 sideBar.batchModeButton.setCaptureMode(captureMode, animated: true)
             }
         }
-    }
-
-    func switchToMultiCaptureMode() {
-        self.captureMode = .multi
     }
 
     private let topBar = CameraTopBar(frame: .zero)
@@ -659,10 +650,8 @@ class PhotoCaptureViewController: OWSViewController, OWSNavigationChildControlle
         }
     }
 
-    private func updateDoneButtonAppearance() {
-        if captureMode == .multi, let badgeNumber = dataSource?.numberOfMediaItems, badgeNumber > 0 {
-            doneButton.badgeNumber = badgeNumber
-        }
+    func updateDoneButtonAppearance() {
+        doneButton.badgeNumber = dataSource?.numberOfMediaItems ?? 0
         doneButton.isHidden = shouldHideDoneButton
         if bottomBar.isCompactHeightLayout {
             bottomBar.switchCameraButton.isHidden = !doneButton.isHidden
@@ -1350,24 +1339,11 @@ extension PhotoCaptureViewController: QRCodeSampleBufferScannerDelegate {
 
                 let showQuickRestoreAction = ActionSheetAction(title: CommonStrings.continueButton) { _ in
                     self.dismiss(animated: true) {
-                        Task {
-                            do {
-                                let quickRestoreManager = AppEnvironment.shared.quickRestoreManager!
-                                let token = try await quickRestoreManager.register(deviceProvisioningUrl: provisioningURL)
-                                let method = try await quickRestoreManager.waitForNewDeviceToRegister(restoreMethodToken: token)
-
-                                switch method {
-                                case .decline, .localBackup:
-                                    Logger.error("Unexpected method")
-                                case .remoteBackup:
-                                    Logger.error("Remote backup")
-                                case .deviceTransfer(let data):
-                                    Logger.error("Device Transfer: \(data)")
-                                }
-                            } catch {
-                                Logger.error("Failed to register device via URL: \(error)")
-                            }
-                        }
+                        AppEnvironment.shared.outgoingDeviceRestorePresenter.present(
+                            provisioningURL: provisioningURL,
+                            presentingViewController: CurrentAppContext().frontmostViewController()!,
+                            animated: true
+                        )
                     }
                 }
                 let cancelAction = ActionSheetAction(title: CommonStrings.cancelButton) { _ in

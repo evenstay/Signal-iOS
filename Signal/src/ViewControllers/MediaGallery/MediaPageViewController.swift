@@ -345,6 +345,16 @@ class MediaPageViewController: UIPageViewController {
         ))
         contextMenuActions.append(UIAction(
             title: OWSLocalizedString(
+                "MEDIA_VIEWER_GO_TO_MESSAGE_ACTION",
+                comment: "Context menu item in media viewer. Refers to scrolling the conversation to the currently displayed photo/video."
+            ),
+            image: Theme.iconImage(.buttonMessage),
+            handler: { [weak self] _ in
+                self?.presentConversationForCurrentMedia()
+            }
+        ))
+        contextMenuActions.append(UIAction(
+            title: OWSLocalizedString(
                 "MEDIA_VIEWER_DELETE_MEDIA_ACTION",
                 comment: "Context menu item in media viewer. Refers to deleting currently displayed photo/video."
             ),
@@ -504,12 +514,26 @@ class MediaPageViewController: UIPageViewController {
         AttachmentSharing.showShareUI(for: attachmentStream, sender: sender)
     }
 
+    // MARK: -
+
     private func saveCurrentMediaToPhotos() {
         guard let mediaItem = currentItem else { return }
 
         AttachmentSaving.saveToPhotoLibrary(
             referencedAttachmentStreams: [mediaItem.attachmentStream]
         )
+    }
+
+    private func presentConversationForCurrentMedia() {
+        guard let mediaItem = currentItem else { return }
+
+        dismissSelf(animated: true) {
+            SignalApp.shared.presentConversationForThread(
+                threadUniqueId: mediaItem.message.uniqueThreadId,
+                focusMessageId: mediaItem.message.uniqueId,
+                animated: true
+            )
+        }
     }
 
     private func deleteCurrentMedia() {

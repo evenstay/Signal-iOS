@@ -23,6 +23,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         tableDataSource.viewController = self
         loadCoordinator.viewController = self
         reminderViews.chatListViewController = self
+        viewState.backupProgressView.chatListViewController = self
         viewState.settingsButtonCreator.delegate = self
         viewState.proxyButtonCreator.delegate = self
         viewState.configure()
@@ -95,6 +96,10 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         updateUsernameReminderView()
         applyTheme()
         observeNotifications()
+        DependenciesBridge.shared.db.read { tx in
+            self.viewState.backupProgressViewState.refetchDBState(tx: tx)
+        }
+        self.viewState.backupProgressView.update(viewState: self.viewState.backupProgressViewState)
     }
 
     public override func viewWillAppear(_ animated: Bool) {
@@ -205,7 +210,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
 
         if !hasPresentedBackupErrors {
             hasPresentedBackupErrors = true
-            DependenciesBridge.shared.messageBackupErrorPresenter.presentOverTopmostViewController(completion: {})
+            DependenciesBridge.shared.backupArchiveErrorPresenter.presentOverTopmostViewController(completion: {})
         }
 
         // Whether or not the theme has changed, always ensure
@@ -227,7 +232,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         }
 
         showBadgeSheetIfNecessary()
-        Task { await self.checkForFailedServiceExtensionLaunches() }
+        Task { try await self.checkForFailedServiceExtensionLaunches() }
 
         hasEverAppeared = true
         if viewState.multiSelectState.isActive {
@@ -1224,7 +1229,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
 
     // MARK: - Notifications
 
-    func checkForFailedServiceExtensionLaunches() async {
+    func checkForFailedServiceExtensionLaunches() async throws(CancellationError) {
         guard #available(iOS 17.0, *) else {
             return
         }
@@ -1233,7 +1238,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
             return
         }
 
-        await SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing().awaitable()
+        try await SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing()
 
         let notificationSettings = await UNUserNotificationCenter.current().notificationSettings()
         guard notificationSettings.authorizationStatus == .authorized else {
@@ -1279,7 +1284,7 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
         let mostRecentDateKey = "mostRecentPromptDate"
         let promptCountKey = "promptCount"
 
-        let shouldShowPrompt = SSKEnvironment.shared.databaseStorageRef.read { tx in
+        let shouldShowPrompt = SSKEnvironment.shared.databaseStorageRef.read { tx -> Bool in
             // If we've shown the prompt recently, don't show it again.
             let promptCount = keyValueStore.getInt(promptCountKey, defaultValue: 0, transaction: tx)
             let promptBackoff: TimeInterval = {
@@ -1306,6 +1311,17 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
                 let mostRecentMessage = InteractionFinder.lastInsertedIncomingMessage(transaction: tx),
                 Date(millisecondsSince1970: mostRecentMessage.receivedAtTimestamp) > upgradeDate
             else {
+                return false
+            }
+            guard let serverTimestampMs = mostRecentMessage.serverTimestamp else {
+                return false
+            }
+            let serverTimestamp = Date(millisecondsSince1970: serverTimestampMs.uint64Value)
+            let serverDeliveryTimestamp = Date(millisecondsSince1970: mostRecentMessage.serverDeliveryTimestamp)
+            // If the most recent message was delivered quickly, don't show it. (This
+            // handles cases where the NSE doesn't launch because the app happens to be
+            // open when the message is received.)
+            guard serverDeliveryTimestamp > (serverTimestamp + .minute) else {
                 return false
             }
             return true
@@ -1336,7 +1352,11 @@ public class ChatListViewController: OWSViewController, HomeTabViewController {
             title: CommonStrings.contactSupport,
             handler: { [weak self] _ in
                 guard let self else { return }
-                ContactSupportActionSheet.present(emailFilter: .custom("NotLaunchingNSE"), fromViewController: self)
+                ContactSupportActionSheet.present(
+                    emailFilter: .custom("NotLaunchingNSE"),
+                    logDumper: .fromGlobals(),
+                    fromViewController: self,
+                )
             }
         ))
         actionSheet.addAction(ActionSheetAction(title: CommonStrings.okButton))

@@ -466,6 +466,7 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
             chatColorView.configure(value: self.bubbleChatColor,
                                     referenceView: componentDelegate.view,
                                     bubbleConfig: bubbleConfig)
+            chatColorView.dimmerDimsBackgroundOnly = true
             outerBubbleView = chatColorView
         }
 
@@ -525,6 +526,7 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
                             // to reflect the bubble view state.
                             bubbleViewPartner.updateLayers()
                         }
+                        outerBubbleView?.dimmerDimsBackgroundOnly = false
                     }
                 } else {
                     owsFailDebug("Invalid component.")
@@ -1095,7 +1097,7 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
             if previousSectionItems.isEmpty,
                quotedReply != nil {
                 applyTopMargin = true
-                applyBottomMargin = bodyText == nil && standaloneFooter == nil
+                applyBottomMargin = bodyText == nil && standaloneFooter == nil && bodyMedia == nil
             } else if let previousSectionItem = previousSectionItems.last,
                       previousSectionItem.componentKey == .linkPreview,
                       quotedReply != nil {
@@ -1715,8 +1717,8 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
             case .pending:
                 componentDelegate.didTapPendingOutgoingMessage(outgoingMessage)
             case .sending:
-                // Ignore taps on outgoing messages being sent.
-                return true
+                // Sending messages should still allow taps to be processed
+                break
             default:
                 break
             }
@@ -2224,6 +2226,13 @@ public class CVComponentMessage: CVComponentBase, CVRootComponent {
             for swipeToReplyWrapper in swipeToReplyWrappers {
                 swipeToReplyWrapper.layer.removeAllAnimations()
             }
+        }
+
+        // MARK: - Flashing Message Bubble
+
+        func performMessageBubbleHighlightAnimation() {
+            chatColorView.dimmingColor = Theme.isDarkThemeEnabled ? .ows_whiteAlpha25 : .ows_blackAlpha25
+            chatColorView.performDimmingAnimation(stepDuration: 0.4)
         }
     }
 

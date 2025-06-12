@@ -1867,6 +1867,10 @@ extension %sSerializer {
 
         # ---- Fetch ----
 
+        ignore_cache = ""
+        if cache_get_code_for_class(clazz) is not None:
+            ignore_cache = ", ignoreCache: true"
+
         swift_body += """
 // MARK: - Save/Remove/Update
 
@@ -1922,8 +1926,13 @@ public extension %(class_name)s {
 
         block(self)
 
-        guard let dbCopy = type(of: self).anyFetch(uniqueId: uniqueId,
-                                                   transaction: transaction) else {
+        // If it's not saved, we don't expect to find it in the database, and we
+        // won't save any changes we make back into the database.
+        guard shouldBeSaved else {
+            return
+        }
+
+        guard let dbCopy = type(of: self).anyFetch(uniqueId: uniqueId, transaction: transaction%(ignore_cache)s) else {
             return
         }
 
@@ -1950,7 +1959,8 @@ public extension %(class_name)s {
         sdsSave(saveMode: .update, transaction: transaction)
     }
 """ % {
-            "class_name": str(clazz.name)
+            "class_name": str(clazz.name),
+            "ignore_cache": ignore_cache,
         }
 
         if has_remove_methods:
@@ -1996,7 +2006,7 @@ public class %sCursor: NSObject, SDSCursor {
         if cache_code is not None:
             swift_body += """
         let value = try %s.fromRecord(record)
-        %s(value, transaction: transaction.asAnyRead)
+        %s(value, transaction: transaction)
         return value""" % (
                 str(clazz.name),
                 cache_code,
@@ -2035,7 +2045,7 @@ public class %sCursor: NSObject, SDSCursor {
 public extension %(class_name)s {
     @nonobjc
     class func grdbFetchCursor(transaction: DBReadTransaction) -> %(class_name)sCursor {
-        let database = transaction.databaseConnection
+        let database = transaction.database
         do {
             let cursor = try %(record_name)s.fetchCursor(database)
             return %(class_name)sCursor(transaction: transaction, cursor: cursor)
@@ -2211,7 +2221,7 @@ public extension %(class_name)s {
 
         swift_body += """
     class func anyCount(transaction: DBReadTransaction) -> UInt {
-        return %s.ows_fetchCount(transaction.databaseConnection)
+        return %s.ows_fetchCount(transaction.database)
     }
 """ % (
             record_name,
@@ -2250,7 +2260,7 @@ public extension %(class_name)s {
         let sql = "SELECT EXISTS ( SELECT 1 FROM \\(%s.databaseTableName) WHERE \\(%sColumn: .uniqueId) = ? )"
         let arguments: StatementArguments = [uniqueId]
         do {
-            return try Bool.fetchOne(transaction.databaseConnection, sql: sql, arguments: arguments) ?? false
+            return try Bool.fetchOne(transaction.database, sql: sql, arguments: arguments) ?? false
         } catch {
             DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
                 userDefaults: CurrentAppContext().appUserDefaults(),
@@ -2276,7 +2286,7 @@ public extension %(class_name)s {
                                transaction: DBReadTransaction) -> %(class_name)sCursor {
         do {
             let sqlRequest = SQLRequest<Void>(sql: sql, arguments: arguments, cached: true)
-            let cursor = try %(record_name)s.fetchCursor(transaction.databaseConnection, sqlRequest)
+            let cursor = try %(record_name)s.fetchCursor(transaction.database, sqlRequest)
             return %(class_name)sCursor(transaction: transaction, cursor: cursor)
         } catch {
             DatabaseCorruptionState.flagDatabaseReadCorruptionIfNecessary(
@@ -2301,7 +2311,7 @@ public extension %(class_name)s {
 
         do {
             let sqlRequest = SQLRequest<Void>(sql: sql, arguments: arguments, cached: true)
-            guard let record = try %s.fetchOne(transaction.databaseConnection, sqlRequest) else {
+            guard let record = try %s.fetchOne(transaction.database, sqlRequest) else {
                 return nil
             }
 """ % (
@@ -2313,7 +2323,7 @@ public extension %(class_name)s {
         if cache_code is not None:
             swift_body += """
             let value = try %s.fromRecord(record)
-            %s(value, transaction: transaction.asAnyRead)
+            %s(value, transaction: transaction)
             return value""" % (
                 str(clazz.name),
                 cache_code,

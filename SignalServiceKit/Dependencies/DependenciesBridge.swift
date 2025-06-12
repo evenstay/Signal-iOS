@@ -61,9 +61,18 @@ public class DependenciesBridge {
     public let audioWaveformManager: AudioWaveformManager
     public let authorMergeHelper: AuthorMergeHelper
     public let avatarDefaultColorManager: AvatarDefaultColorManager
+    public let backgroundMessageFetcherFactory: BackgroundMessageFetcherFactory
+    public let backupArchiveErrorPresenter: BackupArchiveErrorPresenter
+    public let backupArchiveManager: BackupArchiveManager
     public let backupAttachmentDownloadManager: BackupAttachmentDownloadManager
+    public let backupAttachmentDownloadProgress: BackupAttachmentDownloadProgress
     public let backupAttachmentDownloadStore: BackupAttachmentDownloadStore
+    public let backupAttachmentQueueStatusManager: BackupAttachmentQueueStatusManager
     public let backupAttachmentUploadManager: BackupAttachmentUploadManager
+    public let backupAttachmentUploadProgress: BackupAttachmentUploadProgress
+    public let backupIdManager: BackupIdManager
+    public let backupKeyMaterial: BackupKeyMaterial
+    public let backupRequestManager: BackupRequestManager
     public let backupSubscriptionManager: BackupSubscriptionManager
     public let badgeCountFetcher: BadgeCountFetcher
     public let callLinkStore: any CallLinkRecordStore
@@ -117,9 +126,6 @@ public class DependenciesBridge {
     public let localUsernameManager: LocalUsernameManager
     public let masterKeySyncManager: MasterKeySyncManager
     public let mediaBandwidthPreferenceStore: MediaBandwidthPreferenceStore
-    public let messageBackupErrorPresenter: MessageBackupErrorPresenter
-    public let messageBackupKeyMaterial: MessageBackupKeyMaterial
-    public let messageBackupManager: MessageBackupManager
     public let messageStickerManager: MessageStickerManager
     public let nicknameManager: any NicknameManager
     public let orphanedBackupAttachmentManager: OrphanedBackupAttachmentManager
@@ -183,9 +189,18 @@ public class DependenciesBridge {
         audioWaveformManager: AudioWaveformManager,
         authorMergeHelper: AuthorMergeHelper,
         avatarDefaultColorManager: AvatarDefaultColorManager,
+        backgroundMessageFetcherFactory: BackgroundMessageFetcherFactory,
+        backupArchiveErrorPresenter: BackupArchiveErrorPresenter,
+        backupArchiveManager: BackupArchiveManager,
         backupAttachmentDownloadManager: BackupAttachmentDownloadManager,
+        backupAttachmentDownloadProgress: BackupAttachmentDownloadProgress,
         backupAttachmentDownloadStore: BackupAttachmentDownloadStore,
+        backupAttachmentQueueStatusManager: BackupAttachmentQueueStatusManager,
         backupAttachmentUploadManager: BackupAttachmentUploadManager,
+        backupAttachmentUploadProgress: BackupAttachmentUploadProgress,
+        backupIdManager: BackupIdManager,
+        backupKeyMaterial: BackupKeyMaterial,
+        backupRequestManager: BackupRequestManager,
         backupSubscriptionManager: BackupSubscriptionManager,
         badgeCountFetcher: BadgeCountFetcher,
         callLinkStore: any CallLinkRecordStore,
@@ -239,9 +254,6 @@ public class DependenciesBridge {
         localUsernameManager: LocalUsernameManager,
         masterKeySyncManager: MasterKeySyncManager,
         mediaBandwidthPreferenceStore: MediaBandwidthPreferenceStore,
-        messageBackupErrorPresenter: MessageBackupErrorPresenter,
-        messageBackupKeyMaterial: MessageBackupKeyMaterial,
-        messageBackupManager: MessageBackupManager,
         messageStickerManager: MessageStickerManager,
         nicknameManager: any NicknameManager,
         orphanedBackupAttachmentManager: OrphanedBackupAttachmentManager,
@@ -304,9 +316,18 @@ public class DependenciesBridge {
         self.audioWaveformManager = audioWaveformManager
         self.authorMergeHelper = authorMergeHelper
         self.avatarDefaultColorManager = avatarDefaultColorManager
+        self.backgroundMessageFetcherFactory = backgroundMessageFetcherFactory
+        self.backupArchiveErrorPresenter = backupArchiveErrorPresenter
+        self.backupArchiveManager = backupArchiveManager
         self.backupAttachmentDownloadManager = backupAttachmentDownloadManager
+        self.backupAttachmentDownloadProgress = backupAttachmentDownloadProgress
         self.backupAttachmentDownloadStore = backupAttachmentDownloadStore
+        self.backupAttachmentQueueStatusManager = backupAttachmentQueueStatusManager
         self.backupAttachmentUploadManager = backupAttachmentUploadManager
+        self.backupAttachmentUploadProgress = backupAttachmentUploadProgress
+        self.backupIdManager = backupIdManager
+        self.backupKeyMaterial = backupKeyMaterial
+        self.backupRequestManager = backupRequestManager
         self.backupSubscriptionManager = backupSubscriptionManager
         self.badgeCountFetcher = badgeCountFetcher
         self.callLinkStore = callLinkStore
@@ -360,9 +381,6 @@ public class DependenciesBridge {
         self.localUsernameManager = localUsernameManager
         self.masterKeySyncManager = masterKeySyncManager
         self.mediaBandwidthPreferenceStore = mediaBandwidthPreferenceStore
-        self.messageBackupErrorPresenter = messageBackupErrorPresenter
-        self.messageBackupKeyMaterial = messageBackupKeyMaterial
-        self.messageBackupManager = messageBackupManager
         self.messageStickerManager = messageStickerManager
         self.nicknameManager = nicknameManager
         self.orphanedBackupAttachmentManager = orphanedBackupAttachmentManager

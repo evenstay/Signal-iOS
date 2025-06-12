@@ -215,15 +215,6 @@ extension MessageSender {
             }
 
             sendResult.success.forEach { recipient in
-                // If we're sending a story, we generally get a 200, even if the account
-                // doesn't exist. Therefore, don't use this to mark accounts as registered.
-                if !message.isStorySend {
-                    let recipientFetcher = DependenciesBridge.shared.recipientFetcher
-                    let recipient = recipientFetcher.fetchOrCreate(serviceId: recipient.serviceId, tx: tx)
-                    let recipientManager = DependenciesBridge.shared.recipientManager
-                    recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: true, tx: tx)
-                }
-
                 SSKEnvironment.shared.profileManagerRef.didSendOrReceiveMessage(
                     serviceId: recipient.serviceId,
                     localIdentifiers: localIdentifiers,
@@ -436,7 +427,7 @@ extension MessageSender {
         if serviceIds.isEmpty {
             return SenderKeySendResult(success: [], unregistered: [])
         }
-        Logger.info("Sending sender key message with timestamp \(message.timestamp) to \(serviceIds)")
+        Logger.info("Sending sender key message with timestamp \(message.timestamp) to \(serviceIds.sorted())")
         let recipients: [Recipient]
         let ciphertext: Data
         (recipients, ciphertext) = try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
@@ -473,7 +464,7 @@ extension MessageSender {
                 }
             }
         )
-        Logger.info("Sent sender key message with timestamp \(message.timestamp) to \(result.successServiceIds) (unregistered: \(result.unregisteredServiceIds))")
+        Logger.info("Sent sender key message with timestamp \(message.timestamp) to \(result.successServiceIds.sorted()) (unregistered: \(result.unregisteredServiceIds.sorted()))")
         return result
     }
 

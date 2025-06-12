@@ -33,7 +33,11 @@ public class GroupV2UpdatesImpl {
             return
         }
 
-        await SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing().awaitable()
+        do throws(CancellationError) {
+            try await SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing()
+        } catch {
+            return
+        }
 
         guard let groupInfoToRefresh = Self.findGroupToAutoRefresh() else {
             // We didn't find a group to refresh; abort.
@@ -226,7 +230,19 @@ extension GroupV2UpdatesImpl: GroupV2Updates {
             return
         }
 
-        try await self.operationQueue.run {
+        let taskQueue: ConcurrentTaskQueue
+        switch source {
+        case .groupMessage:
+            // The upstream caller handles the concurrency for these requests, so
+            // create a dummy queue that just runs it immediately. This avoids deadlock
+            // that may happen if group message processing gets stuck behind an
+            // unrelated group refresh that's waiting for group message processing.
+            taskQueue = ConcurrentTaskQueue(concurrentLimit: 1)
+        case .other:
+            taskQueue = self.operationQueue
+        }
+
+        try await taskQueue.run {
             try await self.runUpdateOperation(
                 secretParams: secretParams,
                 spamReportingMetadata: spamReportingMetadata,
@@ -268,7 +284,7 @@ extension GroupV2UpdatesImpl: GroupV2Updates {
             // messages or we'll deadlock.
             break
         case .other:
-            await SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing().awaitable()
+            try await SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing()
         }
 
         do {
@@ -283,7 +299,7 @@ extension GroupV2UpdatesImpl: GroupV2Updates {
                 Logger.warn("Group update failed: \(error)")
             } else {
                 switch error {
-                case GroupsV2Error.localUserNotInGroup, GroupsV2Error.timeout, GroupsV2Error.missingGroupChangeProtos:
+                case GroupsV2Error.localUserNotInGroup, GroupsV2Error.timeout:
                     Logger.warn("Group update failed: \(error)")
                 default:
                     owsFailDebug("Group update failed: \(error)")
@@ -319,16 +335,12 @@ private extension GroupV2UpdatesImpl {
 
         do {
             // Try to use individual changes.
-            try await Promise.wrapAsync {
-                try await self.fetchAndApplyChangeActionsFromService(
-                    secretParams: secretParams,
-                    spamReportingMetadata: spamReportingMetadata,
-                    source: source,
-                    options: options
-                )
-            }.timeout(seconds: GroupManager.groupUpdateTimeoutDuration, description: "Update via changes") {
-                return GroupsV2Error.timeout
-            }.awaitable()
+            try await self.fetchAndApplyChangeActionsFromService(
+                secretParams: secretParams,
+                spamReportingMetadata: spamReportingMetadata,
+                source: source,
+                options: options
+            )
         } catch {
             let shouldTrySnapshot = { () -> Bool in
                 // This should not fail over in the case of networking problems.
@@ -343,10 +355,6 @@ private extension GroupV2UpdatesImpl {
                     // snapshot. For example, if we are joining via an
                     // invite link we will be unable to fetch change
                     // actions.
-                    return true
-                case GroupsV2Error.missingGroupChangeProtos:
-                    // If the service returns a group state without change protos,
-                    // fail over to the snapshot.
                     return true
                 case GroupsV2Error.groupChangeProtoForIncompatibleRevision:
                     // If we got change protos for an incompatible revision,
@@ -363,15 +371,11 @@ private extension GroupV2UpdatesImpl {
             }
 
             // Failover to applying latest snapshot.
-            try await Promise.wrapAsync {
-                try await self.fetchAndApplyCurrentGroupV2SnapshotFromService(
-                    secretParams: secretParams,
-                    spamReportingMetadata: spamReportingMetadata,
-                    options: options
-                )
-            }.timeout(seconds: GroupManager.groupUpdateTimeoutDuration, description: "Update via snapshot") {
-                return GroupsV2Error.timeout
-            }.awaitable()
+            try await self.fetchAndApplyCurrentGroupV2SnapshotFromService(
+                secretParams: secretParams,
+                spamReportingMetadata: spamReportingMetadata,
+                options: options
+            )
         }
     }
 
@@ -742,9 +746,9 @@ private extension GroupV2UpdatesImpl {
             var builder = try TSGroupModelBuilder.builderForSnapshot(groupV2Snapshot: groupV2Snapshot, transaction: transaction)
             builder.apply(options: options)
 
+            let groupId = try secretParams.getPublicParams().getGroupIdentifier()
             if
-                let groupId = builder.groupId,
-                let groupThread = TSGroupThread.fetch(groupId: groupId, transaction: transaction),
+                let groupThread = TSGroupThread.fetch(forGroupId: groupId, tx: transaction),
                 let oldGroupModel = groupThread.groupModel as? TSGroupModelV2,
                 oldGroupModel.revision == builder.groupV2Revision
             {
@@ -893,9 +897,7 @@ extension GroupsV2Error: IsRetryableProvider {
         switch self {
         case
                 .conflictingChangeOnService,
-                .shouldRetry,
-                .timeout,
-                .newMemberMissingAnnouncementOnlyCapability:
+                .timeout:
             return true
         case
                 .redundantChange,
@@ -904,15 +906,9 @@ extension GroupsV2Error: IsRetryableProvider {
                 .cannotBuildGroupChangeProto_conflictingChange,
                 .cannotBuildGroupChangeProto_lastAdminCantLeaveGroup,
                 .cannotBuildGroupChangeProto_tooManyMembers,
-                .gv2NotEnabled,
                 .localUserIsNotARequestingMember,
                 .cantApplyChangesToPlaceholder,
                 .expiredGroupInviteLink,
-                .groupDoesNotExistOnService,
-                .groupNeedsToBeMigrated,
-                .groupCannotBeMigrated,
-                .groupDowngradeNotAllowed,
-                .missingGroupChangeProtos,
                 .groupBlocked,
                 .localUserBlockedFromJoining,
                 .groupChangeProtoForIncompatibleRevision,

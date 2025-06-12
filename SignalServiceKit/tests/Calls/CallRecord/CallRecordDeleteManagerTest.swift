@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+import LibSignalClient
 import XCTest
 
 @testable import SignalServiceKit
@@ -51,7 +52,8 @@ final class CallRecordDeleteManagerTest: XCTestCase {
     }
 
     private func insertGroupCallInteraction() -> (OWSGroupCallMessage, TSGroupThread) {
-        let thread = TSGroupThread(groupModel: try! TSGroupModelBuilder().buildAsV2())
+        let secretParams = try! GroupSecretParams.generate()
+        let thread = TSGroupThread(groupModel: try! TSGroupModelBuilder(secretParams: secretParams).buildAsV2())
         let interaction = OWSGroupCallMessage(joinedMemberAcis: [], creatorAci: nil, thread: thread, sentAtTimestamp: 0)
 
         mockDB.write { tx in
@@ -97,7 +99,6 @@ final class CallRecordDeleteManagerTest: XCTestCase {
 
         XCTAssertEqual(mockCallRecordStore.callRecords.count, 4)
         XCTAssertEqual(mockOutgoingCallEventSyncMessageManager.syncMessageSendCount, 0)
-        XCTAssertEqual(mockDeletedCallRecordCleanupManager.cleanupStartCount, 0)
         XCTAssertEqual(mockDeletedCallRecordStore.deletedCallRecords.count, 0)
 
         mockDB.write { tx in
@@ -109,7 +110,6 @@ final class CallRecordDeleteManagerTest: XCTestCase {
             XCTAssertEqual(mockCallRecordStore.callRecords.count, 3)
             XCTAssertEqual(mockOutgoingCallEventSyncMessageManager.syncMessageSendCount, 0)
             XCTAssertEqual(mockDeletedCallRecordStore.deletedCallRecords.count, 1)
-            XCTAssertEqual(mockDeletedCallRecordCleanupManager.cleanupStartCount, 1)
 
             deleteManager.deleteCallRecords(
                 [individualCallRecord2],
@@ -119,7 +119,6 @@ final class CallRecordDeleteManagerTest: XCTestCase {
             XCTAssertEqual(mockCallRecordStore.callRecords.count, 2)
             XCTAssertEqual(mockOutgoingCallEventSyncMessageManager.syncMessageSendCount, 1)
             XCTAssertEqual(mockDeletedCallRecordStore.deletedCallRecords.count, 2)
-            XCTAssertEqual(mockDeletedCallRecordCleanupManager.cleanupStartCount, 2)
 
             deleteManager.deleteCallRecords(
                 [groupCallRecord1],
@@ -128,7 +127,6 @@ final class CallRecordDeleteManagerTest: XCTestCase {
             )
             XCTAssertEqual(mockCallRecordStore.callRecords.count, 1)
             XCTAssertEqual(mockOutgoingCallEventSyncMessageManager.syncMessageSendCount, 1)
-            XCTAssertEqual(mockDeletedCallRecordCleanupManager.cleanupStartCount, 3)
             XCTAssertEqual(mockDeletedCallRecordStore.deletedCallRecords.count, 3)
 
             deleteManager.deleteCallRecords(
@@ -138,21 +136,18 @@ final class CallRecordDeleteManagerTest: XCTestCase {
             )
             XCTAssertEqual(mockCallRecordStore.callRecords.count, 0)
             XCTAssertEqual(mockOutgoingCallEventSyncMessageManager.syncMessageSendCount, 2)
-            XCTAssertEqual(mockDeletedCallRecordCleanupManager.cleanupStartCount, 4)
             XCTAssertEqual(mockDeletedCallRecordStore.deletedCallRecords.count, 4)
         }
     }
 
     func testMarkCallAsDeleted() {
         XCTAssertEqual(mockOutgoingCallEventSyncMessageManager.syncMessageSendCount, 0)
-        XCTAssertEqual(mockDeletedCallRecordCleanupManager.cleanupStartCount, 0)
         XCTAssertEqual(mockDeletedCallRecordStore.deletedCallRecords.count, 0)
 
         mockDB.write { tx in
             deleteManager.markCallAsDeleted(callId: .maxRandom, conversationId: .thread(threadRowId: .maxRandom), tx: tx)
 
             XCTAssertEqual(mockOutgoingCallEventSyncMessageManager.syncMessageSendCount, 0)
-            XCTAssertEqual(mockDeletedCallRecordCleanupManager.cleanupStartCount, 1)
             XCTAssertEqual(mockDeletedCallRecordStore.deletedCallRecords.count, 1)
         }
     }

@@ -71,7 +71,7 @@ public class OWSContactsManager: NSObject, ContactsManagerProtocol {
     public let avatarGroupIdsToShowDownloadingSpinner = AtomicSet<Data>(lock: .init())
 
     private let nicknameManager: any NicknameManager
-    private let recipientDatabaseTable: any RecipientDatabaseTable
+    private let recipientDatabaseTable: RecipientDatabaseTable
     private let systemContactsFetcher: SystemContactsFetcher
     private let usernameLookupManager: UsernameLookupManager
 
@@ -143,7 +143,7 @@ public class OWSContactsManager: NSObject, ContactsManagerProtocol {
     public init(
         appReadiness: AppReadiness,
         nicknameManager: any NicknameManager,
-        recipientDatabaseTable: any RecipientDatabaseTable,
+        recipientDatabaseTable: RecipientDatabaseTable,
         usernameLookupManager: any UsernameLookupManager
     ) {
         self.nicknameManager = nicknameManager
@@ -1075,7 +1075,7 @@ extension OWSContactsManager: ContactManager {
 
         let (intersectionMode, signalRecipientPhoneNumbers) = SSKEnvironment.shared.databaseStorageRef.read { tx in
             let intersectionMode = fetchIntersectionMode(isUserRequested: isUserRequested, tx: tx)
-            let signalRecipientPhoneNumbers = SignalRecipient.fetchAllPhoneNumbers(tx: tx)
+            let signalRecipientPhoneNumbers = recipientDatabaseTable.fetchAllPhoneNumbers(tx: tx)
             return (intersectionMode, signalRecipientPhoneNumbers)
         }
 
@@ -1235,7 +1235,7 @@ extension OWSContactsManager: ContactManager {
 
                 // TODO: Abort if another contact intersection succeeds in the meantime.
                 Logger.warn("Contact intersection failed with error: \(error). Rescheduling.")
-                try await Task.sleep(nanoseconds: OWSOperation.retryIntervalForExponentialBackoff(failureCount: attemptCount, maxBackoff: .infinity).clampedNanoseconds)
+                try await Task.sleep(nanoseconds: OWSOperation.retryIntervalForExponentialBackoff(failureCount: attemptCount).clampedNanoseconds)
             }
         )
     }

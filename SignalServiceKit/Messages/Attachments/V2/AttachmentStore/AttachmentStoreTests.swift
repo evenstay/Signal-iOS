@@ -419,7 +419,7 @@ class AttachmentStoreTests: XCTestCase {
             try attachmentStore.enumerateAllReferences(
                 toAttachmentId: attachmentId,
                 tx: tx,
-                block: { reference in
+                block: { reference, _ in
                     enumeratedCount += 1
 
                     XCTAssertEqual(reference.attachmentRowId, attachmentId)
@@ -1196,7 +1196,8 @@ class AttachmentStoreTests: XCTestCase {
                 \.transitUploadTimestamp: "transitUploadTimestamp",
                 \.lastTransitDownloadAttemptTimestamp: "lastTransitDownloadAttemptTimestamp",
                 \.lastMediaTierDownloadAttemptTimestamp: "lastMediaTierDownloadAttemptTimestamp",
-                \.lastThumbnailDownloadAttemptTimestamp: "lastThumbnailDownloadAttemptTimestamp"
+                \.lastThumbnailDownloadAttemptTimestamp: "lastThumbnailDownloadAttemptTimestamp",
+                \.lastFullscreenViewTimestamp: "lastFullscreenViewTimestamp",
             ]
         )
     }

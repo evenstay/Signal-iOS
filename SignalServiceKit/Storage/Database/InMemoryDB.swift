@@ -8,21 +8,44 @@
 public import GRDB
 
 public final class InMemoryDB: DB {
-
-    private let schedulers: Schedulers
-
-    public init(schedulers: Schedulers = DispatchQueueSchedulers()) {
-        self.schedulers = schedulers
+    public enum Mode {
+        case normalXcodeBuild
+        case xcodePreview
     }
 
-    // MARK: - State
+    let databaseQueue: DatabaseQueue
 
-    let databaseQueue: DatabaseQueue = {
-        let result = DatabaseQueue()
-        let schemaUrl = Bundle(for: GRDBSchemaMigrator.self).url(forResource: "schema", withExtension: "sql")!
-        try! result.write { try $0.execute(sql: try String(contentsOf: schemaUrl)) }
-        return result
-    }()
+    public init() {
+        self.databaseQueue = DatabaseQueue()
+
+        let schemaUrl: URL
+        if
+            let urlInNormalPlace = Bundle(for: GRDBSchemaMigrator.self)
+                .url(forResource: "schema", withExtension: "sql")
+        {
+            schemaUrl = urlInNormalPlace
+        } else if
+            let urlInWonkyPlace = Bundle(for: GRDBSchemaMigrator.self)
+                .url(forResource: "schema", withExtension: "sql", subdirectory: "Frameworks/SignalServiceKit.framework")
+        {
+            /// There's what appears to be a bug in Xcode 16.3, in which for
+            /// Xcode Previews, sometimes, the Bundle returned for SSK types
+            /// refers to the top-level app bundle, not the SSK bundle.
+            /// Searching in that bundle will fail to find `schema.sql`; so
+            /// instead manually search in the SSK subdirectory.
+            ///
+            /// If we go a while without noticing the warning print below, we
+            /// can remove this and see what happens.
+            ///
+            /// Note that Logger doesn't work in Xcode Previews, hence print!
+            print("Warning: needed to use fallback schema.sql location!")
+            schemaUrl = urlInWonkyPlace
+        } else {
+            owsFail("Failed to find schema.sql in Bundle!")
+        }
+
+        try! databaseQueue.write { try $0.execute(sql: try String(contentsOf: schemaUrl)) }
+    }
 
     // MARK: - Protocol
 
@@ -41,7 +64,7 @@ public final class InMemoryDB: DB {
         completionQueue: DispatchQueue,
         completion: ((T) -> Void)?
     ) {
-        schedulers.global().async {
+        DispatchQueue.global().async {
             let result: T = self.read(file: file, function: function, line: line, block: block)
             if let completion { completionQueue.async({ completion(result) }) }
         }
@@ -55,7 +78,7 @@ public final class InMemoryDB: DB {
         completionQueue: DispatchQueue,
         completion: ((T) -> Void)?
     ) {
-        schedulers.global().async {
+        DispatchQueue.global().async {
             let result = self.write(file: file, function: function, line: line, block: block)
             if let completion { completionQueue.async({ completion(result) }) }
         }
@@ -69,18 +92,18 @@ public final class InMemoryDB: DB {
         completionQueue: DispatchQueue,
         completion: ((T) -> Void)?
     ) {
-        schedulers.global().async {
+        DispatchQueue.global().async {
             let result = self.writeWithTxCompletion(file: file, function: function, line: line, block: block)
             if let completion { completionQueue.async({ completion(result) }) }
         }
     }
 
-    public func awaitableWrite<T>(
+    public func awaitableWrite<T, E>(
         file: String,
         function: String,
         line: Int,
-        block: (DBWriteTransaction) throws -> T
-    ) async rethrows -> T {
+        block: (DBWriteTransaction) throws(E) -> T
+    ) async throws(E) -> T {
         await Task.yield()
         return try write(file: file, function: function, line: line, block: block)
     }
@@ -97,19 +120,19 @@ public final class InMemoryDB: DB {
 
     // MARK: - Value Methods
 
-    public func read<T>(
+    public func read<T, E: Error>(
         file: String,
         function: String,
         line: Int,
-        block: (DBReadTransaction) throws -> T
-    ) rethrows -> T {
-        return try _read(block: block, rescue: { throw $0 })
+        block: (DBReadTransaction) throws(E) -> T
+    ) throws(E) -> T {
+        return try _read(block: block, rescue: { err throws(E) in throw err })
     }
 
-    private func _read<T>(block: (DBReadTransaction) throws -> T, rescue: (Error) throws -> Never) rethrows -> T {
-        var thrownError: Error?
+    private func _read<T, E: Error>(block: (DBReadTransaction) throws(E) -> T, rescue: (E) throws(E) -> Never) throws(E) -> T {
+        var thrownError: E?
         let result: T? = try! databaseQueue.read { db in
-            do {
+            do throws(E) {
                 return try block(DBReadTransaction(database: db))
             } catch {
                 thrownError = error
@@ -122,13 +145,13 @@ public final class InMemoryDB: DB {
         return result!
     }
 
-    public func write<T>(
+    public func write<T, E>(
         file: String,
         function: String,
         line: Int,
-        block: (DBWriteTransaction) throws -> T
-    ) rethrows -> T {
-        return try _writeCommitIfThrows(block: block, rescue: { throw $0 })
+        block: (DBWriteTransaction) throws(E) -> T
+    ) throws(E) -> T {
+        return try _writeCommitIfThrows(block: block, rescue: { err throws(E) in throw err })
     }
 
     public func writeWithTxCompletion<T>(
@@ -140,14 +163,14 @@ public final class InMemoryDB: DB {
         return _writeWithTxCompletion(block: block)
     }
 
-    private func _writeCommitIfThrows<T>(
-        block: (DBWriteTransaction) throws -> T,
-        rescue: (Error) throws -> Never
-    ) rethrows -> T {
+    private func _writeCommitIfThrows<T, E>(
+        block: (DBWriteTransaction) throws(E) -> T,
+        rescue: (E) throws(E) -> Never
+    ) throws(E) -> T {
         var result: T!
-        var thrown: Error?
+        var thrown: E?
         _writeWithTxCompletion { tx in
-            do {
+            do throws(E) {
                 result = try block(tx)
             } catch {
                 thrown = error

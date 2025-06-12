@@ -59,6 +59,37 @@ extension ConversationViewController {
     }
 }
 
+// MARK: - Message Highlighting
+//
+// The purpose of the code below is to briefly dim message bubble to indicate the message of interest to the user.
+// Because bubble highlighting is designed to be very brief, all the logic operates exclusively with the
+// presentation layer and no state is saved or restored.
+
+extension ConversationViewController {
+
+    func performMessageHighlightAnimationIfNeeded() {
+        if let messageId = viewState.highlightedMessageId {
+            performHighlightAnimationSequenceFor(messageId: messageId)
+            viewState.highlightedMessageId = nil
+        }
+    }
+
+    private func performHighlightAnimationSequenceFor(messageId: String) {
+        if let indexPath = indexPath(forInteractionUniqueId: messageId) {
+            guard let cell = collectionView.cellForItem(at: indexPath) as? CVCell,
+                  let componentViewMessage = cell.componentView as? CVComponentMessage.CVComponentViewMessage
+            else {
+                owsFailDebug("Could not find CVComponentViewMessage")
+                return
+            }
+
+            componentViewMessage.performMessageBubbleHighlightAnimation()
+        } else {
+            owsFailDebug("Unable to find a message to highlight. [\(messageId)]")
+        }
+    }
+}
+
 // MARK: -
 
 extension ConversationViewController: CVLoadCoordinatorDelegate {
@@ -239,7 +270,7 @@ extension ConversationViewController: CVLoadCoordinatorDelegate {
         DispatchQueue.main.async {
             self.reloadReactionsDetailSheetWithSneakyTransaction()
             if hasViewDidAppearEverCompleted {
-                _ = self.autoLoadMoreIfNecessary()
+                self.autoLoadMoreIfNecessary()
             }
         }
     }
@@ -791,6 +822,7 @@ extension ConversationViewController: CVViewStateDelegate {
 // MARK: - Load More
 
 extension ConversationViewController {
+    @discardableResult
     public func autoLoadMoreIfNecessary() -> Bool {
         AssertIsOnMainThread()
 
@@ -815,7 +847,7 @@ extension ConversationViewController {
         if showLoadOlderHeader, isCloseToTop {
             if loadCoordinator.didLoadOlderRecently {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-                    _ = self?.autoLoadMoreIfNecessary()
+                    self?.autoLoadMoreIfNecessary()
                 }
                 return false
             }
@@ -830,7 +862,7 @@ extension ConversationViewController {
         if showLoadNewerHeader, isCloseToBottom {
             if loadCoordinator.didLoadNewerRecently {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-                    _ = self?.autoLoadMoreIfNecessary()
+                    self?.autoLoadMoreIfNecessary()
                 }
                 return false
             }

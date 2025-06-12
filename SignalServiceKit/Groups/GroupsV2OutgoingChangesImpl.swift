@@ -35,7 +35,7 @@ public import LibSignalClient
 // * If we try to add a new member and another user beats us to it, we'll throw
 //   GroupsV2Error.redundantChange when computing a GroupChange proto.
 // * If we add (alice and bob) but another user adds (alice) first, we'll just add (bob).
-public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
+public class GroupsV2OutgoingChanges {
 
     public let groupId: Data
     public let groupSecretParams: GroupSecretParams
@@ -59,20 +59,15 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
     // Non-nil if changed. Empty string is allowed.
     private var newDescriptionText: String?
 
-    public var newAvatarData: Data?
-    public var newAvatarUrlPath: String?
+    public private(set) var newAvatarData: Data?
+    public private(set) var newAvatarUrlPath: String?
     private var shouldUpdateAvatar = false
 
-    private var membersToAdd = [Aci: TSGroupMemberRole]()
+    public private(set) var membersToAdd = [ServiceId]()
     // Full, pending profile key or pending request members to remove.
     private var membersToRemove = [ServiceId]()
     private var membersToChangeRole = [Aci: TSGroupMemberRole]()
-    private var invitedMembersToAdd = [ServiceId: TSGroupMemberRole]()
     private var invalidInvitesToRemove = [Data: InvalidInvite]()
-
-    // Banning
-    private var membersToBan = [Aci]()
-    private var membersToUnban = [Aci]()
 
     // These access properties should only be set if the value is changing.
     private var accessForMembers: GroupV2Access?
@@ -132,9 +127,9 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
         self.shouldUpdateAvatar = true
     }
 
-    public func addMember(_ aci: Aci, role: TSGroupMemberRole) {
-        owsAssertDebug(membersToAdd[aci] == nil)
-        membersToAdd[aci] = role
+    public func addMember(_ serviceId: ServiceId) {
+        owsAssertDebug(!membersToAdd.contains(serviceId))
+        membersToAdd.append(serviceId)
     }
 
     public func removeMember(_ serviceId: ServiceId) {
@@ -142,24 +137,9 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
         membersToRemove.append(serviceId)
     }
 
-    public func addBannedMember(_ aci: Aci) {
-        owsAssertDebug(!membersToBan.contains(aci))
-        membersToBan.append(aci)
-    }
-
-    public func removeBannedMember(_ aci: Aci) {
-        owsAssertDebug(!membersToUnban.contains(aci))
-        membersToUnban.append(aci)
-    }
-
     public func changeRoleForMember(_ aci: Aci, role: TSGroupMemberRole) {
         owsAssertDebug(membersToChangeRole[aci] == nil)
         membersToChangeRole[aci] = role
-    }
-
-    public func addInvitedMember(_ serviceId: ServiceId, role: TSGroupMemberRole) {
-        owsAssertDebug(invitedMembersToAdd[serviceId] == nil)
-        invitedMembersToAdd[serviceId] = role
     }
 
     public func setLocalShouldAcceptInvite() {
@@ -249,16 +229,14 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
             throw OWSAssertionError("Missing localIdentifiers.")
         }
 
-        // Note that we're calculating the set of users for whom we need
-        // profile key credentials for based on the "original intent".
-        // We could slightly optimize by only gathering profile key
-        // credentials that we'll actually need to build the change proto.
-        //
-        // NOTE: We don't (and can't) gather profile key credentials for pending members.
-        var newUserAcis: Set<Aci> = Set(membersToAdd.keys)
+        // Note that we're calculating the set of users for whom we MIGHT WANT
+        // profile key credentials based on the "original intent". We always
+        // include our own ACI because non-add operations (e.g., updating our
+        // profile key) will require our own profile key credential.
+        var newUserAcis: Set<Aci> = Set(membersToAdd.compactMap { $0 as? Aci })
         newUserAcis.insert(localIdentifiers.aci)
 
-        let profileKeyCredentialMap = try await SSKEnvironment.shared.groupsV2Ref.loadProfileKeyCredentials(
+        let profileKeyCredentials = try await SSKEnvironment.shared.groupsV2Ref.loadProfileKeyCredentials(
             for: Array(newUserAcis),
             forceRefresh: forceRefreshProfileKeyCredentials
         )
@@ -267,7 +245,7 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
             currentGroupModel: currentGroupModel,
             currentDisappearingMessageToken: currentDisappearingMessageToken,
             localIdentifiers: localIdentifiers,
-            profileKeyCredentialMap: profileKeyCredentialMap
+            profileKeyCredentials: profileKeyCredentials
         )
     }
 
@@ -313,7 +291,7 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
         currentGroupModel: TSGroupModelV2,
         currentDisappearingMessageToken: DisappearingMessageToken,
         localIdentifiers: LocalIdentifiers,
-        profileKeyCredentialMap: GroupsV2.ProfileKeyCredentialMap
+        profileKeyCredentials: [Aci: ExpiringProfileKeyCredential],
     ) throws -> GroupsV2BuiltGroupChange {
         let groupV2Params = try currentGroupModel.groupV2Params()
 
@@ -327,9 +305,9 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
 
         // Track member counts that are updated to reflect each
         // new action.
-        var membersOfAnyKind = Set(currentGroupModel.groupMembership.allMembersOfAnyKind.compactMap { $0.serviceId })
-        var fullMembers = Set(currentGroupModel.groupMembership.fullMembers.compactMap { $0.serviceId as? Aci })
-        var fullMemberAdmins = Set(currentGroupModel.groupMembership.fullMemberAdministrators.compactMap { $0.serviceId as? Aci })
+        let currentGroupMembership = currentGroupModel.groupMembership
+        var fullMembers = Set(currentGroupMembership.fullMembers.compactMap { $0.serviceId as? Aci })
+        var fullMemberAdmins = Set(currentGroupMembership.fullMemberAdministrators.compactMap { $0.serviceId as? Aci })
 
         var groupUpdateMessageBehavior: GroupUpdateMessageBehavior = .sendUpdateToOtherGroupMembers
 
@@ -415,46 +393,61 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
             }
         }
 
-        let currentGroupMembership = currentGroupModel.groupMembership
-        for (aci, role) in membersToAdd {
-            guard !currentGroupMembership.isFullMember(aci) else {
-                // Another user has already added this member.
-                // They may have been added with a different role.
-                // We don't treat that as a conflict.
-                continue
-            }
-            if currentGroupMembership.isRequestingMember(aci) {
-                var actionBuilder = GroupsProtoGroupChangeActionsPromoteRequestingMemberAction.builder()
-                let userId = try groupV2Params.userId(for: aci)
-                actionBuilder.setUserID(userId)
-                actionBuilder.setRole(role.asProtoRole)
-                actionsBuilder.addPromoteRequestingMembers(actionBuilder.buildInfallibly())
+        var membersToUnban = [Aci]()
 
-                membersOfAnyKind.insert(aci)
-                fullMembers.insert(aci)
-                if role == .administrator {
-                    fullMemberAdmins.insert(aci)
-                }
-            } else {
-                guard let profileKeyCredential = profileKeyCredentialMap[aci] else {
-                    throw OWSAssertionError("Missing profile key credential: \(aci)")
-                }
-                var actionBuilder = GroupsProtoGroupChangeActionsAddMemberAction.builder()
-                actionBuilder.setAdded(try GroupsV2Protos.buildMemberProto(
-                    profileKeyCredential: profileKeyCredential,
-                    role: role.asProtoRole,
-                    groupV2Params: groupV2Params
-                ))
-                actionsBuilder.addAddMembers(actionBuilder.buildInfallibly())
+        if !membersToAdd.isEmpty {
+            var fullOrInvitedMembers = Set(currentGroupModel.groupMembership.fullOrInvitedMembers.compactMap { $0.serviceId })
+            for serviceId in membersToAdd {
+                if currentGroupMembership.isFullMember(serviceId) {
+                    // Another user has already added this member. They may have been added
+                    // with a different role. We don't treat that as a conflict.
+                } else if let aci = serviceId as? Aci, currentGroupMembership.isRequestingMember(aci) {
+                    var actionBuilder = GroupsProtoGroupChangeActionsPromoteRequestingMemberAction.builder()
+                    let userId = try groupV2Params.userId(for: aci)
+                    actionBuilder.setUserID(userId)
+                    actionBuilder.setRole(.default)
+                    actionsBuilder.addPromoteRequestingMembers(actionBuilder.buildInfallibly())
+                    didChange = true
+                    membersToUnban.append(aci)
 
-                membersOfAnyKind.insert(aci)
-                fullMembers.insert(aci)
-                if role == .administrator {
-                    fullMemberAdmins.insert(aci)
+                    fullOrInvitedMembers.insert(aci)
+                    fullMembers.insert(aci)
+                } else if let aci = serviceId as? Aci, let profileKeyCredential = profileKeyCredentials[aci] {
+                    var actionBuilder = GroupsProtoGroupChangeActionsAddMemberAction.builder()
+                    actionBuilder.setAdded(try GroupsV2Protos.buildMemberProto(
+                        profileKeyCredential: profileKeyCredential,
+                        role: .default,
+                        groupV2Params: groupV2Params
+                    ))
+                    actionsBuilder.addAddMembers(actionBuilder.buildInfallibly())
+                    didChange = true
+                    membersToUnban.append(aci)
+
+                    fullOrInvitedMembers.insert(aci)
+                    fullMembers.insert(aci)
+                } else if currentGroupMembership.isInvitedMember(serviceId) {
+                    // Another user has already invited this member. They may have been added
+                    // with a different role. We don't treat that as a conflict.
+                } else {
+                    var actionBuilder = GroupsProtoGroupChangeActionsAddPendingMemberAction.builder()
+                    actionBuilder.setAdded(try GroupsV2Protos.buildPendingMemberProto(
+                        serviceId: serviceId,
+                        role: .default,
+                        groupV2Params: groupV2Params
+                    ))
+                    actionsBuilder.addAddPendingMembers(actionBuilder.buildInfallibly())
+                    didChange = true
+                    if let aci = serviceId as? Aci { membersToUnban.append(aci) }
+
+                    fullOrInvitedMembers.insert(serviceId)
                 }
             }
-            didChange = true
+            guard fullOrInvitedMembers.count <= RemoteConfig.current.maxGroupSizeHardLimit else {
+                throw GroupsV2Error.cannotBuildGroupChangeProto_tooManyMembers
+            }
         }
+
+        var membersToBan = [Aci]()
 
         for serviceId in self.membersToRemove {
             if let aci = serviceId as? Aci, currentGroupMembership.isFullMember(aci) {
@@ -463,8 +456,8 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
                 actionBuilder.setDeletedUserID(userId)
                 actionsBuilder.addDeleteMembers(actionBuilder.buildInfallibly())
                 didChange = true
+                membersToBan.append(aci)
 
-                membersOfAnyKind.remove(aci)
                 fullMembers.remove(aci)
                 if currentGroupMembership.isFullMemberAndAdministrator(aci) {
                     fullMemberAdmins.remove(aci)
@@ -475,18 +468,14 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
                 actionBuilder.setDeletedUserID(userId)
                 actionsBuilder.addDeletePendingMembers(actionBuilder.buildInfallibly())
                 didChange = true
-
-                membersOfAnyKind.remove(serviceId)
-                if let aci = serviceId as? Aci { fullMembers.remove(aci) }
+                // Don't ban invited members.
             } else if let aci = serviceId as? Aci, currentGroupMembership.isRequestingMember(aci) {
                 var actionBuilder = GroupsProtoGroupChangeActionsDeleteRequestingMemberAction.builder()
                 let userId = try groupV2Params.userId(for: aci)
                 actionBuilder.setDeletedUserID(userId)
                 actionsBuilder.addDeleteRequestingMembers(actionBuilder.buildInfallibly())
                 didChange = true
-
-                membersOfAnyKind.remove(aci)
-                fullMembers.remove(aci)
+                membersToBan.append(aci)
             } else {
                 // Another user has already removed this member or revoked their
                 // invitation.
@@ -505,7 +494,7 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
             // If we will overrun the max number of banned members, unban currently
             // banned members until we have enough room, beginning with the
             // least-recently banned.
-            let maxNumBannableIds = RemoteConfig.current.groupsV2MaxBannedMembers
+            let maxNumBannableIds = RemoteConfig.current.maxGroupSizeBannedMembers
             let netNumIdsToBan = acisToBan.count - acisToUnban.count
             let nOldMembersToUnban = currentBannedMembers.count + netNumIdsToBan - Int(maxNumBannableIds)
 
@@ -539,30 +528,6 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
                 actionsBuilder.addDeleteBannedMembers(actionBuilder.buildInfallibly())
                 didChange = true
             }
-        }
-
-        for (serviceId, role) in self.invitedMembersToAdd {
-            guard !currentGroupMembership.isMemberOfAnyKind(serviceId) else {
-                // Another user has already added or invited this member.
-                // They may have been added with a different role.
-                // We don't treat that as a conflict.
-                continue
-            }
-
-            guard membersOfAnyKind.count <= GroupManager.groupsV2MaxGroupSizeHardLimit else {
-                throw GroupsV2Error.cannotBuildGroupChangeProto_tooManyMembers
-            }
-
-            var actionBuilder = GroupsProtoGroupChangeActionsAddPendingMemberAction.builder()
-            actionBuilder.setAdded(try GroupsV2Protos.buildPendingMemberProto(
-                serviceId: serviceId,
-                role: role.asProtoRole,
-                groupV2Params: groupV2Params
-            ))
-            actionsBuilder.addAddPendingMembers(actionBuilder.buildInfallibly())
-            didChange = true
-
-            membersOfAnyKind.insert(serviceId)
         }
 
         if shouldRevokeInvalidInvites {
@@ -661,7 +626,7 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
         }
 
         if self.shouldAcceptInvite {
-            guard let localProfileKeyCredential = profileKeyCredentialMap[localAci] else {
+            guard let localProfileKeyCredential = profileKeyCredentials[localAci] else {
                 throw OWSAssertionError("Missing local profile key credential!")
             }
 
@@ -709,7 +674,6 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
 
             if promotedLocalAci {
                 didChange = true
-                membersOfAnyKind.insert(localAci)
                 fullMembers.insert(localAci)
             }
         }
@@ -779,7 +743,7 @@ public class GroupsV2OutgoingChangesImpl: GroupsV2OutgoingChanges {
         }
 
         if shouldUpdateLocalProfileKey {
-            guard let profileKeyCredential = profileKeyCredentialMap[localAci] else {
+            guard let profileKeyCredential = profileKeyCredentials[localAci] else {
                 throw OWSAssertionError("Missing profile key credential: \(localAci)")
             }
             var actionBuilder = GroupsProtoGroupChangeActionsModifyMemberProfileKeyAction.builder()

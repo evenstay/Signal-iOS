@@ -10,130 +10,44 @@ import Foundation
 public class MessageFetcherJob {
 
     private let appReadiness: AppReadiness
+    private var messageProcessor: MessageProcessor { SSKEnvironment.shared.messageProcessorRef }
 
     public init(appReadiness: AppReadiness) {
         self.appReadiness = appReadiness
 
         SwiftSingletons.register(self)
-
-        if CurrentAppContext().shouldProcessIncomingMessages && CurrentAppContext().isMainApp {
-            appReadiness.runNowOrWhenAppDidBecomeReadySync {
-                // Fetch messages as soon as possible after launching. In particular, when
-                // launching from the background, without this, we end up waiting some extra
-                // seconds before receiving an actionable push notification.
-                if DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered {
-                    firstly(on: DispatchQueue.main) {
-                        self.run()
-                    }.catch(on: DispatchQueue.global()) { error in
-                        owsFailDebugUnlessNetworkFailure(error)
-                    }
-                }
-            }
-        }
     }
 
     private static let didChangeStateNotificationName = Notification.Name("MessageFetcherJob.didChangeStateNotificationName")
 
     // MARK: -
 
-    private var isFetching = false
-    private var pendingFetch: (Promise<Void>, Future<Void>)?
+    public func fetchViaRest() async throws {
+        owsPrecondition(CurrentAppContext().shouldProcessIncomingMessages)
+        owsPrecondition(CurrentAppContext().isNSE)
+        owsPrecondition(self.appReadiness.isAppReady)
+        owsAssertDebug(DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered)
 
-    public func run() -> Promise<Void> {
-        AssertIsOnMainThread()
-        if let (fetchPromise, _) = self.pendingFetch {
-            return fetchPromise
-        }
-        let (fetchPromise, fetchFuture) = Promise<Void>.pending()
-        self.pendingFetch = (fetchPromise, fetchFuture)
-        self.startFetchingIfNeeded()
-        return fetchPromise
+        await self.startGroupMessageProcessorsIfNeeded()
+        try await self.fetchMessagesViaRestWhenReady()
     }
 
-    private func startFetchingIfNeeded() {
-        AssertIsOnMainThread()
-
-        if self.isFetching {
-            return
-        }
-
-        guard let (_, fetchFuture) = self.pendingFetch else {
-            return
-        }
-        self.pendingFetch = nil
-
-        self.isFetching = true
-        Task { @MainActor in
-            defer {
-                self.isFetching = false
-                self.startFetchingIfNeeded()
-            }
-            do {
-                try await self.waitForPendingAcks()
-                try await self.fetchMessages()
-                fetchFuture.resolve()
-            } catch {
-                fetchFuture.reject(error)
-            }
-        }
-    }
-
-    private var shouldUseWebSocket: Bool {
-        return OWSChatConnection.canAppUseSocketsToMakeRequests
+    private func startGroupMessageProcessorsIfNeeded() async {
+        await SSKEnvironment.shared.groupMessageProcessorManagerRef.startAllProcessors()
     }
 
     public var hasCompletedInitialFetch: Bool {
-        if shouldUseWebSocket {
-            return (
-                DependenciesBridge.shared.chatConnectionManager.identifiedConnectionState == .open &&
-                DependenciesBridge.shared.chatConnectionManager.hasEmptiedInitialQueue
-            )
-        } else {
-            return self.didFinishFetchingViaREST.get()
+        get async {
+            let chatConnectionManager = DependenciesBridge.shared.chatConnectionManager
+            return await chatConnectionManager.hasEmptiedInitialQueue || self.didFinishFetchingViaREST.get()
         }
     }
 
-    public func waitForFetchingComplete() -> Guarantee<Void> {
-        guard CurrentAppContext().shouldProcessIncomingMessages else {
-            return Guarantee.value(())
-        }
-        if hasCompletedInitialFetch {
-            return Guarantee.value(())
-        }
-        if shouldUseWebSocket {
-            return NotificationCenter.default.observe(
-                once: OWSChatConnection.chatConnectionStateDidChange
-            ).then { _ in
-                self.waitForFetchingComplete()
-            }.asVoid()
-        } else {
-            return NotificationCenter.default.observe(
-                once: Self.didChangeStateNotificationName
-            ).then { _ in
-                self.waitForFetchingComplete()
-            }.asVoid()
-        }
-    }
-
-    // MARK: -
-
-    private func fetchMessages() async throws {
-        guard CurrentAppContext().shouldProcessIncomingMessages else {
-            throw OWSAssertionError("This extension should not fetch messages.")
-        }
-
-        guard DependenciesBridge.shared.tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
-            assert(appReadiness.isAppReady)
-            Logger.warn("Not registered.")
-            return
-        }
-
-        if shouldUseWebSocket {
-            DependenciesBridge.shared.chatConnectionManager.didReceivePush()
-            // Should we wait to resolve the future until we know the WebSocket is open? Wait until it empties?
-        } else {
-            try await fetchMessagesViaRestWhenReady()
-        }
+    func preconditionForFetchingComplete() -> some Precondition {
+        return NotificationPrecondition(
+            notificationNames: [OWSChatConnection.chatConnectionStateDidChange, Self.didChangeStateNotificationName],
+            isSatisfied: { await self.hasCompletedInitialFetch }
+        )
     }
 
     // MARK: -
@@ -177,7 +91,7 @@ public class MessageFetcherJob {
 
     private struct EnvelopeJob {
         let encryptedEnvelope: SSKProtoEnvelope
-        let completion: (Error?) -> Void
+        let completion: () -> Void
     }
 
     private let didFinishFetchingViaREST = AtomicBool(false, lock: .init())
@@ -187,23 +101,14 @@ public class MessageFetcherJob {
     }
 
     private func fetchMessagesViaRest() async throws {
-        let batch = try await Retry.performWithBackoff(maxAttempts: 2) {
-            // If we get a network failure (≈10 seconds) or 5xx error (< 10 seconds),
-            // it's worth retrying just once in the NSE. This helps ensures we stay
-            // within the 30s execution limit.
+        let batch = try await Retry.performWithBackoff(maxAttempts: 6) {
             return try await fetchBatchViaRest()
         }
 
         let envelopeJobs: [EnvelopeJob] = batch.envelopes.map { envelope in
             let envelopeInfo = Self.buildEnvelopeInfo(envelope: envelope)
-            return EnvelopeJob(encryptedEnvelope: envelope) { error in
-                let ackBehavior = MessageProcessor.handleMessageProcessingOutcome(error: error)
-                switch ackBehavior {
-                case .shouldAck:
-                    self.acknowledgeDelivery(envelopeInfo: envelopeInfo)
-                case .shouldNotAck(let error):
-                    Logger.info("Skipping ack of message with timestamp \(envelopeInfo.timestamp) because of error: \(error)")
-                }
+            return EnvelopeJob(encryptedEnvelope: envelope) {
+                self.acknowledgeDelivery(envelopeInfo: envelopeInfo)
             }
         }
 
@@ -226,8 +131,7 @@ public class MessageFetcherJob {
     }
 
     private func fetchMessagesViaRestWhenReady() async throws {
-        owsPrecondition(CurrentAppContext().isNSE)
-        await SSKEnvironment.shared.messageProcessorRef.waitForProcessingComplete(processingTypes: [.messageProcessor]).awaitable()
+        try await messageProcessor.waitForFetchingAndProcessing(stages: [.messageProcessor])
         try await waitForPendingAcks()
         try await fetchMessagesViaRest()
     }

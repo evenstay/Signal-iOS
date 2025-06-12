@@ -52,12 +52,12 @@ class LinkedDevicesViewModel: ObservableObject {
     private var deviceIdToIgnore: DeviceId?
     fileprivate var shouldShowFinishLinkingSheet = false
 
+    private let backupArchiveErrorPresenter: BackupArchiveErrorPresenter
     private let databaseChangeObserver: DatabaseChangeObserver
     private let db: any DB
     private let deviceService: OWSDeviceService
     private let deviceStore: OWSDeviceStore
     private let identityManager: OWSIdentityManager
-    private let messageBackupErrorPresenter: MessageBackupErrorPresenter
 
 #if DEBUG
     private let isPreview: Bool
@@ -67,12 +67,12 @@ class LinkedDevicesViewModel: ObservableObject {
 #if DEBUG
         self.isPreview = isPreview
 #endif
+        backupArchiveErrorPresenter = DependenciesBridge.shared.backupArchiveErrorPresenter
         databaseChangeObserver = DependenciesBridge.shared.databaseChangeObserver
         db = DependenciesBridge.shared.db
         deviceService = DependenciesBridge.shared.deviceService
         deviceStore = DependenciesBridge.shared.deviceStore
         identityManager = DependenciesBridge.shared.identityManager
-        messageBackupErrorPresenter = DependenciesBridge.shared.messageBackupErrorPresenter
 
         databaseChangeObserver.appendDatabaseChangeDelegate(self)
     }
@@ -87,8 +87,8 @@ class LinkedDevicesViewModel: ObservableObject {
             try? await Task.sleep(nanoseconds: NSEC_PER_SEC)
             withAnimation {
                 self.displayableDevices = [
-                    .init(device: .previewItem(id: 1), displayName: "iPad"),
-                    .init(device: .previewItem(id: 2), displayName: "macOS"),
+                    .init(device: .previewItem(id: DeviceId(validating: 1)!), displayName: "iPad"),
+                    .init(device: .previewItem(id: DeviceId(validating: 2)!), displayName: "macOS"),
                 ]
             }
             self.isLoading = false
@@ -297,7 +297,7 @@ extension LinkedDevicesViewModel: LinkDeviceViewControllerDelegate {
         }
 
         let progress = OWSProgress.createSink { progress in
-            Task { @MainActor in
+            await MainActor.run {
                 linkAndSyncProgressModal.viewModel.updateProgress(progress: progress)
             }
         }
@@ -568,21 +568,19 @@ class LinkedDevicesHostingController: HostingContainer<LinkedDevicesView> {
     }
 
     private func didTapLinkDeviceButton() {
-        let context = DeviceOwnerAuthenticationType.localAuthenticationContext()
+        let localDeviceAuth = LocalDeviceAuthentication()
+        let localDeviceAuthAttemptToken: LocalDeviceAuthentication.AttemptToken
 
-        var error: NSError?
-        let canEvaluatePolicy = context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error)
-
-        guard canEvaluatePolicy && error == nil else {
-            let result = self.handleAuthenticationError(error as Error?)
-            switch result {
-            case .failed(let error):
-                self.showError(error)
-            case .canceled:
-                break
-            case .continueWithoutAuthentication:
-                self.showLinkNewDeviceView()
-            }
+        switch localDeviceAuth.checkCanAttempt() {
+        case .success(let attemptToken):
+            localDeviceAuthAttemptToken = attemptToken
+        case .failure(.notRequired):
+            showLinkNewDeviceView()
+            return
+        case .failure(.canceled):
+            return
+        case .failure(.genericError(let localizedErrorMessage)):
+            showError(message: localizedErrorMessage)
             return
         }
 
@@ -598,10 +596,13 @@ class LinkedDevicesHostingController: HostingContainer<LinkedDevicesView> {
             ),
             primaryButton: .init(
                 title: CommonStrings.continueButton
-            ) { [weak self, context] in
+            ) { [weak self] _ in
                 self?.dismiss(animated: true)
                 Task {
-                    await self?.authenticateThenShowLinkNewDeviceView(context: context)
+                    await self?.authenticateThenShowLinkNewDeviceView(
+                        localDeviceAuth: localDeviceAuth,
+                        localDeviceAuthAttemptToken: localDeviceAuthAttemptToken,
+                    )
                 }
             }
         )
@@ -670,6 +671,7 @@ class LinkedDevicesHostingController: HostingContainer<LinkedDevicesView> {
 
                 ContactSupportActionSheet.present(
                     emailFilter: contactSupportEmailFilter,
+                    logDumper: .fromGlobals(),
                     fromViewController: self
                 )
             })
@@ -681,88 +683,34 @@ class LinkedDevicesHostingController: HostingContainer<LinkedDevicesView> {
 
         actionSheet.onDismiss = { [weak self] in
             self?.viewModel.expectMoreDevices()
-            DependenciesBridge.shared.messageBackupErrorPresenter.presentOverTopmostViewController(completion: {})
+            DependenciesBridge.shared.backupArchiveErrorPresenter.presentOverTopmostViewController(completion: {})
         }
         presentActionSheet(actionSheet)
     }
 
     // MARK: Authentication
 
-    private func authenticateThenShowLinkNewDeviceView(context: LAContext) async {
-        do {
-            try await context.evaluatePolicy(
-                .deviceOwnerAuthentication,
-                localizedReason: OWSLocalizedString(
-                    "LINK_NEW_DEVICE_AUTHENTICATION_REASON",
-                    comment: "Description of how and why Signal iOS uses Touch ID/Face ID/Phone Passcode to unlock device linking."
-                )
-            )
-            self.showLinkNewDeviceView()
-        } catch {
-            let result = self.handleAuthenticationError(error)
-            switch result {
-            case .failed(let error):
-                self.showError(error)
-            case .canceled:
-                break
-            case .continueWithoutAuthentication:
-                self.showLinkNewDeviceView()
-            }
+    private func authenticateThenShowLinkNewDeviceView(
+        localDeviceAuth: LocalDeviceAuthentication,
+        localDeviceAuthAttemptToken: LocalDeviceAuthentication.AttemptToken,
+    ) async {
+        switch await localDeviceAuth.attempt(token: localDeviceAuthAttemptToken) {
+        case .success, .failure(.notRequired):
+            showLinkNewDeviceView()
+        case .failure(.canceled):
+            break
+        case .failure(.genericError(let localizedErrorMessage)):
+            showError(message: localizedErrorMessage)
         }
     }
 
-    private enum AuthenticationErrorResult {
-        case failed(OWSError)
-        case canceled
-        case continueWithoutAuthentication
-    }
-
-    private func showError(_ error: OWSError) {
-        Logger.error(error.userErrorDescription)
+    private func showError(message: String) {
+        Logger.error(message)
         OWSActionSheets.showActionSheet(
             title: DeviceAuthenticationErrorMessage.errorSheetTitle,
-            message: error.userErrorDescription,
+            message: message,
             fromViewController: self
         )
-    }
-
-    private func handleAuthenticationError(_ error: Error?) -> AuthenticationErrorResult {
-        let errorMessage: String
-        switch (error as? LAError)?.code {
-        case .biometryNotAvailable, .biometryNotEnrolled, .passcodeNotSet, .touchIDNotAvailable, .touchIDNotEnrolled:
-            Logger.info("local authentication not enrolled")
-            return .continueWithoutAuthentication
-        case .userCancel, .userFallback, .systemCancel, .appCancel:
-            Logger.info("local authentication cancelled.")
-            return .canceled
-        case .biometryLockout, .touchIDLockout:
-            Logger.error("local authentication error: lockout.")
-            errorMessage = DeviceAuthenticationErrorMessage.lockout
-        case .authenticationFailed:
-            Logger.error("local authentication error: authenticationFailed.")
-            errorMessage = DeviceAuthenticationErrorMessage.authenticationFailed
-        case .invalidContext:
-            owsFailDebug("context not valid.")
-            errorMessage = DeviceAuthenticationErrorMessage.unknownError
-        case .notInteractive:
-            // Example: app was backgrounded
-            owsFailDebug("context not interactive.")
-            errorMessage = DeviceAuthenticationErrorMessage.unknownError
-        case .none:
-            owsFailDebug("Unexpected error: \(String(describing: error))")
-            errorMessage = DeviceAuthenticationErrorMessage.unknownError
-        @unknown default:
-            owsFailDebug("Unexpected enum value.")
-            errorMessage = DeviceAuthenticationErrorMessage.unknownError
-        }
-
-        let owsError = OWSError(
-            error: .localAuthenticationError,
-            description: errorMessage,
-            isRetryable: false
-        )
-
-        return .failed(owsError)
     }
 
     // MARK: Renaming

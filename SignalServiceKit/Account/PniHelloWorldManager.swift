@@ -38,9 +38,9 @@ class PniHelloWorldManagerImpl: PniHelloWorldManager {
     private let keyValueStore: KeyValueStore
     private let networkManager: Shims.NetworkManager
     private let pniDistributionParameterBuilder: PniDistributionParamaterBuilder
-    private let pniSignedPreKeyStore: SignalSignedPreKeyStore
-    private let pniKyberPreKeyStore: SignalKyberPreKeyStore
-    private let recipientDatabaseTable: any RecipientDatabaseTable
+    private let pniSignedPreKeyStore: SignedPreKeyStoreImpl
+    private let pniKyberPreKeyStore: KyberPreKeyStoreImpl
+    private let recipientDatabaseTable: RecipientDatabaseTable
     private let tsAccountManager: TSAccountManager
 
     init(
@@ -48,9 +48,9 @@ class PniHelloWorldManagerImpl: PniHelloWorldManager {
         identityManager: any OWSIdentityManager,
         networkManager: Shims.NetworkManager,
         pniDistributionParameterBuilder: PniDistributionParamaterBuilder,
-        pniSignedPreKeyStore: SignalSignedPreKeyStore,
-        pniKyberPreKeyStore: SignalKyberPreKeyStore,
-        recipientDatabaseTable: any RecipientDatabaseTable,
+        pniSignedPreKeyStore: SignedPreKeyStoreImpl,
+        pniKyberPreKeyStore: KyberPreKeyStoreImpl,
+        recipientDatabaseTable: RecipientDatabaseTable,
         tsAccountManager: TSAccountManager
     ) {
         self.db = db
@@ -127,7 +127,7 @@ class PniHelloWorldManagerImpl: PniHelloWorldManager {
         let localDeviceId = tsAccountManager.storedDeviceId(tx: tx)
         let localDevicePniRegistrationId = tsAccountManager.getOrGeneratePniRegistrationId(tx: tx)
 
-        let localDevicePniSignedPreKey = pniSignedPreKeyStore.generateSignedPreKey(signedBy: localPniIdentityKeyPair)
+        let localDevicePniSignedPreKey = SignedPreKeyStoreImpl.generateSignedPreKey(signedBy: localPniIdentityKeyPair)
         pniSignedPreKeyStore.storeSignedPreKey(localDevicePniSignedPreKey.id, signedPreKeyRecord: localDevicePniSignedPreKey, tx: tx)
 
         let localDevicePniPqLastResortPreKey = pniKyberPreKeyStore.generateLastResortKyberPreKey(signedBy: localPniIdentityKeyPair, tx: tx)

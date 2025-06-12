@@ -25,26 +25,24 @@ public struct KeyValueStore {
         self.collection = collection
     }
 
-    public static func logCollectionStatistics() {
+    public static func logCollectionStatistics(tx: DBReadTransaction) {
         Logger.info("KeyValueStore statistics:")
-        SSKEnvironment.shared.databaseStorageRef.read { transaction in
-            do {
-                let sql = """
-                    SELECT \(TableMetadata.Columns.collection), COUNT(*)
-                    FROM \(TableMetadata.tableName)
-                    GROUP BY \(TableMetadata.Columns.collection)
-                    ORDER BY COUNT(*) DESC
-                    LIMIT 10
+        do {
+            let sql = """
+                SELECT \(TableMetadata.Columns.collection), COUNT(*)
+                FROM \(TableMetadata.tableName)
+                GROUP BY \(TableMetadata.Columns.collection)
+                ORDER BY COUNT(*) DESC
+                LIMIT 10
                 """
-                let cursor = try Row.fetchCursor(transaction.database, sql: sql)
-                while let row = try cursor.next() {
-                    let collection: String = row[0]
-                    let count: UInt = row[1]
-                    Logger.info("- \(collection): \(count) items")
-                }
-            } catch {
-                Logger.error("\(error)")
+            let cursor = try Row.fetchCursor(tx.database, sql: sql)
+            while let row = try cursor.next() {
+                let collection: String = row[0]
+                let count: UInt = row[1]
+                Logger.info("- \(collection): \(count) items")
             }
+        } catch {
+            Logger.error("\(error)")
         }
     }
 
@@ -447,14 +445,18 @@ public struct KeyValueStore {
         }
     }
 
-    public func getCodableValue<T: Decodable>(forKey key: String, transaction: DBReadTransaction) throws -> T? {
+    public func getCodableValue<T: Decodable>(forKey key: String, failDebugOnParseError: Bool = true, transaction: DBReadTransaction) throws -> T? {
         guard let data = getData(key, transaction: transaction) else {
             return nil
         }
         do {
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
-            owsFailDebug("Failed to decode: \(error).")
+            if failDebugOnParseError {
+                owsFailDebug("Failed to decode: \(error).")
+            } else {
+                Logger.warn("Failed to decode: \(error).")
+            }
             throw error
         }
     }

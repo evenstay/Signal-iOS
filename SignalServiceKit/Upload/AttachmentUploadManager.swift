@@ -39,7 +39,7 @@ public protocol AttachmentUploadManager {
         attachmentId: Attachment.IDType,
         uploadEra: String,
         localAci: Aci,
-        auth: MessageBackupServiceAuth,
+        auth: BackupServiceAuth,
         progress: OWSProgressSink?
     ) async throws
 
@@ -49,7 +49,7 @@ public protocol AttachmentUploadManager {
         attachmentId: Attachment.IDType,
         uploadEra: String,
         localAci: Aci,
-        auth: MessageBackupServiceAuth,
+        auth: BackupServiceAuth,
         progress: OWSProgressSink?
     ) async throws
 }
@@ -98,7 +98,7 @@ extension AttachmentUploadManager {
         attachmentId: Attachment.IDType,
         uploadEra: String,
         localAci: Aci,
-        auth: MessageBackupServiceAuth
+        auth: BackupServiceAuth
     ) async throws {
         try await  uploadMediaTierAttachment(
             attachmentId: attachmentId,
@@ -113,7 +113,7 @@ extension AttachmentUploadManager {
         attachmentId: Attachment.IDType,
         uploadEra: String,
         localAci: Aci,
-        auth: MessageBackupServiceAuth
+        auth: BackupServiceAuth
     ) async throws {
         try await uploadMediaTierThumbnailAttachment(
             attachmentId: attachmentId,
@@ -131,13 +131,12 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
     private let attachmentStore: AttachmentStore
     private let attachmentUploadStore: AttachmentUploadStore
     private let attachmentThumbnailService: AttachmentThumbnailService
-    private let chatConnectionManager: ChatConnectionManager
+    private let backupKeyMaterial: BackupKeyMaterial
+    private let backupRequestManager: BackupRequestManager
     private let dateProvider: DateProvider
     private let db: any DB
     private let fileSystem: Upload.Shims.FileSystem
     private let interactionStore: InteractionStore
-    private let messageBackupKeyMaterial: MessageBackupKeyMaterial
-    private let messageBackupRequestManager: MessageBackupRequestManager
     private let networkManager: NetworkManager
     private let remoteConfigProvider: any RemoteConfigProvider
     private let signalService: OWSSignalServiceProtocol
@@ -149,7 +148,7 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
 
     private enum UploadType {
         case transitTier
-        case mediaTier(auth: MessageBackupServiceAuth, isThumbnail: Bool)
+        case mediaTier(auth: BackupServiceAuth, isThumbnail: Bool)
 
         var sourceType: AttachmentUploadRecord.SourceType {
             switch self {
@@ -167,13 +166,12 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
         attachmentStore: AttachmentStore,
         attachmentUploadStore: AttachmentUploadStore,
         attachmentThumbnailService: AttachmentThumbnailService,
-        chatConnectionManager: ChatConnectionManager,
+        backupKeyMaterial: BackupKeyMaterial,
+        backupRequestManager: BackupRequestManager,
         dateProvider: @escaping DateProvider,
         db: any DB,
         fileSystem: Upload.Shims.FileSystem,
         interactionStore: InteractionStore,
-        messageBackupKeyMaterial: MessageBackupKeyMaterial,
-        messageBackupRequestManager: MessageBackupRequestManager,
         networkManager: NetworkManager,
         remoteConfigProvider: any RemoteConfigProvider,
         signalService: OWSSignalServiceProtocol,
@@ -184,13 +182,12 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
         self.attachmentStore = attachmentStore
         self.attachmentUploadStore = attachmentUploadStore
         self.attachmentThumbnailService = attachmentThumbnailService
-        self.chatConnectionManager = chatConnectionManager
+        self.backupKeyMaterial = backupKeyMaterial
+        self.backupRequestManager = backupRequestManager
         self.dateProvider = dateProvider
         self.db = db
         self.fileSystem = fileSystem
         self.interactionStore = interactionStore
-        self.messageBackupKeyMaterial = messageBackupKeyMaterial
-        self.messageBackupRequestManager = messageBackupRequestManager
         self.networkManager = networkManager
         self.remoteConfigProvider = remoteConfigProvider
         self.signalService = signalService
@@ -248,8 +245,7 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
         let metadata = try attachmentEncrypter.encryptAttachment(at: sourceURL, output: temporaryFile)
         let localMetadata = try Upload.LocalUploadMetadata.validateAndBuild(fileUrl: temporaryFile, metadata: metadata)
         let form = try await Upload.FormRequest(
-            networkManager: networkManager,
-            chatConnectionManager: chatConnectionManager
+            networkManager: networkManager
         ).start()
 
         do {
@@ -300,8 +296,7 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
         }
         let metadata = Upload.LinkNSyncUploadMetadata(fileUrl: sourceURL, encryptedDataLength: dataLength)
         let form = try await Upload.FormRequest(
-            networkManager: networkManager,
-            chatConnectionManager: chatConnectionManager
+            networkManager: networkManager
         ).start()
 
         do {
@@ -352,9 +347,7 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
         )
 
         let wrappedProgress: OWSProgressSink = OWSProgress.createSink { [weak self] progressValue in
-            Task {
-                await self?.updateProgress(id: attachmentId, progress: Double(progressValue.percentComplete))
-            }
+            self?.updateProgress(id: attachmentId, progress: Double(progressValue.percentComplete))
             if let progressSource, progressSource.completedUnitCount < progressValue.completedUnitCount {
                 progressSource.incrementCompletedUnitCount(
                     by: progressValue.completedUnitCount - progressSource.completedUnitCount
@@ -397,7 +390,7 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
         attachmentId: Attachment.IDType,
         uploadEra: String,
         localAci: Aci,
-        auth: MessageBackupServiceAuth,
+        auth: BackupServiceAuth,
         progress: OWSProgressSink?
     ) async throws {
         let logger = PrefixedLogger(prefix: "[MediaTierUpload]", suffix: "[\(attachmentId)]")
@@ -405,7 +398,7 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
             attachmentId: attachmentId,
             type: .mediaTier(auth: auth, isThumbnail: false),
             logger: logger,
-            progress: nil
+            progress: progress
         )
 
         // Read the attachment fresh from the DB
@@ -431,7 +424,7 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
                 result: result,
                 logger: logger
             )
-        } catch let error as MessageBackup.Response.CopyToMediaTierError {
+        } catch let error as BackupArchive.Response.CopyToMediaTierError {
             switch error {
             case .sourceObjectNotFound:
                 if
@@ -482,7 +475,7 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
         attachmentId: Attachment.IDType,
         uploadEra: String,
         localAci: Aci,
-        auth: MessageBackupServiceAuth,
+        auth: BackupServiceAuth,
         progress: OWSProgressSink?
     ) async throws {
         let logger = PrefixedLogger(prefix: "[MediaTierThumbnailUpload]", suffix: "[\(attachmentId)]")
@@ -490,7 +483,7 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
             attachmentId: attachmentId,
             type: .mediaTier(auth: auth, isThumbnail: true),
             logger: logger,
-            progress: nil
+            progress: progress
         )
 
         // Read the attachment fresh from the DB
@@ -663,11 +656,10 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
             switch type {
             case .transitTier:
                 uploadForm = try await Upload.FormRequest(
-                    networkManager: self.networkManager,
-                    chatConnectionManager: self.chatConnectionManager
+                    networkManager: self.networkManager
                 ).start()
             case .mediaTier(let auth, _):
-                uploadForm = try await self.messageBackupRequestManager
+                uploadForm = try await self.backupRequestManager
                     .fetchBackupMediaAttachmentUploadForm(auth: auth)
             }
 
@@ -831,6 +823,11 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
                     plaintextDataLength: stream.unencryptedByteCount,
                     // This is the length from the stream, not the transit tier,
                     // but the length is the same regardless of the key used.
+                    // Note we use this when copying to media tier (the server requires
+                    // the blob length on CDN) which is somewhat brittle if our local
+                    // padding length doesn't match the padding length from the sender
+                    // on CDN. This only becomes a problem if we ever change padding
+                    // values or they drift between clients.
                     encryptedDataLength: stream.encryptedByteCount
                 ))
             } else {
@@ -855,7 +852,7 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
             }
             let fileUrl = fileSystem.temporaryFileUrl()
             let encryptionKey = try db.read { tx in
-                try messageBackupKeyMaterial.mediaEncryptionMetadata(
+                try backupKeyMaterial.mediaEncryptionMetadata(
                     mediaName: mediaName,
                     type: .thumbnail,
                     tx: tx
@@ -985,7 +982,7 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
             try self.attachmentStore.enumerateAllReferences(
                 toAttachmentId: attachmentStream.attachment.id,
                 tx: tx
-            ) { attachmentReference in
+            ) { attachmentReference, _ in
                 switch attachmentReference.owner {
                 case .message(let messageSource):
                     guard
@@ -1026,20 +1023,20 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
         result: Upload.AttachmentResult,
         logger: PrefixedLogger
     ) async throws -> UInt32 {
-        let auth = try await messageBackupRequestManager.fetchBackupServiceAuth(
+        let auth = try await backupRequestManager.fetchBackupServiceAuth(
             for: .media,
             localAci: localAci,
             auth: .implicit()
         )
         let mediaEncryptionMetadata = try db.read { tx in
-            try messageBackupKeyMaterial.mediaEncryptionMetadata(
+            try backupKeyMaterial.mediaEncryptionMetadata(
                 mediaName: mediaName,
                 type: encryptionType,
                 tx: tx
             )
         }
 
-        return try await messageBackupRequestManager.copyToMediaTier(
+        return try await backupRequestManager.copyToMediaTier(
             item: .init(
                 sourceAttachment: .init(
                     cdn: result.cdnNumber,
@@ -1076,7 +1073,7 @@ public actor AttachmentUploadManagerImpl: AttachmentUploadManager {
         return try .validateAndBuild(fileUrl: tmpReencryptedFile, metadata: reencryptedMetadata)
     }
 
-    private func updateProgress(id: Attachment.IDType, progress: Double) {
+    private nonisolated func updateProgress(id: Attachment.IDType, progress: Double) {
         NotificationCenter.default.postOnMainThread(
             name: Upload.Constants.attachmentUploadProgressNotification,
             object: nil,

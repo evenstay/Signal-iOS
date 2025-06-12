@@ -37,11 +37,13 @@ public class MockSSKEnvironment {
         let finalContinuation = await AppSetup().start(
             appContext: testAppContext,
             appReadiness: appReadiness,
+            backupArchiveErrorPresenterFactory: NoOpBackupArchiveErrorPresenterFactory(),
             databaseStorage: try! SDSDatabaseStorage(
                 appReadiness: appReadiness,
                 databaseFileUrl: SDSDatabaseStorage.grdbDatabaseFileUrl,
                 keychainStorage: MockKeychainStorage()
             ),
+            deviceBatteryLevelManager: nil,
             deviceSleepManager: nil,
             paymentsEvents: PaymentsEventsNoop(),
             mobileCoinHelper: MobileCoinHelperMock(),
@@ -49,7 +51,6 @@ public class MockSSKEnvironment {
             currentCallProvider: currentCallProvider,
             notificationPresenter: notificationPresenter,
             incrementalMessageTSAttachmentMigratorFactory: incrementalMessageTSAttachmentMigratorFactory,
-            messageBackupErrorPresenterFactory: NoOpMessageBackupErrorPresenterFactory(),
             testDependencies: testDependencies ?? AppSetup.TestDependencies(
                 contactManager: FakeContactsManager(),
                 groupV2Updates: MockGroupV2Updates(),

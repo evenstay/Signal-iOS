@@ -8,6 +8,7 @@ import GRDB
 import Intents
 import SignalServiceKit
 import SignalUI
+import UIKit
 import WebRTC
 
 enum LaunchPreflightError {
@@ -110,11 +111,15 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     func applicationWillResignActive(_ application: UIApplication) {
         AssertIsOnMainThread()
 
+        Logger.warn("")
+
         if didAppLaunchFail {
             return
         }
 
-        Logger.warn("")
+        appReadiness.runNowOrWhenAppDidBecomeReadySync {
+            self.refreshConnection(isAppActive: false)
+        }
 
         clearAppropriateNotificationsAndRestoreBadgeCount()
 
@@ -183,6 +188,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
         MessageFetchBGRefreshTask.register(appReadiness: appReadiness)
 
+        let deviceBatteryLevelManager = DeviceBatteryLevelManagerImpl()
         let deviceSleepManager = DeviceSleepManagerImpl()
         let keychainStorage = KeychainStorageImpl(isUsingProductionService: TSConstants.isUsingProductionService)
         let deviceTransferService = DeviceTransferService(
@@ -236,7 +242,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         // may happen immediately, after a short delay, or never.)
         if let remoteNotification = launchOptions?[.remoteNotification] as? [AnyHashable: Any] {
             Logger.info("Application was launched by tapping a push notification.")
-            processRemoteNotification(remoteNotification, completion: {})
+            Task {
+                try await processRemoteNotification(remoteNotification)
+            }
         }
 
         // Do this even if `appVersion` isn't used -- there's side effects.
@@ -255,6 +263,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         let launchContext = LaunchContext(
             appContext: mainAppContext,
             databaseStorage: databaseStorage,
+            deviceBatteryLevelManager: deviceBatteryLevelManager,
             deviceSleepManager: deviceSleepManager,
             keychainStorage: keychainStorage,
             launchStartedAt: launchStartedAt,
@@ -311,6 +320,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         attachmentValidationRunner.registerBGProcessingTask(appReadiness: appReadiness)
 
         let databaseMigratorRunner = LazyDatabaseMigratorRunner(
+            backgroundMessageFetcherFactory: { DependenciesBridge.shared.backgroundMessageFetcherFactory },
             databaseStorage: databaseStorage,
             remoteConfigManager: { SSKEnvironment.shared.remoteConfigManagerRef },
             tsAccountManager: { DependenciesBridge.shared.tsAccountManager }
@@ -368,6 +378,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     private struct LaunchContext {
         var appContext: MainAppContext
         var databaseStorage: SDSDatabaseStorage
+        var deviceBatteryLevelManager: DeviceBatteryLevelManagerImpl
         var deviceSleepManager: DeviceSleepManagerImpl
         var keychainStorage: any KeychainStorage
         var launchStartedAt: CFTimeInterval
@@ -411,15 +422,16 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         let databaseContinuation = AppSetup().start(
             appContext: launchContext.appContext,
             appReadiness: appReadiness,
+            backupArchiveErrorPresenterFactory: BackupArchiveErrorPresenterFactoryInternal(),
             databaseStorage: launchContext.databaseStorage,
+            deviceBatteryLevelManager: launchContext.deviceBatteryLevelManager,
             deviceSleepManager: launchContext.deviceSleepManager,
             paymentsEvents: PaymentsEventsMainApp(),
             mobileCoinHelper: MobileCoinHelperSDK(),
             callMessageHandler: WebRTCCallMessageHandler(),
             currentCallProvider: currentCall,
             notificationPresenter: NotificationPresenterImpl(),
-            incrementalMessageTSAttachmentMigratorFactory: launchContext.incrementalMessageTSAttachmentMigratorFactory,
-            messageBackupErrorPresenterFactory: MessageBackupErrorPresenterFactoryInternal()
+            incrementalMessageTSAttachmentMigratorFactory: launchContext.incrementalMessageTSAttachmentMigratorFactory
         )
         setupNSEInteroperation()
         SUIEnvironment.shared.setUp(
@@ -450,7 +462,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         }
 
         let progressSink = OWSProgress.createSink { [weak loadingViewController] progress in
-            Task {
+            await MainActor.run {
                 loadingViewController?.updateProgress(progress)
             }
         }
@@ -502,12 +514,15 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             name: .nseDidReceiveNotification,
             queue: DispatchQueue.global(qos: .userInitiated)
         ) { token in
-            // Immediately let the NSE know we will handle this notification so that it
-            // does not attempt to process messages while we are active.
-            DarwinNotificationCenter.postNotification(name: .mainAppHandledNotification)
-
             appReadiness.runNowOrWhenAppDidBecomeReadySync {
-                _ = SSKEnvironment.shared.messageFetcherJobRef.run()
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let chatConnectionManager = DependenciesBridge.shared.chatConnectionManager
+                    if chatConnectionManager.shouldWaitForSocketToMakeRequest(connectionType: .identified) {
+                        // Immediately let the NSE know we will handle this notification so that it
+                        // does not attempt to process messages while we are active.
+                        DarwinNotificationCenter.postNotification(name: .mainAppHandledNotification)
+                    }
+                }
             }
         }
     }
@@ -545,13 +560,17 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             hasInProgressRegistration = false
         }
 
-        switch finalContinuation.setUpLocalIdentifiers(willResumeInProgressRegistration: hasInProgressRegistration) {
+        switch finalContinuation.setUpLocalIdentifiers(
+            willResumeInProgressRegistration: hasInProgressRegistration,
+            canInitiateRegistration: true
+        ) {
         case .corruptRegistrationState:
             let viewController = terminalErrorViewController()
             window.rootViewController = viewController
             presentLaunchFailureActionSheet(
                 from: viewController,
                 supportTag: "CorruptRegistrationState",
+                logDumper: .fromGlobals(),
                 title: OWSLocalizedString(
                     "APP_LAUNCH_FAILURE_CORRUPT_REGISTRATION_TITLE",
                     comment: "Title for an error indicating that the app couldn't launch because some unexpected error happened with the user's registration status."
@@ -715,17 +734,32 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             return registrationState
         }
 
+        // Fetch messages as soon as possible after launching. In particular, when
+        // launching from the background, without this, we end up waiting some extra
+        // seconds before receiving an actionable push notification.
+        if !appContext.isMainAppAndActive {
+            self.refreshConnection(isAppActive: false)
+        }
+
         if tsRegistrationState.isRegistered {
             // This should happen at any launch, background or foreground.
             SyncPushTokensJob.run()
         }
 
         if tsRegistrationState.isRegistered {
-            APNSRotationStore.rotateIfNeededOnAppLaunchAndReadiness(performRotation: {
-                SyncPushTokensJob.run(mode: .rotateIfEligible)
-            }).map {
-                // If the method returns a closure, run it after message processing.
-                _ = SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing().done($0)
+            Task {
+                do {
+                    try await APNSRotationStore.rotateIfNeededOnAppLaunchAndReadiness(
+                        waitForFetchingAndProcessing: { () async throws(CancellationError) -> Void in
+                            try await SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing()
+                        },
+                        performRotation: {
+                            try await SyncPushTokensJob(mode: .rotateIfEligible).run()
+                        }
+                    )
+                } catch {
+                    Logger.warn("\(error)")
+                }
             }
         }
 
@@ -1026,6 +1060,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         presentLaunchFailureActionSheet(
             from: viewController,
             supportTag: preflightError.supportTag,
+            logDumper: .preLaunch(),
             title: title,
             message: message,
             actions: actions
@@ -1081,6 +1116,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         presentLaunchFailureActionSheet(
             from: viewController,
             supportTag: LaunchPreflightError.databaseUnrecoverablyCorrupted.supportTag,
+            logDumper: .preLaunch(),
             title: OWSLocalizedString(
                 "APP_LAUNCH_FAILURE_COULD_NOT_LOAD_DATABASE",
                 comment: "Error indicating that the app could not launch because the database could not be loaded."
@@ -1103,6 +1139,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     private func presentLaunchFailureActionSheet(
         from viewController: UIViewController,
         supportTag: String,
+        logDumper: DebugLogDumper,
         title: String,
         message: String,
         actions: [LaunchFailureActionSheetAction]
@@ -1115,6 +1152,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                     self.presentLaunchFailureActionSheet(
                         from: viewController,
                         supportTag: supportTag,
+                        logDumper: logDumper,
                         title: title,
                         message: message,
                         actions: actions
@@ -1147,20 +1185,20 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             switch action {
             case .submitDebugLogsAndCrash:
                 addSubmitDebugLogsAction {
-                    DebugLogs.submitLogsWithSupportTag(supportTag) {
+                    DebugLogs.submitLogs(supportTag: supportTag, dumper: logDumper) {
                         owsFail("Exiting after submitting debug logs")
                     }
                 }
             case .submitDebugLogsAndLaunchApp(let window, let launchContext):
                 addSubmitDebugLogsAction { [unowned window] in
-                    DebugLogs.submitLogsWithSupportTag(supportTag) {
+                    DebugLogs.submitLogs(supportTag: supportTag, dumper: logDumper) {
                         ignoreErrorAndLaunchApp(in: window, launchContext: launchContext)
                     }
                 }
             case .submitDebugLogsWithDatabaseIntegrityCheckAndCrash(let databaseStorage):
                 addSubmitDebugLogsAction { [unowned viewController] in
                     SignalApp.showDatabaseIntegrityCheckUI(from: viewController, databaseStorage: databaseStorage) {
-                        DebugLogs.submitLogsWithSupportTag(supportTag) {
+                        DebugLogs.submitLogs(supportTag: supportTag, dumper: logDumper) {
                             owsFail("Exiting after submitting debug logs")
                         }
                     }
@@ -1241,16 +1279,19 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             }
         }
 
+        refreshConnection(isAppActive: true)
+
         // Every time we become active...
         if tsRegistrationState.isRegistered {
+            // TODO: Should we run this immediately even if we would like to process already decrypted envelopes handed to us by the NSE?
+            Task {
+                await SSKEnvironment.shared.groupMessageProcessorManagerRef.startAllProcessors()
+            }
+
             // At this point, potentially lengthy DB locking migrations could be running.
             // Avoid blocking app launch by putting all further possible DB access in async block
             DispatchQueue.main.async {
                 SSKEnvironment.shared.contactManagerImplRef.fetchSystemContactsOnceIfAlreadyAuthorized()
-
-                // TODO: Should we run this immediately even if we would like to process
-                // already decrypted envelopes handed to us by the NSE?
-                _ = SSKEnvironment.shared.messageFetcherJobRef.run()
 
                 if !UIApplication.shared.isRegisteredForRemoteNotifications {
                     Logger.info("Retrying to register for remote notifications since user hasn't registered yet.")
@@ -1267,6 +1308,57 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         // [UIApplicationDelegate applicationDidBecomeActive:] is complete.
         let identityManager = DependenciesBridge.shared.identityManager
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { identityManager.tryToSyncQueuedVerificationStates() }
+    }
+
+    // MARK: - Connections & Fetching
+
+    /// Tokens to keep the web socket open when the app is in the foreground.
+    private var activeConnectionTokens = [OWSChatConnection.ConnectionToken]()
+
+    /// A background fetching task that keeps the web socket open while the app
+    /// is in the background.
+    private var backgroundFetchHandle: BackgroundTaskHandle?
+
+    private func refreshConnection(isAppActive: Bool) {
+        let chatConnectionManager = DependenciesBridge.shared.chatConnectionManager
+
+        let oldActiveConnectionTokens = self.activeConnectionTokens
+        if isAppActive {
+            // If we're active, open a connection.
+            self.activeConnectionTokens = chatConnectionManager.requestConnections(shouldReconnectIfConnectedElsewhere: true)
+            oldActiveConnectionTokens.forEach { $0.releaseConnection() }
+
+            // We're back in the foreground. We've passed off connection management to
+            // the foreground logic, so just tear it down without waiting for anything.
+            self.backgroundFetchHandle?.interrupt()
+            self.backgroundFetchHandle = nil
+        } else {
+            let backgroundFetcher = DependenciesBridge.shared.backgroundMessageFetcherFactory.buildFetcher(useWebSocket: true)
+            self.activeConnectionTokens = []
+            self.backgroundFetchHandle?.interrupt()
+            let startDate = MonotonicDate()
+            self.backgroundFetchHandle = UIApplication.shared.beginBackgroundTask(
+                backgroundBlock: {
+                    do {
+                        await backgroundFetcher.start()
+                        oldActiveConnectionTokens.forEach { $0.releaseConnection() }
+                        // This will usually be limited to 30 seconds rather than 3 minutes.
+                        try await backgroundFetcher.waitUntil(deadline: startDate.adding(180))
+                    } catch {
+                        // We were canceled, either because we entered the foreground or our
+                        // background execution time expired.
+                    }
+                },
+                completionHandler: { result in
+                    switch result {
+                    case .finished, .interrupted:
+                        await backgroundFetcher.reset()
+                    case .expired:
+                        await backgroundFetcher.stopAndWaitBeforeSuspending()
+                    }
+                },
+            )
+        }
     }
 
     // MARK: - Orientation
@@ -1327,16 +1419,21 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             Logger.info("")
         }
 
-        // Mark down that the APNS token is working because we got a push.
-        appReadiness.runNowOrWhenAppDidBecomeReadyAsync {
-            SSKEnvironment.shared.databaseStorageRef.asyncWrite { tx in
-                APNSRotationStore.didReceiveAPNSPush(transaction: tx)
-            }
-        }
-
-        processRemoteNotification(userInfo) {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
+        Task {
+            defer {
+                // TODO: Report the actual outcome.
                 completionHandler(.newData)
+            }
+            try await withCooperativeTimeout(seconds: 27) {
+                try await self.appReadiness.waitForAppReady()
+
+                // Mark down that the APNS token is working because we got a push.
+                let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+                async let _ = databaseStorage.awaitableWrite { tx in
+                    APNSRotationStore.didReceiveAPNSPush(transaction: tx)
+                }
+
+                try await self.processRemoteNotification(userInfo)
             }
         }
     }
@@ -1347,38 +1444,43 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     // TODO: NSE Lifecycle, is this invoked when the NSE wakes the main app?
-    private func processRemoteNotification(_ remoteNotification: [AnyHashable: Any], completion: @escaping () -> Void) {
-        AssertIsOnMainThread()
-
-        appReadiness.runNowOrWhenAppDidBecomeReadySync {
-            // TODO: Wait to invoke this until we've finished fetching messages.
-            defer { completion() }
-
-            switch self.handleSilentPushContent(remoteNotification) {
-            case .handled:
-                break
-            case .notHandled:
-                let tsAccountManager = DependenciesBridge.shared.tsAccountManager
-                guard tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
-                    Logger.info("Ignoring remote notification; user is not registered.")
-                    return
-                }
-                _ = SSKEnvironment.shared.messageFetcherJobRef.run()
+    private nonisolated func processRemoteNotification(_ remoteNotification: [AnyHashable: Any]) async throws {
+        try await self.appReadiness.waitForAppReady()
+        switch try await self.handleSilentPushContent(remoteNotification) {
+        case .handled:
+            break
+        case .notHandled:
+            let tsAccountManager = DependenciesBridge.shared.tsAccountManager
+            guard tsAccountManager.registrationStateWithMaybeSneakyTransaction.isRegistered else {
+                Logger.info("Ignoring remote notification; user is not registered.")
+                return
+            }
+            let backgroundMessageFetcher = DependenciesBridge.shared.backgroundMessageFetcherFactory.buildFetcher(useWebSocket: true)
+            await backgroundMessageFetcher.start()
+            let result = await Result(catching: {
                 // If the main app gets woken to process messages in the background, check
                 // for any pending NSE requests to fulfill.
-                _ = SSKEnvironment.shared.syncManagerRef.syncAllContactsIfFullSyncRequested()
-            }
+                async let _ = SSKEnvironment.shared.syncManagerRef.syncAllContactsIfFullSyncRequested().awaitable()
+
+                try await backgroundMessageFetcher.waitForFetchingProcessingAndSideEffects()
+            })
+            await backgroundMessageFetcher.stopAndWaitBeforeSuspending()
+            try result.get()
         }
     }
 
-    private func handleSilentPushContent(_ remoteNotification: [AnyHashable: Any]) -> HandleSilentPushContentResult {
+    private nonisolated func handleSilentPushContent(_ remoteNotification: [AnyHashable: Any]) async throws -> HandleSilentPushContentResult {
         if let spamChallengeToken = remoteNotification["rateLimitChallenge"] as? String {
             SSKEnvironment.shared.spamChallengeResolverRef.handleIncomingPushChallengeToken(spamChallengeToken)
+            // TODO: Wait only until the token has been submitted.
+            try await Task.sleep(nanoseconds: 20.clampedNanoseconds)
             return .handled
         }
 
         if let preAuthChallengeToken = remoteNotification["challenge"] as? String {
             AppEnvironment.shared.pushRegistrationManagerRef.didReceiveVanillaPreAuthChallengeToken(preAuthChallengeToken)
+            // TODO: Wait only until the token has been submitted.
+            try await Task.sleep(nanoseconds: 20.clampedNanoseconds)
             return .handled
         }
 

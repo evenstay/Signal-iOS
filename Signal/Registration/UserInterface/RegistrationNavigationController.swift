@@ -72,12 +72,10 @@ public class RegistrationNavigationController: OWSNavigationController {
 
     private func _pushNextController(_ step: Guarantee<RegistrationStep>) {
         isLoading = true
-        step.done(on: DispatchQueue.main) { [weak self] step in
+        Task { @MainActor [self] in
+            let step = await step.awaitable()
             Logger.info("Pushing registration step: \(step.logSafeString)")
 
-            guard let self else {
-                return
-            }
             self.isLoading = false
             guard let controller = self.controller(for: step) else {
                 Logger.info("No controller for \(step.logSafeString)")
@@ -98,18 +96,46 @@ public class RegistrationNavigationController: OWSNavigationController {
                     }
                 }
             }
-            Logger.info("Pushing controller for \(step.logSafeString)")
+
             // If we got here, there were no matches and we should push.
             let vc = controllerToPush ?? controller.makeViewController(self)
+
+            if
+                controller.canCancel,
+                !self.viewControllers.contains(where: { $0 is RegistrationSplashViewController })
+            {
+                // Cancellable controllers need to have a splash view behind
+                Logger.info("Pushing splash view and controller for \(step.logSafeString)")
+                let splashController = self.registrationSplashController()
+                let newViewControllers = [splashController.makeViewController(self), vc]
+                self.setViewControllers(self.viewControllers + newViewControllers, animated: true)
+                return
+            }
+
+            Logger.info("Pushing controller for \(step.logSafeString)")
             self.pushViewController(vc, animated: true, completion: nil)
         }
     }
 
     private struct Controller<T: UIViewController>: AnyController {
-        let type: T.Type
+        private let type: T.Type
+        // If a controller can cancel, then it needs to have a splash screen behind it to go back to
+        let canCancel: Bool
         let make: (RegistrationNavigationController) -> UIViewController
         // Return a new controller to push, or nil if it should reuse the same controller.
         let update: ((T) -> T?)?
+
+        init(
+            type: T.Type,
+            canCancel: Bool = false,
+            make: @escaping (RegistrationNavigationController) -> UIViewController,
+            update: ((T) -> T?)?
+        ) {
+            self.type = type
+            self.canCancel = canCancel
+            self.make = make
+            self.update = update
+        }
 
         var viewType: UIViewController.Type { T.self }
 
@@ -129,17 +155,21 @@ public class RegistrationNavigationController: OWSNavigationController {
         }
     }
 
+    private func registrationSplashController() -> Controller<RegistrationSplashViewController> {
+        Controller(
+            type: RegistrationSplashViewController.self,
+            make: { presenter in
+                return RegistrationSplashViewController(presenter: presenter)
+            },
+            // No state to update.
+            update: nil
+        )
+    }
+
     private func controller(for step: RegistrationStep) -> AnyController? {
         switch step {
         case .registrationSplash:
-            return Controller(
-                type: RegistrationSplashViewController.self,
-                make: { presenter in
-                    return RegistrationSplashViewController(presenter: presenter)
-                },
-                // No state to update.
-                update: nil
-            )
+            return self.registrationSplashController()
         case .changeNumberSplash:
             return Controller(
                 type: RegistrationChangeNumberSplashViewController.self,
@@ -163,6 +193,7 @@ public class RegistrationNavigationController: OWSNavigationController {
         case .scanQuickRegistrationQrCode:
             return Controller(
                 type: RegistrationQuickRestoreQRCodeViewController.self,
+                canCancel: true,
                 make: { presenter in
                     return RegistrationQuickRestoreQRCodeViewController(
                         presenter: presenter
@@ -176,6 +207,7 @@ public class RegistrationNavigationController: OWSNavigationController {
             case .registration(let registrationMode):
                 return Controller(
                     type: RegistrationPhoneNumberViewController.self,
+                    canCancel: true,
                     make: { presenter in
                         return RegistrationPhoneNumberViewController(state: registrationMode, presenter: presenter)
                     },
@@ -301,6 +333,23 @@ public class RegistrationNavigationController: OWSNavigationController {
                 },
                 update: nil
             )
+        case .confirmRestoreFromBackup(let state):
+            return Controller(
+                type: RegistrationRestoreFromBackupConfirmationViewController.self,
+                make: { presenter in
+                    return RegistrationRestoreFromBackupConfirmationViewController(state: state, presenter: presenter)
+                },
+                update: nil
+            )
+        case .deviceTransfer(let state):
+            return Controller(
+                type: RegistrationTransferStatusViewController.self,
+                make: { presenter in
+                    return RegistrationTransferStatusViewController(state: state, presenter: presenter)
+                },
+                // No state to update.
+                update: nil
+            )
         case .phoneNumberDiscoverability(let state):
             return Controller(
                 type: RegistrationPhoneNumberDiscoverabilityViewController.self,
@@ -320,9 +369,9 @@ public class RegistrationNavigationController: OWSNavigationController {
             )
         case .enterBackupKey:
             return Controller(
-                type: RegistrationEnterBackupKeyViewController.self,
+                type: RegistrationEnterAccountEntropyPoolViewController.self,
                 make: { presenter in
-                    return RegistrationEnterBackupKeyViewController(presenter: presenter)
+                    return RegistrationEnterAccountEntropyPoolViewController(presenter: presenter)
                 },
                 // No state to update.
                 update: nil
@@ -414,7 +463,7 @@ public class RegistrationNavigationController: OWSNavigationController {
 
     @objc
     private func didRequestToSubmitDebugLogs() {
-        DebugLogs.submitLogsWithSupportTag("Registration")
+        DebugLogs.submitLogs(supportTag: "Registration", dumper: .fromGlobals())
     }
 }
 
@@ -544,12 +593,24 @@ extension RegistrationNavigationController: RegistrationTransferChoicePresenter 
 
     public func transferDevice() {
         Logger.info("Pushing device transfer")
-        // We push these controllers right onto the same navigation stack, even though they
-        // are not coordinator "steps". They have their own internal logic to proceed and go
-        // back (direct calls to push and pop) and, when they complete, they will have _totally_
-        // overwritten our local database, thus wiping any in progress reg coordinator state
-        // and putting us into the chat list.
-        pushViewController(RegistrationTransferQRCodeViewController(), animated: true, completion: nil)
+
+        do {
+            // TODO: [Backups] - Don't reach into app environment, but this should be removed
+            // once Backups launches
+            let url = try AppEnvironment.shared.deviceTransferServiceRef.startAcceptingTransfersFromOldDevices(
+                mode: .primary
+            )
+
+            // We push these controllers right onto the same navigation stack, even though they
+            // are not coordinator "steps". They have their own internal logic to proceed and go
+            // back (direct calls to push and pop) and, when they complete, they will have _totally_
+            // overwritten our local database, thus wiping any in progress reg coordinator state
+            // and putting us into the chat list.
+            pushViewController(RegistrationTransferQRCodeViewController(url: url), animated: true, completion: nil)
+        } catch {
+            // TODO: [Backups] - update this error handling
+            Logger.error("Error transferring")
+        }
     }
 
     func continueRegistration() {
@@ -600,22 +661,22 @@ extension RegistrationNavigationController: RegistrationReglockTimeoutPresenter 
     }
 }
 
-extension RegistrationNavigationController: RegistrationEnterBackupKeyPresenter {
+extension RegistrationNavigationController: RegistrationEnterAccountEntropyPoolPresenter {
     func next(accountEntropyPool: AccountEntropyPool) {
         let guarantee = coordinator.updateAccountEntropyPool(accountEntropyPool)
+        pushNextController(guarantee)
+    }
+
+    func cancelKeyEntry() {
+        let guarantee = coordinator.resetRestoreMethodChoice()
         pushNextController(guarantee)
     }
 }
 
 extension RegistrationNavigationController: RegistrationChooseRestoreMethodPresenter {
     func didChooseRestoreMethod(method: RegistrationRestoreMethod) {
-        switch method {
-        case .deviceTransfer:
-            transferDevice()
-        case .declined, .local, .remote:
-            let guarantee = coordinator.updateRestoreMethod(method: method)
-            pushNextController(guarantee)
-        }
+        let guarantee = coordinator.updateRestoreMethod(method: method)
+        pushNextController(guarantee)
     }
 }
 
@@ -625,12 +686,29 @@ extension RegistrationNavigationController: RegistrationQuickRestoreQRCodePresen
         pushNextController(guarantee)
     }
 
-    func cancel() {
-        // TODO [Quick Restore]: Pop back to the very first screen in the flow (splash).
+    func cancelChosenRestoreMethod() {
+        let guarantee = coordinator.resetRestoreMethodChoice()
+        pushNextController(guarantee)
+    }
+}
+
+extension RegistrationNavigationController: RegistrationTransferStatusPresenter {
+    func cancelTransfer() {
+        let guarantee = coordinator.resetRestoreMethodChoice()
+        pushNextController(guarantee)
+    }
+}
+
+extension RegistrationNavigationController: RegistrationRestoreFromBackupConfirmationPresenter {
+    func restoreFromBackupConfirmed() {
+        let guarantee = coordinator.confirmRestoreFromBackup()
+        pushNextController(guarantee)
     }
 }
 
 private protocol AnyController {
+
+    var canCancel: Bool { get }
 
     var viewType: UIViewController.Type { get }
 

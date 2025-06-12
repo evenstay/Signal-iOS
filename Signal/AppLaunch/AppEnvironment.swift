@@ -31,12 +31,15 @@ public class AppEnvironment: NSObject {
 
     private(set) var appIconBadgeUpdater: AppIconBadgeUpdater!
     private(set) var avatarHistoryManager: AvatarHistoryManager!
+    private(set) var backupDisablingManager: BackupDisablingManager!
+    private(set) var backupEnablingManager: BackupEnablingManager!
     private(set) var badgeManager: BadgeManager!
     private(set) var callLinkProfileKeySharingManager: CallLinkProfileKeySharingManager!
     private(set) var callService: CallService!
+    private(set) var outgoingDeviceRestorePresenter: OutgoingDeviceRestorePresenter!
     private(set) var provisioningManager: ProvisioningManager!
     private(set) var quickRestoreManager: QuickRestoreManager!
-    private var usernameValidationObserverRef: UsernameValidationObserver!
+    private var usernameValidationObserver: UsernameValidationObserver!
 
     init(appReadiness: AppReadiness, deviceTransferService: DeviceTransferService) {
         self.deviceTransferServiceRef = deviceTransferService
@@ -48,17 +51,21 @@ public class AppEnvironment: NSObject {
     }
 
     func setUp(appReadiness: AppReadiness, callService: CallService) {
-        let bridge = DependenciesBridge.shared
-
+        let backupSettingsStore = BackupSettingsStore()
+        let backupDisablingManager = BackupDisablingManager(
+            backupIdManager: DependenciesBridge.shared.backupIdManager,
+            backupSettingsStore: BackupSettingsStore(),
+            db: DependenciesBridge.shared.db,
+            tsAccountManager: DependenciesBridge.shared.tsAccountManager,
+        )
         let badgeManager = BadgeManager(
             databaseStorage: SSKEnvironment.shared.databaseStorageRef,
             mainScheduler: DispatchQueue.main,
             serialScheduler: DispatchQueue.sharedUtility
         )
-
         let deviceProvisioningService = DeviceProvisioningServiceImpl(
             networkManager: SSKEnvironment.shared.networkManagerRef,
-            schedulers: bridge.schedulers
+            schedulers: DependenciesBridge.shared.schedulers
         )
 
         self.appIconBadgeUpdater = AppIconBadgeUpdater(badgeManager: badgeManager)
@@ -67,37 +74,49 @@ public class AppEnvironment: NSObject {
             db: DependenciesBridge.shared.db
         )
         self.badgeManager = badgeManager
+        self.backupDisablingManager = backupDisablingManager
+        self.backupEnablingManager = BackupEnablingManager(
+            backupDisablingManager: backupDisablingManager,
+            backupIdManager: DependenciesBridge.shared.backupIdManager,
+            backupSettingsStore: BackupSettingsStore(),
+            backupSubscriptionManager: DependenciesBridge.shared.backupSubscriptionManager,
+            db: DependenciesBridge.shared.db,
+            tsAccountManager: DependenciesBridge.shared.tsAccountManager,
+        )
         self.callService = callService
         self.callLinkProfileKeySharingManager = CallLinkProfileKeySharingManager(
             db: DependenciesBridge.shared.db,
             accountManager: DependenciesBridge.shared.tsAccountManager
         )
-
         self.provisioningManager = ProvisioningManager(
-            accountKeyStore: bridge.accountKeyStore,
-            db: bridge.db,
-            deviceManager: bridge.deviceManager,
+            accountKeyStore: DependenciesBridge.shared.accountKeyStore,
+            db: DependenciesBridge.shared.db,
+            deviceManager: DependenciesBridge.shared.deviceManager,
             deviceProvisioningService: deviceProvisioningService,
-            identityManager: bridge.identityManager,
-            linkAndSyncManager: bridge.linkAndSyncManager,
+            identityManager: DependenciesBridge.shared.identityManager,
+            linkAndSyncManager: DependenciesBridge.shared.linkAndSyncManager,
             profileManager: ProvisioningManager.Wrappers.ProfileManager(SSKEnvironment.shared.profileManagerRef),
             receiptManager: ProvisioningManager.Wrappers.ReceiptManager(SSKEnvironment.shared.receiptManagerRef),
-            tsAccountManager: bridge.tsAccountManager
+            tsAccountManager: DependenciesBridge.shared.tsAccountManager
         )
-
         self.quickRestoreManager = QuickRestoreManager(
-            accountKeyStore: bridge.accountKeyStore,
-            db: bridge.db,
+            accountKeyStore: DependenciesBridge.shared.accountKeyStore,
+            backupSettingsStore: backupSettingsStore,
+            db: DependenciesBridge.shared.db,
             deviceProvisioningService: deviceProvisioningService,
+            identityManager: DependenciesBridge.shared.identityManager,
             networkManager: SSKEnvironment.shared.networkManagerRef,
-            tsAccountManager: bridge.tsAccountManager,
-            twoFAManager: SSKEnvironment.shared.ows2FAManagerRef
+            tsAccountManager: DependenciesBridge.shared.tsAccountManager
+        )
+        self.usernameValidationObserver = UsernameValidationObserver(
+            appReadiness: appReadiness,
+            manager: DependenciesBridge.shared.usernameValidationManager,
+            database: DependenciesBridge.shared.db
         )
 
-        self.usernameValidationObserverRef = UsernameValidationObserver(
-            appReadiness: appReadiness,
-            manager: bridge.usernameValidationManager,
-            database: bridge.db
+        self.outgoingDeviceRestorePresenter = OutgoingDeviceRestorePresenter(
+            deviceTransferService: deviceTransferServiceRef,
+            quickRestoreManager: quickRestoreManager
         )
 
         appReadiness.runNowOrWhenAppWillBecomeReady {
@@ -144,6 +163,7 @@ public class AppEnvironment: NSObject {
                 return tsAccountManager.registrationState(tx: tx).isRegisteredPrimaryDevice
             }
 
+            // Things that should run on only the primary *or* linked devices.
             if isPrimaryDevice {
                 Task {
                     do {
@@ -167,23 +187,33 @@ public class AppEnvironment: NSObject {
                 }
             }
 
-            db.asyncWrite { tx in
-                masterKeySyncManager.runStartupJobs(tx: tx)
+            Task {
+                await db.awaitableWrite { tx in
+                    masterKeySyncManager.runStartupJobs(tx: tx)
+                }
             }
 
-            db.asyncWrite { tx in
-                groupCallRecordRingingCleanupManager.cleanupRingingCalls(tx: tx)
+            Task {
+                await db.awaitableWrite { tx in
+                    groupCallRecordRingingCleanupManager.cleanupRingingCalls(tx: tx)
+                }
             }
 
-            DispatchQueue.global().async {
-                self.avatarHistoryManager.cleanupOrphanedImages()
+            Task {
+                await deletedCallRecordCleanupManager.startCleanupIfNecessary()
+            }
+
+            Task { () async -> Void in
+                try? await self.backupDisablingManager.disableRemotelyIfNecessary()
+            }
+
+            Task {
+                await self.avatarHistoryManager.cleanupOrphanedImages()
             }
 
             Task {
                 await inactiveLinkedDeviceFinder.refreshLinkedDeviceStateIfNecessary()
             }
-
-            deletedCallRecordCleanupManager.startCleanupIfNecessary()
 
             Task {
                 do {

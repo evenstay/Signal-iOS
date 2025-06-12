@@ -206,7 +206,7 @@ public final class StoryMessage: NSObject, SDSCodableModel, Decodable {
     ) throws -> StoryMessage? {
         Logger.info("Processing StoryMessage from \(author) with timestamp \(timestamp)")
 
-        let groupId: Data?
+        let groupId: GroupIdentifier?
         if let masterKey = storyMessage.group?.masterKey {
             let groupContext = try GroupV2ContextInfo.deriveFrom(masterKeyData: masterKey)
             groupId = groupContext.groupId
@@ -214,7 +214,7 @@ public final class StoryMessage: NSObject, SDSCodableModel, Decodable {
             groupId = nil
         }
 
-        if let groupId = groupId, SSKEnvironment.shared.blockingManagerRef.isGroupIdBlocked(groupId, transaction: transaction) {
+        if let groupId = groupId, SSKEnvironment.shared.blockingManagerRef.isGroupIdBlocked(groupId.serialize().asData, transaction: transaction) {
             Logger.warn("Ignoring StoryMessage in blocked group.")
             return nil
         } else {
@@ -284,7 +284,7 @@ public final class StoryMessage: NSObject, SDSCodableModel, Decodable {
         let record = StoryMessage(
             timestamp: timestamp,
             authorAci: author,
-            groupId: groupId,
+            groupId: groupId?.serialize().asData,
             manifest: manifest,
             attachment: attachment,
             replyCount: replyCount
@@ -320,7 +320,7 @@ public final class StoryMessage: NSObject, SDSCodableModel, Decodable {
             throw OWSAssertionError("Missing story message on transcript")
         }
 
-        let groupId: Data?
+        let groupId: GroupIdentifier?
         if let masterKey = storyMessage.group?.masterKey {
             let groupContext = try GroupV2ContextInfo.deriveFrom(masterKeyData: masterKey)
             groupId = groupContext.groupId
@@ -399,7 +399,7 @@ public final class StoryMessage: NSObject, SDSCodableModel, Decodable {
         let record = StoryMessage(
             timestamp: proto.timestamp,
             authorAci: authorAci,
-            groupId: groupId,
+            groupId: groupId?.serialize().asData,
             manifest: manifest,
             attachment: attachment,
             replyCount: replyCount
@@ -837,7 +837,7 @@ public final class StoryMessage: NSObject, SDSCodableModel, Decodable {
             // longer access it from any contexts. We also need to make sure we
             // only delete it for ourselves if nobody has access remaining.
             var hasRemainingRecipients = false
-            var skippedRecipients = Set<SignalServiceAddress>()
+            var skippedRecipients = Set<ServiceId>()
 
             guard let threadUuid = UUID(uuidString: thread.uniqueId) else {
                 return owsFailDebug("Thread has invalid uniqueId \(thread.logString)")
@@ -852,7 +852,7 @@ public final class StoryMessage: NSObject, SDSCodableModel, Decodable {
                     // This recipient still has access via other contexts, so
                     // don't send them the delete message yet!
                     if !state.contexts.isEmpty {
-                        skippedRecipients.insert(SignalServiceAddress(serviceId))
+                        skippedRecipients.insert(serviceId)
                     }
                 }
 
@@ -863,7 +863,7 @@ public final class StoryMessage: NSObject, SDSCodableModel, Decodable {
             let deleteMessage = TSOutgoingDeleteMessage(
                 thread: thread,
                 storyMessage: self,
-                skippedRecipients: Array(skippedRecipients),
+                skippedRecipients: skippedRecipients.map { ServiceIdObjC.wrapValue($0) },
                 transaction: transaction
             )
             let preparedDeleteMessage = PreparedOutgoingMessage.preprepared(

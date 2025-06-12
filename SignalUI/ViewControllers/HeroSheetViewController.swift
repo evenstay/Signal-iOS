@@ -21,34 +21,74 @@ public class HeroSheetViewController: StackSheetViewController {
         )
     }
 
+    public enum Element {
+        case button(Button)
+        case hero(Hero)
+    }
+
     public struct Button {
         public enum Action {
             case dismiss
-            case custom(() -> Void)
+            case custom((HeroSheetViewController) -> Void)
+        }
+
+        public enum Style {
+            case primary
+            case secondary
         }
 
         fileprivate let title: String
         fileprivate let action: Action
+        fileprivate let style: Style
 
-        private init(title: String, action: Action) {
+        public init(title: String, style: Style = .primary, action: Action) {
             self.title = title
+            self.style = style
             self.action = action
         }
 
-        public init(title: String, action: @escaping () -> Void) {
+        public init(title: String, action: @escaping (_: HeroSheetViewController) -> Void) {
             self.init(title: title, action: .custom(action))
         }
 
-        public static func dismissing(title: String) -> Button {
-            Button(title: title, action: .dismiss)
+        public static func dismissing(title: String, style: Style = .primary) -> Button {
+            Button(title: title, style: style, action: .dismiss)
+        }
+
+        public var configuration: UIButton.Configuration {
+            switch style {
+            case .primary:
+                var buttonConfiguration = UIButton.Configuration.filled()
+                var buttonTitleAttributes = AttributeContainer()
+                buttonTitleAttributes.font = .dynamicTypeHeadline
+                buttonTitleAttributes.foregroundColor = .white
+                buttonConfiguration.attributedTitle = AttributedString(
+                    title,
+                    attributes: buttonTitleAttributes
+                )
+                buttonConfiguration.contentInsets = .init(hMargin: 16, vMargin: 14)
+                buttonConfiguration.background.cornerRadius = 10
+                buttonConfiguration.background.backgroundColor = UIColor.Signal.ultramarine
+                return buttonConfiguration
+            case .secondary:
+                var buttonConfiguration = UIButton.Configuration.plain()
+                var buttonTitleAttributes = AttributeContainer()
+                buttonTitleAttributes.font = .dynamicTypeHeadline
+                buttonTitleAttributes.foregroundColor = UIColor.Signal.ultramarine
+                buttonConfiguration.attributedTitle = AttributedString(
+                    title,
+                    attributes: buttonTitleAttributes
+                )
+                return buttonConfiguration
+            }
         }
     }
 
     private let hero: Hero
     private let titleText: String
     private let bodyText: String
-    private let primaryButton: Button
-    private let secondaryButton: Button?
+    private let primary: Element
+    private let secondary: Element?
 
     /// Creates a hero image sheet with a CTA button.
     /// - Parameters:
@@ -58,18 +98,39 @@ public class HeroSheetViewController: StackSheetViewController {
     ///   - primaryButton: The title and action for the CTA button
     ///   - secondaryButton: The title and action for an optional secondary button
     ///   If `nil`, the button will dismiss the sheet.
-    public init(
+    public convenience init(
         hero: Hero,
         title: String,
         body: String,
         primaryButton: Button,
         secondaryButton: Button? = nil
     ) {
+        let secondaryCTA: Element? = {
+            guard let secondaryButton else { return nil }
+            return .button(secondaryButton)
+        }()
+
+        self.init(
+            hero: hero,
+            title: title,
+            body: body,
+            primary: .button(primaryButton),
+            secondary: secondaryCTA
+        )
+    }
+
+    public init(
+        hero: Hero,
+        title: String,
+        body: String,
+        primary: Element,
+        secondary: Element? = nil
+    ) {
         self.hero = hero
         self.titleText = title
         self.bodyText = body
-        self.primaryButton = primaryButton
-        self.secondaryButton = secondaryButton
+        self.primary = primary
+        self.secondary = secondary
         super.init()
     }
 
@@ -80,6 +141,38 @@ public class HeroSheetViewController: StackSheetViewController {
     public override func viewDidLoad() {
         super.viewDidLoad()
 
+        let heroView = viewForHero(hero)
+        self.stackView.addArrangedSubview(heroView)
+        self.stackView.setCustomSpacing(16, after: heroView)
+
+        let titleLabel = UILabel()
+        self.stackView.addArrangedSubview(titleLabel)
+        self.stackView.setCustomSpacing(12, after: titleLabel)
+        titleLabel.text = self.titleText
+        titleLabel.font = .dynamicTypeTitle2.bold()
+        titleLabel.numberOfLines = 0
+        titleLabel.textAlignment = .center
+
+        let bodyLabel = UILabel()
+        self.stackView.addArrangedSubview(bodyLabel)
+        self.stackView.setCustomSpacing(32, after: bodyLabel)
+        bodyLabel.text = self.bodyText
+        bodyLabel.font = .dynamicTypeSubheadline
+        bodyLabel.textColor = UIColor.Signal.secondaryLabel
+        bodyLabel.numberOfLines = 0
+        bodyLabel.textAlignment = .center
+
+        let primaryButtonView = viewForElement(primary)
+        self.stackView.addArrangedSubview(primaryButtonView)
+        self.stackView.setCustomSpacing(20, after: primaryButtonView)
+
+        if let secondary {
+            let secondaryButtonView = viewForElement(secondary)
+            self.stackView.addArrangedSubview(secondaryButtonView)
+        }
+    }
+
+    private func viewForHero(_ hero: Hero) -> UIView {
         let heroView: UIView
         switch hero {
         case let .image(image):
@@ -109,55 +202,17 @@ public class HeroSheetViewController: StackSheetViewController {
             iconView.autoCenterInSuperview()
             iconView.autoSetDimensions(to: .square(iconSize))
         }
+        return heroView
+    }
 
-        self.stackView.addArrangedSubview(heroView)
-        self.stackView.setCustomSpacing(16, after: heroView)
-
-        let titleLabel = UILabel()
-        self.stackView.addArrangedSubview(titleLabel)
-        self.stackView.setCustomSpacing(12, after: titleLabel)
-        titleLabel.text = self.titleText
-        titleLabel.font = .dynamicTypeTitle2.bold()
-        titleLabel.numberOfLines = 0
-        titleLabel.textAlignment = .center
-
-        let bodyLabel = UILabel()
-        self.stackView.addArrangedSubview(bodyLabel)
-        self.stackView.setCustomSpacing(32, after: bodyLabel)
-        bodyLabel.text = self.bodyText
-        bodyLabel.font = .dynamicTypeSubheadline
-        bodyLabel.textColor = UIColor.Signal.secondaryLabel
-        bodyLabel.numberOfLines = 0
-        bodyLabel.textAlignment = .center
-
-        let primaryButtonView = self.buttonView(for: primaryButton)
-        self.stackView.addArrangedSubview(primaryButtonView)
-        self.stackView.setCustomSpacing(20, after: primaryButtonView)
-        var buttonConfiguration = UIButton.Configuration.filled()
-        var buttonTitleAttributes = AttributeContainer()
-        buttonTitleAttributes.font = .dynamicTypeHeadline
-        buttonTitleAttributes.foregroundColor = .white
-        buttonConfiguration.attributedTitle = AttributedString(
-            self.primaryButton.title,
-            attributes: buttonTitleAttributes
-        )
-        buttonConfiguration.contentInsets = .init(hMargin: 16, vMargin: 14)
-        buttonConfiguration.background.cornerRadius = 10
-        buttonConfiguration.background.backgroundColor = UIColor.Signal.ultramarine
-        primaryButtonView.configuration = buttonConfiguration
-
-        if let secondaryButton {
-            let secondaryButtonView = self.buttonView(for: secondaryButton)
-            self.stackView.addArrangedSubview(secondaryButtonView)
-            var buttonConfiguration = UIButton.Configuration.plain()
-            var buttonTitleAttributes = AttributeContainer()
-            buttonTitleAttributes.font = .dynamicTypeHeadline
-            buttonTitleAttributes.foregroundColor = UIColor.Signal.ultramarine
-            buttonConfiguration.attributedTitle = AttributedString(
-                secondaryButton.title,
-                attributes: buttonTitleAttributes
-            )
-            secondaryButtonView.configuration = buttonConfiguration
+    private func viewForElement(_ element: Element) -> UIView {
+        switch element {
+        case .button(let button):
+            let buttonView = self.buttonView(for: button)
+            buttonView.configuration = button.configuration
+            return buttonView
+        case .hero(let hero):
+            return viewForHero(hero)
         }
     }
 
@@ -165,11 +220,12 @@ public class HeroSheetViewController: StackSheetViewController {
         UIButton(
             type: .system,
             primaryAction: UIAction { [weak self] _ in
+                guard let self else { return }
                 switch button.action {
                 case .dismiss:
-                    self?.dismiss(animated: true)
+                    self.dismiss(animated: true)
                 case .custom(let closure):
-                    closure()
+                    closure(self)
                 }
             }
         )
@@ -210,6 +266,16 @@ public class HeroSheetViewController: StackSheetViewController {
         body: LocalizationNotNeeded("Backups can’t be recovered without their 64-digit recovery code. If you’ve lost your backup key Signal can’t help restore your backup.\n\nIf you have your old device you can view your backup key in Settings > Chats > Signal Backups. Then tap View backup key."),
         primaryButton: .dismissing(title: LocalizationNotNeeded("Skip & Don’t Restore")),
         secondaryButton: .dismissing(title: CommonStrings.learnMore)
+    ))
+}
+
+@available(iOS 17, *)
+#Preview("Footer animation") {
+    SheetPreviewViewController(sheet: HeroSheetViewController(
+        hero: .image(UIImage(named: "transfer_complete")!),
+        title: LocalizationNotNeeded("Continue on your other device"),
+        body: LocalizationNotNeeded("Continue transferring your account on your other device."),
+        primary: .hero(.animation(named: "circular_indeterminate", height: 60))
     ))
 }
 #endif

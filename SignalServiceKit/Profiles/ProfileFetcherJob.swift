@@ -18,6 +18,7 @@ public enum ProfileRequestError: Error {
 public class ProfileFetcherJob {
     private let serviceId: ServiceId
     private let groupIdContext: GroupIdentifier?
+    private let mustFetchNewCredential: Bool
     private let authedAccount: AuthedAccount
 
     private let db: any DB
@@ -25,7 +26,7 @@ public class ProfileFetcherJob {
     private let identityManager: any OWSIdentityManager
     private let paymentsHelper: any PaymentsHelper
     private let profileManager: any ProfileManager
-    private let recipientDatabaseTable: any RecipientDatabaseTable
+    private let recipientDatabaseTable: RecipientDatabaseTable
     private let recipientManager: any SignalRecipientManager
     private let recipientMerger: any RecipientMerger
     private let storageServiceRecordIkmCapabilityStore: any StorageServiceRecordIkmCapabilityStore
@@ -38,13 +39,14 @@ public class ProfileFetcherJob {
     init(
         serviceId: ServiceId,
         groupIdContext: GroupIdentifier?,
+        mustFetchNewCredential: Bool,
         authedAccount: AuthedAccount,
         db: any DB,
         disappearingMessagesConfigurationStore: any DisappearingMessagesConfigurationStore,
         identityManager: any OWSIdentityManager,
         paymentsHelper: any PaymentsHelper,
         profileManager: any ProfileManager,
-        recipientDatabaseTable: any RecipientDatabaseTable,
+        recipientDatabaseTable: RecipientDatabaseTable,
         recipientManager: any SignalRecipientManager,
         recipientMerger: any RecipientMerger,
         storageServiceRecordIkmCapabilityStore: any StorageServiceRecordIkmCapabilityStore,
@@ -56,6 +58,7 @@ public class ProfileFetcherJob {
     ) {
         self.serviceId = serviceId
         self.groupIdContext = groupIdContext
+        self.mustFetchNewCredential = mustFetchNewCredential
         self.authedAccount = authedAccount
         self.db = db
         self.disappearingMessagesConfigurationStore = disappearingMessagesConfigurationStore
@@ -152,6 +155,10 @@ public class ProfileFetcherJob {
             }
         }
 
+        if self.mustFetchNewCredential {
+            throw ProfileFetcherError.couldNotFetchCredential
+        }
+
         // If we can't fetch a versioned profile, or if we run into an auth error
         // when using an access key, fall back to an unversioned profile fetch.
 
@@ -203,23 +210,56 @@ public class ProfileFetcherJob {
         localIdentifiers: LocalIdentifiers,
         tx: DBReadTransaction
     ) throws -> VersionedFetchParameters? {
-        switch self.serviceId.concreteType {
+        let _versionedFetchParameters = Self._readVersionedFetchParameters(
+            serviceId: self.serviceId,
+            localIdentifiers: localIdentifiers,
+            profileManager: self.profileManager,
+            udManager: self.udManager,
+            tx: tx,
+        )
+        guard let _versionedFetchParameters else {
+            return nil
+        }
+        return VersionedFetchParameters(
+            aci: _versionedFetchParameters.aci,
+            profileKey: _versionedFetchParameters.profileKey,
+            shouldRequestCredential: try (
+                self.mustFetchNewCredential
+                || self.versionedProfiles.validProfileKeyCredential(for: _versionedFetchParameters.aci, transaction: tx) == nil
+            ),
+            auth: _versionedFetchParameters.auth,
+        )
+    }
+
+    private struct _VersionedFetchParameters {
+        var aci: Aci
+        var profileKey: ProfileKey
+        var auth: OWSUDAccess?
+    }
+
+    private static func _readVersionedFetchParameters(
+        serviceId: ServiceId,
+        localIdentifiers: LocalIdentifiers,
+        profileManager: any ProfileManager,
+        udManager: any OWSUDManager,
+        tx: DBReadTransaction,
+    ) -> _VersionedFetchParameters? {
+        switch serviceId.concreteType {
         case .pni(_):
             return nil
         case .aci(let aci):
-            let profileKey = self.profileManager.userProfile(
+            let profileKey = profileManager.userProfile(
                 for: SignalServiceAddress(aci),
-                tx: SDSDB.shimOnlyBridge(tx)
+                tx: tx
             )?.profileKey
             guard let profileKey else {
                 return nil
             }
-            let profileKeyCredential = try versionedProfiles.validProfileKeyCredential(for: aci, transaction: SDSDB.shimOnlyBridge(tx))
             let auth: OWSUDAccess?
             if localIdentifiers.aci == aci {
                 // Don't use UD for "self" profile fetches.
                 auth = nil
-            } else if let udAccess = udManager.udAccess(for: aci, tx: SDSDB.shimOnlyBridge(tx)) {
+            } else if let udAccess = udManager.udAccess(for: aci, tx: tx) {
                 auth = udAccess
             } else {
                 // We probably have the wrong profile key. Fall back to an unversioned
@@ -227,13 +267,28 @@ public class ProfileFetcherJob {
                 return nil
             }
 
-            return VersionedFetchParameters(
+            return _VersionedFetchParameters(
                 aci: aci,
                 profileKey: ProfileKey(profileKey),
-                shouldRequestCredential: profileKeyCredential == nil,
                 auth: auth
             )
         }
+    }
+
+    public static func canTryToFetchCredential(
+        serviceId: ServiceId,
+        localIdentifiers: LocalIdentifiers,
+        profileManager: any ProfileManager,
+        udManager: any OWSUDManager,
+        tx: DBReadTransaction,
+    ) -> Bool {
+        return _readVersionedFetchParameters(
+            serviceId: serviceId,
+            localIdentifiers: localIdentifiers,
+            profileManager: profileManager,
+            udManager: udManager,
+            tx: tx,
+        ) != nil
     }
 
     private func readGroupSendEndorsement(groupId: GroupIdentifier, tx: DBReadTransaction) throws -> GroupSendFullTokenBuilder? {

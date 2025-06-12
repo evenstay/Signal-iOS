@@ -13,8 +13,10 @@ extension RegistrationCoordinatorImpl {
     public enum TestMocks {
         public typealias ContactsManager = _RegistrationCoordinator_ContactsManagerMock
         public typealias ContactsStore = _RegistrationCoordinator_CNContactsStoreMock
+        public typealias DeviceTransferService = _RegistrationCoordinator_DeviceTransferServiceMock
         public typealias ExperienceManager = _RegistrationCoordinator_ExperienceManagerMock
         public typealias FeatureFlags = _RegistrationCoordinator_FeatureFlagsMock
+        public typealias IdentityManager = _RegistrationCoordinator_IdentityManagerMock
         public typealias MessagePipelineSupervisor = _RegistrationCoordinator_MessagePipelineSupervisorMock
         public typealias MessageProcessor = _RegistrationCoordinator_MessageProcessorMock
         public typealias OWS2FAManager = _RegistrationCoordinator_OWS2FAManagerMock
@@ -22,8 +24,10 @@ extension RegistrationCoordinatorImpl {
         public typealias ProfileManager = _RegistrationCoordinator_ProfileManagerMock
         public typealias PushRegistrationManager = _RegistrationCoordinator_PushRegistrationManagerMock
         public typealias ReceiptManager = _RegistrationCoordinator_ReceiptManagerMock
+        public typealias QuickRestoreManager = _RegistrationCoordinator_QuickRestoreManagerMock
         public typealias StorageServiceManager = _RegistrationCoordinator_StorageServiceManagerMock
         public typealias UDManager = _RegistrationCoordinator_UDManagerMock
+        public typealias UsernameApiClient = _RegistrationCoordinator_UsernameApiClientMock
     }
 }
 
@@ -60,6 +64,20 @@ public class _RegistrationCoordinator_CNContactsStoreMock: _RegistrationCoordina
     }
 }
 
+// MARK: DeviceTransferService
+
+public class _RegistrationCoordinator_DeviceTransferServiceMock: _RegistrationCoordinator_DeviceTransferServiceShim {
+    public func startAcceptingTransfersFromOldDevices(mode: Signal.DeviceTransferService.TransferMode) throws -> URL {
+        return URL(string: "https://example.com")!
+    }
+
+    public func addObserver(_ observer: any Signal.DeviceTransferServiceObserver) { }
+
+    public func removeObserver(_ observer: any Signal.DeviceTransferServiceObserver) { }
+
+    public func stopAcceptingTransfersFromOldDevices() { }
+}
+
 public class _RegistrationCoordinator_ExperienceManagerMock: _RegistrationCoordinator_ExperienceManagerShim {
 
     public init() {}
@@ -85,9 +103,15 @@ public class _RegistrationCoordinator_FeatureFlagsMock: _RegistrationCoordinator
 
     public init() {}
 
-    public var enableAccountEntropyPool = false
+    public var backupFileAlphaRegistrationFlow: Bool { false }
+}
 
-    public var messageBackupFileAlphaRegistrationFlow: Bool { false }
+// MARK: - IdentityManager
+
+public class _RegistrationCoordinator_IdentityManagerMock: _RegistrationCoordinator_IdentityManagerShim {
+    public init() {}
+
+    public func setIdentityKeyPair(_ keyPair: ECKeyPair?, for identity: OWSIdentity, tx: DBWriteTransaction) { }
 }
 
 // MARK: - MessagePipelineSupervisor
@@ -275,6 +299,15 @@ public class _RegistrationCoordinator_ReceiptManagerMock: _RegistrationCoordinat
     }
 }
 
+// MARK: QuickRestoreManager
+
+public class _RegistrationCoordinator_QuickRestoreManagerMock: _RegistrationCoordinator_QuickRestoreManagerShim {
+    public func reportRestoreMethodChoice(
+        method: QuickRestoreManager.RestoreMethodType,
+        restoreMethodToken: QuickRestoreManager.RestoreMethodToken
+    ) async throws {}
+}
+
 // MARK: StorageService
 public class _RegistrationCoordinator_StorageServiceManagerMock: _RegistrationCoordinator_StorageServiceManagerShim {
 
@@ -310,5 +343,16 @@ public class _RegistrationCoordinator_UDManagerMock: _RegistrationCoordinator_UD
 
     public func shouldAllowUnrestrictedAccessLocal(transaction: DBReadTransaction) -> Bool {
         return shouldAllowUnrestrictedAccessLocalMock()
+    }
+}
+
+// MARK: UsernameApiClient
+
+public class _RegistrationCoordinator_UsernameApiClientMock: _RegistrationCoordinator_UsernameApiClientShim {
+    public init() {}
+
+    public var confirmReservedUsernameMocks = [(reservedUsername: Usernames.HashedUsername, encryptedUsernameForLink: Data, chatServiceAuth: ChatServiceAuth) -> Promise<Usernames.ApiClientConfirmationResult>]()
+    public func confirmReservedUsername(reservedUsername: Usernames.HashedUsername, encryptedUsernameForLink: Data, chatServiceAuth: ChatServiceAuth) -> Promise<Usernames.ApiClientConfirmationResult> {
+        return confirmReservedUsernameMocks.removeFirst()(reservedUsername, encryptedUsernameForLink, chatServiceAuth)
     }
 }

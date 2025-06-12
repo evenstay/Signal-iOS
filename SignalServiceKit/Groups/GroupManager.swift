@@ -20,14 +20,6 @@ public class GroupManager: NSObject {
     // GroupsV2 TODO: Finalize this value with the designers.
     public static let groupUpdateTimeoutDuration: TimeInterval = 30
 
-    public static var groupsV2MaxGroupSizeRecommended: UInt {
-        return RemoteConfig.current.groupsV2MaxGroupSizeRecommended
-    }
-
-    public static var groupsV2MaxGroupSizeHardLimit: UInt {
-        return RemoteConfig.current.groupsV2MaxGroupSizeHardLimit
-    }
-
     public static let maxGroupNameEncryptedByteCount: Int = 1024
     public static let maxGroupNameGlyphCount: Int = 32
 
@@ -133,83 +125,47 @@ public class GroupManager: NSObject {
     // MARK: - Create New Group
 
     /// Create a new group locally, and upload it to the service.
-    ///
-    /// - Parameter groupId
-    /// A fixed group ID. Intended for use exclusively in tests.
     public static func localCreateNewGroup(
+        seed: NewGroupSeed,
         members membersParam: [SignalServiceAddress],
-        groupId: Data? = nil,
-        name: String? = nil,
-        avatarData: Data? = nil,
+        name: StrippedNonEmptyString,
+        avatarData: Data?,
         disappearingMessageToken: DisappearingMessageToken,
-        newGroupSeed: NewGroupSeed? = nil,
-        shouldSendMessage: Bool
     ) async throws -> TSGroupThread {
         guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiersWithMaybeSneakyTransaction else {
             throw OWSAssertionError("Missing localIdentifiers.")
         }
 
+        var otherMembers = membersParam.compactMap(\.serviceId)
+        otherMembers.removeAll(where: { $0 == localIdentifiers.aci })
+
         try await ensureLocalProfileHasCommitmentIfNecessary()
 
-        // Build member list.
-        //
-        // The group creator is an administrator;
-        // the other members are normal users.
-        var builder = GroupMembership.Builder()
-        builder.addFullMembers(Set(membersParam), role: .normal)
-        builder.remove(localIdentifiers.aci)
-        builder.addFullMember(localIdentifiers.aci, role: .administrator)
-        let initialGroupMembership = builder.build()
+        var downloadedAvatars = GroupAvatarStateMap()
 
-        // Try to get profile key credentials for all group members, since
-        // we need them to fully add (rather than merely inviting) members.
-        try await SSKEnvironment.shared.groupsV2Ref.tryToFetchProfileKeyCredentials(
-            for: initialGroupMembership.allMembersOfAnyKind.compactMap { $0.serviceId as? Aci },
-            ignoreMissingProfiles: false,
-            forceRefresh: false
+        let newGroupParams = GroupsV2Protos.NewGroupParams(
+            secretParams: seed.groupSecretParams,
+            title: name,
+            avatarUrlPath: try await { () async throws -> String? in
+                guard let avatarData else {
+                    return nil
+                }
+                // Upload avatar.
+                let avatarUrlPath = try await SSKEnvironment.shared.groupsV2Ref.uploadGroupAvatar(
+                    avatarData: avatarData,
+                    groupSecretParams: seed.groupSecretParams
+                )
+                downloadedAvatars.set(avatarDataState: .available(avatarData), avatarUrlPath: avatarUrlPath)
+                return avatarUrlPath
+            }(),
+            otherMembers: otherMembers,
+            disappearingMessageToken: disappearingMessageToken,
         )
 
-        let groupAccess = GroupAccess.defaultForV2
-        let separatedGroupMembership = SSKEnvironment.shared.databaseStorageRef.read { tx in
-            // Before we create the group, we need to separate out the
-            // pending and full members.
-            return separateInvitedMembersForNewGroup(
-                withMembership: initialGroupMembership,
-                transaction: tx
-            )
-        }
-
-        guard separatedGroupMembership.isFullMember(localIdentifiers.aci) else {
-            throw OWSAssertionError("Local ACI is missing from group membership.")
-        }
-
-        var groupModelBuilder = TSGroupModelBuilder()
-        groupModelBuilder.groupId = groupId
-        groupModelBuilder.name = name
-        groupModelBuilder.groupMembership = separatedGroupMembership
-        groupModelBuilder.groupAccess = groupAccess
-        groupModelBuilder.newGroupSeed = newGroupSeed
-
-        var proposedGroupModel = try groupModelBuilder.buildAsV2()
-
-        if let avatarData {
-            // Upload avatar.
-            let avatarUrlPath = try await SSKEnvironment.shared.groupsV2Ref.uploadGroupAvatar(
-                avatarData: avatarData,
-                groupSecretParams: try proposedGroupModel.secretParams()
-            )
-
-            // Fill in the avatarUrl on the group model.
-            var builder = proposedGroupModel.asBuilder
-            builder.avatarDataState = .available(avatarData)
-            builder.avatarUrlPath = avatarUrlPath
-
-            proposedGroupModel = try builder.buildAsV2()
-        }
-
         let snapshotResponse = try await SSKEnvironment.shared.groupsV2Ref.createNewGroupOnService(
-            groupModel: proposedGroupModel,
-            disappearingMessageToken: disappearingMessageToken
+            newGroupParams,
+            downloadedAvatars: downloadedAvatars,
+            localAci: localIdentifiers.aci,
         )
 
         let thread = try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx in
@@ -245,51 +201,9 @@ public class GroupManager: NSObject {
             return thread
         }
 
-        if shouldSendMessage {
-            await sendDurableNewGroupMessage(forThread: thread)
-        }
+        await sendDurableNewGroupMessage(forThread: thread)
+
         return thread
-    }
-
-    // Separates pending and non-pending members.
-    // We cannot add non-pending members unless:
-    //
-    // * We know their profile key.
-    // * We have a profile key credential for them.
-    private static func separateInvitedMembersForNewGroup(
-        withMembership newGroupMembership: GroupMembership,
-        transaction tx: DBReadTransaction
-    ) -> GroupMembership {
-        guard let localAci = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: tx)?.aci else {
-            owsFailDebug("Missing localAci.")
-            return newGroupMembership
-        }
-        var builder = GroupMembership.Builder()
-
-        let newMembers = newGroupMembership.allMembersOfAnyKind
-
-        // We only need to separate new members.
-        for address in newMembers {
-            // We must call this _after_ we try to fetch profile key credentials for
-            // all members.
-            let hasCredential = SSKEnvironment.shared.groupsV2Ref.hasProfileKeyCredential(for: address, transaction: tx)
-            guard let role = newGroupMembership.role(for: address) else {
-                owsFailDebug("Missing role: \(address)")
-                continue
-            }
-
-            guard let serviceId = address.serviceId else {
-                owsFailDebug("Missing serviceId.")
-                continue
-            }
-
-            if let aci = serviceId as? Aci, hasCredential {
-                builder.addFullMember(aci, role: role)
-            } else {
-                builder.addInvitedMember(serviceId, role: role, addedByAci: localAci)
-            }
-        }
-        return builder.build()
     }
 
     // MARK: - Tests
@@ -302,12 +216,13 @@ public class GroupManager: NSObject {
     /// Whether an info message describing this group's creation should be
     /// inserted in the to-be-created thread corresponding to the group. If
     /// `true`, the local user must be a member of the group.
-    public static func createGroupForTests(members: [SignalServiceAddress],
-                                           shouldInsertInfoMessage: Bool = false,
-                                           name: String? = nil,
-                                           descriptionText: String? = nil,
-                                           groupId: Data? = nil,
-                                           transaction: DBWriteTransaction) throws -> TSGroupThread {
+    public static func createGroupForTests(
+        members: [SignalServiceAddress],
+        shouldInsertInfoMessage: Bool = false,
+        name: String? = nil,
+        descriptionText: String? = nil,
+        transaction: DBWriteTransaction
+    ) throws -> TSGroupThread {
 
         guard let localIdentifiers = DependenciesBridge.shared.tsAccountManager.localIdentifiers(tx: transaction) else {
             throw OWSAssertionError("Missing localIdentifiers.")
@@ -317,8 +232,8 @@ public class GroupManager: NSObject {
         // GroupsV2 TODO: Let tests specify access levels.
         // GroupsV2 TODO: Fill in avatarUrlPath when we test v2 groups.
 
-        var builder = TSGroupModelBuilder()
-        builder.groupId = groupId
+        let secretParams = try GroupSecretParams.generate()
+        var builder = TSGroupModelBuilder(secretParams: secretParams)
         builder.name = name
         builder.descriptionText = descriptionText
         builder.groupMembership = GroupMembership(membersForTest: members)
@@ -433,7 +348,7 @@ public class GroupManager: NSObject {
             )
 
         // Skip redundant updates.
-        if result.newConfiguration != result.oldConfiguration {
+        if !result.newConfiguration.hasSameDuration(as: result.oldConfiguration) {
             let remoteContactName: String? = {
                 if
                     let changeAuthor,
@@ -491,7 +406,7 @@ public class GroupManager: NSObject {
         waitForMessageProcessing: Bool = false
     ) async throws {
         if waitForMessageProcessing {
-            try await GroupManager.waitForMessageFetchingAndProcessingWithTimeout(description: "Accept invite")
+            try await GroupManager.waitForMessageFetchingAndProcessingWithTimeout()
         }
         await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
             SSKEnvironment.shared.profileManagerRef.addGroupId(
@@ -554,13 +469,7 @@ public class GroupManager: NSObject {
         try await updateGroupV2(groupModel: groupModel, description: "Remove from group or revoke invite") { groupChangeSet in
             for serviceId in serviceIds {
                 owsAssertDebug(!groupModel.groupMembership.isRequestingMember(serviceId))
-
                 groupChangeSet.removeMember(serviceId)
-
-                // Do not ban when revoking an invite
-                if let aci = serviceId as? Aci, !groupModel.groupMembership.isInvitedMember(serviceId) {
-                    groupChangeSet.addBannedMember(aci)
-                }
             }
         }
     }
@@ -663,10 +572,9 @@ public class GroupManager: NSObject {
         let description = (shouldAccept ? "Accept group member request" : "Deny group member request")
         try await updateGroupV2(groupModel: groupModel, description: description) { groupChangeSet in
             if shouldAccept {
-                groupChangeSet.addMember(aci, role: .`normal`)
+                groupChangeSet.addMember(aci)
             } else {
                 groupChangeSet.removeMember(aci)
-                groupChangeSet.addBannedMember(aci)
             }
         }
     }
@@ -723,22 +631,24 @@ public class GroupManager: NSObject {
             let groupModel = groupThread.groupModel
 
             // If this is a join request placeholder, we don't expect to have access to
-            // the group, so we have to check *again* using the inviteLinkPassword
-            // before continuing.
-            if let groupModelV2 = groupModel as? TSGroupModelV2, groupModelV2.isJoinRequestPlaceholder {
+            // the group, but we should have access to the invite link preview without
+            // needing to provide an inviteLinkPassword.
+            if
+                let groupModelV2 = groupModel as? TSGroupModelV2,
+                groupModelV2.isJoinRequestPlaceholder,
+                groupModelV2.groupMembership.isLocalUserRequestingMember
+            {
                 do {
-                    let groupV2Params = try groupModelV2.groupV2Params()
+                    let secretParams = try groupModelV2.secretParams()
                     _ = try await SSKEnvironment.shared.groupsV2Ref.fetchGroupInviteLinkPreview(
-                        inviteLinkPassword: groupModelV2.inviteLinkPassword,
-                        groupSecretParams: groupV2Params.groupSecretParams,
-                        allowCached: false
+                        inviteLinkPassword: nil,
+                        groupSecretParams: secretParams
                     )
                     // We still have access to the group, so do nothing.
                     return
-                } catch GroupsV2Error.localUserIsNotARequestingMember, GroupsV2Error.localUserBlockedFromJoining {
-                    // Expected if our request has been cancelled or we're banned. In this
-                    // scenario, we should remove ourselves from the local group (in which
-                    // we will be stored as a requesting member).
+                } catch GroupsV2Error.localUserIsNotARequestingMember {
+                    // Expected if our request has been cancelled. In this scenario, we should
+                    // remove ourselves from the local group state.
                 } catch {
                     // We don't know what went wrong; do nothing.
                     owsFailDebug("Error: \(error)")
@@ -796,7 +706,7 @@ public class GroupManager: NSObject {
 
     // MARK: - Messages
 
-    public static func sendGroupUpdateMessage(groupId: GroupIdentifier, groupChangeProtoData: Data? = nil) async {
+    public static func sendGroupUpdateMessage(groupId: GroupIdentifier, isUrgent: Bool = false, groupChangeProtoData: Data? = nil) async {
         await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
             let dmConfigurationStore = DependenciesBridge.shared.disappearingMessagesConfigurationStore
 
@@ -811,6 +721,7 @@ public class GroupManager: NSObject {
                 expiresInSeconds: dmConfigurationStore.durationSeconds(for: thread, tx: transaction),
                 groupChangeProtoData: groupChangeProtoData,
                 additionalRecipients: Self.invitedMembers(in: thread),
+                isUrgent: isUrgent,
                 transaction: transaction
             )
             // "changeActionsProtoData" is _not_ an attachment, it is just put on
@@ -835,6 +746,7 @@ public class GroupManager: NSObject {
                 groupMetaMessage: .new,
                 expiresInSeconds: dmConfigurationStore.durationSeconds(for: thread, tx: tx),
                 additionalRecipients: Self.invitedMembers(in: thread),
+                isUrgent: true,
                 transaction: tx
             )
             // "changeActionsProtoData" is _not_ an attachment, it is just put on
@@ -846,12 +758,8 @@ public class GroupManager: NSObject {
         }
     }
 
-    private static func invitedMembers(in thread: TSGroupThread) -> Set<SignalServiceAddress> {
-        thread.groupModel.groupMembership.invitedMembers.filter { doesUserSupportGroupsV2(address: $0) }
-    }
-
-    private static func invitedOrRequestedMembers(in thread: TSGroupThread) -> Set<SignalServiceAddress> {
-        thread.groupModel.groupMembership.invitedOrRequestMembers.filter { doesUserSupportGroupsV2(address: $0) }
+    private static func invitedMembers(in thread: TSGroupThread) -> some Sequence<ServiceId> {
+        thread.groupModel.groupMembership.invitedMembers.compactMap(\.serviceId)
     }
 
     public static func shouldMessageHaveAdditionalRecipients(_ message: TSOutgoingMessage,
@@ -950,6 +858,11 @@ public class GroupManager: NSObject {
         spamReportingMetadata: GroupUpdateSpamReportingMetadata,
         transaction: DBWriteTransaction
     ) throws -> TSGroupThread {
+        if DebugFlags.internalLogging {
+            let groupId = try? newGroupModel.secretParams().getPublicParams().getGroupIdentifier()
+            Logger.info("Upserting thread for \(groupId as Optional); didAddLocalUser? \(didAddLocalUserToV2Group); groupUpdateSource: \(groupUpdateSource)")
+        }
+
         if let groupThread = TSGroupThread.fetch(groupId: newGroupModel.groupId, transaction: transaction) {
             try updateExistingGroupThreadInDatabaseAndCreateInfoMessage(
                 groupThread: groupThread,
@@ -978,6 +891,11 @@ public class GroupManager: NSObject {
 
                 return false
             }()
+
+            if DebugFlags.internalLogging {
+                let groupId = try? newGroupModel.secretParams().getPublicParams().getGroupIdentifier()
+                Logger.info("Inserting thread for \(groupId as Optional); shouldAttributeAuthor? \(shouldAttributeAuthor)")
+            }
 
             return insertGroupThreadInDatabaseAndCreateInfoMessage(
                 groupModel: newGroupModel,
@@ -1239,6 +1157,11 @@ public class GroupManager: NSObject {
             shouldAddToWhitelist = true
         }
 
+        if DebugFlags.internalLogging {
+            let groupId = try? (newGroupModel as? TSGroupModelV2)?.secretParams().getPublicParams().getGroupIdentifier()
+            Logger.info("Checking if group should be auto whitelisted \(groupId as Optional); groupUpdateSource: \(groupUpdateSource); shouldAddToWhitelist? \(shouldAddToWhitelist)")
+        }
+
         guard shouldAddToWhitelist else {
             return
         }
@@ -1256,15 +1179,13 @@ public class GroupManager: NSObject {
         newGroupModel: TSGroupModel,
         localIdentifiers: LocalIdentifiers
     ) -> Bool {
-        if let oldGroupModel, oldGroupModel.groupMembership.isFullMember(localIdentifiers.aci) {
-            // Local user already was a member.
-            return false
+        let oldFullMember = oldGroupModel?.groupMembership.isFullMember(localIdentifiers.aci) == true
+        let newFullMember = newGroupModel.groupMembership.isFullMember(localIdentifiers.aci)
+        if DebugFlags.internalLogging {
+            let groupId = try? (newGroupModel as? TSGroupModelV2)?.secretParams().getPublicParams().getGroupIdentifier()
+            Logger.info("Checking if local user was added to \(groupId as Optional); oldGroupModel? \(oldGroupModel != nil); oldFullMember? \(oldFullMember); newFullMember: \(newFullMember)")
         }
-        if !newGroupModel.groupMembership.isFullMember(localIdentifiers.aci) {
-            // Local user is not a member.
-            return false
-        }
-        return true
+        return !oldFullMember && newFullMember
     }
 
     // MARK: -
@@ -1319,10 +1240,10 @@ public class GroupManager: NSObject {
                 guard accountManager.registrationState(tx: tx).isRegistered else {
                     return false
                 }
-                guard let localAddress = accountManager.localIdentifiers(tx: tx)?.aciAddress else {
-                    throw OWSAssertionError("Missing localAddress.")
+                guard let localAci = accountManager.localIdentifiers(tx: tx)?.aci else {
+                    throw OWSAssertionError("Missing localAci.")
                 }
-                return SSKEnvironment.shared.groupsV2Ref.hasProfileKeyCredential(for: localAddress, transaction: tx)
+                return SSKEnvironment.shared.groupsV2Ref.hasProfileKeyCredential(for: localAci, transaction: tx)
             }
         }
 
@@ -1366,12 +1287,14 @@ public class GroupManager: NSObject {
 // MARK: -
 
 public extension GroupManager {
-    class func waitForMessageFetchingAndProcessingWithTimeout(description: String) async throws {
-        return try await Promise.wrapAsync {
-            await SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing().awaitable()
-        }.timeout(seconds: GroupManager.groupUpdateTimeoutDuration, description: description) {
-            return GroupsV2Error.timeout
-        }.awaitable()
+    class func waitForMessageFetchingAndProcessingWithTimeout() async throws {
+        do {
+            return try await withCooperativeTimeout(seconds: GroupManager.groupUpdateTimeoutDuration) {
+                try await SSKEnvironment.shared.messageProcessorRef.waitForFetchingAndProcessing()
+            }
+        } catch is CooperativeTimeoutError {
+            throw GroupsV2Error.timeout
+        }
     }
 }
 
@@ -1386,40 +1309,12 @@ extension GroupManager {
             owsFail("[GV1] Mutations on V1 groups should be impossible!")
         }
 
-        // Ensure we have fetched profile key credentials before performing
-        // the add below, since we depend on credential state to decide
-        // whether to add or invite a user.
-        try await SSKEnvironment.shared.groupsV2Ref.tryToFetchProfileKeyCredentials(
-            for: serviceIds.compactMap { $0 as? Aci },
-            ignoreMissingProfiles: false,
-            forceRefresh: false
-        )
-
         try await updateGroupV2(
             groupModel: existingGroupModel,
             description: "Add/Invite new non-admin members"
         ) { groupChangeSet in
-            SSKEnvironment.shared.databaseStorageRef.read { transaction in
-                for serviceId in serviceIds {
-                    owsAssertDebug(!existingGroupModel.groupMembership.isMemberOfAnyKind(serviceId))
-
-                    // Important that at this point we already have the
-                    // profile keys for these users
-                    let hasCredential = SSKEnvironment.shared.groupsV2Ref.hasProfileKeyCredential(
-                        for: SignalServiceAddress(serviceId),
-                        transaction: transaction
-                    )
-
-                    if let aci = serviceId as? Aci, hasCredential {
-                        groupChangeSet.addMember(aci, role: .normal)
-                    } else {
-                        groupChangeSet.addInvitedMember(serviceId, role: .normal)
-                    }
-
-                    if let aci = serviceId as? Aci, existingGroupModel.groupMembership.isBannedMember(aci) {
-                        groupChangeSet.removeBannedMember(aci)
-                    }
-                }
+            for serviceId in serviceIds {
+                groupChangeSet.addMember(serviceId)
             }
         }
     }

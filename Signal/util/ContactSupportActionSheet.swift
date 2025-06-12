@@ -35,7 +35,7 @@ enum ContactSupportActionSheet {
         }
     }
 
-    static func present(emailFilter: EmailFilter, fromViewController: UIViewController) {
+    static func present(emailFilter: EmailFilter, logDumper: DebugLogDumper, fromViewController: UIViewController) {
         Logger.warn("Presenting contact-support action sheet!")
 
         let submitWithLogTitle = OWSLocalizedString("CONTACT_SUPPORT_SUBMIT_WITH_LOG", comment: "Button text")
@@ -44,28 +44,24 @@ enum ContactSupportActionSheet {
 
             var emailRequest = SupportEmailModel()
             emailRequest.supportFilter = emailFilter.asString
-            emailRequest.debugLogPolicy = .requireUpload
+            emailRequest.debugLogPolicy = .requireUpload(logDumper)
 
             ModalActivityIndicatorViewController.present(
                 fromViewController: fromViewController,
-                canCancel: true
-            ) { modal in
-                let composeTask = Task {
-                    return try await ComposeSupportEmailOperation(model: emailRequest).perform()
-                }
-                _ = modal.wasCancelledPromise.done { composeTask.cancel() }
-
-                Promise.wrapAsync {
-                    try await composeTask.value
-                }.done {
-                    modal.dismiss()
-                }.catch { error in
-                    guard !modal.wasCancelled else { return }
-                    modal.dismiss(completion: {
-                        showError(error, emailFilter: emailFilter, fromViewController: fromViewController)
+                canCancel: true,
+                asyncBlock: { modal in
+                    let result = await Result {
+                        return try await ComposeSupportEmailOperation(model: emailRequest).perform()
+                    }
+                    modal.dismissIfNotCanceled(completionIfNotCanceled: {
+                        do {
+                            try result.get()
+                        } catch {
+                            showError(error, emailFilter: emailFilter, logDumper: logDumper, fromViewController: fromViewController)
+                        }
                     })
                 }
-            }
+            )
         }
 
         let submitWithoutLogTitle = OWSLocalizedString("CONTACT_SUPPORT_SUBMIT_WITHOUT_LOG", comment: "Button text")
@@ -73,7 +69,7 @@ enum ContactSupportActionSheet {
             guard let fromViewController = fromViewController else { return }
 
             ComposeSupportEmailOperation.sendEmail(supportFilter: emailFilter.asString).catch { error in
-                showError(error, emailFilter: emailFilter, fromViewController: fromViewController)
+                showError(error, emailFilter: emailFilter, logDumper: logDumper, fromViewController: fromViewController)
             }
         }
 
@@ -87,12 +83,12 @@ enum ContactSupportActionSheet {
         fromViewController.present(actionSheet, animated: true)
     }
 
-    private static func showError(_ error: Error, emailFilter: EmailFilter, fromViewController: UIViewController) {
+    private static func showError(_ error: Error, emailFilter: EmailFilter, logDumper: DebugLogDumper, fromViewController: UIViewController) {
         let retryTitle = OWSLocalizedString("CONTACT_SUPPORT_PROMPT_ERROR_TRY_AGAIN", comment: "button text")
         let retryAction = ActionSheetAction(title: retryTitle, style: .default) { [weak fromViewController] _ in
             guard let fromViewController = fromViewController else { return }
 
-            present(emailFilter: emailFilter, fromViewController: fromViewController)
+            present(emailFilter: emailFilter, logDumper: logDumper, fromViewController: fromViewController)
         }
 
         let message = OWSLocalizedString("CONTACT_SUPPORT_PROMPT_ERROR_ALERT_BODY", comment: "Alert body")
@@ -101,29 +97,5 @@ enum ContactSupportActionSheet {
         actionSheet.addAction(OWSActionSheets.cancelAction)
 
         fromViewController.present(actionSheet, animated: true)
-    }
-}
-
-// MARK: -
-
-struct DebugLogsUploadError: Error, LocalizedError, UserErrorDescriptionProvider {
-    let localizedDescription: String
-
-    var errorDescription: String? {
-        localizedDescription
-    }
-}
-
-extension DebugLogs {
-    static func uploadLog() async throws(DebugLogsUploadError) -> URL {
-        do {
-            return try await DebugLogs.uploadLogs()
-        } catch {
-            // FIXME: Should we do something with the local log file?
-            if let logArchiveOrDirectoryPath = error.logArchiveOrDirectoryPath {
-                _ = OWSFileSystem.deleteFile(logArchiveOrDirectoryPath)
-            }
-            throw DebugLogsUploadError(localizedDescription: error.localizedErrorMessage)
-        }
     }
 }

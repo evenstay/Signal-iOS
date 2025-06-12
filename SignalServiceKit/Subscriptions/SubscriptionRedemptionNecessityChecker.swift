@@ -4,8 +4,6 @@
 //
 
 protocol SubscriptionRedemptionNecessityCheckerStore {
-    func subscriberId(tx: DBReadTransaction) -> Data?
-
     func getLastRedemptionNecessaryCheck(tx: DBReadTransaction) -> Date?
     func setLastRedemptionNecessaryCheck(_ now: Date, tx: DBWriteTransaction)
 }
@@ -24,6 +22,11 @@ protocol SubscriptionRedemptionNecessityCheckerStore {
 /// we use to decide if they should be redeemed is largely the same for both,
 /// and customized by blocks passed by specific callers.
 struct SubscriptionRedemptionNecessityChecker<RedemptionJobRecord: JobRecord> {
+    typealias FetchSubscriptionBlock = (
+        _ db: DB,
+        _ subscriptionFetcher: SubscriptionFetcher
+    ) async throws -> (subscriberID: Data, subscription: Subscription)?
+
     typealias ParseEntitlementExpirationBlock = (
         _ entitlements: WhoAmIRequestFactory.Responses.WhoAmI.Entitlements,
         _ subscription: Subscription
@@ -33,7 +36,7 @@ struct SubscriptionRedemptionNecessityChecker<RedemptionJobRecord: JobRecord> {
         _ subscriberId: Data,
         _ subscription: Subscription,
         _ tx: DBWriteTransaction
-    ) throws -> RedemptionJobRecord
+    ) throws -> RedemptionJobRecord?
 
     typealias StartRedemptionJobBlock = (
         _ jobRecord: RedemptionJobRecord
@@ -70,41 +73,40 @@ struct SubscriptionRedemptionNecessityChecker<RedemptionJobRecord: JobRecord> {
 
     /// Redeems the current subscription period, if necessary.
     ///
+    /// - Parameter fetchSubscriptionBlock
+    /// Fetches the current subscriber ID and associated subscription.
+    ///
     /// - Parameter parseEntitlementExpirationBlock
     /// Returns the expiration time of the current account entitlement
     /// associated with the given subscription. For example, if the given
     /// subscription is for a donation, returns the expiration time of the
     /// associated badge entitlement.
+    ///
     /// - Parameter enqueueRedemptionJobBlock
     /// Enqueues a durable redemption job. Invoked if redemption is necessary.
+    /// May return `nil` if the caller knows a job should not be enqueued; for
+    /// example, if a duplicate job has already been enqueued.
+    ///
     /// - Parameter startRedemptionJobBlock
     /// Starts a durable redemption job previously enqueued by
     /// `enqueueRedemptionJobBlock`.
     func redeemSubscriptionIfNecessary(
+        fetchSubscriptionBlock: FetchSubscriptionBlock,
         parseEntitlementExpirationBlock: ParseEntitlementExpirationBlock,
         enqueueRedemptionJobBlock: EnqueueRedemptionJobBlock,
         startRedemptionJobBlock: StartRedemptionJobBlock
     ) async throws {
         let (
             registrationState,
-            subscriberId,
             lastRedemptionNecessaryCheck
         ): (
             TSRegistrationState,
-            Data?,
             Date?
         ) = db.read { tx in
             return (
                 tsAccountManager.registrationState(tx: tx),
-                checkerStore.subscriberId(tx: tx),
                 checkerStore.getLastRedemptionNecessaryCheck(tx: tx)
             )
-        }
-
-        guard let subscriberId else {
-            /// If we don't have a subscriber ID, there's nothing to do.
-            logger.info("Not redeeming, missing subscriber ID!")
-            return
         }
 
         guard registrationState.isRegisteredPrimaryDevice else {
@@ -122,6 +124,24 @@ struct SubscriptionRedemptionNecessityChecker<RedemptionJobRecord: JobRecord> {
             return
         }
 
+        guard let (subscriberId, subscription) = try await fetchSubscriptionBlock(
+            db,
+            SubscriptionFetcher(
+                networkManager: networkManager,
+                retryPolicy: .hopefullyRecoverable
+            )
+        ) else {
+            logger.info("Not redeeming, subscription missing!")
+
+            /// If there's no subscription there's nothing for us to redeem, so
+            /// we can bail out.
+            await db.awaitableWrite { tx in
+                checkerStore.setLastRedemptionNecessaryCheck(dateProvider(), tx: tx)
+            }
+
+            return
+        }
+
         logger.info("Checking if subscription should be redeemed.")
 
         /// This "heartbeat" is important to do regularly, as the server will
@@ -129,22 +149,6 @@ struct SubscriptionRedemptionNecessityChecker<RedemptionJobRecord: JobRecord> {
         /// perform a "keep-alive" in a long time (such as canceling the
         /// associated subscription, if possible).
         try await performSubscriberIdHeartbeat(subscriberId)
-
-        let subscription = try await SubscriptionFetcher(networkManager: networkManager)
-            .fetch(subscriberID: subscriberId)
-
-        guard let subscription else {
-            logger.warn("No subscription for this subscriber ID!")
-
-            /// No need to check again...ever, really. We could auto-delete the
-            /// subscriber ID here, but we historically only do that in response
-            /// to a user-initiated cancel-subscription.
-            await db.awaitableWrite { tx in
-                checkerStore.setLastRedemptionNecessaryCheck(dateProvider(), tx: tx)
-            }
-
-            return
-        }
 
         let hasSubscriptionRenewedSinceLastRedemption: Bool = try await {
             let currentEntitlements = try await whoAmIManager.makeWhoAmIRequest().entitlements
@@ -199,9 +203,10 @@ struct SubscriptionRedemptionNecessityChecker<RedemptionJobRecord: JobRecord> {
         } else if hasSubscriptionRenewedSinceLastRedemption {
             logger.info("Attempting to redeem subscription renewal!")
 
-            let jobRecord: RedemptionJobRecord = try await db.awaitableWrite { tx in
-                /// Enqueue a redemption job, importantly in the same transaction
-                /// as we record the last-redeemed subscription details.
+            let enqueuedJobRecord: RedemptionJobRecord? = try await db.awaitableWrite { tx in
+                /// Ask the caller to enqueue a redemption job. Importantly, do
+                /// this in the same transaction as recording that we performed
+                /// a necessity check.
                 let jobRecord = try enqueueRedemptionJobBlock(subscriberId, subscription, tx)
 
                 checkerStore.setLastRedemptionNecessaryCheck(dateProvider(), tx: tx)
@@ -209,8 +214,10 @@ struct SubscriptionRedemptionNecessityChecker<RedemptionJobRecord: JobRecord> {
                 return jobRecord
             }
 
-            /// Now that we've enqueued the durable job, kick-start it.
-            try await startRedemptionJobBlock(jobRecord)
+            if let enqueuedJobRecord {
+                /// Now that we've enqueued the durable job, kick-start it.
+                try await startRedemptionJobBlock(enqueuedJobRecord)
+            }
         } else {
             logger.info("Subscription has not renewed since last redemption; bailing out!")
 

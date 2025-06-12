@@ -30,9 +30,9 @@ class PniHelloWorldManagerTest: XCTestCase {
     private var identityManagerMock: MockIdentityManager!
     private var networkManagerMock: NetworkManagerMock!
     private var pniDistributionParameterBuilderMock: PniDistributionParamaterBuilderMock!
-    private var pniSignedPreKeyStoreMock: MockSignalSignedPreKeyStore!
-    private var pniKyberPreKeyStoreMock: MockKyberPreKeyStore!
-    private var recipientDatabaseTableMock: MockRecipientDatabaseTable!
+    private var pniSignedPreKeyStoreMock: SignedPreKeyStoreImpl!
+    private var pniKyberPreKeyStoreMock: KyberPreKeyStoreImpl!
+    private var recipientDatabaseTableMock: RecipientDatabaseTable!
     private var tsAccountManagerMock: MockTSAccountManager!
 
     private let db = InMemoryDB()
@@ -41,16 +41,19 @@ class PniHelloWorldManagerTest: XCTestCase {
     private var pniHelloWorldManager: PniHelloWorldManager!
 
     override func setUp() {
-        let recipientDatabaseTable = MockRecipientDatabaseTable()
-        let recipientFetcher = RecipientFetcherImpl(recipientDatabaseTable: recipientDatabaseTable)
+        let recipientDatabaseTable = RecipientDatabaseTable()
+        let recipientFetcher = RecipientFetcherImpl(
+            recipientDatabaseTable: recipientDatabaseTable,
+            searchableNameIndexer: MockSearchableNameIndexer(),
+        )
         identityManagerMock = .init(recipientIdFinder: RecipientIdFinder(
             recipientDatabaseTable: recipientDatabaseTable,
             recipientFetcher: recipientFetcher
         ))
         networkManagerMock = .init()
         pniDistributionParameterBuilderMock = .init()
-        pniSignedPreKeyStoreMock = .init()
-        pniKyberPreKeyStoreMock = .init(dateProvider: Date.provider)
+        pniSignedPreKeyStoreMock = .init(for: .pni)
+        pniKyberPreKeyStoreMock = .init(for: .pni, dateProvider: Date.provider)
         recipientDatabaseTableMock = .init()
         tsAccountManagerMock = .init()
 
@@ -72,17 +75,19 @@ class PniHelloWorldManagerTest: XCTestCase {
         try await pniHelloWorldManager.sayHelloWorldIfNecessary()
     }
 
-    private func setMocksForHappyPath() async {
+    private func setMocksForHappyPath(insertRecipient: Bool = true) async {
         let localIdentifiers = LocalIdentifiers.forUnitTests
         tsAccountManagerMock.registrationStateMock = { .registered }
         tsAccountManagerMock.localIdentifiersMock = { localIdentifiers }
-        await db.awaitableWrite { tx in
-            recipientDatabaseTableMock.insertRecipient(SignalRecipient(
-                aci: localIdentifiers.aci,
-                pni: localIdentifiers.pni,
-                phoneNumber: E164(localIdentifiers.phoneNumber)!,
-                deviceIds: [1, 2, 3].map { DeviceId(validating: $0)! }
-            ), transaction: tx)
+        if insertRecipient {
+            await db.awaitableWrite { tx in
+                recipientDatabaseTableMock.insertRecipient(SignalRecipient(
+                    aci: localIdentifiers.aci,
+                    pni: localIdentifiers.pni,
+                    phoneNumber: E164(localIdentifiers.phoneNumber)!,
+                    deviceIds: [1, 2, 3].map { DeviceId(validating: $0)! }
+                ), transaction: tx)
+            }
         }
 
         let keyPair = ECKeyPair.generateKeyPair()
@@ -160,8 +165,7 @@ class PniHelloWorldManagerTest: XCTestCase {
     }
 
     func testSkipsIfMissingAccountAndDeviceIds() async {
-        await setMocksForHappyPath()
-        recipientDatabaseTableMock.recipientTable = [:]
+        await setMocksForHappyPath(insertRecipient: false)
 
         try? await runRunRun()
 

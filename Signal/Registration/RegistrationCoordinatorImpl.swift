@@ -41,7 +41,6 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         switch mode {
         case .registering:
             if persistedState.hasShownSplash {
-                // Once we are past the splash, no going back.
                 return false
             } else {
                 self.db.write { tx in
@@ -78,7 +77,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
     public func nextStep() -> Guarantee<RegistrationStep> {
         AssertIsOnMainThread()
 
-        if deps.appExpiry.isExpired {
+        if deps.appExpiry.isExpired(now: deps.dateProvider()) {
             return .value(.appUpdateBanner)
         }
 
@@ -98,6 +97,18 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         db.write { tx in
             self.updatePersistedState(tx) {
                 $0.hasShownSplash = true
+            }
+        }
+        return nextStep()
+    }
+
+    func returnToSplash() -> Guarantee<RegistrationStep> {
+        Logger.info("")
+
+        db.write { tx in
+            self.updatePersistedState(tx) {
+                $0.hasShownSplash = false
+                $0.restoreMode = nil
             }
         }
         return nextStep()
@@ -178,6 +189,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             case
                     .opening,
                     .quickRestore,
+                    .manualRestore,
                     .svrAuthCredential,
                     .svrAuthCredentialCandidates,
                     .registrationRecoveryPassword,
@@ -214,6 +226,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         case
                 .opening,
                 .quickRestore,
+                .manualRestore,
                 .registrationRecoveryPassword,
                 .svrAuthCredential,
                 .svrAuthCredentialCandidates,
@@ -232,6 +245,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         case
                 .opening,
                 .quickRestore,
+                .manualRestore,
                 .registrationRecoveryPassword,
                 .svrAuthCredential,
                 .svrAuthCredentialCandidates,
@@ -250,6 +264,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         case
                 .opening,
                 .quickRestore,
+                .manualRestore,
                 .registrationRecoveryPassword,
                 .svrAuthCredential,
                 .svrAuthCredentialCandidates,
@@ -261,42 +276,45 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         }
     }
 
+    /// Note: This method does _not_ report the restore method back to the old device.
+    /// This is due to the fact we either lack the necessary information (e.g. - device transfer info)
+    /// and/or the user hasn't fully committed to the restore method yet (e.g. - they hit cancel on restore from
+    /// backup and choose device transfer instead).
     public func updateRestoreMethod(method: RegistrationRestoreMethod) -> Guarantee<RegistrationStep> {
         switch method {
         case .declined:
             inMemoryState.hasSkippedRestoreFromMessageBackup = true
             inMemoryState.needsToAskForDeviceTransfer = false
+            inMemoryState.restoreMethod = .declined
             deps.db.write { tx in
                 updatePersistedState(tx) {
-                    $0.restoreMethod = .declined
                     $0.hasDeclinedTransfer = true
                 }
             }
         case .deviceTransfer:
             inMemoryState.hasSkippedRestoreFromMessageBackup = true
             inMemoryState.needsToAskForDeviceTransfer = false
+            inMemoryState.restoreMethod = .deviceTransfer
             deps.db.write { tx in
                 updatePersistedState(tx) {
-                    $0.restoreMethod = .declined
                     $0.hasDeclinedTransfer = false
                 }
             }
-            // TODO: Need to make a response to the old device with transfer info
         case .remote:
             inMemoryState.hasSkippedRestoreFromMessageBackup = false
             inMemoryState.needsToAskForDeviceTransfer = false
+            inMemoryState.restoreMethod = .remoteBackup
             deps.db.write { tx in
                 updatePersistedState(tx) {
-                    $0.restoreMethod = .remoteBackup
                     $0.hasDeclinedTransfer = true
                 }
             }
         case .local(let fileUrl):
             inMemoryState.hasSkippedRestoreFromMessageBackup = false
             inMemoryState.needsToAskForDeviceTransfer = false
+            inMemoryState.restoreMethod = .localBackup(filePath: fileUrl)
             deps.db.write { tx in
                 updatePersistedState(tx) {
-                    $0.restoreMethod = .localBackup(filePath: fileUrl)
                     $0.hasDeclinedTransfer = true
                 }
             }
@@ -305,24 +323,27 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
     }
 
     public func updateAccountEntropyPool(_ accountEntropyPool: SignalServiceKit.AccountEntropyPool) -> Guarantee<RegistrationStep> {
+        inMemoryState.accountEntropyPool = accountEntropyPool
+        inMemoryState.shouldRestoreSVRMasterKeyAfterRegistration = false
+        inMemoryState.askForPinDuringReregistration = false
+
         deps.db.write { tx in
-            updatePersistedState(tx) {
-                $0.accountEntropyPool = accountEntropyPool
-            }
+            updateMasterKeyAndLocalState(masterKey: accountEntropyPool.getMasterKey(), tx: tx)
         }
         return self.nextStep()
     }
 
     public func restoreFromRegistrationMessage(message: RegistrationProvisioningMessage) -> Guarantee<RegistrationStep> {
+        inMemoryState.accountEntropyPool = message.accountEntropyPool
+        inMemoryState.registrationMessage = message
+        inMemoryState.pinFromUser = message.pin
+        inMemoryState.pinFromDisk = message.pin
+        inMemoryState.askForPinDuringReregistration = false
+
         deps.db.write { tx in
             updatePersistedState(tx) {
                 $0.e164 = message.phoneNumber
-                $0.accountEntropyPool = message.accountEntropyPool
-                $0.restoreMethodToken = message.restoreMethodToken
-                $0.registrationMessagePin = message.pin
             }
-            inMemoryState.pinFromUser = message.pin
-            inMemoryState.pinFromDisk = message.pin
             updateMasterKeyAndLocalState(masterKey: message.accountEntropyPool.getMasterKey(), tx: tx)
         }
         // TODO: Display prompt for restore method selection
@@ -335,6 +356,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         case
                 .opening,
                 .quickRestore,
+                .manualRestore,
                 .registrationRecoveryPassword,
                 .svrAuthCredential,
                 .svrAuthCredentialCandidates,
@@ -350,7 +372,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         deps.db.write { tx in
             updatePersistedState(tx) {
                 $0.hasShownSplash = true
-                $0.hasOldDevice = hasOldDevice
+                $0.restoreMode = hasOldDevice ? .quickRestore : .manualRestore
             }
         }
         return nextStep()
@@ -416,7 +438,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                     )))
                 }
             }
-        case .opening, .quickRestore, .svrAuthCredential, .svrAuthCredentialCandidates, .profileSetup, .session:
+        case .opening, .quickRestore, .manualRestore, .svrAuthCredential, .svrAuthCredentialCandidates, .profileSetup, .session:
             // We aren't checking against any local state, rely on the request.
             break
         }
@@ -433,6 +455,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             case
                     .opening,
                     .quickRestore,
+                    .manualRestore,
                     .registrationRecoveryPassword,
                     .svrAuthCredential,
                     .svrAuthCredentialCandidates,
@@ -470,6 +493,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         case
                 .opening,
                 .quickRestore,
+                .manualRestore,
                 .registrationRecoveryPassword,
                 .svrAuthCredentialCandidates,
                 .session:
@@ -517,17 +541,34 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         inMemoryState.hasSkippedRestoreFromMessageBackup = true
 
         inMemoryState.needsToAskForDeviceTransfer = false
+        inMemoryState.restoreMethod = .declined
         deps.db.write { tx in
             updatePersistedState(tx) {
-                $0.restoreMethod = .declined
                 $0.hasDeclinedTransfer = true
             }
         }
         return self.nextStep()
     }
 
+    public func resetRestoreMethodChoice() -> Guarantee<RegistrationStep> {
+        inMemoryState.restoreMethod = nil
+        inMemoryState.needsToAskForDeviceTransfer = true
+        inMemoryState.hasConfirmedRestoreFromBackup = false
+        deps.db.write { tx in
+            updatePersistedState(tx) {
+                $0.hasDeclinedTransfer = false
+            }
+        }
+        return returnToSplash()
+    }
+
+    public func confirmRestoreFromBackup() -> Guarantee<RegistrationStep> {
+        inMemoryState.hasConfirmedRestoreFromBackup = true
+        return nextStep()
+    }
+
     private func restoreFromMessageBackup(
-        type: PersistedState.RestoreMethod.BackupType,
+        type: InMemoryState.RestoreMethod.BackupType,
         identity: AccountIdentity
     ) -> Guarantee<Void> {
         Logger.info("")
@@ -537,26 +578,27 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             case .local(let localFileUrl):
                 fileUrl = localFileUrl
             case .remote:
-                fileUrl = try await self.deps.messageBackupManager.downloadEncryptedBackup(
+                fileUrl = try await self.deps.backupArchiveManager.downloadEncryptedBackup(
                     localIdentifiers: identity.localIdentifiers,
                     auth: identity.chatServiceAuth
                 )
             }
             // Get Backup Key
             let backupKey = try self.deps.db.read { tx in
-                return try self.deps.messageBackupKeyMaterial.backupKey(type: .messages, tx: tx)
+                return try self.deps.backupKeyMaterial.backupKey(type: .messages, tx: tx)
             }
-            try await self.deps.messageBackupManager.importEncryptedBackup(
+            try await self.deps.backupArchiveManager.importEncryptedBackup(
                 fileUrl: fileUrl,
                 localIdentifiers: identity.localIdentifiers,
                 backupKey: backupKey,
+                backupPurpose: .remoteBackup,
                 progress: nil
             )
             self.inMemoryState.hasRestoredFromLocalMessageBackup = true
             Logger.info("Finished restore")
         }.recover(on: schedulers.main) { error in
             let (guarantee, future) = Guarantee<Void>.pending()
-            self.deps.messageBackupErrorPresenter.presentOverTopmostViewController {
+            self.deps.backupArchiveErrorPresenter.presentOverTopmostViewController {
                 future.resolve()
             }
             return guarantee
@@ -676,6 +718,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         // be valid, or may not correspond with the current e164.
         var svr2AuthCredentialCandidates: [SVR2AuthCredential]?
         var svrAuthCredential: SVRAuthCredential?
+
         // If we had SVR backups before registration even began.
         var didHaveSVRBackupsPriorToReg = false
 
@@ -690,6 +733,12 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         // to SVR but the user may skip it.
         var isV12faUser: Bool = false
         var unconfirmedPinBlob: RegistrationPinConfirmationBlob?
+
+        // State to track if we should prompt the user to enter their PIN
+        // For the manual restore path, we will ask for AEP which means we
+        // don't need the users PIN to restore the master key. Instead, after
+        // registration prompt the user to create a new PIN.
+        var askForPinDuringReregistration = true
 
         // When we try to register, if we get a response from the server
         // telling us device transfer is possible, we set this to true
@@ -711,6 +760,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         var shouldBackUpToSVR: Bool {
             return hasBackedUpToSVR.negated && didSkipSVRBackup.negated
         }
+        var hasConfirmedRestoreFromBackup = false
 
         // OWS2FAManager state
         // If we are re-registering or changing number and
@@ -741,6 +791,14 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         var hasRestoredFromStorageService = false
         var hasSkippedRestoreFromStorageService = false
 
+        /// Root key entered or generated during registration.  This value should be persisted at
+        /// the end of registration
+        var accountEntropyPool: SignalServiceKit.AccountEntropyPool?
+
+        /// RegistrationProvisioningMessage provided by the device that scanned
+        /// the displayed QR code
+        var registrationMessage: RegistrationProvisioningMessage?
+
         /// Tracks the state of "username reclamation" following Storage Service
         /// restore during registration. See ``attemptToReclaimUsername()`` for
         /// more details.
@@ -750,6 +808,37 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             case reclamationAttempted
         }
         var usernameReclamationState: UsernameReclamationState = .localUsernameStateNotLoaded
+
+        // The restore method selected by the user.  Since the restore method may
+        // rely on other in-memory state (e.g. restoreMethodToken), don't persist this.
+        var restoreMethod: RestoreMethod?
+
+        enum RestoreMethod: Codable, Equatable {
+            case remoteBackup
+            case localBackup(filePath: URL)
+            case deviceTransfer
+            case declined
+
+            enum BackupType {
+                case local(URL)
+                case remote
+            }
+
+            var backupType: BackupType? {
+                switch self {
+                case .localBackup(let url): return .local(url)
+                case .remoteBackup: return .remote
+                case .declined, .deviceTransfer: return nil
+                }
+            }
+
+            var isBackup: Bool {
+                switch self {
+                case .localBackup, .remoteBackup: return true
+                case .declined, .deviceTransfer: return false
+                }
+            }
+        }
     }
 
     private var inMemoryState = InMemoryState()
@@ -763,11 +852,14 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
     /// Note: `mode` is kept separate; it has a different lifecycle than the rest
     /// of PersistedState even though it is also persisted to disk.
     internal struct PersistedState: Codable {
-        /// We only ever want to show the splash once.
         var hasShownSplash = false
         var shouldSkipRegistrationSplash = false
 
-        var hasOldDevice = false
+        var restoreMode: RestoreMode?
+        enum RestoreMode: String, Codable {
+            case quickRestore
+            case manualRestore
+        }
 
         /// When re-registering, just before completing the actual create account
         /// request, we wipe our local state for re-registration. We only do this once,
@@ -815,40 +907,16 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         /// PIN guesses or decide to give up before exhausting them.
         var hasGivenUpTryingToRestoreWithSVR = false
 
-        /// Root key entered or generated during registration.  This value should be persisted at
-        /// the end of registration
-        var accountEntropyPool: SignalServiceKit.AccountEntropyPool?
+        /// Have we restored the pin form SVR already?  This serves as a hint to the registration
+        /// flow that it doesn't need to fetch from SVR in the case of an error and can move on
+        /// to alternate registration paths (e.g. falling back to session based registration)
+        var hasRestoredFromSVR = false
 
         /// Restored SVR master key. This value will be used to restore a session and allow the user
         /// to register and recover storage service, but should never be persisted.  If this value is missing
         /// and `accountEntropyPool` is present, it can be used to derive an SVR master key for
         /// use in registration
         var recoveredSVRMasterKey: MasterKey?
-
-        var registrationMessagePin: String?
-
-        var restoreMethodToken: QuickRestoreManager.RestoreMethodToken?
-        var restoreMethod: RestoreMethod?
-
-        enum RestoreMethod: Codable {
-            case remoteBackup
-            case localBackup(filePath: URL)
-            case deviceTransfer
-            case declined
-
-            enum BackupType {
-                case local(URL)
-                case remote
-            }
-
-            var backupType: BackupType? {
-                switch self {
-                case .localBackup(let url): return .local(url)
-                case .remoteBackup: return .remote
-                case .declined, .deviceTransfer: return nil
-                }
-            }
-        }
 
         struct SessionState: Codable {
             let sessionId: String
@@ -975,16 +1043,13 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             case hasSkippedPinEntry
             // Legacy naming
             case hasGivenUpTryingToRestoreWithSVR = "hasGivenUpTryingToRestoreWithKBS"
+            case hasRestoredFromSVR
             case sessionState
             case accountIdentity
             case didRefreshOneTimePreKeys
             case hasDeclinedTransfer
-            case hasOldDevice
-            case accountEntropyPool
+            case restoreMode
             case recoveredSVRMasterKey
-            case restoreMethodToken
-            case restoreMethod
-            case registrationMessagePin
         }
     }
 
@@ -1045,13 +1110,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         db.write { tx in
 
             var initialMasterKey: MasterKey?
-            if
-                deps.featureFlags.enableAccountEntropyPool,
-                let aep = deps.accountKeyStore.getAccountEntropyPool(tx: tx)
-            {
-                updatePersistedState(tx) {
-                    $0.accountEntropyPool = aep
-                }
+            if let aep = deps.accountKeyStore.getAccountEntropyPool(tx: tx) {
+                inMemoryState.accountEntropyPool = aep
                 initialMasterKey = aep.getMasterKey()
             } else if let masterKey = deps.accountKeyStore.getMasterKey(tx: tx) {
                 updatePersistedState(tx) {
@@ -1062,7 +1122,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
 
             self.updateMasterKeyAndLocalState(masterKey: initialMasterKey, tx: tx)
             inMemoryState.tsRegistrationState = deps.tsAccountManager.registrationState(tx: tx)
-            if let quickRestorePin = persistedState.registrationMessagePin {
+            if let quickRestorePin = inMemoryState.registrationMessage?.pin {
                 inMemoryState.pinFromDisk = quickRestorePin
                 inMemoryState.pinFromUser = quickRestorePin
             } else {
@@ -1128,7 +1188,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
     private func exportAndWipeState(accountIdentity: AccountIdentity) -> Guarantee<RegistrationStep> {
         Logger.info("")
 
-        func writeState(_ tx: DBWriteTransaction) {
+        func persistRegistrationState(_ tx: DBWriteTransaction) {
             if
                 inMemoryState.hasBackedUpToSVR
                 || inMemoryState.didHaveSVRBackupsPriorToReg
@@ -1140,10 +1200,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             }
 
             let userHasPIN = (inMemoryState.pinFromUser ?? inMemoryState.pinFromDisk) != nil
-            if
-                deps.featureFlags.enableAccountEntropyPool,
-                let accountEntropyPool = persistedState.accountEntropyPool
-            {
+            if let accountEntropyPool = inMemoryState.accountEntropyPool {
                 deps.svr.useDeviceLocalAccountEntropyPool(
                     accountEntropyPool,
                     disablePIN: !userHasPIN,
@@ -1151,8 +1208,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                     transaction: tx
                 )
             } else {
-                    // While the AEP feature flag exists, we'll need to fall back to
-                    // generating a master key if one wasn't restored.
+                // While the AEP feature flag exists, we'll need to fall back to
+                // generating a master key if one wasn't restored.
                 let masterKey = persistedState.recoveredSVRMasterKey ?? deps.accountKeyStore.getOrGenerateMasterKey(tx: tx)
                 deps.svr.useDeviceLocalMasterKey(
                     masterKey,
@@ -1167,7 +1224,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             if inMemoryState.hasRestoredFromLocalMessageBackup {
                 return .value(())
             }
-            guard let backupType = persistedState.restoreMethod?.backupType else {
+            guard let backupType = inMemoryState.restoreMethod?.backupType else {
                 return .value(())
             }
             return restoreFromMessageBackup(
@@ -1187,6 +1244,15 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             deps.tsAccountManager.setIsManualMessageFetchEnabled(inMemoryState.isManualMessageFetchEnabled, tx: tx)
         }
 
+        func finalizeRegistration(tx: DBWriteTransaction) {
+            /// Disable PNI Hello World operations – these aren't necessary
+            /// since we are the only device and know that our
+            /// just-generated our PNI identity key is correct.
+            deps.pniHelloWorldManager.markHelloWorldAsUnnecessary(tx: tx)
+
+            persistLocalIdentifiers(tx: tx)
+        }
+
         func setupContactsAndFinish() -> Guarantee<RegistrationStep> {
             // Start syncing system contacts now that we have set up tsAccountManager.
             deps.contactsManager.fetchSystemContactsOnceIfAlreadyAuthorized()
@@ -1204,34 +1270,35 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
 
         switch mode {
         case .registering:
-            return restoreBackupIfNecessary()
-            .then { _ in
-                self.db.write { tx in
-                    /// For new registrations, we want to force-set some state.
-                    if self.persistedState.restoreMethod?.backupType == nil {
-                        /// Read receipts should be on by default.
-                        self.deps.receiptManager.setAreReadReceiptsEnabled(true, tx)
-                        self.deps.receiptManager.setAreStoryViewedReceiptsEnabled(true, tx)
+            db.write { tx in
+                /// For new registrations, we want to force-set some state.
+                if self.inMemoryState.restoreMethod?.backupType == nil {
+                    /// Read receipts should be on by default.
+                    self.deps.receiptManager.setAreReadReceiptsEnabled(true, tx)
+                    self.deps.receiptManager.setAreStoryViewedReceiptsEnabled(true, tx)
 
-                        /// Enable the onboarding banner cards.
-                        self.deps.experienceManager.enableAllGetStartedCards(tx)
-                    }
-
-                    /// Disable PNI Hello World operations – these aren't necessary
-                    /// since we are the only device and know that our
-                    /// just-generated our PNI identity key is correct.
-                    self.deps.pniHelloWorldManager.markHelloWorldAsUnnecessary(tx: tx)
-
-                    writeState(tx)
-                    persistLocalIdentifiers(tx: tx)
+                    /// Enable the onboarding banner cards.
+                    self.deps.experienceManager.enableAllGetStartedCards(tx)
                 }
-                return setupContactsAndFinish()
+                persistRegistrationState(tx)
             }
+
+            if let step = fetchBackupCdnInfo(accountIdentity: accountIdentity) {
+                return step
+            }
+
+            return restoreBackupIfNecessary()
+                .then {
+                    self.db.write { tx in
+                        finalizeRegistration(tx: tx)
+                    }
+                    return setupContactsAndFinish()
+                }
 
         case .reRegistering:
             db.write { tx in
-                writeState(tx)
-                persistLocalIdentifiers(tx: tx)
+                persistRegistrationState(tx)
+                finalizeRegistration(tx: tx)
             }
             return setupContactsAndFinish()
 
@@ -1255,6 +1322,33 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             } else {
                 return updateAccountAttributesAndFinish(accountIdentity: accountIdentity)
             }
+        }
+    }
+
+    private func fetchBackupCdnInfo(accountIdentity: AccountIdentity) -> Guarantee<RegistrationStep>? {
+        guard
+            inMemoryState.restoreMethod?.isBackup == true,
+            !inMemoryState.hasConfirmedRestoreFromBackup
+        else {
+            return nil
+        }
+
+        // For manual restore, fetch the backup info
+        return Promise.wrapAsync { () -> AttachmentDownloads.CdnInfo? in
+            try await self.deps.backupArchiveManager.backupCdnInfo(
+                localIdentifiers: accountIdentity.localIdentifiers,
+                auth: accountIdentity.chatServiceAuth
+            )
+        }.recover { error in
+            Logger.error("Can't fetch backup info: \(error.localizedDescription)")
+            return .value(nil)
+        }.map { cdnInfo -> RegistrationStep in
+            return .confirmRestoreFromBackup(
+                RegistrationRestoreFromBackupConfirmationState(
+                    tier: .free,
+                    lastBackupDate: cdnInfo?.lastModified,
+                    lastBackupSizeBytes: cdnInfo?.contentLength
+                ))
         }
     }
 
@@ -1318,6 +1412,10 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         /// to allow the user to transfer registration information from the old device
         /// to the new device.
         case quickRestore
+        /// The user does not have their old device, but the users intent is to restore
+        /// from backup, so move the user into the restore choice/backup key entry
+        /// sooner than would happen in the default registration flow.
+        case manualRestore
         /// Attempting to register using the reg recovery password
         /// derived from the SVR master key.
         case registrationRecoveryPassword(password: String)
@@ -1341,6 +1439,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             switch self {
             case .opening: return "opening"
             case .quickRestore: return "quickRestore"
+            case .manualRestore: return "manualRestore"
             case .registrationRecoveryPassword: return "registrationRecoveryPassword"
             case .svrAuthCredential: return "svrAuthCredential"
             case .svrAuthCredentialCandidates: return "svrAuthCredentialCandidates"
@@ -1357,12 +1456,31 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         {
             return .opening
         }
-        if
-            case .registering = mode,
-            persistedState.hasOldDevice,
-            persistedState.restoreMethod == nil
-        {
-            return .quickRestore
+        if case .registering = mode {
+            switch persistedState.restoreMode {
+            case .quickRestore:
+                if inMemoryState.restoreMethod == nil {
+                    return .quickRestore
+                } else if case .deviceTransfer = inMemoryState.restoreMethod {
+                    return .quickRestore
+                } else if
+                    inMemoryState.restoreMethod?.isBackup == true,
+                    !inMemoryState.hasConfirmedRestoreFromBackup
+                {
+                    return .quickRestore
+                }
+            case .manualRestore:
+                if
+                    inMemoryState.accountEntropyPool == nil,
+                    inMemoryState.restoreMethod != .declined
+                {
+                    return .manualRestore
+                }
+            case .none:
+                if case .deviceTransfer = inMemoryState.restoreMethod {
+                    return .quickRestore
+                }
+            }
         }
         if let session = inMemoryState.session {
             // If we have a session, always use that. We might have obtained SVR
@@ -1423,6 +1541,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             return nextStepForOpeningPath()
         case .quickRestore:
             return nextStepForQuickRestore()
+        case .manualRestore:
+            return nextStepForManualRestore()
         case .registrationRecoveryPassword(let password):
             return nextStepForRegRecoveryPasswordPath(regRecoveryPw: password)
         case .svrAuthCredential(let credential):
@@ -1456,10 +1576,52 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
     }
 
     private func nextStepForQuickRestore() -> Guarantee<RegistrationStep> {
-        if persistedState.accountEntropyPool == nil {
+        if inMemoryState.accountEntropyPool == nil {
             return .value(.scanQuickRegistrationQrCode)
         }
-        return .value(.chooseRestoreMethod)
+        if case .deviceTransfer = inMemoryState.restoreMethod {
+            if let restoreToken = inMemoryState.registrationMessage?.restoreMethodToken {
+                let transferStatusState = RegistrationTransferStatusState(
+                    deviceTransferService: deps.deviceTransferService,
+                    quickRestoreManager: deps.quickRestoreManager,
+                    restoreMethodToken: restoreToken
+                )
+                return .value(.deviceTransfer(transferStatusState))
+            } else {
+                return .value(.scanQuickRegistrationQrCode)
+            }
+        }
+
+        if
+            inMemoryState.restoreMethod?.isBackup == true,
+            let registrationMessage = inMemoryState.registrationMessage
+        {
+            // if backup, show the confirmation screen
+            return .value(.confirmRestoreFromBackup(
+                RegistrationRestoreFromBackupConfirmationState(
+                    tier: registrationMessage.tier ?? .free,
+                    lastBackupDate: registrationMessage.backupTimestamp.map(Date.init(millisecondsSince1970:)),
+                    lastBackupSizeBytes: registrationMessage.backupSizeBytes.map(UInt.init)
+                )))
+        } else {
+            return .value(.chooseRestoreMethod)
+        }
+    }
+
+    private func nextStepForManualRestore() -> Guarantee<RegistrationStep> {
+        if
+            case .manualRestore = persistedState.restoreMode,
+            inMemoryState.restoreMethod == nil
+        {
+            return .value(.chooseRestoreMethod)
+        }
+
+        // We need a phone number to proceed; ask the user if unavailable.
+        if persistedState.e164 == nil {
+            return .value(.phoneNumberEntry(phoneNumberEntryState()))
+        }
+
+        return .value(.enterBackupKey)
     }
 
     private func splashStepToShow() -> RegistrationStep? {
@@ -1490,6 +1652,37 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             return .value(.phoneNumberEntry(phoneNumberEntryState()))
         }
 
+        if let askForPinStep = askForUserPINIfNeeded() {
+            return askForPinStep
+        }
+
+        if inMemoryState.needsToAskForDeviceTransfer && !persistedState.hasDeclinedTransfer {
+            if deps.featureFlags.backupFileAlphaRegistrationFlow {
+                return .value(.chooseRestoreMethod)
+            } else {
+                return .value(.transferSelection)
+            }
+        } else if
+            inMemoryState.restoreMethod?.isBackup == true,
+            inMemoryState.accountEntropyPool == nil
+        {
+            // If the user chose 'restore from backup', ask them
+            // for the AEP before continuing with registration
+            return .value(.enterBackupKey)
+        }
+
+        // Attempt to register right away with the password.
+        return registerForRegRecoveryPwPath(
+            regRecoveryPw: regRecoveryPw,
+            e164: e164
+        )
+    }
+
+    private func askForUserPINIfNeeded() -> Guarantee<RegistrationStep>? {
+        // Don't bother with gathering the PIN if now if we already have an AEP
+        // and we're going through a restore path
+        guard inMemoryState.askForPinDuringReregistration else { return nil }
+
         guard let pinFromUser = inMemoryState.pinFromUser else {
             // We need the user to confirm their pin.
             return .value(.pinEntry(RegistrationPinState(
@@ -1513,27 +1706,12 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 exitConfiguration: pinCodeEntryExitConfiguration()
             )))
         }
-
-        if inMemoryState.needsToAskForDeviceTransfer && !persistedState.hasDeclinedTransfer {
-            if deps.featureFlags.messageBackupFileAlphaRegistrationFlow {
-                return .value(.chooseRestoreMethod)
-            } else {
-                return .value(.transferSelection)
-            }
-        }
-
-        // Attempt to register right away with the password.
-        return registerForRegRecoveryPwPath(
-            regRecoveryPw: regRecoveryPw,
-            e164: e164,
-            pinFromUser: pinFromUser
-        )
+        return nil
     }
 
     private func registerForRegRecoveryPwPath(
         regRecoveryPw: String,
         e164: E164,
-        pinFromUser: String,
         retriesLeft: Int = Constants.networkErrorRetries
     ) -> Guarantee<RegistrationStep> {
         let twoFAMode = self.attributes2FAMode(e164: e164)
@@ -1546,7 +1724,6 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                     accountResponse,
                     regRecoveryPw: regRecoveryPw,
                     e164: e164,
-                    pinFromUser: pinFromUser,
                     twoFaModeUsedInRequest: twoFAMode,
                     retriesLeft: retriesLeft
                 ) ?? unretainedSelfError()
@@ -1558,7 +1735,6 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         _ response: AccountResponse,
         regRecoveryPw: String,
         e164: E164,
-        pinFromUser: String,
         twoFaModeUsedInRequest: AccountAttributes.TwoFactorAuthMode,
         retriesLeft: Int
     ) -> Guarantee<RegistrationStep> {
@@ -1641,13 +1817,29 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             // (If we wiped it and our SVR server guesses were consumed by the reglock-challenger,
             // we'd be outta luck and have no way to recover).
             //
-            // However, because the master key can be much more fluid in an AEP world, there is a
+            // Because the master key can be much more fluid in an AEP world, there is a
             // much more common case that the SVR master key is wrong, but we can still fetch a
             // valid master key from SVR. To that point, don't clear out the SVR auth credentials here.
             // Instead, clear out just the piece of information we now know to be invalid to inform
             // the state machine to bypass any RRP attempts and fall back to fetching from SVR (or
             // restoring to starting a session from scratch)
-            inMemoryState.regRecoveryPw = nil
+            //
+            // However, we should only attempt to restore from SVR once. If we successfully restore
+            // from SVR, and still encounter this error, we
+            // (a) have already restored so don't need the svrCredentials any longer, and
+            // (b) should revert back to session based registration.
+            if persistedState.hasRestoredFromSVR {
+                db.write { tx in
+                    // We do want to clear out any credentials permanently; we know we
+                    // have to use the session path so credentials aren't helpful.
+                    if let svr2Credential = inMemoryState.svrAuthCredential {
+                        deps.svrAuthCredentialStore.deleteInvalidCredentials([svr2Credential], tx)
+                    }
+                }
+                wipeInMemoryStateToPreventSVRPathAttempts()
+            } else {
+                inMemoryState.regRecoveryPw = nil
+            }
 
             // Instead of moving directly to starting a session, like we do in the .reglockFailed case above,
             // let the state machine determine next steps.  It may be the user had a bad
@@ -1666,7 +1858,6 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                         return self.registerForRegRecoveryPwPath(
                             regRecoveryPw: regRecoveryPw,
                             e164: e164,
-                            pinFromUser: pinFromUser
                         )
                     }
             }
@@ -1688,7 +1879,6 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 return registerForRegRecoveryPwPath(
                     regRecoveryPw: regRecoveryPw,
                     e164: e164,
-                    pinFromUser: pinFromUser,
                     retriesLeft: retriesLeft - 1
                 )
             }
@@ -1756,6 +1946,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                     self.db.write {
                         self.updatePersistedState($0) { state in
                             state.recoveredSVRMasterKey = masterKey
+                            state.hasRestoredFromSVR = true
                         }
                         self.updateMasterKeyAndLocalState(masterKey: masterKey, tx: $0)
                     }
@@ -1972,7 +2163,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         }
 
         if inMemoryState.needsToAskForDeviceTransfer && !persistedState.hasDeclinedTransfer {
-            if deps.featureFlags.messageBackupFileAlphaRegistrationFlow {
+            if deps.featureFlags.backupFileAlphaRegistrationFlow {
                 return .value(.chooseRestoreMethod)
             } else {
                 return .value(.transferSelection)
@@ -2297,7 +2488,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             return nextStep()
         case .deviceTransferPossible:
             inMemoryState.needsToAskForDeviceTransfer = true
-            if deps.featureFlags.messageBackupFileAlphaRegistrationFlow {
+            if deps.featureFlags.backupFileAlphaRegistrationFlow {
                 return .value(.chooseRestoreMethod)
             } else {
                 return .value(.transferSelection)
@@ -2915,6 +3106,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                         self.updateMasterKeyAndLocalState(masterKey: masterKey, tx: tx)
                         self.updatePersistedState(tx) {
                             $0.recoveredSVRMasterKey = masterKey
+                            $0.hasRestoredFromSVR = true
                         }
                         self.updatePersistedSessionState(session: session, tx) {
                             // Now we have the state we need to get past reglock.
@@ -2975,8 +3167,11 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             break
         case .changingNumber:
             // Change number is different; we do a limited number of operations and then finalize.
-            if let stepGuarantee = performSVRBackupStepsIfNeeded(accountIdentity: accountIdentity) {
-                return stepGuarantee
+            if let restoreStepGuarantee = performSVRRestoreStepsIfNeeded(accountIdentity: accountIdentity) {
+                return restoreStepGuarantee
+            }
+            if let backupStepGuarantee = performSVRBackupStepsIfNeeded(accountIdentity: accountIdentity) {
+                return backupStepGuarantee
             }
 
             return exportAndWipeState(accountIdentity: accountIdentity)
@@ -3016,40 +3211,11 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 }
         }
 
-        if deps.featureFlags.enableAccountEntropyPool {
-            if persistedState.accountEntropyPool == nil {
-                if persistedState.restoreMethod?.backupType != nil {
-                    // If the user want's to restore from backup, ask for the key
-                    return .value(.enterBackupKey)
-                } else {
-                    // If the AccountEntropyPool doesn't exist yet, create one.
-                    db.write { tx in
-                        updatePersistedState(tx) {
-                            $0.accountEntropyPool = deps.accountKeyStore.getOrGenerateAccountEntropyPool(tx: tx)
-                        }
-                        let newMasterKey = persistedState.accountEntropyPool?.getMasterKey()
-                        updateMasterKeyAndLocalState(masterKey: newMasterKey, tx: tx)
-                    }
-                }
-            }
-        } else {
-            if persistedState.recoveredSVRMasterKey == nil {
-                // attempt to pull from local state
-                db.write { tx in
-                    let newMasterKey = deps.accountKeyStore.getOrGenerateMasterKey(tx: tx)
-                    updatePersistedState(tx) {
-                        $0.recoveredSVRMasterKey = newMasterKey
-                    }
-                    updateMasterKeyAndLocalState(masterKey: newMasterKey, tx: tx)
-                }
-            }
-        }
-
         if
             shouldRestoreFromStorageServiceBeforeUpdatingSVR(),
             let restoredKey = persistedState.recoveredSVRMasterKey
         {
-            // Need to preserve the key recovered by registartion and use this for storage service restore
+            // Need to preserve the key recovered by registration and use this for storage service restore
             // If already restored due to AEP change, this step will be skipped
             return restoreFromStorageService(
                 accountIdentity: accountIdentity,
@@ -3057,17 +3223,31 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             )
         }
 
+        if let stepGuarantee = performSVRRestoreStepsIfNeeded(accountIdentity: accountIdentity) {
+            return stepGuarantee
+        }
+
+        if inMemoryState.accountEntropyPool == nil {
+            if inMemoryState.restoreMethod?.isBackup == true {
+                // If the user want's to restore from backup, ask for the key
+                return .value(.enterBackupKey)
+            } else {
+                // If the AccountEntropyPool doesn't exist yet, create one.
+                db.write { tx in
+                    let accountEntropyPool = deps.accountKeyStore.getOrGenerateAccountEntropyPool(tx: tx)
+                    inMemoryState.accountEntropyPool = accountEntropyPool
+                    let newMasterKey = accountEntropyPool.getMasterKey()
+                    updateMasterKeyAndLocalState(masterKey: newMasterKey, tx: tx)
+                }
+            }
+        }
+
         if let stepGuarantee = performSVRBackupStepsIfNeeded(accountIdentity: accountIdentity) {
             return stepGuarantee
         }
 
         // This will restore after backup, _or_ it will rotate to the new AEP derived key
-        let masterKey: MasterKey?
-        if deps.featureFlags.enableAccountEntropyPool {
-            masterKey = persistedState.accountEntropyPool?.getMasterKey()
-        } else {
-            masterKey = persistedState.recoveredSVRMasterKey
-        }
+        let masterKey = inMemoryState.accountEntropyPool?.getMasterKey()
 
         if
             shouldRestoreFromStorageService(),
@@ -3088,7 +3268,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
 
         if
             !inMemoryState.hasProfileName,
-            persistedState.restoreMethod?.backupType == nil
+            inMemoryState.restoreMethod?.backupType == nil
         {
             if let profileInfo = inMemoryState.pendingProfileInfo {
                 return db.write { tx in
@@ -3130,7 +3310,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
 
         if
             inMemoryState.phoneNumberDiscoverability == nil,
-            persistedState.restoreMethod?.backupType == nil
+            inMemoryState.restoreMethod?.backupType == nil
         {
             return .value(.phoneNumberDiscoverability(RegistrationPhoneNumberDiscoverabilityState(
                 e164: accountIdentity.e164,
@@ -3144,52 +3324,85 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
     }
 
     // returns nil if no steps needed.
-    private func performSVRBackupStepsIfNeeded(
+    private func showPinEntryIfNeeded(
         accountIdentity: AccountIdentity
     ) -> Guarantee<RegistrationStep>? {
         Logger.info("")
 
         let isRestoringPinBackup: Bool = (
             accountIdentity.hasPreviouslyUsedSVR &&
-            !persistedState.hasGivenUpTryingToRestoreWithSVR
+            !persistedState.hasGivenUpTryingToRestoreWithSVR &&
+            inMemoryState.restoreMethod?.isBackup != true
         )
 
         if !persistedState.hasSkippedPinEntry {
-            guard let pin = inMemoryState.pinFromUser ?? inMemoryState.pinFromDisk else {
-                if isRestoringPinBackup {
-                    return .value(.pinEntry(RegistrationPinState(
-                        operation: .enteringExistingPin(
-                            skippability: .canSkipAndCreateNew,
-                            remainingAttempts: nil
-                        ),
-                        error: nil,
-                        contactSupportMode: self.contactSupportRegistrationPINMode(),
-                        exitConfiguration: pinCodeEntryExitConfiguration()
-                    )))
-                } else if let blob = inMemoryState.unconfirmedPinBlob {
-                    return .value(.pinEntry(RegistrationPinState(
-                        operation: .confirmingNewPin(blob),
-                        error: nil,
-                        contactSupportMode: self.contactSupportRegistrationPINMode(),
-                        exitConfiguration: pinCodeEntryExitConfiguration()
-                    )))
-                } else {
-                    return .value(.pinEntry(RegistrationPinState(
-                        operation: .creatingNewPin,
-                        error: nil,
-                        contactSupportMode: self.contactSupportRegistrationPINMode(),
-                        exitConfiguration: pinCodeEntryExitConfiguration()
-                    )))
-                }
+            if isRestoringPinBackup {
+                return .value(.pinEntry(RegistrationPinState(
+                    operation: .enteringExistingPin(
+                        skippability: .canSkipAndCreateNew,
+                        remainingAttempts: nil
+                    ),
+                    error: nil,
+                    contactSupportMode: self.contactSupportRegistrationPINMode(),
+                    exitConfiguration: pinCodeEntryExitConfiguration()
+                )))
+            } else if let blob = inMemoryState.unconfirmedPinBlob {
+                return .value(.pinEntry(RegistrationPinState(
+                    operation: .confirmingNewPin(blob),
+                    error: nil,
+                    contactSupportMode: self.contactSupportRegistrationPINMode(),
+                    exitConfiguration: pinCodeEntryExitConfiguration()
+                )))
+            } else {
+                return .value(.pinEntry(RegistrationPinState(
+                    operation: .creatingNewPin,
+                    error: nil,
+                    contactSupportMode: self.contactSupportRegistrationPINMode(),
+                    exitConfiguration: pinCodeEntryExitConfiguration()
+                )))
             }
+        }
+        return nil
+    }
+
+    // returns nil if no steps needed.
+    private func performSVRRestoreStepsIfNeeded(
+        accountIdentity: AccountIdentity
+    ) -> Guarantee<RegistrationStep>? {
+        guard inMemoryState.shouldRestoreSVRMasterKeyAfterRegistration else {
+            return nil
+        }
+
+        Logger.info("")
+        guard let pin = inMemoryState.pinFromUser ?? inMemoryState.pinFromDisk else {
+            return showPinEntryIfNeeded(accountIdentity: accountIdentity)
+        }
+
+        if
+            !persistedState.hasSkippedPinEntry,
+            accountIdentity.hasPreviouslyUsedSVR,
+            !persistedState.hasGivenUpTryingToRestoreWithSVR
+        {
+            // If we have no SVR data, fetch it.
+            return restoreSVRBackupPostRegistration(pin: pin, accountIdentity: accountIdentity)
+        }
+        return nil
+    }
+
+    // returns nil if no steps needed.
+    private func performSVRBackupStepsIfNeeded(
+        accountIdentity: AccountIdentity
+    ) -> Guarantee<RegistrationStep>? {
+        Logger.info("")
+
+        guard let pin = inMemoryState.pinFromUser ?? inMemoryState.pinFromDisk else {
+            return showPinEntryIfNeeded(accountIdentity: accountIdentity)
+        }
+
+        if !persistedState.hasSkippedPinEntry {
             if inMemoryState.shouldBackUpToSVR {
-                // If we have no SVR data, fetch it.
-                if isRestoringPinBackup, inMemoryState.shouldRestoreSVRMasterKeyAfterRegistration {
-                    return restoreSVRBackupPostRegistration(pin: pin, accountIdentity: accountIdentity)
-                } else {
-                    // If we haven't backed up, do so now.
-                    return backupToSVR(pin: pin, accountIdentity: accountIdentity)
-                }
+                // If we haven't backed up, do so now.
+                return backupToSVR(pin: pin, accountIdentity: accountIdentity)
             }
 
             switch attributes2FAMode(e164: accountIdentity.e164) {
@@ -3220,7 +3433,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             authMethod = backupAuthMethod
         }
         return deps.svr
-            .restoreKeysAndBackup(
+            .restoreKeys(
                 pin: pin,
                 authMethod: authMethod
             )
@@ -3231,7 +3444,6 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                 switch result {
                 case .success(let masterKey):
                     self.inMemoryState.shouldRestoreSVRMasterKeyAfterRegistration = false
-                    self.inMemoryState.hasBackedUpToSVR = true
                     self.db.write { tx in
                         self.updatePersistedState(tx) { $0.recoveredSVRMasterKey = masterKey }
                     }
@@ -3306,12 +3518,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
             authMethod = backupAuthMethod
         }
 
-        let masterKey: MasterKey?
-        if deps.featureFlags.enableAccountEntropyPool {
-            masterKey = persistedState.accountEntropyPool?.getMasterKey()
-        } else {
-            masterKey = persistedState.recoveredSVRMasterKey
-        }
+        let masterKey = inMemoryState.accountEntropyPool?.getMasterKey()
 
         guard let masterKey else {
             Logger.error("Failed to back up to SVR due to missing root key")
@@ -3754,15 +3961,19 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
                     isManualMessageFetchEnabled: isManualMessageFetchEnabled,
                     twoFAMode: twoFAMode
                 )
-                return self.makeCreateAccountRequestAndFinalizePreKeys(
-                    method: method,
-                    e164: e164,
-                    authPassword: authToken,
-                    accountAttributes: accountAttributes,
-                    skipDeviceTransfer: self.shouldSkipDeviceTransfer(),
-                    apnRegistrationId: apnRegistrationId,
-                    responseHandler: responseHandler
-                )
+
+                return sendRestoreMethodIfNecessary()
+                    .then {
+                        self.makeCreateAccountRequestAndFinalizePreKeys(
+                            method: method,
+                            e164: e164,
+                            authPassword: authToken,
+                            accountAttributes: accountAttributes,
+                            skipDeviceTransfer: self.shouldSkipDeviceTransfer(),
+                            apnRegistrationId: apnRegistrationId,
+                            responseHandler: responseHandler
+                        )
+                    }
             }
 
         case .changingNumber(let changeNumberState):
@@ -3822,6 +4033,52 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         }
     }
 
+    /// Send the restore method back to the other device in non-transfer restore scenarios.
+    /// Device transfer is handled outside the registration flow, so sending that
+    /// method is intentionally skipped here.
+    private func sendRestoreMethodIfNecessary() -> Guarantee<Void> {
+        let restoreMethod: QuickRestoreManager.RestoreMethodType? = switch inMemoryState.restoreMethod {
+        case .declined: .decline
+        case .localBackup: .localBackup
+        case .remoteBackup: .remoteBackup
+        case .deviceTransfer: nil
+        case .none: nil
+        }
+
+        if
+            let restoreMethod,
+            let restoreMethodToken = self.inMemoryState.registrationMessage?.restoreMethodToken
+        {
+            return Guarantee.wrapAsync({
+                try? await self.deps.quickRestoreManager.reportRestoreMethodChoice(
+                    method: restoreMethod,
+                    restoreMethodToken: restoreMethodToken
+                )
+            })
+        } else {
+            return .value(())
+        }
+    }
+
+    private func persistRegistrationMessage(_ registrationMessage: RegistrationProvisioningMessage) {
+        db.write { tx in
+            deps.identityManager.setIdentityKeyPair(
+                registrationMessage.aciIdentityKeyPair.asECKeyPair,
+                for: .aci,
+                tx: tx
+            )
+            deps.identityManager.setIdentityKeyPair(
+                registrationMessage.pniIdentityKeyPair.asECKeyPair,
+                for: .pni,
+                tx: tx
+            )
+            deps.accountKeyStore.setAccountEntropyPool(
+                registrationMessage.accountEntropyPool,
+                tx: tx
+            )
+        }
+    }
+
     private func makeCreateAccountRequestAndFinalizePreKeys(
         method: RegistrationRequestFactory.VerificationMethod,
         e164: E164,
@@ -3831,6 +4088,10 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         apnRegistrationId: RegistrationRequestFactory.ApnRegistrationId?,
         responseHandler: @escaping (AccountResponse) -> Guarantee<RegistrationStep>
     ) -> Guarantee<RegistrationStep> {
+        // If there are identity keys, we have to persist them before generating prekeys
+        if let registrationMessage = inMemoryState.registrationMessage {
+            persistRegistrationMessage(registrationMessage)
+        }
         return self.deps.preKeyManager.createPreKeysForRegistration()
             .map(on: self.schedulers.sync) { (bundles: RegistrationPreKeyUploadBundles) -> RegistrationPreKeyUploadBundles? in
                 return bundles
@@ -4123,6 +4384,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         case
                 .opening,
                 .quickRestore,
+                .manualRestore,
                 .registrationRecoveryPassword,
                 .svrAuthCredential,
                 .svrAuthCredentialCandidates,
@@ -4349,7 +4611,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
 
     private func contactSupportRegistrationPINMode() -> ContactSupportActionSheet.EmailFilter.RegistrationPINMode {
         switch getPathway() {
-        case .opening, .quickRestore:
+        case .opening, .quickRestore, .manualRestore:
             owsFailBeta("Should not be asking for PIN during opening path.")
             return .v2WithUnknownReglockState
         case .svrAuthCredential, .svrAuthCredentialCandidates, .registrationRecoveryPassword:
@@ -4418,8 +4680,8 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         switch mode {
         case .registering:
             return
-                deps.featureFlags.messageBackupFileAlphaRegistrationFlow
-                && persistedState.accountEntropyPool != nil
+                deps.featureFlags.backupFileAlphaRegistrationFlow
+                && inMemoryState.accountEntropyPool != nil
                 && inMemoryState.hasBackedUpToSVR
                 && !inMemoryState.hasRestoredFromLocalMessageBackup
                 && !inMemoryState.hasSkippedRestoreFromMessageBackup
@@ -4431,11 +4693,10 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
     private func shouldRestoreFromStorageServiceBeforeUpdatingSVR() -> Bool {
         switch mode {
         case .registering, .reRegistering:
-            return deps.featureFlags.enableAccountEntropyPool
-                && !inMemoryState.hasRestoredFromStorageService
+            return !inMemoryState.hasRestoredFromStorageService
                 && !inMemoryState.hasSkippedRestoreFromStorageService
                 && !inMemoryState.shouldRestoreSVRMasterKeyAfterRegistration
-                && persistedState.restoreMethod?.backupType == nil
+                && inMemoryState.restoreMethod?.backupType == nil
         case .changingNumber:
             return false
         }
@@ -4446,7 +4707,7 @@ public class RegistrationCoordinatorImpl: RegistrationCoordinator {
         case .registering, .reRegistering:
             return !inMemoryState.hasRestoredFromStorageService
                 && !inMemoryState.hasSkippedRestoreFromStorageService
-                && persistedState.restoreMethod?.backupType == nil
+                && inMemoryState.restoreMethod?.backupType == nil
         case .changingNumber:
             return false
         }

@@ -11,24 +11,16 @@ public enum GroupsV2Error: Error {
     case redundantChange
     /// The change we attempted conflicts with what is on the service.
     case conflictingChangeOnService
-    case shouldRetry
     case shouldDiscard
     case timeout
     case localUserNotInGroup
     case cannotBuildGroupChangeProto_conflictingChange
     case cannotBuildGroupChangeProto_lastAdminCantLeaveGroup
     case cannotBuildGroupChangeProto_tooManyMembers
-    case gv2NotEnabled
     case localUserIsNotARequestingMember
     case cantApplyChangesToPlaceholder
     case expiredGroupInviteLink
-    case groupDoesNotExistOnService
-    case groupNeedsToBeMigrated
-    case groupCannotBeMigrated
-    case groupDowngradeNotAllowed
-    case missingGroupChangeProtos
     case groupBlocked
-    case newMemberMissingAnnouncementOnlyCapability
     case localUserBlockedFromJoining
 
     /// We tried to apply an incremental group change proto but failed due to
@@ -69,7 +61,7 @@ public enum GroupsV2LinkMode: UInt, CustomStringConvertible {
 public protocol GroupsV2 {
 
     func hasProfileKeyCredential(
-        for address: SignalServiceAddress,
+        for aci: Aci,
         transaction: DBReadTransaction
     ) -> Bool
 
@@ -84,23 +76,16 @@ public protocol GroupsV2 {
         transaction: DBReadTransaction
     ) -> Bool
 
-    typealias ProfileKeyCredentialMap = [Aci: ExpiringProfileKeyCredential]
-
     func createNewGroupOnService(
-        groupModel: TSGroupModelV2,
-        disappearingMessageToken: DisappearingMessageToken
+        _ newGroup: GroupsV2Protos.NewGroupParams,
+        downloadedAvatars: GroupAvatarStateMap,
+        localAci: Aci,
     ) async throws -> GroupV2SnapshotResponse
 
     func loadProfileKeyCredentials(
         for acis: [Aci],
         forceRefresh: Bool
-    ) async throws -> ProfileKeyCredentialMap
-
-    func tryToFetchProfileKeyCredentials(
-        for acis: [Aci],
-        ignoreMissingProfiles: Bool,
-        forceRefresh: Bool
-    ) async throws
+    ) async throws -> [Aci: ExpiringProfileKeyCredential]
 
     func fetchLatestSnapshot(
         secretParams: GroupSecretParams,
@@ -127,8 +112,12 @@ public protocol GroupsV2 {
     // inviteLinkPassword is not necessary if we're already a member or have a pending request.
     func fetchGroupInviteLinkPreview(
         inviteLinkPassword: Data?,
-        groupSecretParams: GroupSecretParams,
-        allowCached: Bool
+        groupSecretParams: GroupSecretParams
+    ) async throws -> GroupInviteLinkPreview
+
+    func fetchGroupInviteLinkPreviewAndRefreshGroup(
+        inviteLinkPassword: Data?,
+        groupSecretParams: GroupSecretParams
     ) async throws -> GroupInviteLinkPreview
 
     func fetchGroupInviteLinkAvatar(
@@ -211,58 +200,6 @@ public enum GroupChangeActionFetchSource {
 public struct GroupsV2BuiltGroupChange {
     let proto: GroupsProtoGroupChangeActions
     let groupUpdateMessageBehavior: GroupUpdateMessageBehavior
-}
-
-public protocol GroupsV2OutgoingChanges: AnyObject {
-    var groupId: Data { get }
-    var groupSecretParams: GroupSecretParams { get }
-
-    var newAvatarData: Data? { get }
-    var newAvatarUrlPath: String? { get }
-
-    func setTitle(_ value: String)
-
-    func setDescriptionText(_ value: String?)
-
-    func setAvatar(_ avatar: (data: Data, urlPath: String)?)
-
-    func addMember(_ aci: Aci, role: TSGroupMemberRole)
-
-    func removeMember(_ serviceId: ServiceId)
-
-    func addBannedMember(_ aci: Aci)
-
-    func removeBannedMember(_ aci: Aci)
-
-    func revokeInvalidInvites()
-
-    func changeRoleForMember(_ aci: Aci, role: TSGroupMemberRole)
-
-    func setAccessForMembers(_ value: GroupV2Access)
-
-    func setAccessForAttributes(_ value: GroupV2Access)
-
-    func addInvitedMember(_ serviceId: ServiceId, role: TSGroupMemberRole)
-
-    func setLocalShouldAcceptInvite()
-
-    func setShouldLeaveGroupDeclineInvite()
-
-    func setNewDisappearingMessageToken(_ newDisappearingMessageToken: DisappearingMessageToken)
-
-    func setLinkMode(_ linkMode: GroupsV2LinkMode)
-
-    func rotateInviteLinkPassword()
-
-    func setIsAnnouncementsOnly(_ isAnnouncementsOnly: Bool)
-
-    func setShouldUpdateLocalProfileKey()
-
-    func buildGroupChangeProto(
-        currentGroupModel: TSGroupModelV2,
-        currentDisappearingMessageToken: DisappearingMessageToken,
-        forceRefreshProfileKeyCredentials: Bool
-    ) async throws -> GroupsV2BuiltGroupChange
 }
 
 // MARK: -
@@ -367,7 +304,7 @@ public struct GroupV2ContextInfo {
     public let masterKeyData: Data
     public let groupSecretParams: GroupSecretParams
     public let groupSecretParamsData: Data
-    public let groupId: Data
+    public let groupId: GroupIdentifier
 
     public static func deriveFrom(masterKeyData: Data) throws -> GroupV2ContextInfo {
         let groupSecretParams = try self.groupSecretParams(for: masterKeyData)
@@ -375,7 +312,7 @@ public struct GroupV2ContextInfo {
         return GroupV2ContextInfo(
             masterKeyData: masterKeyData,
             groupSecretParams: groupSecretParams,
-            groupId: groupIdentifier.serialize().asData
+            groupId: groupIdentifier
         )
     }
 
@@ -384,7 +321,7 @@ public struct GroupV2ContextInfo {
         return try GroupSecretParams.deriveFromMasterKey(groupMasterKey: groupMasterKey)
     }
 
-    private init(masterKeyData: Data, groupSecretParams: GroupSecretParams, groupId: Data) {
+    private init(masterKeyData: Data, groupSecretParams: GroupSecretParams, groupId: GroupIdentifier) {
         self.masterKeyData = masterKeyData
         self.groupSecretParams = groupSecretParams
         self.groupSecretParamsData = groupSecretParams.serialize().asData
@@ -531,13 +468,14 @@ public struct InvalidInvite: Equatable {
 public class MockGroupsV2: GroupsV2 {
 
     public func createNewGroupOnService(
-        groupModel: TSGroupModelV2,
-        disappearingMessageToken: DisappearingMessageToken
+        _ newGroup: GroupsV2Protos.NewGroupParams,
+        downloadedAvatars: GroupAvatarStateMap,
+        localAci: Aci,
     ) async throws -> GroupV2SnapshotResponse {
         owsFail("Not implemented.")
     }
 
-    public func hasProfileKeyCredential(for address: SignalServiceAddress,
+    public func hasProfileKeyCredential(for aci: Aci,
                                         transaction: DBReadTransaction) -> Bool {
         owsFail("Not implemented.")
     }
@@ -545,15 +483,9 @@ public class MockGroupsV2: GroupsV2 {
     public func loadProfileKeyCredentials(
         for acis: [Aci],
         forceRefresh: Bool
-    ) async throws -> ProfileKeyCredentialMap {
+    ) async throws -> [Aci: ExpiringProfileKeyCredential] {
         owsFail("Not implemented.")
     }
-
-    public func tryToFetchProfileKeyCredentials(
-        for acis: [Aci],
-        ignoreMissingProfiles: Bool,
-        forceRefresh: Bool
-    ) async throws { }
 
     public func fetchLatestSnapshot(
         secretParams: GroupSecretParams,
@@ -623,8 +555,14 @@ public class MockGroupsV2: GroupsV2 {
 
     public func fetchGroupInviteLinkPreview(
         inviteLinkPassword: Data?,
-        groupSecretParams: GroupSecretParams,
-        allowCached: Bool
+        groupSecretParams: GroupSecretParams
+    ) async throws -> GroupInviteLinkPreview {
+        owsFail("Not implemented.")
+    }
+
+    public func fetchGroupInviteLinkPreviewAndRefreshGroup(
+        inviteLinkPassword: Data?,
+        groupSecretParams: GroupSecretParams
     ) async throws -> GroupInviteLinkPreview {
         owsFail("Not implemented.")
     }

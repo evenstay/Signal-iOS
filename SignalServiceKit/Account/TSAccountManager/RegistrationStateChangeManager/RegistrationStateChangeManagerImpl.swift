@@ -12,6 +12,12 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
 
     private let appContext: AppContext
     private let authCredentialStore: AuthCredentialStore
+    private let backupIdManager: BackupIdManager
+    private let backupListMediaManager: BackupListMediaManager
+    private let backupRequestManager: BackupRequestManager
+    private let backupSettingsStore: BackupSettingsStore
+    private let db: DB
+    private let dmConfigurationStore: DisappearingMessagesConfigurationStore
     private let groupsV2: GroupsV2
     private let identityManager: OWSIdentityManager
     private let notificationPresenter: any NotificationPresenter
@@ -30,6 +36,12 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
     init(
         appContext: AppContext,
         authCredentialStore: AuthCredentialStore,
+        backupIdManager: BackupIdManager,
+        backupListMediaManager: BackupListMediaManager,
+        backupRequestManager: BackupRequestManager,
+        backupSettingsStore: BackupSettingsStore,
+        db: DB,
+        dmConfigurationStore: DisappearingMessagesConfigurationStore,
         groupsV2: GroupsV2,
         identityManager: OWSIdentityManager,
         notificationPresenter: any NotificationPresenter,
@@ -47,6 +59,12 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
     ) {
         self.appContext = appContext
         self.authCredentialStore = authCredentialStore
+        self.backupIdManager = backupIdManager
+        self.backupListMediaManager = backupListMediaManager
+        self.backupRequestManager = backupRequestManager
+        self.backupSettingsStore = backupSettingsStore
+        self.db = db
+        self.dmConfigurationStore = dmConfigurationStore
         self.groupsV2 = groupsV2
         self.identityManager = identityManager
         self.notificationPresenter = notificationPresenter
@@ -83,7 +101,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
             tx: tx
         )
 
-        didUpdateLocalIdentifiers(e164: e164, aci: aci, pni: pni, tx: tx)
+        didUpdateLocalIdentifiers(e164: e164, aci: aci, pni: pni, deviceId: .primary, tx: tx)
 
         tx.addSyncCompletion {
             self.postLocalNumberDidChangeNotification()
@@ -107,7 +125,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
             serverAuthToken: authToken,
             tx: tx
         )
-        didUpdateLocalIdentifiers(e164: e164, aci: aci, pni: pni, tx: tx)
+        didUpdateLocalIdentifiers(e164: e164, aci: aci, pni: pni, deviceId: deviceId, tx: tx)
 
         tx.addSyncCompletion {
             self.postLocalNumberDidChangeNotification()
@@ -123,7 +141,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
     ) {
         tsAccountManager.changeLocalNumber(newE164: e164, aci: aci, pni: pni, tx: tx)
 
-        didUpdateLocalIdentifiers(e164: e164, aci: aci, pni: pni, tx: tx)
+        didUpdateLocalIdentifiers(e164: e164, aci: aci, pni: pni, deviceId: .primary, tx: tx)
 
         tx.addSyncCompletion {
             self.postLocalNumberDidChangeNotification()
@@ -139,6 +157,24 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
 
         if isDeregisteredOrDelinked {
             notificationPresenter.notifyUserOfDeregistration(tx: tx)
+            // Ensure when we reregister, we will query list media.
+            backupListMediaManager.setNeedsQueryListMedia(tx: tx)
+            // On linked devices, reset all DM timer versions. If the user
+            // relinks a new primary and resets all its DM timer versions,
+            // our local higher version number would prevent us getting
+            // back in sync. So we pre-emptively reset too. If we relink
+            // to a primary that preserves versions we'll catch back
+            // up via contact sync.
+            switch tsAccountManager.registrationState(tx: tx) {
+            case .delinked:
+                do {
+                    try dmConfigurationStore.resetAllDMTimerVersions(tx: tx)
+                } catch {
+                    owsFailDebug("Failed to reset dm timer versions \(error.grdbErrorForLogging)")
+                }
+            default:
+                break
+            }
         }
         postRegistrationStateDidChangeNotification()
     }
@@ -215,6 +251,37 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
 
     public func unregisterFromService(auth: ChatServiceAuth) async throws {
         owsAssertBeta(appContext.isMainAppAndActive)
+
+        let localIdentifiers: LocalIdentifiers? = db.read { tx in
+            tsAccountManager.localIdentifiers(tx: tx)
+        }
+
+        // Fetch Backup auth before unregistering ourselves remotely, for use
+        // after we make the unregistration request.
+        let backupAuths: [BackupServiceAuth]?
+        if let localIdentifiers {
+            backupAuths = await withTaskGroup { [backupRequestManager] taskGroup in
+                for credentialType in BackupAuthCredentialType.allCases {
+                    taskGroup.addTask {
+                        return try? await backupRequestManager.fetchBackupServiceAuth(
+                            for: credentialType,
+                            localAci: localIdentifiers.aci,
+                            auth: .implicit()
+                        )
+                    }
+                }
+
+                var auths: [BackupServiceAuth] = []
+                for await auth in taskGroup {
+                    guard let auth else { continue }
+                    auths.append(auth)
+                }
+                return auths
+            }
+        } else {
+            backupAuths = nil
+        }
+
         var request = OWSRequestFactory.unregisterAccountRequest()
         request.auth = .identified(auth)
         do {
@@ -222,13 +289,30 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
                 .promiseForTSRequest(request)
                 .asVoid(on: schedulers.sync)
                 .awaitable()
-
-            // No need to set any state, as we wipe the whole app anyway.
-            await appContext.resetAppDataAndExit()
         } catch {
             owsFailDebugUnlessNetworkFailure(error)
             throw error
         }
+
+        // Now that we've successfully unregistered, make a best effort to wipe
+        // our Backups. This is safe to try even if Backups were disabled.
+        if let localIdentifiers, let backupAuths {
+            for backupAuth in backupAuths {
+                try? await Retry.performWithBackoff(
+                    maxAttempts: 3,
+                    isRetryable: { $0.isNetworkFailureOrTimeout || ($0 as? OWSHTTPError)?.isRetryable == true },
+                    block: {
+                        try await backupIdManager.deleteBackupId(
+                            localIdentifiers: localIdentifiers,
+                            backupAuth: backupAuth
+                        )
+                    }
+                )
+            }
+        }
+
+        // No need to set any state, as we wipe the whole app anyway.
+        await appContext.resetAppDataAndExit()
     }
 
     // MARK: - Helpers
@@ -237,6 +321,7 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
         e164: E164,
         aci: Aci,
         pni: Pni,
+        deviceId: DeviceId,
         tx: DBWriteTransaction
     ) {
         udManager.removeSenderCertificates(tx: tx)
@@ -253,9 +338,15 @@ public class RegistrationStateChangeManagerImpl: RegistrationStateChangeManager 
             pni: pni,
             tx: tx
         )
-        // At this stage, the device IDs on the self-recipient are irrelevant (and we always
-        // append the primary device id anyway), just use the primary regardless of the local device id.
-        recipientManager.markAsRegisteredAndSave(recipient, shouldUpdateStorageService: false, tx: tx)
+        // Always add the .primary DeviceId as well as our own. This is how linked
+        // devices know to send their initial sync messages to the primary.
+        recipientManager.modifyAndSave(
+            recipient,
+            deviceIdsToAdd: [deviceId, .primary],
+            deviceIdsToRemove: [],
+            shouldUpdateStorageService: false,
+            tx: tx
+        )
     }
 
     // MARK: Notifications
@@ -353,6 +444,7 @@ extension RegistrationStateChangeManagerImpl {
             e164: E164(localIdentifiers.phoneNumber)!,
             aci: localIdentifiers.aci,
             pni: localIdentifiers.pni!,
+            deviceId: .primary,
             tx: tx
         )
     }

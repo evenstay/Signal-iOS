@@ -141,7 +141,7 @@ public enum DonationSubscriptionManager {
         let subscriberID = try await setupNewSubscriberID()
         Logger.info("[Donations] Caching params after setting up new subscription")
 
-        SSKEnvironment.shared.databaseStorageRef.write { transaction in
+        await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { transaction in
             self.setUserManuallyCancelledSubscription(false, transaction: transaction)
             self.setSubscriberID(subscriberID, transaction: transaction)
             self.setSubscriberCurrencyCode(currencyCode, transaction: transaction)
@@ -218,31 +218,12 @@ public enum DonationSubscriptionManager {
 
         Logger.info("[Donations] Cancelling subscription")
 
-        // Fetch the latest subscription state
-        if
-            let subscription = try await SubscriptionFetcher(networkManager: networkManager)
-                .fetch(subscriberID: subscriberID)
-        {
-            // Check the subscription is in a state that can be cancelled
-            // If the state isn't in active or pastDue, skip deleting the
-            // subscription on the backend, and continue to clearing out the
-            // local subscription information.
-            let needsDeleteRequest = switch subscription.status {
-            case .active, .pastDue:
-                true
-            case .canceled, .incomplete, .unpaid, .unknown:
-                false
-            }
-
-            if needsDeleteRequest {
-                let request = OWSRequestFactory.deleteSubscriberID(subscriberID)
-                let response = try await networkManager.asyncRequest(request)
-                if response.responseStatusCode != 200, response.responseStatusCode != 404 {
-                    throw OWSAssertionError("Got bad response code \(response.responseStatusCode).")
-                }
-                Logger.info("[Donations] Deleted remote subscription.")
-            }
+        let request = OWSRequestFactory.deleteSubscriberID(subscriberID)
+        let response = try await networkManager.asyncRequest(request, retryPolicy: .hopefullyRecoverable)
+        if response.responseStatusCode != 200, response.responseStatusCode != 404 {
+            throw OWSAssertionError("Got bad response code \(response.responseStatusCode).")
         }
+        Logger.info("[Donations] Deleted remote subscription.")
 
         await databaseStorage.awaitableWrite { transaction in
             self.setSubscriberID(nil, transaction: transaction)
@@ -265,17 +246,17 @@ public enum DonationSubscriptionManager {
         Logger.info("[Donations] Setting up new subscriber ID")
 
         let newSubscriberID = Randomness.generateRandomBytes(UInt(32))
-        try await postSubscriberID(subscriberID: newSubscriberID)
-        return newSubscriberID
-    }
+        let request = OWSRequestFactory.setSubscriberID(newSubscriberID)
 
-    private static func postSubscriberID(subscriberID: Data) async throws {
-        let request = OWSRequestFactory.setSubscriberID(subscriberID)
-        let response = try await SSKEnvironment.shared.networkManagerRef.asyncRequest(request)
+        let response = try await SSKEnvironment.shared.networkManagerRef
+            .asyncRequest(request, retryPolicy: .hopefullyRecoverable)
+
         let statusCode = response.responseStatusCode
         if statusCode != 200 {
             throw OWSAssertionError("Got bad response code \(statusCode).")
         }
+
+        return newSubscriberID
     }
 
     private static func setDefaultPaymentMethod(
@@ -288,9 +269,8 @@ public enum DonationSubscriptionManager {
             processor: processor.rawValue,
             paymentMethodId: paymentMethodId
         )
-
-        let response = try await SSKEnvironment.shared.networkManagerRef.asyncRequest(request)
-
+        let response = try await SSKEnvironment.shared.networkManagerRef
+            .asyncRequest(request, retryPolicy: .hopefullyRecoverable)
         let statusCode = response.responseStatusCode
         if statusCode != 200 {
             throw OWSAssertionError("Got bad response code \(statusCode).")
@@ -306,7 +286,8 @@ public enum DonationSubscriptionManager {
             setupIntentId: setupIntentId
         )
 
-        let response = try await SSKEnvironment.shared.networkManagerRef.asyncRequest(request)
+        let response = try await SSKEnvironment.shared.networkManagerRef
+            .asyncRequest(request, retryPolicy: .hopefullyRecoverable)
         let statusCode = response.responseStatusCode
         if statusCode != 200 {
             throw OWSAssertionError("Got bad response code \(statusCode).")
@@ -333,14 +314,17 @@ public enum DonationSubscriptionManager {
             currency: currencyCode,
             idempotencyKey: key
         )
-        let response = try await networkManager.asyncRequest(request)
+        let response = try await networkManager.asyncRequest(request, retryPolicy: .hopefullyRecoverable)
         let statusCode = response.responseStatusCode
         if statusCode != 200 {
             throw OWSAssertionError("Got bad response code \(statusCode).")
         }
 
         guard
-            let subscription = try await SubscriptionFetcher(networkManager: networkManager)
+            let subscription = try await SubscriptionFetcher(
+                networkManager: networkManager,
+                retryPolicy: .hopefullyRecoverable
+            )
                 .fetch(subscriberID: subscriberID)
         else {
             throw OWSAssertionError("Failed to fetch valid subscription object after setSubscription")
@@ -474,9 +458,7 @@ public enum DonationSubscriptionManager {
                 subscriberID: subscriberId,
                 request: request.serialize().asData
             )
-
             let response = try await networkManager.asyncRequest(networkRequest)
-
             return try self.parseReceiptCredentialResponse(
                 httpResponse: response,
                 receiptCredentialRequestContext: context,
@@ -502,9 +484,7 @@ public enum DonationSubscriptionManager {
                 for: paymentProcessor.rawValue,
                 request: request.serialize().asData
             )
-
             let response = try await SSKEnvironment.shared.networkManagerRef.asyncRequest(networkRequest)
-
             return try self.parseReceiptCredentialResponse(
                 httpResponse: response,
                 receiptCredentialRequestContext: context,
@@ -626,7 +606,6 @@ public enum DonationSubscriptionManager {
         Logger.info("[Donations] Redeeming receipt credential presentation. Expires at \(expiresAtForLogging)")
 
         let receiptCredentialPresentationData = receiptCredentialPresentation.serialize().asData
-
         let request = OWSRequestFactory.subscriptionRedeemReceiptCredential(
             receiptCredentialPresentation: receiptCredentialPresentationData
         )
@@ -669,18 +648,30 @@ public enum DonationSubscriptionManager {
             }
         }
 
-        let subscriptionRedemptionNecessaryChecker = SubscriptionRedemptionNecessityChecker<
+        let logger = PrefixedLogger(prefix: "[Donations]")
+
+        let subscriptionRedemptionNecessityChecker = SubscriptionRedemptionNecessityChecker<
             DonationReceiptCredentialRedemptionJobRecord
         >(
             checkerStore: CheckerStore(donationSubscriptionManager: self),
             dateProvider: { Date() },
             db: DependenciesBridge.shared.db,
-            logger: PrefixedLogger(prefix: "[Donations]"),
+            logger: logger,
             networkManager: SSKEnvironment.shared.networkManagerRef,
             tsAccountManager: DependenciesBridge.shared.tsAccountManager
         )
 
-        try await subscriptionRedemptionNecessaryChecker.redeemSubscriptionIfNecessary(
+        _ = try await subscriptionRedemptionNecessityChecker.redeemSubscriptionIfNecessary(
+            fetchSubscriptionBlock: { db, subscriptionFetcher -> (subscriberID: Data, subscription: Subscription)? in
+                if
+                    let subscriberID = db.read(block: { getSubscriberID(transaction: $0) }),
+                    let subscription = try await subscriptionFetcher.fetch(subscriberID: subscriberID)
+                {
+                    return (subscriberID, subscription)
+                }
+
+                return nil
+            },
             parseEntitlementExpirationBlock: { accountEntitlements, subscription -> TimeInterval? in
                 // TODO: If the entitlement contains something we can correlate
                 // with the subscription, like the "subscription level" int
@@ -696,9 +687,32 @@ public enum DonationSubscriptionManager {
                 // "current" one.
                 return subscriptionBadgeEntitlements.map(\.expirationSeconds).max()
             },
-            enqueueRedemptionJobBlock: { subscriberId, subscription, tx -> DonationReceiptCredentialRedemptionJobRecord in
+            enqueueRedemptionJobBlock: { subscriberId, subscription, tx -> DonationReceiptCredentialRedemptionJobRecord? in
+                if receiptCredentialRedemptionJobQueue.subscriptionJobExists(
+                    subscriberID: subscriberId,
+                    tx: tx
+                ) {
+                    // A redemption job is already enqueued for this subscription!
+                    // This can happen if a previously-enqueued job hasn't
+                    // finished but the NecessityChecker decided it should run,
+                    // maybe because it's been >3d.
+                    //
+                    // That's not implausible, for example for SEPA donations in
+                    // which a payment could be "processing" for days (and an
+                    // enqueued redemption job stalled during that time).
+                    //
+                    // Since the jobs persist state (such as "redemption success
+                    // or error"), avoid enqueuing multiple that might step on
+                    // each other.
+                    logger.warn("Not enqueuing new subscription redemption job: one already exists for this subscriber ID!")
+                    return nil
+                }
+
                 guard let donationPaymentProcessor = subscription.donationPaymentProcessor else {
-                    throw OWSAssertionError("Unexpectedly missing donation payment processor while redeeming donation subscription!")
+                    throw OWSAssertionError(
+                        "Unexpectedly missing donation payment processor while redeeming donation subscription!",
+                        logger: logger
+                    )
                 }
 
                 let (

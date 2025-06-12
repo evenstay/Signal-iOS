@@ -62,7 +62,8 @@ public struct Stripe {
             paymentMethod: paymentMethod
         )
 
-        let response = try await SSKEnvironment.shared.networkManagerRef.asyncRequest(request)
+        let response = try await SSKEnvironment.shared.networkManagerRef
+            .asyncRequest(request, retryPolicy: .hopefullyRecoverable)
         guard let json = response.responseBodyJson else {
             throw OWSAssertionError("Missing or invalid JSON")
         }
@@ -114,17 +115,15 @@ public struct Stripe {
         case let .bankTransferIDEAL(idealAccount):
             let parameters: [String: String] = {
                 switch idealAccount {
-                case let .oneTime(name: name, IDEALBank: bank):
+                case let .oneTime(name: name):
                     return [
                         "billing_details[name]": name,
-                        "ideal[bank]": bank.rawValue,
                         "type": "ideal"
                     ]
-                case let .recurring(mandate: _, name: name, email: email, IDEALBank: bank):
+                case let .recurring(mandate: _, name: name, email: email):
                     return [
                         "billing_details[name]": name,
                         "billing_details[email]": email,
-                        "ideal[bank]": bank.rawValue,
                         "type": "ideal"
                     ]
                 }

@@ -142,6 +142,7 @@ public class RecipientPickerViewController: OWSViewController, OWSNavigationChil
     private var searchText: String { searchBar.text?.stripped ?? "" }
 
     private var lastSearchText: String?
+    private var lastSearchTask: Task<Void, Never>?
 
     private var _searchResults = Atomic<RecipientSearchResultSet?>(wrappedValue: nil)
 
@@ -165,25 +166,37 @@ public class RecipientPickerViewController: OWSViewController, OWSNavigationChil
         guard lastSearchText != searchText else { return }
         lastSearchText = searchText
 
-        var searchResults: RecipientSearchResultSet?
-        SSKEnvironment.shared.databaseStorageRef.asyncRead(
-            block: { tx in
-                searchResults = FullTextSearcher.shared.searchForRecipients(
+        lastSearchTask?.cancel()
+        lastSearchTask = Task {
+            do throws(CancellationError) {
+                let searchResults = try await performSearch(
                     searchText: searchText,
-                    includeLocalUser: !self.shouldHideLocalRecipient,
-                    includeStories: false,
-                    tx: tx
+                    shouldHideLocalRecipient: self.shouldHideLocalRecipient,
                 )
-            },
-            completion: { [weak self] in
-                guard let self else { return }
-                guard self.lastSearchText == searchText else {
-                    // Discard obsolete search results.
-                    return
+                if Task.isCancelled {
+                    throw CancellationError()
                 }
                 self.searchResults = searchResults
+            } catch {
+                // Discard obsolete search results.
+                return
             }
-        )
+        }
+    }
+
+    private nonisolated func performSearch(
+        searchText: String,
+        shouldHideLocalRecipient: Bool,
+    ) async throws(CancellationError) -> RecipientSearchResultSet {
+        let databaseStorage = SSKEnvironment.shared.databaseStorageRef
+        return try databaseStorage.read { tx throws(CancellationError) in
+            return try FullTextSearcher.shared.searchForRecipients(
+                searchText: searchText,
+                includeLocalUser: !shouldHideLocalRecipient,
+                includeStories: false,
+                tx: tx
+            )
+        }
     }
 
     private func updateSearchBarMargins() {
@@ -289,13 +302,21 @@ public class RecipientPickerViewController: OWSViewController, OWSNavigationChil
             let tsAccountManager = DependenciesBridge.shared.tsAccountManager
 
             // All Signal Connections that we believe are registered. In theory, this
-            // should include your system contacts and the people you chat with.
+            // should include your system contacts, the people you chat with, and Note to Self.
             let whitelistedAddresses = Set(SSKEnvironment.shared.profileManagerRef.allWhitelistedRegisteredAddresses(tx: tx))
             let blockedAddresses = SSKEnvironment.shared.blockingManagerRef.blockedAddresses(transaction: tx)
             let hiddenAddresses = DependenciesBridge.shared.recipientHidingManager.hiddenAddresses(tx: tx)
 
             var resolvedAddresses = Set(whitelistedAddresses).subtracting(blockedAddresses).subtracting(hiddenAddresses)
-            if shouldHideLocalRecipient, let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) {
+
+            guard let localIdentifiers = tsAccountManager.localIdentifiers(tx: tx) else {
+                Logger.error("No local identifiers")
+                return
+            }
+
+            if !shouldHideLocalRecipient {
+                resolvedAddresses.insert(localIdentifiers.aciAddress)
+            } else {
                 resolvedAddresses.remove(localIdentifiers.aciAddress)
             }
 

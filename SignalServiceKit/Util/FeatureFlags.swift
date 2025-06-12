@@ -42,7 +42,7 @@ public enum FeatureFlags {
     /// future, we can re-enable this.
     public static let periodicallyCheckDatabaseIntegrity: Bool = false
 
-    public enum MessageBackup {
+    public enum Backups {
         public static let fileAlpha = build.includes(.internal)
         public static let remoteExportAlpha = build.includes(.dev)
 
@@ -52,16 +52,18 @@ public enum FeatureFlags {
         public static let restoreFailOnAnyError = build.includes(.beta)
         public static let detailedBenchLogging = build.includes(.internal)
         public static let errorDisplay = build.includes(.internal)
+
+        public static let settings = build.includes(.dev)
     }
 
     public static let runTSAttachmentMigrationInMainAppBackground = true
-    public static let runTSAttachmentMigrationBlockingOnLaunch = false
+    public static let runTSAttachmentMigrationBlockingOnLaunch = true
 
     public static let useNewConversationLoadIndex = true
 
-    public static let enableAccountEntropyPool = true
+    public static let libsignalEnforceMinTlsVersion = false
 
-    public static let libsignalForChat = true
+    public static let notificationServiceWebSocket = build.includes(.internal)
 }
 
 // MARK: -
